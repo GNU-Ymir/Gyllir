@@ -1,0 +1,103 @@
+import std::config::toml;
+import std::config::_;
+import std::collection::map;
+import std::io;
+import std::tokenizer;
+import std::config::conv;
+import std::conv;
+
+struct
+| name: [c32]
+| version: &Version
+| author: [c32]
+| dependencies: &DependenciesList
+ -> Content;
+
+struct
+| version: &Version
+| url: [c32]
+ -> Dependency;
+
+class DependenciesList {
+
+    pub let dmut _package = HashMap!{[c32], Dependency}::new ();
+    
+    pub self (cfg : &Config) throws &AssertError
+    {
+        match cfg {
+            x : &Dict => {
+                self:.insert (x);
+            }
+            _ => {
+                assert (false, "Error: not a dictionnary");
+            }
+        }
+    }
+
+    prv def insert (mut self, elem : &Dict) throws &AssertError
+    {
+        for i, j in elem {                
+            {    
+                self._package:.insert (i, j.to!Dependency())
+            }
+            catch {
+                 _ : &std::config::conv::ConfigError => {
+                    assert (false, "For package '" ~ i ~ "' : ");                    
+                 }
+            }            
+        }
+    }
+
+    impl std::io::Printable;    
+}
+
+class Version {
+
+    pub let mut _value = "1.0.0"; 
+    
+    pub self () {}
+
+    pub self (cfg : &Config) throws &AssertError
+    {
+        match cfg {
+            Str (str->  version: _) => {
+                let tzer = Tokenizer::new (tokens-> ["."])
+                let res = tzer.tokenize (version);
+                {
+                    let major = (res[0].to!u64())? // on catch à la fois, OutOfArray et CastFailure
+                    let minor = (res[2].to!u64())?
+                    let patch = (res[4].to!u64())?
+                    let _ = match major {
+                        Ok (a : u64) => { a }
+                        Err (_ : &OutOfArray) => { throw AssertError::new ("need a major version") }
+                        Err (_ : &CastFailure) => { throw AssertError::new ("Invalid major number") }
+                        _  => { 0u64 }
+                    }
+                    
+                    let _ = match minor {
+                        Ok (b: u64) => { b }
+                        Err (_ : &CastFailure) => { throw AssertError::new ("Invalid minor number") }
+                        _  => { 0u64 } 
+                    }
+                    
+                    let _ = match patch {
+                        Ok (c : u64) => { c }
+                        Err (_ : &CastFailure) => { throw AssertError::new ("Invalid patch number") }
+                        _  => { 0u64 } 
+                    }
+                } catch {
+                    _ => {
+                        println ("invalid version number");
+                    }
+                }
+                
+                self._value = version;
+            }
+            _ => {
+                assert (false, "version must be a string");
+            }
+        }            
+    }
+    
+    impl std::io::Printable;
+}
