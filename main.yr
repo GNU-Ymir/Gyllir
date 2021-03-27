@@ -1,0 +1,31 @@
+import std::io;
+import std::lexer;
+import std::args;
+
+struct
+| help: YesNo
+| init: YesNo
+-> GyllirArgs;
+
+def main (args : [[c8]]) {
+    let x = ArgumentParser!(GyllirArgs)::new ()
+        :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
+        :.info!"init" (comments-> "initialize a gyllir repository and create the gyllir config file.");    
+    
+    {
+        let f = x.parse (args);
+        if (f.init) {
+            
+        }else{
+           println (x.usage ());
+        }
+    } catch {
+        err : &ArgumentError => {
+            println (x.simpleUsage ());
+            println (x.diagnosis (err));
+        }
+        _ : &HelpRequired => {
+            println (x.usage ());
+        }
+    }
+}
