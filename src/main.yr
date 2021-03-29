@@ -16,8 +16,8 @@ def main (args : [[c8]]) {
         let f = x.parse (args);
         if (f.init) {
             
-        }else{
-           println (x.usage ());
+        } else {
+           println (x.simpleUsage ());
         }
     } catch {
         err : &ArgumentError => {
