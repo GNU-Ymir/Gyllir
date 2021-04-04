@@ -1,0 +1,37 @@
+mod GyllirConfig::Toml;
+
+import std::io;
+import std::tokenizer;
+import std::config::toml;
+import std::fs::file;
+import std::config::_;
+import std::conv;
+import std::config::conv;
+import GyllirConfig::FileStruct;
+
+class TomlManager{
+
+    pub let mut _gyllirConfig : Content;
+
+    pub def load(mut self) {
+        with dmut f = File::open ("gyllir.toml") {
+            let str = f:.readAll ();
+            self._gyllirConfig = parse (str).to!Content();            
+        } catch {
+            x : _ => { // on catch tout
+                println (x); 
+            }
+        }
+    }
+
+    pub def save(self, cfg : &Config){
+        with dmut f = File::create ("gyllir.toml", write-> true) {
+            let str = cfg.dump ().to![c8]();
+            f:.write(str);            
+        } catch {
+            x : _ => { // on catch tout
+                println (x); 
+            }  
+        }
+    }
+}
