@@ -4,18 +4,30 @@ import std::args;
 
 struct
 | help: YesNo
-| init: YesNo
+| init: [c32] = ""
+| status : YesNo
 -> GyllirArgs;
+
+def initRepo (name : [c32]) {
+    println (name);
+}
+
+def statusRepo () {
+    
+}
 
 def main (args : [[c8]]) {
     let x = ArgumentParser!(GyllirArgs)::new ()
         :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
-        :.info!"init" (comments-> "initialize a gyllir repository and create the gyllir config file.");    
-    
+        :.info!"init" (comments-> "initialize a gyllir repository and create the gyllir config file.")
+        :.info!"status" (comments-> "print the status of the current ymir repo.");
+        
     {
         let f = x.parse (args);
-        if (f.init) {
-            
+        if (f.init.len != 0u64) {
+            initRepo (f.init);
+        } else if (f.status) {
+            statusRepo ();
         } else {
            println (x.simpleUsage ());
         }

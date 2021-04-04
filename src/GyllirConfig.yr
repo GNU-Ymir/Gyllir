@@ -1,5 +1,7 @@
 import std::config::toml;
 import std::config::_;
+import std::config::conv;
+import std::config::error;
 import std::collection::map;
 import std::io;
 import std::tokenizer;
@@ -41,7 +43,7 @@ class DependenciesList {
                 self._package:.insert (i, j.to!Dependency())
             }
             catch {
-                 _ : &std::config::conv::ConfigError => {
+                _ : &ConfigError => {
                     assert (false, "For package '" ~ i ~ "' : ");                    
                  }
             }            
