@@ -13,8 +13,10 @@ class TomlManager{
 
     pub let mut _gyllirConfig : Content;
 
+    pub let _filename = "gyllir.toml";
+
     pub def load(mut self) {
-        with dmut f = File::open ("gyllir.toml") {
+        with dmut f = File::open (self._filename) {
             let str = f:.readAll ();
             self._gyllirConfig = parse (str).to!Content();            
         } catch {
@@ -25,7 +27,7 @@ class TomlManager{
     }
 
     pub def save(self, cfg : &Config){
-        with dmut f = File::create ("gyllir.toml", write-> true) {
+        with dmut f = File::create (self._filename, write-> true) {
             let str = cfg.dump ().to![c8]();
             f:.write(str);            
         } catch {
