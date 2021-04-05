@@ -1,15 +1,21 @@
 import std::io;
 import std::lexer;
 import std::args;
+import std::conv;
+import GyllirConfig::Toml;
 
 struct
 | help: YesNo
 | init: [c32] = ""
 | status : YesNo
--> GyllirArgs;
+ -> GyllirArgs;
 
 def initRepo (name : [c32]) {
     println (name);
+    println ("Please enter your author name:")
+    let author = read![c8]();
+    let toml = GyllirConfig::Toml::init(name,author.to![c32]());
+    GyllirConfig::Toml::save(toml);
 }
 
 def statusRepo () {

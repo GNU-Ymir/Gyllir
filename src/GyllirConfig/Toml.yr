@@ -9,31 +9,36 @@ import std::conv;
 import std::config::conv;
 import GyllirConfig::FileStruct;
 
-class TomlManager{
-
-    pub let mut _gyllirConfig : Content;
-
-    pub let _filename = "gyllir.toml";
-
-    pub def load(mut self) {
-        with dmut f = File::open (self._filename) {
-            let str = f:.readAll ();
-            self._gyllirConfig = parse (str).to!Content();            
-        } catch {
-            x : _ => { // on catch tout
-                println (x); 
-            }
+aka __FILENAME__ = "gyllir.toml"
+    
+pub def init(name : [c32], author : [c32]) -> Content{
+    return Content(name,Version::new(),author,DependenciesList::new());
+}
+ 
+pub def load() -> Content? {
+    with dmut f = File::open (__FILENAME__) {
+        let str = f:.readAll ();
+        return (parse (str).to!Content())?;            
+    } catch {
+        x : _ => { // on catch tout
+            println (x); 
         }
     }
+    return ((Content)?)::_err_
+    //return (init("",""))?;
+}
 
-    pub def save(self, cfg : &Config){
-        with dmut f = File::create (self._filename, write-> true) {
-            let str = cfg.dump ().to![c8]();
-            f:.write(str);            
-        } catch {
-            x : _ => { // on catch tout
-                println (x); 
-            }  
-        }
+pub def save(ct : Content){
+    save(to!{&Config, Content}(ct))
+}
+
+pub def save(cfg : &Config){
+    with dmut f = File::create (__FILENAME__, write-> true) {
+        let str = cfg.dump ().to![c8]();
+        f:.write(str);            
+    } catch {
+        x : _ => { // on catch tout
+            println (x); 
+        }  
     }
 }

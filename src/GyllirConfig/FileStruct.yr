@@ -21,9 +21,11 @@ pub struct
 | url: [c32]
  -> Dependency;
 
-class DependenciesList {
+pub class DependenciesList {
 
     pub let dmut _package = HashMap!{[c32], Dependency}::new ();
+
+    pub self () {}
     
     pub self (cfg : &Config) throws &AssertError
     {
@@ -54,7 +56,7 @@ class DependenciesList {
     impl std::io::Printable;    
 }
 
-class Version {
+pub class Version {
 
     pub let mut _value = "1.0.0"; 
     
