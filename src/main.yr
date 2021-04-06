@@ -2,30 +2,37 @@ import std::io;
 import std::lexer;
 import std::args;
 import std::conv;
-import GyllirConfig::Toml;
+import gyllirconfig::toml;
 
 struct
 | help: YesNo
 | init: [c32] = ""
+| check : YesNo
 | status : YesNo
  -> GyllirArgs;
 
 def initRepo (name : [c32]) {
-    println (name);
+    println ("init project " ~ name);
     println ("Please enter your author name:")
     let author = read![c8]();
-    let toml = GyllirConfig::Toml::init(name,author.to![c32]());
-    GyllirConfig::Toml::save(toml);
+    let toml = gyllirconfig::toml::init(name,author.to![c32]());
+    gyllirconfig::toml::save(toml);
 }
 
 def statusRepo () {
     
 }
 
+def checkRepo() {
+    let tml = gyllirconfig::toml::load();
+    tml.print();
+}
+
 def main (args : [[c8]]) {
     let x = ArgumentParser!(GyllirArgs)::new ()
         :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
         :.info!"init" (comments-> "initialize a gyllir repository and create the gyllir config file.")
+        :.info!"check" (comments-> "check if the gyllir config file is syntactically correct.")
         :.info!"status" (comments-> "print the status of the current ymir repo.");
         
     {
@@ -34,6 +41,8 @@ def main (args : [[c8]]) {
             initRepo (f.init);
         } else if (f.status) {
             statusRepo ();
+        } else if (f.check) {
+            checkRepo();
         } else {
            println (x.simpleUsage ());
         }

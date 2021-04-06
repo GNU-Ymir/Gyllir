@@ -1,4 +1,4 @@
-mod GyllirConfig::Toml;
+mod gyllirconfig::toml;
 
 import std::io;
 import std::tokenizer;
@@ -7,7 +7,7 @@ import std::fs::file;
 import std::config;
 import std::conv;
 import std::config::conv;
-import GyllirConfig::FileStruct;
+import gyllirconfig::filestruct;
 
 aka __FILENAME__ = "gyllir.toml"
     

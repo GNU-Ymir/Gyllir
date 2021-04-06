@@ -1,4 +1,4 @@
-mod GyllirConfig::FileStruct;
+mod gyllirconfig::filestruct;
 
 import std::config;
 import std::config::conv;
