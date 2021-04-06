@@ -55,7 +55,7 @@ pub class DependenciesList {
 
     impl std::io::Printable;
     
-    impl Serializable {
+    impl std::config::conv::Serializable {
         pub over serialize (self)-> &Config {
             let dmut d = Dict::new ();
             for i, j in self._package {
@@ -116,9 +116,9 @@ pub class Version {
     
     impl std::io::Printable;
 
-    impl Serializable {
+    impl std::config::conv::Serializable {
         pub over serialize (self)-> &Config {
-            return Str::new(self._value);
+           return self._value.to!(&Config)();
         }
     }
 }
