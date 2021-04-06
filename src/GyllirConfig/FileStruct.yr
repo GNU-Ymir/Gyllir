@@ -53,7 +53,17 @@ pub class DependenciesList {
         }
     }
 
-    impl std::io::Printable;    
+    impl std::io::Printable;
+    
+    impl Serializable {
+        pub over serialize (self)-> &Config {
+            let dmut d = Dict::new ();
+            for i, j in self._package {
+                d:.insert(i,j.to!(&Config)());
+            }
+            d
+        }
+    }
 }
 
 pub class Version {
@@ -105,4 +115,10 @@ pub class Version {
     }
     
     impl std::io::Printable;
+
+    impl Serializable {
+        pub over serialize (self)-> &Config {
+            return Str::new(self._value);
+        }
+    }
 }

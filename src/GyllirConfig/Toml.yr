@@ -28,7 +28,7 @@ pub def load() -> Content? {
 }
 
 pub def save(ct : Content){
-    save (ct.to!(&Config) ())
+    save (ct.to!{&Config, Content} ())
 }
 
 pub def save(cfg : &Config){
