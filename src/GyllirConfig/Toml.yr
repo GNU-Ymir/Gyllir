@@ -4,7 +4,7 @@ import std::io;
 import std::tokenizer;
 import std::config::toml;
 import std::fs::file;
-import std::config::_;
+import std::config;
 import std::conv;
 import std::config::conv;
 import GyllirConfig::FileStruct;
@@ -25,11 +25,10 @@ pub def load() -> Content? {
         }
     }
     return ((Content)?)::_err_
-    //return (init("",""))?;
 }
 
 pub def save(ct : Content){
-    save(to!{&Config, Content}(ct))
+    save (ct.to!(&Config) ())
 }
 
 pub def save(cfg : &Config){

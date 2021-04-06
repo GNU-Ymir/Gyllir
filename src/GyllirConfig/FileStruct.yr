@@ -1,6 +1,6 @@
 mod GyllirConfig::FileStruct;
 
-import std::config::_;
+import std::config;
 import std::config::conv;
 import std::config::error;
 import std::collection::map;
