@@ -1,0 +1,45 @@
+mod gyllir_config::loader;
+
+import std::io;
+import std::tokenizer;
+import std::config::toml;
+import std::fs::_, std::env;
+import std::config;
+import std::conv;
+import std::config::conv;
+import gyllir_config::file_struct;
+
+aka __FILENAME__ = "gyllir.toml"s8
+    
+pub def init (name : [c32], author : [c32]) -> Content {
+    return Content (name, Version::new (), author, DependenciesList::new ());
+}
+
+pub def load () -> Content? {
+    with dmut f = File::open (Path::new (__FILENAME__)) {
+        let str = f:.readAll ();
+        return (parse (str).to!Content ())?;            
+    } catch {
+        x : _ => { // on catch tout
+            println (x); 
+        }
+    }
+    return ((Content)?)::_err_
+}
+
+pub def save (ct : Content){
+    save (ct, ct.to!{&Config} ())
+}
+
+prv def save (ct : Content, cfg : &Config){
+    let cwd = env::currentDir ();
+    fs::createDir (cwd.push (ct.name.to![c8] ()));
+    with dmut f = File::create (cwd.push (ct.name.to![c8] ()).push (__FILENAME__), write-> true) {
+        let str = cfg.dump ().to![c8] ();
+        f:.write (str);            
+    }
+} catch {
+    x : _ => { // on catch tout
+        println (x); 
+    }  
+}

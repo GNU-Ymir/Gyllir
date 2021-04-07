@@ -2,7 +2,7 @@ import std::io;
 import std::lexer;
 import std::args;
 import std::conv;
-import gyllirconfig::toml;
+import gyllir_config::loader;
 
 struct
 | help: YesNo
@@ -13,10 +13,9 @@ struct
 
 def initRepo (name : [c32]) {
     println ("init project " ~ name);
-    println ("Please enter your author name:")
-    let author = read![c8]();
-    let toml = gyllirconfig::toml::init(name,author.to![c32]());
-    gyllirconfig::toml::save(toml);
+    let author = read![c8](ask-> "Please enter your author name : ");
+    let toml = loader::init (name,author.to![c32]());
+    loader::save (toml);
 }
 
 def statusRepo () {
@@ -24,8 +23,8 @@ def statusRepo () {
 }
 
 def checkRepo() {
-    let tml = gyllirconfig::toml::load();
-    tml.print();
+    let tml = loader::load ();
+    tml.println ();
 }
 
 def main (args : [[c8]]) {
