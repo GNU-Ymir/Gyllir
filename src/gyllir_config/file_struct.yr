@@ -17,7 +17,7 @@ pub struct
 | author: [c8]
 | version: &Version
 | dependencies: &DependenciesList
- -> Content;
+ -> Content; // drole de nom
 
 pub struct
 | version: &Version

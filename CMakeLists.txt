@@ -24,4 +24,3 @@ install (TARGETS gyllir DESTINATION $ENV{HOME}/.local/bin/)
 
 
 
-

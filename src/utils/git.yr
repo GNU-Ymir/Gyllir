@@ -3,6 +3,7 @@ mod utils::git;
 import utils::errors;
 import std::concurrency::process;
 import std::fs::path;
+import std::fs;
 import std::io;
 
 pub def init (cwd : &Path = Path::new ("."))
@@ -11,8 +12,101 @@ pub def init (cwd : &Path = Path::new ("."))
     with dmut subproc = SubProcess::run ("git"s8, ["init"s8], cwd-> cwd) {
         let code = subproc:.wait ();
         if (code != 0) {
-            println (code);
             throw GitError::new (GitErrorCode::ALREADY_INIT, subproc:.stderr ():.read ());
         }
     }
+}
+
+pub def clone (url : [c8], cwd : &Path = Path::new ("."))
+    throws &GitError
+{
+    let parent = cwd.parent ();
+    fs::createDir (parent)?;
+    with dmut subproc = SubProcess::run ("git"s8, ["clone"s8, url, cwd.file ()], cwd-> parent) {        
+        let code = subproc:.wait ();
+        if (code != 0) {
+            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
+        }
+    }    
+}
+
+pub def add (path : &Path)
+    throws &GitError
+{
+    let parent = path.parent ();
+    with dmut subproc = SubProcess::run ("git"s8, ["add"s8, path.file ()], cwd-> parent) {
+        let code = subproc:.wait ();
+        if (code != 0) {
+            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
+        }
+    }
+}
+
+pub def createBranch (name : [c8], cwd : &Path = Path::new ("."))
+    throws &GitError
+{
+    with dmut subproc = SubProcess::run ("git"s8, ["branch"s8, name], cwd-> cwd) {
+        let code = subproc:.wait ();
+        if (code != 0) {
+            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
+        }
+    }    
+}
+
+pub def deleteBranch (name : [c8], cwd : &Path = Path::new ("."))
+    throws &GitError
+{
+    with dmut subproc = SubProcess::run ("git"s8, ["branch"s8, "-D"s8, name], cwd-> cwd) {
+        let code = subproc:.wait ();
+        if (code != 0) {
+            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
+        }
+    }    
+}
+
+pub def createTag (name : [c8], cwd : &Path = Path::new ("."))
+    throws &GitError
+{
+    with dmut subproc = SubProcess::run ("git"s8, ["tag"s8, name], cwd-> cwd) {
+        let code = subproc:.wait ();
+        if (code != 0) {
+            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
+        }
+    }    
+}
+
+pub def deleteTag (name : [c8], cwd : &Path = Path::new ("."))
+    throws &GitError
+{
+    with dmut subproc = SubProcess::run ("git"s8, ["tag"s8, "-D"s8, name], cwd-> cwd) {
+        let code = subproc:.wait ();
+        if (code != 0) {
+            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
+        }
+    }    
+}
+
+
+pub def checkout (name : [c8], cwd : &Path = Path::new ("."))
+    throws &GitError
+{
+    with dmut subproc = SubProcess::run ("git"s8, ["checkout"s8, name], cwd-> cwd) {
+        let code = subproc:.wait ();
+        if (code != 0) {
+            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
+        }
+    }    
+}
+
+
+
+pub def commit (message : [c8], cwd : &Path = Path::new ("."))
+    throws &GitError
+{
+    with dmut subproc = SubProcess::run ("git"s8, ["commit"s8, "-m"s8, message], cwd-> cwd) {
+        let code = subproc:.wait ();
+        if (code != 0) {
+            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
+        }
+    }    
 }

@@ -9,7 +9,22 @@ import std::conv;
 import std::config::conv;
 import gyllir_config::file_struct;
 
-aka __FILENAME__ = "gyllir.toml"s8
+aka __FILENAME__ = "gyllir.toml"s8;
+aka __GITIGNORE_FILENAME__ = ".gitignore"s8;
+aka __DEFAULT_MAIN_CONTENT__ = str8#{mod main;
+import std::io;
+    
+def main () {
+    println ("Hello World !!");
+}
+};
+
+aka __DEFAULT_IGNORE_CONTENT__ = str8#{
+.build
+__doc        
+};        
+
+aka __DEFAULT_MAIN_FILE__ = "main.yr"s8;
     
 pub def init (name : [c8], author : [c8], license : [c8], description : [c8], type : [c8]) -> Content {
     return Content (name-> name,
@@ -26,8 +41,7 @@ pub def load () -> Content? {
         let str = f:.readAll ();
         return (parse (str).to!Content ())?;            
     } catch {
-        x : _ => { // on catch tout
-            println (x); 
+        _ => { // on catch tout
         }
     }
     return ((Content)?)::_err_
@@ -36,15 +50,26 @@ pub def load () -> Content? {
 pub def createRepo (path : &Path, ct : Content)
     throws &FsError
 {
-    createRepo (path, ct.to!{&Config} ())
+    createRepo (path, ct.to!{&Config} (), ct)
 }
 
-prv def createRepo (path : &Path, cfg : &Config)
+prv def createRepo (path : &Path, cfg : &Config, ct : Content)
     throws &FsError
 {
     fs::createDir (path, recursive-> true)?;
     with dmut f = File::create (path.push (__FILENAME__), write-> true) {
         let str = cfg.dump ().to![c8] ();
         f:.write (str);            
+    }
+
+    fs::createDir (path.push ("src"s8));
+    with dmut f = File::create (path.push ("src"s8).push (__DEFAULT_MAIN_FILE__), write-> true) {
+        f:.write (__DEFAULT_MAIN_CONTENT__);
+    }
+
+    with dmut f = File::create (path.push (__GITIGNORE_FILENAME__), write-> true) {
+        f:.write (__DEFAULT_IGNORE_CONTENT__);
+        f:.write (ct.name);
+        f:.write ("\n"s8);
     }
 }
