@@ -1,0 +1,18 @@
+mod utils::git;
+
+import utils::errors;
+import std::concurrency::process;
+import std::fs::path;
+import std::io;
+
+pub def init (cwd : &Path = Path::new ("."))
+    throws &GitError
+{
+    with dmut subproc = SubProcess::run ("git"s8, ["init"s8], cwd-> cwd) {
+        let code = subproc:.wait ();
+        if (code != 0) {
+            println (code);
+            throw GitError::new (GitErrorCode::ALREADY_INIT, subproc:.stderr ():.read ());
+        }
+    }
+}

@@ -1,8 +1,10 @@
 import std::io;
 import std::lexer;
 import std::args;
-import std::conv;
+import std::conv, std::env;
 import gyllir_config::loader;
+import utils::git;
+import utils::errors;
 
 struct
 | help: YesNo
@@ -11,11 +13,35 @@ struct
 | status : YesNo
  -> GyllirArgs;
 
-def initRepo (name : [c32]) {
-    println ("init project " ~ name);
-    let author = read![c8](ask-> "Please enter your author name : ");
-    let toml = loader::init (name,author.to![c32]());
-    loader::save (toml);
+def askFor (ask : [c8], default : [c8] = ""s8) -> [c8] {
+    let x = read![c8] (ask-> (ask ~ " ["s8 ~ default ~ "]:"s8).to![c32] ());
+    if x == ""s8 {
+        default
+    } else x
+}
+
+def initRepo (dirName : [c32]) {
+    let path = env::currentDir ().push (dirName.to![c8] ());
+    if isFile (path.push ("gyllir.toml"s8)) {
+        println ("The target directory already contains a 'gyllir.toml' file. Aborting.");
+    } else {
+        let name = askFor ("Name"s8, default-> dirName.to![c8] ());
+        let author = askFor ("Author name"s8, default-> env::whoami ()); // peut être remplacer ça par (git config --list --global) ["user.name"] ~ ["user.email"]
+        let descr = askFor ("Description"s8, default-> "A minimal Ymir app"s8);
+        let license = askFor ("License"s8, default-> "proprietary"s8);
+        let type = askFor ("Type (executable/library)"s8, default-> "executable"s8);
+        
+        let toml = loader::init (name, author, license, descr, type);
+        {
+            loader::createRepo (path, toml);       
+            git::init (cwd-> path);
+            println ("Successfully created an empty project in '"s8 ~ path.toStr () ~ "'"s8);
+        } catch {
+            x : _ => {
+                println (x);
+            }
+        }
+    }
 }
 
 def statusRepo () {

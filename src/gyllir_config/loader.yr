@@ -11,8 +11,14 @@ import gyllir_config::file_struct;
 
 aka __FILENAME__ = "gyllir.toml"s8
     
-pub def init (name : [c32], author : [c32]) -> Content {
-    return Content (name, Version::new (), author, DependenciesList::new ());
+pub def init (name : [c8], author : [c8], license : [c8], description : [c8], type : [c8]) -> Content {
+    return Content (name-> name,
+                    version-> Version::new (),
+                    author-> author,
+                    dependencies-> DependenciesList::new (),
+                    license-> license,
+                    description-> description,
+                    type-> type);
 }
 
 pub def load () -> Content? {
@@ -27,19 +33,18 @@ pub def load () -> Content? {
     return ((Content)?)::_err_
 }
 
-pub def save (ct : Content){
-    save (ct, ct.to!{&Config} ())
+pub def createRepo (path : &Path, ct : Content)
+    throws &FsError
+{
+    createRepo (path, ct.to!{&Config} ())
 }
 
-prv def save (ct : Content, cfg : &Config){
-    let cwd = env::currentDir ();
-    fs::createDir (cwd.push (ct.name.to![c8] ()));
-    with dmut f = File::create (cwd.push (ct.name.to![c8] ()).push (__FILENAME__), write-> true) {
+prv def createRepo (path : &Path, cfg : &Config)
+    throws &FsError
+{
+    fs::createDir (path, recursive-> true)?;
+    with dmut f = File::create (path.push (__FILENAME__), write-> true) {
         let str = cfg.dump ().to![c8] ();
         f:.write (str);            
     }
-} catch {
-    x : _ => { // on catch tout
-        println (x); 
-    }  
 }

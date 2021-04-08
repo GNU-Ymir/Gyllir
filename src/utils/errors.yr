@@ -1,0 +1,35 @@
+mod utils::errors;
+
+import std::io;
+
+pub enum
+| ALREADY_INIT = 1u8
+ -> GitErrorCode;
+
+
+pub class GitError over Exception {
+
+    pub let code : GitErrorCode;
+    pub let msg  : [c8];
+    
+    pub self (code : GitErrorCode, msg : [c8]) with code = code, msg = msg {}
+
+    impl Printable {
+        pub over print (self) {
+            if (self.trace.len != 0u64) {
+                println ("GitError (", utils::errors::to![c8] (self.code), ") : ", self.msg);
+                self::super.printStackTrace ();
+            } else {
+                print ("GitError (", utils::errors::to![c8] (self.code), ") : ", self.msg);
+            }
+        }
+    }
+    
+}
+
+pub def to {C of [U], U of c8, T of GitErrorCode} (err : T)-> [c8] {
+    match err {
+        GitErrorCode::ALREADY_INIT => { "ALREADY_INIT"s8 }
+        _ => { ""s8 }
+    }
+}

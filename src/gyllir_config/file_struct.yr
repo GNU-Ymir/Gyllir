@@ -10,15 +10,18 @@ import std::config::conv;
 import std::conv;
 
 pub struct
-| name: [c32]
+| name: [c8]
+| license : [c8]
+| description : [c8]
+| type : [c8]
+| author: [c8]
 | version: &Version
-| author: [c32]
 | dependencies: &DependenciesList
  -> Content;
 
 pub struct
 | version: &Version
-| url: [c32]
+| url: [c8]
  -> Dependency;
 
 pub class DependenciesList {
@@ -68,7 +71,7 @@ pub class DependenciesList {
 
 pub class Version {
 
-    pub let mut _value = "1.0.0"; 
+    pub let mut _value = "0.1.0"; 
     
     pub self () {}
 
