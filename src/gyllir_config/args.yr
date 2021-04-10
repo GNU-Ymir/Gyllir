@@ -61,11 +61,12 @@ pub class @final InitCommand over SubCommand {
 
 struct
 | debug : YesNo
+| verbose : YesNo
 | mut help : YesNo
  -> BuildArgs;
 
 pub class @final BuildCommand over SubCommand {
-    let mut _args = BuildArgs (YesNo::NO, YesNo::NO);
+    let mut _args = BuildArgs (YesNo::NO, YesNo::NO, YesNo::NO);
     
     pub self () with super (false) {}
 
@@ -74,7 +75,8 @@ pub class @final BuildCommand over SubCommand {
     {
         let parser = ArgumentParser!(BuildArgs)::new ()
             :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
-            :.info!"debug" (comments-> "build in debug mode (release by default)");
+            :.info!"debug" (comments-> "build in debug mode (release by default)")
+            :.info!"verbose" (short-> "v", comments-> "verbose mode");
 
         {
             self._args = parser.parse (["./usage"] ~ args);
@@ -100,4 +102,8 @@ pub class @final BuildCommand over SubCommand {
         self._args.help
     }
 
+    pub def isVerbose (self)-> bool {
+        self._args.verbose
+    }
+    
 }
