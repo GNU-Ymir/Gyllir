@@ -36,7 +36,7 @@ pub def init (name : [c8], author : [c8], license : [c8], description : [c8], ty
                     type-> type);
 }
 
-pub def load () -> Content? {
+pub def load () -> (Content?) {
     with dmut f = File::open (Path::new (__FILENAME__)) {
         let str = f:.readAll ();
         return (parse (str).to!Content ())?;            
@@ -57,10 +57,7 @@ prv def createRepo (path : &Path, cfg : &Config, ct : Content)
     throws &FsError
 {
     fs::createDir (path, recursive-> true)?;
-    with dmut f = File::create (path.push (__FILENAME__), write-> true) {
-        let str = cfg.dump ().to![c8] ();
-        f:.write (str);            
-    }
+    saveToml(path,cfg);
 
     fs::createDir (path.push ("src"s8));
     with dmut f = File::create (path.push ("src"s8).push (__DEFAULT_MAIN_FILE__), write-> true) {
@@ -71,5 +68,20 @@ prv def createRepo (path : &Path, cfg : &Config, ct : Content)
         f:.write (__DEFAULT_IGNORE_CONTENT__);
         f:.write (ct.name);
         f:.write ("\n"s8);
+    }
+}
+
+pub def saveToml(path : &Path,ct : Content)
+    throws &FsError
+{
+    saveToml(path,ct.to!{&Config} ())
+}
+
+pub def saveToml(path : &Path,cfg : &Config)
+    throws &FsError
+{
+    with dmut f = File::create (path.push (__FILENAME__), write-> true) {
+    let str = cfg.dump ().to![c8] ();
+        f:.write (str);            
     }
 }

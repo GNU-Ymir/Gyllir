@@ -107,3 +107,48 @@ pub class @final BuildCommand over SubCommand {
     }
     
 }
+
+struct
+| name : [c32]
+| mut help : YesNo
+ -> DependencyRemoveArgs;
+
+pub class @final RemoveCommand over SubCommand {
+
+    let mut _args = DependencyRemoveArgs ("", YesNo::YES);
+    
+    pub self () with super (false) {}
+
+    pub self (args : [[c32]]) with super (true)
+        throws &ArgumentError
+    {
+        let parser = ArgumentParser!(DependencyRemoveArgs)::new ()
+            :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
+            :.positional!"name" (comments-> "the name of the package to remove");
+
+        {
+            self._args = parser.parse (["./usage"] ~ args);
+        } catch {
+            err : &ArgumentError => {
+                println (parser.simpleUsage (cmd-> "gyllir remove"));
+                throw err;
+            }
+            _ : &HelpRequired => {
+                self._args.help = YesNo::YES;
+                println (parser.usage (cmd-> "gyllir remove"));
+                
+            }
+        }
+            
+    }
+
+    pub def getName (self)-> [c32] {
+        self._args.name
+    }
+
+    pub def isHelp (self)-> bool {
+        self._args.help
+    }
+      
+}
+

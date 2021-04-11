@@ -16,7 +16,7 @@ pub struct
 | type : [c8]
 | author: [c8]
 | version: &Version
-| dependencies: &DependenciesList
+| mut dependencies: &DependenciesList
  -> Content; // drole de nom
 
 pub struct
@@ -29,6 +29,12 @@ pub class DependenciesList {
     pub let dmut _package = HashMap!{[c32], Dependency}::new ();
 
     pub self () {}
+
+    pub self (elem : &HashMap!{[c32], Dependency}) {
+        for i, j in elem {                           
+            self._package:.insert (i, j)
+        }
+    }
     
     pub self (cfg : &Config) throws &AssertError
     {
@@ -56,7 +62,27 @@ pub class DependenciesList {
         }
     }
 
+    pub def remove (mut self, elem : [c32]) -> bool {
+        let find = self._package:.find(elem);
+        return match find {
+            Ok() => {
+                self._package:.remove(elem);
+                true
+            }
+            Err() => { false }
+            _ => { false }
+        }
+    }
+
     impl std::io::Printable;
+
+    impl core::duplication::Copiable {
+        pub over deepCopy (self) -> dmut &DependenciesList
+        {
+            let mut dep = DependenciesList::new(self._package);
+            return dep;
+        }
+    }
     
     impl std::config::conv::Serializable {
         pub over serialize (self)-> &Config {

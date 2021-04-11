@@ -6,11 +6,13 @@ import gyllir_config::loader, gyllir_config::builder;
 import utils::git;
 import utils::errors;
 import gyllir_config::args;
+import gyllir_config::file_struct;
 
 struct
 | help: YesNo
 | init : &InitCommand = InitCommand::new () // gyllir_config::args
 | build : &BuildCommand = BuildCommand::new ()
+| remove : &RemoveCommand = RemoveCommand::new()
  -> GyllirArgs;
 
 def askFor (ask : [c8], default : [c8] = ""s8) -> [c8] {
@@ -47,6 +49,33 @@ def initRepo (dirName : [c32]) {
     }
 }
 
+def removeDep(dependency: [c32]){
+    let path = env::currentDir ();
+    let mut gyllir = loader::load ();
+    match gyllir {
+        Ok (cfg : _) => {
+            let dmut dep = dcopy cfg.dependencies;
+            let ok = dep:.remove(dependency);
+            if(ok){
+                {
+                let newfile = Content(cfg.name,cfg.license,cfg.description,cfg.type,cfg.author,cfg.version,dep);
+
+                loader::saveToml(path,newfile);
+                    println ("Dependency removed");
+                }catch{
+                    _: &(std::fs::errors::FsError) => { println ("IO Error");}
+                }
+            }else{
+                println ("No dependency found with the name '" ~ dependency ~ "'. Aborting");
+            }
+                
+        }
+        Err () => {
+            println ("No package manifest found in '"s8 ~ env::currentDir ().toStr () ~ "'. Aborting"s8);
+        }
+    }
+}
+
 def buildRepo (debug : bool, verbose : bool) {
     let gyllir = loader::load ();
     match gyllir {
@@ -67,7 +96,8 @@ def main (args : [[c8]]) {
     let x = ArgumentParser!(GyllirArgs)::new ()
         :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
         :.info!"init" (comments-> "initialize a gyllir repository and create the config file.")
-        :.info!"build" (comments-> "build the project in the current directory");
+        :.info!"build" (comments-> "build the project in the current directory")
+        :.info!"remove" (comments-> "Remove a dependency");
     
         
     {
@@ -79,6 +109,10 @@ def main (args : [[c8]]) {
         } else if (f.build.isSet ()) {
             if (!f.build.isHelp ()) {
                 buildRepo (f.build.isDebug (), f.build.isVerbose ());
+            }
+        } else if (f.remove.isSet ()){
+            if(!f.remove.isHelp ()){
+                removeDep(f.remove.getName());
             }
         } else {
             println (x.simpleUsage (cmd-> "gyllir"));
