@@ -31,9 +31,7 @@ pub class DependenciesList {
     pub self () {}
 
     pub self (elem : &HashMap!{[c32], Dependency}) {
-        for i, j in elem {                           
-            self._package:.insert (i, j)
-        }
+        self._package = dcopy elem;
     }
     
     pub self (cfg : &Config) throws &AssertError
