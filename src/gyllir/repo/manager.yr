@@ -220,7 +220,7 @@ pub class GyllirManager {
         println ("[100%] Linking ", outputname);
         
         if (self._args.build.isVerbose ()) {
-            print ("\t Running cmd gyc"s8, " -o "s8, outputname);
+            print ("[INFO] Running cmd gyc"s8, " -o "s8, outputname);
             for i in ofiles print (" ", i);
             println ("");                
         }
@@ -260,7 +260,12 @@ pub class GyllirManager {
         }
 
         let mut threads : [Thread] = [];
-        for _ in 0u32 .. 2u32 { // min (self._args.build.getNbThreads (), cast!u32 (files.len)) {
+        let nb_threads = clamp (self._args.build.getNbThreads (), 1u32, cast!u32 (files.len));
+        if (self._args.build.isVerbose () && nb_threads != 0u32) {
+            println ("[INFO] Spawning ", nb_threads, " threads");
+        }
+        
+        for _ in 0u32 .. nb_threads {
             let th = spawnNoPipe (&self:.buildFile);
             threads = threads ~ [th];
         }
@@ -292,7 +297,7 @@ pub class GyllirManager {
                     println ("[  ", p, "%] Building object ", odir.push (oname).toStr ());
                 else println ("[ ", p, "%] Building object ", odir.push (oname).toStr ());
                 if self._args.build.isVerbose () {
-                    println ("     Running cmd gyc -fdependency -c -o", odir.push (oname).toStr (), " ", file.toStr (), " ", "-I "s8, cwd.push ("src"s8).toStr (), " ", if (self._args.build.isDebug ()) "-g"s8 else "-O3"s8);
+                    println ("[INFO] Running cmd gyc -fdependency -c -o", odir.push (oname).toStr (), " ", file.toStr (), " ", "-I "s8, cwd.push ("src"s8).toStr (), " ", if (self._args.build.isDebug ()) "-g"s8 else "-O3"s8);
                 }
             }
             
