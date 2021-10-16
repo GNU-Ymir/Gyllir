@@ -3,6 +3,12 @@ mod gyllir::args::sub;
 import std::args, std::lexer;
 import std::io;
 
+/**
+ * Class thrown by a sub command if the help was printed
+ */
+pub class HelpPrinted over Exception {
+    pub self () {}
+}
 
 /**
  * Ancestor of all commands (Maybe this should be in the std, I don't know)
@@ -22,13 +28,6 @@ pub class @abstract SubCommand {
      */
     pub def isSet (self)-> bool {
         self._isSet 
-    }
-
-    /**
-     * Change the value of is set
-     */
-    prot def isSet (mut self, set : bool) {
-        self._isSet = set;
     }
     
 }

@@ -27,7 +27,7 @@ pub class @final BuildCommand over SubCommand {
      * Constructor called by the argument parser
      */
     pub self (args : [[c32]]) with super (true)
-        throws &ArgumentError
+        throws &ArgumentError, &HelpPrinted
     {
         let parser = ArgumentParser!(BuildArgs)::new ()
             :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
@@ -44,7 +44,7 @@ pub class @final BuildCommand over SubCommand {
             }
             _ : &HelpRequired => {
                 println (parser.usage (cmd-> "gyllir build"));
-                self:.isSet (false);
+                throw HelpPrinted::new ();
             }
         }
             

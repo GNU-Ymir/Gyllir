@@ -12,7 +12,8 @@ import std::collection::vec;
 import std::concurrency::process;
 import gyllir::utils::git, gyllir::utils::errors;
 import std::concurrency::thread, std::concurrency::mailbox;
-import std::algorithm::comparison;
+import std::algorithm::comparison, std::algorithm::iteration;
+import std::lexer;
 
 /**
  * The structure containing all the command line arguments
@@ -45,13 +46,12 @@ pub class GyllirManager {
             :.info!"remove" (comments-> "Remove a dependency");
         {            
             self._args = x.parse (args);
-            if (self.nonIsSet ()) {
-                println (x.simpleUsage (cmd-> "gyllir"));
-            }
-            self._valid = true;
+            self._valid = true;            
         } catch {
             err : &ArgumentError => {
-                println (x.diagnosis (err));
+                if !self.hasHelpPrinted (err) {
+                    println (x.diagnosis (err));
+                }
             }
             _ : &HelpRequired => {
                 println (x.usage (cmd-> "gyllir"));
@@ -142,8 +142,8 @@ pub class GyllirManager {
         with dmut f = File::create (path.push (defaults::__GITIGNORE_FILENAME__), write-> true) {
             f:.write (defaults::__GITIGNORE_CONTENT__);
             if conf.type.isExecutable () {
-                f:.write (conf.name);
-            } else f:.write (conf.name ~ ".a"s8);
+                f:.write ("./"s8 ~ conf.name);
+            } else f:.write ("./"s8 ~ conf.name ~ ".a"s8);
             f:.write ("\n"s8);
         }
 
@@ -166,6 +166,15 @@ pub class GyllirManager {
      */
     prv def buildRepo (mut self) {
         let cwd = env::currentDir ();
+        let conf = {
+            self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
+        } catch {
+            _ => {
+                println ("Failed to read configuration file. Aborting");
+                return {}
+            }
+        }
+        
         {
             fs::createDir (cwd.push (defaults::__BUILD_DIR__));
         } catch {
@@ -187,9 +196,53 @@ pub class GyllirManager {
         }
 
         let toBuild = self.listToBuild (files);
-        self:.buildFiles (toBuild);
+        self:.buildFiles (toBuild);        
+        self:.linkRepo (files, conf);
     }
 
+    /**
+     * Link the files to create the executable or library
+     */
+    prv def linkRepo (mut self, files : [&Path], conf : GyllirConfig) {
+        let cwd = env::currentDir ();
+        let mut ofiles : [[c8]] = [];
+        for file in files {
+            let oname = file.stripExtension ().addExtension ("o"s8).file ();
+            let odir = cwd.push (defaults::__BUILD_DIR__).push (file.parent ().removePrefix (cwd.push (defaults::__SRC_DIR__)));
+            ofiles = ofiles ~ [odir.push (oname).toStr ()];
+        }
+
+        let outputname = self.toPath (conf.name, sep-> "/"s8, add-> "_"s8);
+        println ("[100%] Linking ", outputname);
+        
+        if (self._args.build.isVerbose ()) {
+            print ("\t Running cmd gyc"s8, " -o "s8, outputname);
+            for i in ofiles print (" ", i);
+            println ("");                
+        }
+        
+        if (conf.type.isExecutable ()) {
+            with dmut subProc = SubProcess::run ("gyc"s8, ["-o"s8, outputname] ~ ofiles, cwd-> cwd) {
+                let _ = subProc:.wait ();
+                if (self._args.build.isVerbose ()) {
+                    let o = subProc:.stdout ():.read ();
+                    if (o != ""s8)
+                        println (o);
+                }
+
+                let err = subProc:.stderr ():.read ();
+                if (err != ""s8) {
+                    println (err);
+                    atomic self {
+                        self._mail:.clear ();
+                    }
+                    return {}
+                }
+            }
+        }
+    }
+
+    
     /**
      * Build the files 
      */
@@ -226,7 +279,7 @@ pub class GyllirManager {
                 }
             }
             
-            let oname = file.addExtension ("o"s8).file ();
+            let oname = file.stripExtension ().addExtension ("o"s8).file ();
             let odir = cwd.push (defaults::__BUILD_DIR__).push (file.parent ().removePrefix (cwd.push (defaults::__SRC_DIR__)));
             fs::createDir (odir, recursive-> true)?;
             
@@ -238,11 +291,12 @@ pub class GyllirManager {
                     println ("     Running cmd gyc -fdependency -c -o", odir.push (oname).toStr (), " ", file.toStr (), " ", "-I "s8, cwd.push ("src"s8).toStr (), " ", if (self._args.build.isDebug ()) "-g"s8 else "-O3"s8);
                 }
             }
-
+            
             with dmut subProc = SubProcess::run ("gyc"s8, ["-fdependency"s8, "-c"s8, "-o"s8, odir.push (oname).toStr (), file.toStr (), "-I"s8, cwd.push ("src"s8).toStr (), if (self._args.build.isDebug ()) "-g"s8 else "-O3"s8], cwd-> cwd.push (defaults::__BUILD_DIR__)) {
                 let _ = subProc:.wait ();
                 if (self._args.build.isVerbose ()) {
-                    println (subProc:.stdout ():.read ());
+                    let o = subProc:.stdout ():.read ();
+                    if o != ""s8 { println (o); }
                 }
 
                 let err = subProc:.stderr ():.read ();
@@ -255,7 +309,21 @@ pub class GyllirManager {
                 }
             }
 
-            // with dmut subProc = SubProcess::run ("mv"s8, [
+            let depname = self.toPath (file.stripExtension ().removePrefix (cwd.push (defaults::__SRC_DIR__)).addExtension ("dep.json"s8).toStr (), sep-> "/"s8, add-> "__"s8);
+            let dstname = file.stripExtension ().removePrefix (cwd.push (defaults::__SRC_DIR__)).addExtension ("dep.json"s8).toStr ();
+            if (depname != dstname) {
+                with dmut subProc = SubProcess::run ("mv"s8, [depname, dstname], cwd-> cwd.push (defaults::__BUILD_DIR__)) {
+                    let _ = subProc:.wait ();
+                    let err = subProc:.stderr ():.read ();
+                    if (err != ""s8) {
+                        println (err);
+                        atomic self {
+                            self._mail:.clear ();
+                        }
+                        return {}
+                    }
+                }
+            }
         }
     }
     
@@ -272,10 +340,9 @@ pub class GyllirManager {
 
         let cwd = env::currentDir ();
         for file in files {
-            let oname = file.addExtension ("o"s8).file ();
+            let oname = file.stripExtension ().addExtension ("o"s8).file ();
             let odir = cwd.push (defaults::__BUILD_DIR__).push (file.parent ().removePrefix (cwd.push (defaults::__SRC_DIR__)));
             let opath = odir.push (oname);
-            
             {
                 if (fs::isFile (opath)) {
                     if (fs::fileDate (opath) < fs::fileDate (file)) res:.push (file);
@@ -332,7 +399,7 @@ pub class GyllirManager {
                 for i in 0us .. arr.len () {
                     for f in files {
                         let filePath = f.removePrefix (cwd.push (defaults::__SRC_DIR__));
-                        let depPath = self.toPath (arr [i].(config::conv::to)![c8] ());
+                        let depPath = Path::new (self.toPath (arr [i].(config::conv::to)![c8] ())).addExtension (defaults::__YMIR_EXTENSION__);
                         if depPath.toStr () == filePath.toStr () {
                             return true;
                         }
@@ -353,17 +420,26 @@ pub class GyllirManager {
      * assert (self.toPath ("std::path"s8) == "std/path.yr"s8)
      * ===========
      */
-    prv def toPath (self, module : [c8])-> &Path {
+    prv def toPath (self, module : [c8], sep : [c8] = "::"s8, add : [c8] = "/"s8)-> [c8] {
         let dmut res = StringStream::new ();
-        let mut second = false;
-        for i in module {
-            if (i == ':'c8 && !second) {
-                res:.write ('/'c8);
-                second = true;
-            } else if (i == ':'c8) second = false;
-            else res:.write (i);
+        let mut i = 0us;
+        while i < module.len {
+            if i < (module.len - sep.len - 1us) {
+                if (module [i .. i + sep.len] == sep) {                    
+                    res:.write (add);
+                    i += sep.len;
+                } else {
+                    res:.write (module [i]);
+                    i += 1us;
+                } 
+            } else {
+                res:.write (module [i]);
+                i += 1us;
+            }
         }
-        Path::new (res []).addExtension (defaults::__YMIR_EXTENSION__)
+        res []
+    } catch {
+        _ => __pragma!panic ();
     }
 
             
@@ -428,14 +504,28 @@ pub class GyllirManager {
             f:.write (content.dump ().(std::conv::to)![c8] ());
         }
     }
-    
+
     /**
-     * @returns: true if none of the command line arguments is set
+     * Read the configuration file
      */
-    prv def nonIsSet (self)-> bool {
-        !self._args.init.isSet () &&
-            !self._args.build.isSet () &&
-            !self._args.remove.isSet ()             
+    pub def loadToml (self, path : &Path)-> GyllirConfig
+        throws &FsError, &SyntaxError, &ConfigError
+    {
+        import std::config::toml;
+        with dmut f = File::open (path) {
+            toml::parse (f:.readAll ()).(config::conv::to)!{GyllirConfig} ()
+        }
+    } 
+
+    /**
+     * @returns: true if the error was thrown by a sub command that printed the help
+     */
+    pub def hasHelpPrinted (self, err : &ArgumentError) -> bool {
+        match err.subError {
+            Ok (HelpPrinted ()) => { true }
+            Ok (sub : &ArgumentError) => { self.hasHelpPrinted (sub) }
+            _ => false
+        }
     }
-    
+
 }

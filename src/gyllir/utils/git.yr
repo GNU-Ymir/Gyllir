@@ -122,15 +122,24 @@ pub def userName (cwd : &Path = Path::new (".")) -> [c8]
         let code = subproc:.wait ();
         if (code != 0) {
             throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
-        } else stream:.write (subproc:.stdout ():.read ());
+        } else {
+            let o = subproc:.stdout ():.read ();
+            stream:.write (o [0us .. $ - 1us]);
+        }
     }
 
     with dmut subproc = SubProcess::run ("git"s8, ["config"s8,  "--global"s8, "--get"s8,  "user.email"s8], cwd-> cwd) {
         let code = subproc:.wait ();
         if (code != 0) {
             throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
-        } else stream:.write ("<", subproc:.stdout ():.read (), ">");
+        } else {
+            let o = subproc:.stdout ():.read ();
+            stream:.write (" <", o [0us .. $ - 1us], ">");
+        }
     }
     
     stream []
+} catch {
+    err : &GitError => throw err;
+    x : &OutOfArray => { println (x); throw GitError::new (GitErrorCode::UNKNOWN, "user name not set\n"s8); }
 }
