@@ -30,7 +30,7 @@
 *.exe
 *.out
 *.app
-gyllir
+./gyllir
 
 # BIN
 *.build

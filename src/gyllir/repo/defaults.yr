@@ -1,0 +1,49 @@
+mod gyllir::repo::defaults;
+
+/** 
+ * The filename of the configuration
+ */
+pub aka __GYLLIR_CONFIG_FILENAME__ = "gyllir.toml"s8;
+
+/**
+ * The filename of the gitignore file
+ */
+pub aka __GITIGNORE_FILENAME__ = ".gitignore"s8;
+
+/**
+ * The name of the initial file
+ */
+pub aka __MAIN_FILE__ = "main.yr"s8;
+
+/**
+ * The content of the initial file
+ */
+pub aka __MAIN_CONTENT__ = str8#{mod main;
+import std::io;
+    
+def main () {
+    println ("Hello World !");
+}
+};
+
+/**
+ * The content of the gitignore file
+ */
+pub aka __GITIGNORE_CONTENT__ = str8#{
+.build
+__doc        
+};        
+
+
+/**
+ * The source directory name
+ */
+pub aka __SRC_DIR__ = "src"s8;
+
+/**
+ * The source directory name
+ */
+pub aka __BUILD_DIR__ = ".build"s8;
+
+
+pub aka __YMIR_EXTENSION__ = "yr"s8

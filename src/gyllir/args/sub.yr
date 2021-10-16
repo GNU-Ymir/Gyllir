@@ -1,0 +1,35 @@
+mod gyllir::args::sub;
+
+import std::args, std::lexer;
+import std::io;
+
+
+/**
+ * Ancestor of all commands (Maybe this should be in the std, I don't know)
+ */
+pub class @abstract SubCommand {
+
+    let mut _isSet : bool;
+
+    /**
+     * @params: 
+     *   - isSet: if true, then we assume that the sub command was created by the argument parser
+     */
+    prot self (isSet : bool) with _isSet = isSet {}
+
+    /**
+     * @returns: true if the sub command has been activated by the argument parser
+     */
+    pub def isSet (self)-> bool {
+        self._isSet 
+    }
+
+    /**
+     * Change the value of is set
+     */
+    prot def isSet (mut self, set : bool) {
+        self._isSet = set;
+    }
+    
+}
+

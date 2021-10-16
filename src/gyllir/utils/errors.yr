@@ -1,4 +1,4 @@
-mod utils::errors;
+mod gyllir::utils::errors;
 
 import std::io;
 
@@ -15,13 +15,13 @@ pub class GitError over Exception {
     
     pub self (code : GitErrorCode, msg : [c8]) with code = code, msg = msg {}
 
-    impl Printable {
-        pub over print (self) {
-            if (self.trace.len != 0u64) {
-                println ("GitError (", utils::errors::to![c8] (self.code), ") : ", self.msg);
-                self::super.printStackTrace ();
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            if (self.hasTrace ()) {
+                stream:.write ("GitError (", utils::errors::to![c8] (self.code), ") : ", self.msg);
+                stream:.write (self.getStackTrace ());
             } else {
-                print ("GitError (", utils::errors::to![c8] (self.code), ") : ", self.msg);
+                stream:.write ("GitError (", utils::errors::to![c8] (self.code), ") : ", self.msg);
             }
         }
     }

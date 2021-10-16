@@ -1,0 +1,71 @@
+mod gyllir::args::build;
+
+import std::args, std::lexer, std::io;
+import gyllir::args::sub;
+import etc::c::sysinfo;
+
+struct
+| debug : YesNo
+| verbose : YesNo
+| j : i64 = cast!i64 (sysinfo::get_nprocs ())
+| mut help : YesNo
+ -> BuildArgs;
+
+/**
+ * Sub command for build option
+ * @example: 
+ * =:bash==================
+ * $ gyllir build --debug --verbose
+ * ========================
+ */
+pub class @final BuildCommand over SubCommand {
+    let mut _args = BuildArgs (YesNo::NO, YesNo::NO, YesNo::NO);
+    
+    pub self () with super (false) {}
+
+    /**
+     * Constructor called by the argument parser
+     */
+    pub self (args : [[c32]]) with super (true)
+        throws &ArgumentError
+    {
+        let parser = ArgumentParser!(BuildArgs)::new ()
+            :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
+            :.info!"debug" (comments-> "build in debug mode (release by default)")
+            :.info!"j" (comments-> "number of parallel threads to spawn")
+            :.info!"verbose" (short-> "v", comments-> "verbose mode");
+
+        {
+            self._args = parser.parse (["./usage"] ~ args);
+        } catch {
+            err : &ArgumentError => {
+                println (parser.simpleUsage (cmd-> "gyllir build"));
+                throw err;
+            }
+            _ : &HelpRequired => {
+                println (parser.usage (cmd-> "gyllir build"));
+                self:.isSet (false);
+            }
+        }
+            
+    }
+
+    /**
+     * @returns: true iif the option --debug is set 
+     */
+    pub def isDebug (self)-> bool {
+        self._args.debug
+    }
+
+    /**
+     * @returns: true iif the option --verbose is set
+     */
+    pub def isVerbose (self)-> bool {
+        self._args.verbose
+    }
+
+    pub def getNbThreads (self)-> u32 {
+        cast!u32 (self._args.j)
+    }
+    
+}

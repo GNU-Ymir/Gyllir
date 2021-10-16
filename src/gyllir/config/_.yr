@@ -1,0 +1,18 @@
+mod gyllir::config::_;
+
+pub import gyllir::config::dependency;
+pub import gyllir::config::version;
+pub import gyllir::config::type;
+
+
+pub struct
+| name: [c8]
+| license : [c8]
+| description : [c8]
+| type : &BuildType = BuildType::new ()
+| author: [c8]
+| version: &Version = Version::new ()
+| mut dependencies: &DependencyList = DependencyList::new ()
+ -> GyllirConfig; 
+
+

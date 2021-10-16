@@ -1,0 +1,72 @@
+mod gyllir::config::type;
+
+import std::config;
+import std::config::conv;
+import std::config::error;
+import std::collection::map;
+import std::io;
+import std::tokenizer;
+import std::config::conv;
+import std::conv;
+
+enum
+| EXECUTABLE = 0u8
+| LIBRARY = 1u8
+ -> BuildTypeEnum;
+
+
+pub class BuildType {
+
+    let mut _type = BuildTypeEnum::EXECUTABLE;
+    
+    pub self () {}
+
+    pub self (type : [c8]) throws &AssertError {
+        match type {
+            "executable"s8 => {
+                self._type = BuildTypeEnum::EXECUTABLE;
+            }
+            "library"s8 => {
+                self._type = BuildTypeEnum::LIBRARY;
+            }
+            _ => throw AssertError::new (("Unknown type : "s8 ~ type).to![c32] ());
+        }
+
+    }
+    
+    pub self (cfg : &Config) throws &AssertError {
+        match cfg {
+            Str (str->  "executable") => {
+                self._type = BuildTypeEnum::EXECUTABLE;
+            }
+            Str (str->  "library") => {
+                self._type = BuildTypeEnum::LIBRARY;
+            }
+            x : _ => throw AssertError::new (("Unknown type : "s8 ~ x.(std::conv::to)![c8] ()).to![c32] ());
+        }
+    }
+
+    pub def isExecutable (self)-> bool {
+        self._type == BuildTypeEnum::EXECUTABLE
+    }
+
+    pub def isLibrary (self)-> bool {
+        self._type == BuildTypeEnum::LIBRARY
+    }
+
+    impl Streamable;
+
+    impl Serializable {
+
+        /**
+         * Transform the type into a configuration string
+         */
+        pub over serialize (self)-> &Config {
+            match self._type {
+                BuildTypeEnum::EXECUTABLE => { Str::new ("executable") }
+                _ => { Str::new ("library") }
+            }
+        }
+    }
+    
+}

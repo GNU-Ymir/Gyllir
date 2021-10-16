@@ -1,0 +1,55 @@
+mod gyllir::args::init;
+import std::args, std::lexer, std::io;
+import gyllir::args::sub;
+
+struct
+| name : [c32]
+| mut help : YesNo
+ -> InitArgs;
+
+/**
+ * Sub command used to create a new repo
+ * @example: 
+ * =:bash===========
+ * $ gyllir init my-awesome-project
+ * =================
+ */
+pub class @final InitCommand over SubCommand {
+
+    let mut _args = InitArgs ("", YesNo::YES);
+    
+    pub self () with super (false) {}
+
+    /**
+     * Constructor called by the argument parser
+     */
+    pub self (args : [[c32]]) with super (true)
+        throws &ArgumentError
+    {
+        let parser = ArgumentParser!(InitArgs)::new ()
+            :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
+            :.positional!"name" (comments-> "the name of the package to init");
+
+        {
+            self._args = parser.parse (["./usage"] ~ args);
+        } catch {
+            err : &ArgumentError => {
+                println (parser.simpleUsage (cmd-> "gyllir init"));
+                throw err;
+            }
+            _ : &HelpRequired => {
+                println (parser.usage (cmd-> "gyllir init"));
+                self:.isSet (false);
+            }
+        }
+            
+    }
+
+    /**
+     * @returns: the name of the repo to create
+     */
+    pub def getName (self)-> [c32] {
+        self._args.name
+    }
+      
+}

@@ -1,6 +1,6 @@
-mod utils::git;
+mod gyllir::utils::git;
 
-import utils::errors;
+import gyllir::utils::errors;
 import std::concurrency::process;
 import std::fs::path;
 import std::fs;
@@ -109,4 +109,28 @@ pub def commit (message : [c8], cwd : &Path = Path::new ("."))
             throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
         }
     }    
+}
+
+
+pub def userName (cwd : &Path = Path::new (".")) -> [c8]
+    throws &GitError
+{
+    import std::stream;
+    
+    let dmut stream = StringStream::new ();
+    with dmut subproc = SubProcess::run ("git"s8, ["config"s8,  "--global"s8, "--get"s8,  "user.name"s8], cwd-> cwd) {
+        let code = subproc:.wait ();
+        if (code != 0) {
+            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
+        } else stream:.write (subproc:.stdout ():.read ());
+    }
+
+    with dmut subproc = SubProcess::run ("git"s8, ["config"s8,  "--global"s8, "--get"s8,  "user.email"s8], cwd-> cwd) {
+        let code = subproc:.wait ();
+        if (code != 0) {
+            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
+        } else stream:.write ("<", subproc:.stdout ():.read (), ">");
+    }
+    
+    stream []
 }

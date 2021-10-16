@@ -1,0 +1,56 @@
+mod gyllir::args::remove;
+import std::args, std::lexer, std::io;
+import gyllir::args::sub;
+
+struct
+| name : [c32]
+| mut help : YesNo
+ -> DependencyRemoveArgs;
+
+/**
+ * Sub command used to remove a dependency to the project
+ * @example: 
+ * =:bash=============
+ * $ gyllir remove useless-package
+ * ===================
+ */
+pub class @final RemoveCommand over SubCommand {
+
+    let mut _args = DependencyRemoveArgs ("", YesNo::YES);
+    
+    pub self () with super (false) {}
+
+    /**
+     * Constructor called by the argument parser
+     */
+    pub self (args : [[c32]]) with super (true)
+        throws &ArgumentError
+    {
+        let parser = ArgumentParser!(DependencyRemoveArgs)::new ()
+            :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
+            :.positional!"name" (comments-> "the name of the package to remove");
+
+        {
+            self._args = parser.parse (["./usage"] ~ args);
+        } catch {
+            err : &ArgumentError => {
+                println (parser.simpleUsage (cmd-> "gyllir remove"));
+                throw err;
+            }
+            _ : &HelpRequired => {
+                println (parser.usage (cmd-> "gyllir remove"));
+                self:.isSet (false);
+            }
+        }
+            
+    }
+
+    /**
+     * @returns: the name of the package to remove
+     */
+    pub def getName (self)-> [c32] {
+        self._args.name
+    }
+      
+}
+

@@ -1,0 +1,109 @@
+mod gyllir::config::dependency;
+
+import std::config;
+import std::config::conv;
+import std::config::error;
+import std::collection::map;
+import std::io;
+import std::tokenizer;
+import std::config::conv;
+import std::conv;
+
+import gyllir::config::version;
+
+/**
+ * A dependency is a git repo
+ */
+pub struct
+| version: &Version /// The version to use
+| url: [c8] // The url of the git repo
+ -> Dependency;
+
+/**
+ * A dependency list is a map of Dependency, that can be serialized into configuration
+ */
+pub class DependencyList {
+
+    /**
+     * The list of dependencies
+     */
+    pub let dmut _package = HashMap!{[c32], Dependency}::new ();
+
+    /**
+     * Create an empty dependency list
+     */
+    pub self () {}
+
+    /**
+     * Create a dependency list from a map of Dependency
+     */
+    pub self (dmut elem : &HashMap!{[c32], Dependency}) with _package = alias elem            
+    {}
+
+    /**
+     * Create a dependency list from a configuration
+     * This constructor can be used by the std for serialization
+     * @example: 
+     * =================
+     * def getConfiguration ()-> &Config;
+     *
+     * let dmut list = getConfiguration ().to!{&DependencyList} ();
+     * =================
+     */
+    pub self (cfg : &Config) throws &AssertError
+    {
+        match cfg {
+            x : &Dict => {
+                self:.insert (x);
+            }
+            _ => {
+                assert (false, "Error: not a dictionnary");
+            }
+        }
+    }
+
+    /**
+     * Insert the dependencies from a configuration dictionnary
+     */
+    prv def insert (mut self, elem : &Dict) throws &AssertError
+    {
+        for i, j in elem {                
+            {    
+                self._package:.insert (i, j.to!Dependency())
+            }
+            catch {
+                _ : &ConfigError => {
+                    assert (false, "For package '" ~ i ~ "' : ");                    
+                 }
+            }            
+        }
+    }
+
+    /**
+     * Remove a dependency from the list
+     * @params:
+     *   - elem: the name of dependency to remove
+     */
+    pub def remove (mut self, elem : [c32]) {
+        self._package:.remove(elem);
+    }
+
+
+    
+    impl std::config::conv::Serializable {
+
+        /**
+         * Transform the list into a Configuration, that can be dumped
+         */
+        pub over serialize (self)-> &Config {
+            let dmut d = Dict::new ();
+            for i, j in self._package {
+                d:.insert(i,j.to!(&Config)());
+            }
+            d
+        }
+    }
+
+    impl Streamable;    
+    impl core::duplication::Copiable;    
+}
