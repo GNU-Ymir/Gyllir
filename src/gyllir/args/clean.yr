@@ -1,0 +1,63 @@
+mod gyllir::args::clean;
+import std::args, std::lexer, std::io;
+import gyllir::args::sub;
+
+struct
+| doc : YesNo
+| all : YesNo
+| mut help : YesNo
+ -> CleanArgs;
+
+/**
+ * Sub command used to create a new repo
+ * @example: 
+ * =:bash===========
+ * $ gyllir clean my-awesome-project
+ * =================
+ */
+pub class @final CleanCommand over SubCommand {
+
+    let mut _args = CleanArgs (YesNo::NO, YesNo::NO, YesNo::YES);
+    
+    pub self () with super (false) {}
+
+    /**
+     * Constructor called by the argument parser
+     */
+    pub self (args : [[c32]]) with super (true)
+        throws &ArgumentError, &HelpPrinted
+    {
+        let parser = ArgumentParser!(CleanArgs)::new ()
+            :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
+            :.info!"doc" (comments-> "clean the documentation")
+            :.info!"all" (comments-> "clean all the generated files (including documentation");
+           
+        {
+            self._args = parser.parse (["./usage"] ~ args);
+        } catch {
+            err : &ArgumentError => {
+                println (parser.simpleUsage (cmd-> "gyllir clean"));
+                throw err;
+            }
+            _ : &HelpRequired => {
+                println (parser.usage (cmd-> "gyllir clean"));
+                throw HelpPrinted::new ();
+            }
+        }            
+    }
+
+    /**
+     * Just the documentation must be cleaned
+     */
+    pub def isDoc (self)-> bool {
+        self._args.doc
+    }
+
+    /**
+     * Everything must be cleaned
+     */
+    pub def isAll (self)-> bool {
+        self._args.all
+    }
+      
+}

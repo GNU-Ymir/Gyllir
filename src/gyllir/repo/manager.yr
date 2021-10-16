@@ -22,7 +22,7 @@ pub struct
 | help: YesNo
 | init : &InitCommand = InitCommand::new () 
 | build : &BuildCommand = BuildCommand::new ()
-| remove : &RemoveCommand = RemoveCommand::new()
+| clean : &CleanCommand = CleanCommand::new ()
  -> GyllirArgs;
 
 
@@ -43,10 +43,14 @@ pub class GyllirManager {
             :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
             :.info!"init" (comments-> "initialize a gyllir repository and create the config file.")
             :.info!"build" (comments-> "build the project in the current directory")
-            :.info!"remove" (comments-> "Remove a dependency");
+            :.info!"clean" (comments-> "clean the project (remove generated files)");
         {            
             self._args = x.parse (args);
-            self._valid = true;            
+            if (self.noneIsSet ()) {
+                println (x.simpleUsage (cmd-> "gyllir"));
+            } else {
+                self._valid = true;
+            }
         } catch {
             err : &ArgumentError => {
                 if !self.hasHelpPrinted (err) {
@@ -70,9 +74,9 @@ pub class GyllirManager {
             self:.initRepo ();
         } else if (self._args.build.isSet ()) {
             self:.buildRepo ();
-        } // else if (self._args.remove.isSet ()) {
-        //     self:.removeDependency ();
-        // } 
+        } else if (self._args.clean.isSet ()) {
+            self:.cleanRepo ();
+        }
     }
 
     
@@ -487,6 +491,48 @@ pub class GyllirManager {
     /**
      * ================================================================================================================================================================
      * ================================================================================================================================================================
+     * =======================================================================    CLEANING   ==========================================================================
+     * ================================================================================================================================================================
+     * ================================================================================================================================================================
+     */
+
+    /**
+     * Execute the clean repository command
+     */
+    pub def cleanRepo (self) {
+        let cwd = env::currentDir ();
+        let conf = {
+            self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
+        } catch {
+            _ => {
+                println ("Failed to read configuration file. Aborting");
+                return {}
+            }
+        }
+
+	if (self._args.clean.isDoc () || self._args.clean.isAll ()) {
+            if (fs::isDir (cwd.push ("__doc"s8))) {
+		fs::removeDir (cwd.push ("__doc"s8), recursive-> true);
+            }            
+        }        
+        
+	if (!self._args.clean.isDoc () || self._args.clean.isAll ()) {
+            if (fs::isDir (cwd.push (".build"s8))) {
+		fs::removeDir (cwd.push (".build"s8), recursive-> true);
+            }
+            
+            let outputname = self.toPath (conf.name, sep-> "/"s8, add-> "_"s8);            
+            if (fs::isFile (cwd.push (outputname))) 
+                fs::removeFile (cwd.push (outputname));
+        }        
+    } catch {
+        x : &FsError => println (x);
+    }
+
+
+    /**
+     * ================================================================================================================================================================
+     * ================================================================================================================================================================
      * ======================================================================     COMMON     ==========================================================================
      * ================================================================================================================================================================
      * ================================================================================================================================================================
@@ -528,4 +574,13 @@ pub class GyllirManager {
         }
     }
 
+    /**
+     * @returns: true if no option is set
+     */
+    pub def noneIsSet (self)-> bool {
+        !self._args.init.isSet () &&
+            !self._args.build.isSet () &&
+            !self._args.clean.isSet ()
+    }
+    
 }

@@ -123,8 +123,7 @@ pub def userName (cwd : &Path = Path::new (".")) -> [c8]
         if (code != 0) {
             throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
         } else {
-            let o = subproc:.stdout ():.read ();
-            stream:.write (o [0us .. $ - 1us]);
+            stream:.write (subproc:.stdout ():.read ()[0us .. $ - 1us]);
         }
     }
 
@@ -133,8 +132,7 @@ pub def userName (cwd : &Path = Path::new (".")) -> [c8]
         if (code != 0) {
             throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
         } else {
-            let o = subproc:.stdout ():.read ();
-            stream:.write (" <", o [0us .. $ - 1us], ">");
+            stream:.write (" <", subproc:.stdout ():.read ()[0us .. $ - 1us], ">");
         }
     }
     
