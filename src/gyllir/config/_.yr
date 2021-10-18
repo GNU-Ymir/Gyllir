@@ -3,6 +3,7 @@ mod gyllir::config::_;
 pub import gyllir::config::dependency;
 pub import gyllir::config::version;
 pub import gyllir::config::type;
+pub import gyllir::config::url;
 
 
 pub struct
@@ -10,6 +11,7 @@ pub struct
 | license : [c8]
 | description : [c8]
 | type : &BuildType = BuildType::new ()
+| registry : &Url = Url::new ()
 | author: [c8]
 | version: &Version = Version::new ()
 | mut dependencies: &DependencyList = DependencyList::new ()

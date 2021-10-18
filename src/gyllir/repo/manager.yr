@@ -23,6 +23,7 @@ pub struct
 | init : &InitCommand = InitCommand::new () 
 | build : &BuildCommand = BuildCommand::new ()
 | clean : &CleanCommand = CleanCommand::new ()
+| publish : &PublishCommand = PublishCommand::new ()
  -> GyllirArgs;
 
 
@@ -43,6 +44,7 @@ pub class GyllirManager {
             :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
             :.info!"init" (comments-> "initialize a gyllir repository and create the config file.")
             :.info!"build" (comments-> "build the project in the current directory")
+            :.info!"publish" (comments-> "publish a version to the package registry")
             :.info!"clean" (comments-> "clean the project (remove generated files)");
         {            
             self._args = x.parse (args);
@@ -76,6 +78,8 @@ pub class GyllirManager {
             self:.buildRepo ();
         } else if (self._args.clean.isSet ()) {
             self:.cleanRepo ();
+        } else if (self._args.publish.isSet ()) {
+            self:.publishRepo ();
         }
     }
 
@@ -117,7 +121,19 @@ pub class GyllirManager {
                 let license = self.askUserFor ("License"s8, default-> "proprietary"s8);
                 let type = self.askUserFor ("Type (executable/library)"s8, default-> "executable"s8);
 
-                let toml = GyllirConfig (name-> name, author-> author, license-> license, description-> descr, type-> BuildType::new (type));
+                let gyllirHome = Path::new (env::getEnv ("HOME"s8)).push (".local"s8).push ("gyllir"s8).push (name);
+                let registry = {
+                    let url = self.askUserFor ("Registry"s8, default-> (UrlStarts::LOCAL).(std::conv::to)![c8] () ~ gyllirHome.toStr ());
+                    Url::new (url)
+                } catch {
+                    x : &AssertError => {
+                        println ("Invalid registry url : ", x.msg, ". Aborting");
+                        return {}
+                    }
+                }
+                
+
+                let toml = GyllirConfig (name-> name, author-> author, license-> license, description-> descr, type-> BuildType::new (type), registry-> registry);
             
                 self.createEmptyRepo (path, toml);       
                 println ("Successfully created an empty project in '"s8 ~ path.toStr () ~ "'"s8);
@@ -534,7 +550,56 @@ pub class GyllirManager {
         x : &FsError => println (x);
     }
 
+    /**
+     * ================================================================================================================================================================
+     * ================================================================================================================================================================
+     * =======================================================================    PUBLISH    ==========================================================================
+     * ================================================================================================================================================================
+     * ================================================================================================================================================================
+     */
 
+    /**
+     * Publish the repository 
+     */
+    pub def publishRepo (self) {
+        let cwd = env::currentDir ();
+        let conf = {
+            self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
+        } catch {
+            _ => {
+                println ("Failed to read configuration file. Aborting");
+                return {}
+            }
+        }
+        
+        match conf.registry.getType () {
+            UrlType::LOCAL => self.publishLocal (conf);
+            _ => self.publishGit (conf);
+        }
+    }
+
+    /**
+     * Publish a package to a local location
+     */
+    pub def publishLocal (self, conf : GyllirConfig) {
+        let path = conf.registry.getPath ();
+        match self.askUserFor ("Publish to : "s8 ~ path.toStr () ~ " (Y/n)"s8, default-> "Y"s8) {            
+            "Y"s8 => {
+                fs::removeDir (path, recursive-> true)?
+                fs::createDir (path, recursive-> true)?
+                
+            }
+        }
+        
+    }
+
+    /**
+     * Publish the repo to a git location
+     */
+    pub def publishGit (self, _ : GyllirConfig) {
+    }
+    
+    
     /**
      * ================================================================================================================================================================
      * ================================================================================================================================================================
@@ -585,7 +650,8 @@ pub class GyllirManager {
     pub def noneIsSet (self)-> bool {
         !self._args.init.isSet () &&
             !self._args.build.isSet () &&
-            !self._args.clean.isSet ()
+            !self._args.clean.isSet () &&
+            !self._args.publish.isSet ()
     }
     
 }

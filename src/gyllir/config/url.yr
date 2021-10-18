@@ -1,0 +1,155 @@
+mod gyllir::config::url;
+
+import std::config;
+import std::config::conv;
+import std::config::error;
+import std::io;
+import std::tokenizer;
+import std::fs::path;
+import std::algorithm::search;
+
+/**
+ * There are two types of url for the moment
+ * - Local ones, that are refering to file datas
+ * - Git ones, that are refering to a git repository on a remote server
+ */
+pub enum
+| LOCAL = 0u8
+| GIT = 2u8
+ -> UrlType;
+
+pub enum
+| LOCAL = "local:"
+| GIT = "git:"
+ -> UrlStarts;
+
+/**
+ * An url that is used to get refer to package repositories
+ * Url seems to be a common object, maybe it has its place in the std, in the use std::net module
+ */   
+pub class Url {
+
+    let mut _path : &Path = Path::new ("");
+
+    let mut _type : UrlType = UrlType::LOCAL;
+
+    /**
+     * Create an empty url
+     */
+    pub self () {}
+
+    /**
+     * Create an url from a string
+     */
+    pub self (c : [c8])
+        throws &AssertError
+    {
+        import std::conv;
+        self:.parse (c.to![c32] ());
+    }
+
+    /**
+     * Create an url from a string
+     */
+    pub self (c : [c32])
+        throws &AssertError
+    {
+        self:.parse (c);
+    }
+    
+    /**
+     * Create an url from a configuration
+     * This constructor can be used by the std for deserialization
+     * @example: 
+     * ====================
+     * def getConfiguration ()-> &Config; 
+     *
+     * let dmut list = getConfiguration ().to!{&Url} (); 
+     * ====================
+     */
+    pub self (cfg : &Config)
+        throws &AssertError
+    {
+        match cfg {
+            Str (str-> url : _) => {
+                self:.parse (url);
+            }
+            _ => {
+                throw AssertError::new ("Expecting string");
+            }
+        }
+    }
+
+    /**
+     * @returns: the type of url
+     */
+    pub def getType (self)-> UrlType {
+        self._type
+    }
+
+    /**
+     * @returns: the path of the url
+     */
+    pub def getPath (self)-> &Path {
+        self._path
+    }
+    
+    
+    /**
+     * Parse an url from a string
+     */
+    prv def parse (mut self, url : [c32])
+        throws &AssertError
+    {
+        if url.startWith (UrlStarts::LOCAL) {
+            self:.parseLocal (url);
+        } else {
+            self:.parseGit (url);
+        }
+    }
+    
+    /**
+     * Parse a local url
+     */
+    prv def parseLocal (mut self, url : [c32])
+        throws &AssertError
+    {
+        println (url, " ", UrlStarts::LOCAL.len);
+        self._path = Path::new (url [UrlStarts::LOCAL.len - 1us .. $]);
+        self._type = UrlType::LOCAL;
+    } catch {
+        _ => throw AssertError::new ("Failed to parse a local url");
+    }
+
+    prv def parseGit (mut self, url : [c32])
+        throws &AssertError
+    {
+        self._path = if url.startWith (UrlStarts::GIT) {
+            Path::new (url [UrlStarts::GIT.len - 1us .. $])
+        } else {
+            Path::new (url)
+        }
+        
+        self._type = UrlType::GIT;
+    } catch {
+        _ => throw AssertError::new ("Failed to parse a git url");
+    }
+
+
+    impl Streamable;
+    impl Serializable {
+
+        /**
+         * Transform the url into a configuration
+         */
+        pub over serialize (self)-> &Config {
+            import std::conv;
+            
+            match self._type {
+                UrlType::LOCAL => { Str::new (UrlStarts::LOCAL ~ self._path.toStr ().to![c32] ()) }
+                _ => { Str::new (UrlStarts::GIT ~ self._path.toStr ().to![c32] ()) }
+            }
+        }
+    }
+        
+}

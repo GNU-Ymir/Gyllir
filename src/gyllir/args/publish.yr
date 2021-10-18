@@ -1,0 +1,82 @@
+mod gyllir::args::publish;
+import std::args, std::lexer, std::io;
+import gyllir::args::sub;
+
+struct
+| major : YesNo
+| minor : YesNo
+| patch : YesNo
+| message : [c32]
+| mut help : YesNo
+ -> PublishArgs;
+
+/**
+ * Sub command used to create a new repo
+ * @example: 
+ * =:bash===========
+ * $ gyllir publish my-awesome-project
+ * =================
+ */
+pub class @final PublishCommand over SubCommand {
+
+    let mut _args = PublishArgs (YesNo::NO, YesNo::NO, YesNo::NO, "", YesNo::YES);
+    
+    pub self () with super (false) {}
+
+    /**
+     * Constructor called by the argument parser
+     */
+    pub self (args : [[c32]]) with super (true)
+        throws &ArgumentError, &HelpPrinted
+    {
+        let parser = ArgumentParser!(PublishArgs)::new ()
+            :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
+            :.info!"major" (comments-> "publish a major version")
+            :.info!"minor" (comments-> "publish a minor version")
+            :.info!"patch" (comments-> "publish a patch")
+            :.positional!"message" (comments-> "the message of the version");
+
+        {
+            self._args = parser.parse (["./usage"] ~ args);
+        } catch {
+            err : &ArgumentError => {
+                println (parser.simpleUsage (cmd-> "gyllir publish"));
+                throw err;
+            }
+            _ : &HelpRequired => {
+                println (parser.usage (cmd-> "gyllir publish"));
+                throw HelpPrinted::new ();
+            }
+        }
+            
+    }
+
+    /**
+     * @returns: the message of the commit
+     */
+    pub def getMessage (self)-> [c32] {
+        self._args.message
+    }
+
+    /**
+     * @returns: is this a major publish
+     */
+    pub def isMajor (self)-> bool {
+        self._args.major
+    }
+
+    /**
+     * @returns: is this a minor publish
+     */
+    pub def isMinor (self)-> bool {
+        self._args.minor
+    }
+
+    /**
+     * @returns: is this a patch publish
+     */
+    pub def isPatch (self)-> bool {
+        self._args.patch
+    }
+      
+}

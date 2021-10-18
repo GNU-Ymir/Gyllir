@@ -20,7 +20,7 @@ pub class BuildType {
     let mut _type = BuildTypeEnum::EXECUTABLE;
     
     pub self () {}
-
+    
     pub self (type : [c8]) throws &AssertError {
         match type {
             "executable"s8 => {

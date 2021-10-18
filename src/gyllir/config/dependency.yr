@@ -50,14 +50,15 @@ pub class DependencyList {
      * let dmut list = getConfiguration ().to!{&DependencyList} ();
      * =================
      */
-    pub self (cfg : &Config) throws &AssertError
+    pub self (cfg : &Config)
+        throws &AssertError
     {
         match cfg {
             x : &Dict => {
                 self:.insert (x);
             }
             _ => {
-                assert (false, "Error: not a dictionnary");
+                throw AssertError::new ("Expecting a dictionnary");
             }
         }
     }
