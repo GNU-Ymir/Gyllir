@@ -30,6 +30,35 @@ pub def clone (url : [c8], cwd : &Path = Path::new ("."))
     }    
 }
 
+
+pub def setRemote (url : [c8], cwd : &Path = Path::new ("."))
+    throws &GitError
+{
+    with dmut subproc = SubProcess::run ("git"s8, ["remote"s8, "add"s8, "origin"s8, url], cwd-> cwd) {        
+        let code = subproc:.wait ();
+        if (code != 0) {
+            with dmut subproc2 = SubProcess::run ("git"s8, ["remote"s8, "set-url"s8, "origin"s8, url], cwd-> cwd) {
+                let code2 = subproc2:.wait ();
+                if (code2 != 0) {
+                    throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
+                }
+            } 
+        }
+    }    
+}
+
+pub def push (tags : [[c8]], cwd : &Path = Path::new ("."))
+    throws &GitError
+{
+    with dmut subproc = SubProcess::run ("git"s8, ["push"s8, "origin"s8] ~ tags, cwd-> cwd) {
+        let code = subproc:.wait ();
+        if (code != 0) {
+            throw GitError::new (GitErrorCode::ALREADY_INIT, subproc:.stderr ():.read ());
+        }
+    }
+}
+
+
 pub def add (path : &Path)
     throws &GitError
 {
@@ -86,6 +115,17 @@ pub def deleteTag (name : [c8], cwd : &Path = Path::new ("."))
     }    
 }
 
+pub def fetchTags (cwd : &Path = Path::new ("."))
+    throws &GitError
+{
+    with dmut subproc = SubProcess::run ("git"s8,  ["fetch"s8, "--tags"s8, "--depth=1"s8], cwd-> cwd) {
+        let code = subproc:.wait ();
+        if (code != 0) {
+            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
+        }
+    }
+}
+
 
 pub def checkout (name : [c8], cwd : &Path = Path::new ("."))
     throws &GitError
@@ -98,6 +138,18 @@ pub def checkout (name : [c8], cwd : &Path = Path::new ("."))
     }    
 }
 
+
+pub def getTagList (cwd : &Path = Path::new ("."))-> [c8]
+    throws &GitError
+{
+    with dmut subproc = SubProcess::run ("git"s8, ["tag"s8], cwd-> cwd) {
+        let code = subproc:.wait ();
+        if (code != 0) {
+            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
+        }
+        subproc:.stdout ():.read ()
+    }    
+}
 
 
 pub def commit (message : [c8], cwd : &Path = Path::new ("."))

@@ -13,7 +13,8 @@ import std::concurrency::process;
 import gyllir::utils::git, gyllir::utils::errors;
 import std::concurrency::thread, std::concurrency::mailbox;
 import std::algorithm::comparison, std::algorithm::iteration;
-import std::lexer;
+import std::collection::set;
+import std::lexer, std::tokenizer;
 
 /**
  * The structure containing all the command line arguments
@@ -24,6 +25,7 @@ pub struct
 | build : &BuildCommand = BuildCommand::new ()
 | clean : &CleanCommand = CleanCommand::new ()
 | publish : &PublishCommand = PublishCommand::new ()
+| test : &TestCommand = TestCommand::new ()
  -> GyllirArgs;
 
 
@@ -34,7 +36,9 @@ pub class GyllirManager {
 
     let mut _valid : bool = false;
     let mut _args : GyllirArgs = GyllirArgs (help-> YesNo::NO);
-    let dmut _mail = MailBox!{(u64, &Path)}::new ();
+    let dmut _mail = MailBox!{(u64, &Path, &Path, [c8], bool, bool, [&Path])}::new ();
+    let mut _failed : bool = false;
+    let dmut _doneDependencies = HashSet!{&Url}::new ();
     
     /**
      * Create a Gyllir builder from an argument 
@@ -45,7 +49,9 @@ pub class GyllirManager {
             :.info!"init" (comments-> "initialize a gyllir repository and create the config file.")
             :.info!"build" (comments-> "build the project in the current directory")
             :.info!"publish" (comments-> "publish a version to the package registry")
-            :.info!"clean" (comments-> "clean the project (remove generated files)");
+            :.info!"clean" (comments-> "clean the project (remove generated files)")
+            :.info!"test" (comments-> "run the tests")
+            ;
         {            
             self._args = x.parse (args);
             if (self.noneIsSet ()) {
@@ -56,6 +62,7 @@ pub class GyllirManager {
         } catch {
             err : &ArgumentError => {
                 if !self.hasHelpPrinted (err) {
+                    println (x.simpleUsage (cmd-> "gyllir"));
                     println (x.diagnosis (err));
                 }
             }
@@ -75,11 +82,38 @@ pub class GyllirManager {
         if (self._args.init.isSet ()) {
             self:.initRepo ();
         } else if (self._args.build.isSet ()) {
-            self:.buildRepo ();
+            let cwd = env::currentDir ();
+            let conf = {
+                self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
+            } catch {
+                x : _ => {
+                    println ("Failed to read configuration file (", x, "). Aborting");
+                    return {}
+                }
+            }
+            {
+                self:.buildRepo (conf, cwd-> cwd);
+            } catch {
+                r : &RecursiveDependency => {
+                    println ("Failed to build repository, recursive dependency : ");
+                    println (r.msg);
+                    println ("Aborting");                    
+                }
+            }
         } else if (self._args.clean.isSet ()) {
-            self:.cleanRepo ();
+            self:.cleanRepo (doc-> self._args.clean.isDoc (), all-> self._args.clean.isAll ());
         } else if (self._args.publish.isSet ()) {
             self:.publishRepo ();
+        } else if (self._args.test.isSet ()) {
+            {
+                self:.runTests ();
+            } catch {
+                r : &RecursiveDependency => {
+                    println ("Failed to build repository, recursive dependency : ");
+                    println (r.msg);
+                    println ("Aborting");                    
+                }
+            }
         }
     }
 
@@ -155,6 +189,7 @@ pub class GyllirManager {
         self.saveToml (path.push (defaults::__GYLLIR_CONFIG_FILENAME__), conf.to!{&Config} ());
 
         fs::createDir (path.push (defaults::__SRC_DIR__))?;
+        fs::createDir (path.push (defaults::__TEST_DIR__))?;
         with dmut f = File::create (path.push (defaults::__SRC_DIR__).push (defaults::__MAIN_FILE__), write-> true) {
             f:.write (defaults::__MAIN_CONTENT__);
         }
@@ -162,8 +197,8 @@ pub class GyllirManager {
         with dmut f = File::create (path.push (defaults::__GITIGNORE_FILENAME__), write-> true) {
             f:.write (defaults::__GITIGNORE_CONTENT__);
             if conf.type.isExecutable () {
-                f:.write ("./"s8 ~ conf.name);
-            } else f:.write ("./"s8 ~ conf.name ~ ".a"s8);
+                f:.write ("/"s8 ~ conf.name);
+            } else f:.write ("/"s8 ~ conf.name ~ ".a"s8);
             f:.write ("\n"s8);
         }
 
@@ -184,26 +219,28 @@ pub class GyllirManager {
     /**
      * Build a repository 
      */
-    prv def buildRepo (mut self) {
-        let cwd = env::currentDir ();
-        let conf = {
-            self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
-        } catch {
-            _ => {
-                println ("Failed to read configuration file. Aborting");
-                return {}
-            }
-        }
-        
+    prv def buildRepo (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir (), doLink : bool = true)-> bool
+        throws &RecursiveDependency
+    {        
         {
             fs::createDir (cwd.push (defaults::__BUILD_DIR__));
         } catch {
             x : &FsError => {
                 if (x.code != FsErrorCode::ALREADY_EXISTS) {
                     println ("Failed to create build repository: "s8 ~ x.msg ~ " ("s8 ~ x.code.(fs::errors::to)![c8] () ~ "). Aborting"s8);
-                    return {}
+                    return false;
                 }
             }
+        }
+
+        let mut links : [&Path] = [];
+        let mut libs : [&Path] = [];        
+        for name, dep in conf.dependencies.getList () {
+            let (succ, link, lib) = self:.resolvePackageDependency (cwd, name.(std::conv::to)![c8] (), dep);
+            if (!succ) return false;
+            
+            libs = libs ~ [lib];
+            links = links ~ [link.push (defaults::__SRC_DIR__)];
         }
         
         let files = {
@@ -211,40 +248,64 @@ pub class GyllirManager {
         } catch {
             _ : &FsError => {
                 println ("Invalid repository, missing source directory. Aborting");
-                return {}
+                return false;
             }
         }
 
-        let toBuild = self.listToBuild (files);
-        self:.buildFiles (toBuild);        
-        self:.linkRepo (files, conf);
+        let toBuild = self.listToBuild (cwd, files);
+        if (self:.buildFiles (cwd, toBuild, links, verbose-> self._args.build.isVerbose ())) {
+            if doLink {
+                let mut ofiles : [&Path] = [];
+                for file in files {
+                    let oname = file.stripExtension ().addExtension (defaults::__OBJECT_EXTENSION__).file ();
+                    let odir = cwd.push (defaults::__BUILD_DIR__).push (file.parent ().removePrefix (cwd));
+                    ofiles = ofiles ~ [odir.push (oname)];
+                }
+            
+                return self:.linkRepo (cwd, ofiles, conf, libs, conf.libraries, verbose-> self._args.build.isVerbose ());
+            } else return true;
+        }
+
+        false
     }
+      
 
     /**
      * Link the files to create the executable or library
      */
-    prv def linkRepo (mut self, files : [&Path], conf : GyllirConfig) {
-        let cwd = env::currentDir ();
-        let mut ofiles : [[c8]] = [];
-        for file in files {
-            let oname = file.stripExtension ().addExtension ("o"s8).file ();
-            let odir = cwd.push (defaults::__BUILD_DIR__).push (file.parent ().removePrefix (cwd.push (defaults::__SRC_DIR__)));
-            ofiles = ofiles ~ [odir.push (oname).toStr ()];
+    prv def linkRepo (mut self, cwd : &Path, ofiles : [&Path], conf : GyllirConfig, libs : [&Path], libraries : [[c32]], test : bool = false, verbose : bool = false) -> bool {
+        let outputname = if !test {
+            cwd.push (self.toPath (conf.name, sep-> "/"s8, add-> "_"s8)).toStr ()
+        } else {
+            cwd.push ("test-"s8 ~ self.toPath (conf.name, sep-> "/"s8, add-> "_"s8)).toStr ()
         }
-
-        let outputname = self.toPath (conf.name, sep-> "/"s8, add-> "_"s8);
+        
         println ("[100%] Linking ", outputname);
-        
-        if (self._args.build.isVerbose ()) {
-            print ("[INFO] Running cmd gyc"s8, " -o "s8, outputname);
-            for i in ofiles print (" ", i);
-            println ("");                
+       
+
+        let mut ldirs : [[c8]] = [];
+        for l in libs {
+            ldirs = ldirs ~ [l.toStr ()];
         }
-        
-        if (conf.type.isExecutable ()) {
-            with dmut subProc = SubProcess::run ("gyc"s8, ["-o"s8, outputname] ~ ofiles, cwd-> cwd) {
-                let _ = subProc:.wait ();
-                if (self._args.build.isVerbose ()) {
+                      
+        if (conf.type.isExecutable () || test) {
+            if (verbose) {
+                print ("[INFO] Running cmd gyc"s8, " -o "s8, outputname);
+                if test { print (" -funittest") }
+                for i in ofiles print (" ", i.toStr ());
+                for l in libs print (" ", l.toStr ());
+                for l in libraries print (" -l", l);
+                println ("");                
+            }
+            
+            for l in libraries {
+                ldirs = ldirs ~ ["-l"s8, l.(std::conv::to)![c8] ()];
+            }
+            
+            let opt = if (test) { ["-funittest"s8] } else { [] };
+            with dmut subProc = SubProcess::run ("gyc"s8, opt ~ ["-o"s8, outputname] ~ ofiles.map!{|x| => const x.toStr ()} () ~ ldirs, cwd-> cwd) {
+                let _ = subProc:.wait ();               
+                if (verbose) {
                     let o = subProc:.stdout ():.read ();
                     if (o != ""s8)
                         println (o);
@@ -253,26 +314,50 @@ pub class GyllirManager {
                 let err = subProc:.stderr ():.read ();
                 if (err != ""s8) {
                     println (err);
-                    atomic self {
-                        self._mail:.clear ();
-                    }
-                    return {}
+                    return false
+                }
+            }
+        } else if (conf.type.isLibrary ()) {
+            if (verbose) {
+                print ("[INFO] Running cmd ar"s8, " cr "s8, outputname, ".a"s8);
+                for i in ofiles print (" ", i.toStr ());
+                for l in libs print (" ", l.toStr ());
+                for l in libraries print (" -l", l);
+                println ("");                
+            }
+            
+            with dmut subProc = SubProcess::run ("ar"s8, ["cr"s8, outputname ~ ".a"s8] ~ ofiles.map!{|x| => const x.toStr ()} () ~ ldirs, cwd-> cwd) {
+                let _ = subProc:.wait ();
+                if (verbose) {
+                    let o = subProc:.stdout ():.read ();
+                    if (o != ""s8)
+                        println (o);
+                }
+
+                let err = subProc:.stderr ():.read ();
+                if (err != ""s8) {
+                    println ("Linking failed : ");
+                    println (err);
+                    return false
                 }
             }
         }
+
+        true
     }
 
     
     /**
      * Build the files 
      */
-    prv def buildFiles (mut self, files : [&Path]) {
+    prv def buildFiles (mut self, cwd : &Path, files : [&Path], links : [&Path], buildDir : [c8] = defaults::__BUILD_DIR__, test : bool = false, verbose : bool = false) -> bool {
+        self._failed = false;
         let mut percent = 0u64;
         for i in 0us .. files.len {
             let prc = (percent * 100u64) / files.len;
             percent += 1u64;
-
-            self._mail:.send ((prc, files [i]));
+            
+            self._mail:.send ((prc, files [i], cwd, buildDir, test, verbose, links));
         }
 
         let mut threads : [Thread] = [];
@@ -288,62 +373,85 @@ pub class GyllirManager {
 
         for th in threads {
             th.join ();
-        }        
+        }
+        
+        !self._failed 
     } catch {
-        x : &OutOfArray => println (x);
+        x : &OutOfArray => { println (x); false }
     }
 
 
+    /**
+     * Thread running file compilation
+     */
     prv def buildFile (mut self, _ : Thread) {
-        let cwd = env::currentDir ();
         loop {
-            let (p, file) = atomic self {
+            let (p, file, cwd, buildDir, test, verbose, links) = atomic self {
                 match self._mail:.receive () {
                     Ok (x : _) => { x }
                     _ => { return {} }
                 }
             }
-            
-            let oname = file.stripExtension ().addExtension ("o"s8).file ();
-            let odir = cwd.push (defaults::__BUILD_DIR__).push (file.parent ().removePrefix (cwd.push (defaults::__SRC_DIR__)));
-            fs::createDir (odir, recursive-> true)?;
-            
+
+            let oname = file.stripExtension ().addExtension (defaults::__OBJECT_EXTENSION__).file ();
+            let odir = cwd.push (buildDir).push (file.parent ().removePrefix (cwd));
             atomic self {
+                fs::createDir (odir, recursive-> true)?
+            }
+
+            let mut idirs : [[c8]] = [];
+            atomic self {
+                for l in links {
+                    idirs = idirs ~ ["-I"s8, l.toStr ()];
+                }
+                
                 if (p < 10u64) 
                     println ("[  ", p, "%] Building object ", odir.push (oname).toStr ());
                 else println ("[ ", p, "%] Building object ", odir.push (oname).toStr ());
-                if self._args.build.isVerbose () {
-                    println ("[INFO] Running cmd gyc -fdependency -c -o", odir.push (oname).toStr (), " ", file.toStr (), " ", "-I "s8, cwd.push ("src"s8).toStr (), " ", if (self._args.build.isDebug ()) "-g"s8 else "-O3"s8);
+                if verbose {                    
+                    print ("[INFO] Running cmd gyc ");
+                    if (self._args.build.isDebug ()) print (" -g"s8)
+                    else print (" -O3"s8);                    
+                    print (if (test) { "-funittest" } else { "" }, " -fdependency -c -o", odir.push (oname).toStr (), " ", file.toStr (), " ", "-I "s8, cwd.push ("src"s8).toStr ());
+                    
+                    for i in idirs {
+                        print (" ", i);
+                    }
+                    println ("");
                 }
             }
-            
-            with dmut subProc = SubProcess::run ("gyc"s8, ["-fdependency"s8, "-c"s8, "-o"s8, odir.push (oname).toStr (), file.toStr (), "-I"s8, cwd.push ("src"s8).toStr (), if (self._args.build.isDebug ()) "-g"s8 else "-O3"s8], cwd-> cwd.push (defaults::__BUILD_DIR__)) {
+
+            let opt = if (test) { ["-funittest"s8] } else { [] } ;
+            with dmut subProc = SubProcess::run ("gyc"s8, opt ~ [if (self._args.build.isDebug ()) "-g"s8 else "-O3"s8] ~ ["-fdependency"s8, "-c"s8, "-o"s8, odir.push (oname).toStr (), file.toStr (), "-I"s8, cwd.push ("src"s8).toStr ()] ~ idirs, cwd-> cwd.push (buildDir)) {
                 let _ = subProc:.wait ();
-                if (self._args.build.isVerbose ()) {
+                if (verbose) {
                     let o = subProc:.stdout ():.read ();
                     if o != ""s8 { println (o); }
                 }
 
                 let err = subProc:.stderr ():.read ();
                 if (err != ""s8) {
+                    println ("Failed to compile file : ", oname);
                     println (err);
                     atomic self {
                         self._mail:.clear ();
+                        self._failed = true;
                     }
                     return {}
                 }
             }
 
-            let depname = self.toPath (file.stripExtension ().removePrefix (cwd.push (defaults::__SRC_DIR__)).addExtension ("dep.json"s8).toStr (), sep-> "/"s8, add-> "__"s8);
-            let dstname = file.stripExtension ().removePrefix (cwd.push (defaults::__SRC_DIR__)).addExtension ("dep.json"s8).toStr ();
+            let depname = self.toPath (file.stripExtension ().removePrefix (cwd).addExtension (defaults::__DEP_EXTENSION__).removeRoot ().toStr (), sep-> "/"s8, add-> "__"s8);
+            let dstname = file.stripExtension ().removePrefix (cwd).addExtension (defaults::__DEP_EXTENSION__).toStr ();
             if (depname != dstname) {
-                with dmut subProc = SubProcess::run ("mv"s8, [depname, dstname], cwd-> cwd.push (defaults::__BUILD_DIR__)) {
+                with dmut subProc = SubProcess::run ("mv"s8, [depname, dstname], cwd-> cwd.push (buildDir)) {
                     let _ = subProc:.wait ();
                     let err = subProc:.stderr ():.read ();
                     if (err != ""s8) {
                         println (err);
                         atomic self {
                             self._mail:.clear ();
+                            self._failed = true;
                         }
                         return {}
                     }
@@ -359,14 +467,13 @@ pub class GyllirManager {
      *   - files: the list of source file
      * @returns: the list of source files to build
      */
-    prv def listToBuild (self, files : [&Path]) -> [&Path] {
+    prv def listToBuild (self, cwd : &Path, files : [&Path], buildDir : [c8] = defaults::__BUILD_DIR__) -> [&Path] {
         let dmut res = Vec!{&Path}::new ();
         let dmut no = Vec!{&Path}::new ();
 
-        let cwd = env::currentDir ();
         for file in files {
-            let oname = file.stripExtension ().addExtension ("o"s8).file ();
-            let odir = cwd.push (defaults::__BUILD_DIR__).push (file.parent ().removePrefix (cwd.push (defaults::__SRC_DIR__)));
+            let oname = file.stripExtension ().addExtension (defaults::__OBJECT_EXTENSION__).file ();
+            let odir = cwd.push (buildDir).push (file.parent ().removePrefix (cwd));
             let opath = odir.push (oname);
             {
                 if (fs::isFile (opath)) {
@@ -380,7 +487,7 @@ pub class GyllirManager {
 
         res:.fit ();
         no:.fit ();
-        self.resolveDependencies (no [], res [])
+        self.resolveDependencies (cwd, no [], res [], buildDir-> buildDir)
     }
 
     /**
@@ -390,20 +497,19 @@ pub class GyllirManager {
      *   - files: the list of files that are not build by default
      *   - force: the list of files that will be rebuild
      */
-    prv def resolveDependencies (self, files : [&Path], force : [&Path])-> [&Path] {
+    prv def resolveDependencies (self, cwd : &Path, files : [&Path], force : [&Path], buildDir : [c8] = defaults::__BUILD_DIR__)-> [&Path] {
         import std::config::json;
-        let cwd = env::currentDir ();
         
         for i in 0us .. files.len {
             let depname = files [i].stripExtension ().addExtension ("dep.json"s8).file ();
-            let depdir = cwd.push (defaults::__BUILD_DIR__).push (files [i].parent ().removePrefix (cwd.push (defaults::__SRC_DIR__)));
+            let depdir = cwd.push (buildDir).push (files [i].parent ().removePrefix (cwd));
             let deppath = depdir.push (depname);
             if fs::isFile (deppath) {
                 with dmut dep = File::open (deppath) {
                     let dependencies = json::parse (dep:.readAll ());
-                    if self.hasDependency (dependencies, force) return self.resolveDependencies (files [0us .. i] ~ files [i + 1us .. $], force ~ [files [i]]);
+                    if self.hasDependency (cwd, dependencies, force) return self.resolveDependencies (cwd, files [0us .. i] ~ files [i + 1us .. $], force ~ [files [i]], buildDir-> buildDir);
                 } catch {
-                    _ => return self.resolveDependencies (files [0us .. i] ~ files [i + 1us .. $], force ~ [files [i]]);
+                    _ => return self.resolveDependencies (cwd, files [0us .. i] ~ files [i + 1us .. $], force ~ [files [i]], buildDir-> buildDir);
                 }
             }
         } catch {
@@ -416,14 +522,13 @@ pub class GyllirManager {
     /**
      * @returns: true, if the file has a dependency in files
      */
-    prv def hasDependency (self, conf : &Config, files : [&Path])-> bool {
-        let cwd = env::currentDir ();
+    prv def hasDependency (self, cwd : &Path, conf : &Config, files : [&Path])-> bool {
         let deps = conf ["dependencies"]?;
         match deps {
             Ok (arr : &Array) => {
                 for i in 0us .. arr.len () {
                     for f in files {
-                        let filePath = f.removePrefix (cwd.push (defaults::__SRC_DIR__));
+                        let filePath = f.removePrefix (cwd).removeRoot ();
                         let depPath = Path::new (self.toPath (arr [i].(config::conv::to)![c8] ())).addExtension (defaults::__YMIR_EXTENSION__);
                         if depPath.toStr () == filePath.toStr () {
                             return true;
@@ -508,7 +613,91 @@ pub class GyllirManager {
      * ================================================================================================================================================================
      */
 
+    /**
+     * Resolve a dependency, and build it
+     */
+    pub def resolvePackageDependency (mut self, cwd : &Path, name : [c8], dependency : Dependency) -> (bool, &Path, &Path)
+        throws &RecursiveDependency
+    {
+        let depPath = cwd.push (defaults::__DEPENCY_DIR__).push (name);
+        println ("[INFO] Resolving dependency : ", name, " to ", depPath.toStr ());
+        {
+            if (dependency.url in self._doneDependencies) {
+                throw RecursiveDependency::new (name ~ ":"s8 ~ dependency.url.getPath ().toStr ())
+            }
+            
+            if !isDir (depPath) {
+                fs::createDir (depPath, recursive-> true);
+                
+                if (dependency.url.getType () == UrlType::LOCAL) {
+                    fs::copyDir (dependency.url.getPath (), depPath, recursive-> true);
+                } else {
+                    git::clone (dependency.url.getPath ().toStr (), cwd-> depPath);
+                }
+            }
+            
+            git::fetchTags (cwd-> depPath);
+            git::checkout ("v"s8 ~ dependency.version.toStr (), cwd-> depPath);
+            
+            let conf = {
+                self.loadToml (depPath.push (defaults::__GYLLIR_CONFIG_FILENAME__))
+            } catch {
+                x : _ => {
+                    println ("Failed to read configuration file (", x, "). Aborting");
+                    return (false, Path::new (""s8), Path::new (""s8));
+                }
+            }
 
+            self._doneDependencies:.insert (dependency.url);
+            let succ = { 
+                self:.buildRepo (conf, cwd-> depPath)
+            } catch {
+                r : &RecursiveDependency => {
+                    throw RecursiveDependency::new (name ~ ":"s8 ~ dependency.url.getPath ().toStr () ~ " => "s8 ~ r.msg);
+                }
+            }
+            self._doneDependencies:.remove (dependency.url);
+            
+            return (succ, depPath, if (conf.type.isLibrary ()) depPath.push (conf.name).addExtension (defaults::__LIBRARY_EXTENSION__) else Path::new (""s8));
+        } catch {
+            _ : &GitError => {
+                let versions = { self.toVersionList (git::getTagList (cwd-> depPath)) } catch { _ => [] }
+                println ("Missing version : ", dependency.version.toStr (), ". Aborting");
+                if (versions.len != 0us) {
+                    println ("Available versions are : ", versions.map!{|x| const x.toStr ()} ());
+                }
+                
+                return (false, Path::new (""s8), Path::new (""s8));
+            }
+
+            r : &RecursiveDependency => throw r;
+            
+            _ => {
+                println ("Failure. Aborting");
+                return (false, Path::new (""s8), Path::new (""s8));
+            } 
+        }
+    }
+
+    /**
+     * Transform a list of tags (acquired with git) into a list of version
+     */
+    pub def toVersionList (self, list : [c8])-> [&Version] {
+        let tzer = Tokenizer::new (tokens-> ["\n"]);
+        let res = tzer.tokenize (list.(std::conv::to)![c32] ());
+        let mut versions : [&Version] = [];
+        for i in res {
+            {
+                if (i.len > 0us && i [0us] == 'v') {
+                    versions = versions ~ [Version::new (i [1us .. $])];
+                }
+            } catch {
+                _ => {}
+            }
+        }
+        return versions
+    }
+    
     /**
      * ================================================================================================================================================================
      * ================================================================================================================================================================
@@ -520,8 +709,7 @@ pub class GyllirManager {
     /**
      * Execute the clean repository command
      */
-    pub def cleanRepo (self) {
-        let cwd = env::currentDir ();
+    pub def cleanRepo (self, cwd : &Path = env::currentDir (), all : bool = false, doc : bool = false) {
         let conf = {
             self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
         } catch {
@@ -531,13 +719,13 @@ pub class GyllirManager {
             }
         }
 
-	if (self._args.clean.isDoc () || self._args.clean.isAll ()) {
+	if (doc || all) {
             if (fs::isDir (cwd.push ("__doc"s8))) {
 		fs::removeDir (cwd.push ("__doc"s8), recursive-> true);
             }            
         }        
         
-	if (!self._args.clean.isDoc () || self._args.clean.isAll ()) {
+	if (!doc || all) {
             if (fs::isDir (cwd.push (".build"s8))) {
 		fs::removeDir (cwd.push (".build"s8), recursive-> true);
             }
@@ -561,44 +749,213 @@ pub class GyllirManager {
     /**
      * Publish the repository 
      */
-    pub def publishRepo (self) {
+    pub def publishRepo (mut self) {
         let cwd = env::currentDir ();
         let conf = {
             self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
         } catch {
-            _ => {
-                println ("Failed to read configuration file. Aborting");
+            x : _ => {
+                println ("Failed to read configuration file (", x, "). Aborting");                
                 return {}
             }
         }
         
-        match conf.registry.getType () {
-            UrlType::LOCAL => self.publishLocal (conf);
-            _ => self.publishGit (conf);
+        if !conf.registry.isValid () {
+            println ("Invalid registry, unable to publish. Aborting");
+            return {}
+        }
+        
+        {            
+            match conf.registry.getType () {
+                UrlType::LOCAL => { self:.publishLocal (cwd, conf, path-> conf.registry.getPath (), ask-> self._args.publish.isYes ()); }
+                _ => {
+                    let tmpDir = tempDirectory ();
+                    let answer =
+                        if (self._args.publish.isYes ()) { "Y"s8 } else { self.askUserFor ("Publish to git : "s8 ~ conf.registry.getPath ().toStr () ~ " (Y/n)"s8, default-> "Y"s8) }
+                    
+                    if answer != "Y"s8 { println ("Aborting"); return {} }                    
+                    let (succ, version) = self:.publishLocal (cwd, conf, path-> tmpDir, ask-> false);
+                    if (succ) {
+                        self:.publishGit (conf, tmpDir, version);
+                    }
+                }
+            }
+        } catch {
+            x : _ => println (x);
         }
     }
 
     /**
      * Publish a package to a local location
      */
-    pub def publishLocal (self, conf : GyllirConfig) {
-        let path = conf.registry.getPath ();
-        match self.askUserFor ("Publish to : "s8 ~ path.toStr () ~ " (Y/n)"s8, default-> "Y"s8) {            
-            "Y"s8 => {
-                fs::removeDir (path, recursive-> true)?
-                fs::createDir (path, recursive-> true)?
-                
+    pub def publishLocal (mut self, cwd : &Path, conf : GyllirConfig, path : &Path = Path::new ("."), ask : bool = true)-> (bool, &Version)
+        throws &FsError, &GitError
+    {
+        let answer =
+            if (!ask) { "Y"s8 } else { self.askUserFor ("Publish to local : "s8 ~ path.toStr () ~ " (Y/n)"s8, default-> "Y"s8) }
+
+        if answer != "Y"s8 { println ("Aborting"); return (false, conf.version); }
+        
+        self.cleanRepo (cwd-> cwd, all-> true);
+        if (!self._args.publish.isDry ()) {
+            let res = {
+                self:.runTests (cwd-> cwd)
+            } catch {
+                r : &RecursiveDependency => {
+                    println ("Failed to build repository, recursive dependency : ");
+                    println (r.msg);
+                    println ("Aborting");
+                    return (false, conf.version);
+                }
+            }
+            
+            self.cleanRepo (cwd-> cwd, all-> true);
+            if !res {
+                println ("Test failed to pass. Aborting");
+                return (false, conf.version);
             }
         }
+
+        let version = conf.version.increment (major-> self._args.publish.isMajor (),
+                                              minor-> self._args.publish.isMinor (),
+                                              patch-> self._args.publish.isPatch ());
+        let conf2 = GyllirConfig (conf.name, conf.license, conf.description, type-> conf.type, registry-> conf.registry, conf.author, version-> version, dependencies-> conf.dependencies, libraries-> conf.libraries);
+        self.saveToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__), conf2.to!{&Config} ());
+
+        git::add (cwd.push ("."s8));
+        git::commit (self._args.publish.getMessage ().(std::conv::to)![c8] (), cwd-> cwd);
+        git::createTag ("v"s8 ~ version.toStr ());
+
+        if isDir (path) {
+            fs::removeDir (path, recursive-> true);
+        }
         
+        fs::createDir (path, recursive-> true);
+        println ("copy dir : ", path, " ", cwd);
+        fs::copyDir (cwd, path, recursive-> true);
+        
+        (true, version)
     }
 
     /**
      * Publish the repo to a git location
      */
-    pub def publishGit (self, _ : GyllirConfig) {
+    pub def publishGit (mut self, conf : GyllirConfig, tmpDir : &Path, version : &Version)
+    {
+        println (tmpDir);
+        git::setRemote (cwd-> tmpDir, conf.registry.getPath ().toStr ());
+        git::push (["v"s8 ~ version.toStr (), "master"s8], cwd-> tmpDir);
+    } catch {
+        x : &GitError => {
+            println ("Failed to publish to git repository. Aborting");
+            println (x);
+        }
     }
     
+    
+    /**
+     * ================================================================================================================================================================
+     * ================================================================================================================================================================
+     * =======================================================================     TESTS     ==========================================================================
+     * ================================================================================================================================================================
+     * ================================================================================================================================================================
+     */
+
+    /**
+     * Run the tests of the repo
+     */
+    pub def runTests (mut self, cwd : &Path = env::currentDir ()) -> bool
+        throws &RecursiveDependency
+    {
+        let conf = {
+            self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
+        } catch {
+            _ => {
+                println ("Failed to read configuration file. Aborting");
+                return false
+            }
+        }        
+        if self:.buildTest (cwd, conf) {
+            let outputname =  cwd.push ("test-"s8 ~ self.toPath (conf.name, sep-> "/"s8, add-> "_"s8));
+            let res = self:.launchTest (cwd, outputname);
+            fs::removeFile (outputname)?;
+            return res;
+        }
+        
+        false
+    }
+    
+    /**
+     * Compile the test executable
+     */
+    pub def buildTest (mut self, cwd : &Path, conf : GyllirConfig)-> bool
+        throws &RecursiveDependency
+    {
+        {
+            fs::createDir (cwd.push (defaults::__BUILD_DIR__));
+            fs::createDir (cwd.push (defaults::__TEST_DIR__));
+        } catch {
+            x : &FsError => {
+                if (x.code != FsErrorCode::ALREADY_EXISTS) {
+                    println ("Failed to create build repository: "s8 ~ x.msg ~ " ("s8 ~ x.code.(fs::errors::to)![c8] () ~ "). Aborting"s8);
+                    return false;
+                }
+            }
+        }
+
+        let mut links : [&Path] = [];
+        let mut libs : [&Path] = [];        
+        for name, dep in conf.dependencies.getList () {
+            let (succ, link, lib) = self:.resolvePackageDependency (cwd, name.(std::conv::to)![c8] (), dep);
+            if (!succ) return false;
+            
+            libs = libs ~ [lib];
+            links = links ~ [link.push (defaults::__SRC_DIR__)];
+        }
+        
+        let files = {
+            self.listAllSourceFiles (cwd.push (defaults::__SRC_DIR__)) ~ self.listAllSourceFiles (cwd.push (defaults::__TEST_DIR__))
+        } catch {
+            _ : &FsError => {
+                println ("Invalid repository, missing test directory. Aborting");
+                return false;
+            }
+        }
+
+        
+        let toBuild = self.listToBuild (cwd, files, buildDir-> defaults::__BUILD_TEST_DIR__);
+        if (self:.buildFiles (cwd, toBuild, links, buildDir-> defaults::__BUILD_TEST_DIR__, test-> true, verbose-> self._args.test.isVerbose ())) {
+            {
+                let mut ofiles : [&Path] = [];
+                for file in files {
+                    let oname = file.stripExtension ().addExtension (defaults::__OBJECT_EXTENSION__).file ();
+                    let odir = cwd.push (defaults::__BUILD_TEST_DIR__).push (file.parent ().removePrefix (cwd));
+                    ofiles = ofiles ~ [odir.push (oname)];
+                }
+                
+                return self:.linkRepo (cwd, ofiles, conf, libs, conf.libraries, test-> true, verbose-> self._args.test.isVerbose ());
+            }
+        } 
+        
+        false
+    }
+
+    /**
+     * Launch the tests
+     */
+    pub def launchTest (mut self, cwd : &Path, exec : &Path) -> bool {
+        with dmut subProc = SubProcess::run (exec.toStr (), [], cwd-> cwd) {
+            let code = subProc:.wait ();
+            print (subProc:.stdout ():.read ());
+
+            if (code != 0) {
+                println ("[ERROR] Return code : ", code);
+                println (subProc:.stderr ():.read ());
+                return false;
+            }
+        }
+        return true;
+    }
     
     /**
      * ================================================================================================================================================================
@@ -651,7 +1008,8 @@ pub class GyllirManager {
         !self._args.init.isSet () &&
             !self._args.build.isSet () &&
             !self._args.clean.isSet () &&
-            !self._args.publish.isSet ()
+            !self._args.publish.isSet () &&
+            !self._args.test.isSet ()
     }
     
 }

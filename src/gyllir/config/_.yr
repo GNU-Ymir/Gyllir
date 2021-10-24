@@ -14,7 +14,8 @@ pub struct
 | registry : &Url = Url::new ()
 | author: [c8]
 | version: &Version = Version::new ()
-| mut dependencies: &DependencyList = DependencyList::new ()
+| dependencies: &DependencyList = DependencyList::new ()
+| libraries : [[c32]] = []
  -> GyllirConfig; 
 
 

@@ -1,22 +1,22 @@
-mod gyllir::args::init;
+mod gyllir::args::test;
 import std::args, std::lexer, std::io;
 import gyllir::args::sub;
 
 struct
-| name : [c32]
+| verbose : YesNo
 | mut help : YesNo
- -> InitArgs;
+ -> TestArgs;
 
 /**
  * Sub command used to create a new repo
  * @example: 
  * =:bash===========
- * $ gyllir init my-awesome-project
+ * $ gyllir test my-awesome-project
  * =================
  */
-pub class @final InitCommand over SubCommand {
+pub class @final TestCommand over SubCommand {
 
-    let mut _args = InitArgs ("", YesNo::YES);
+    let mut _args = TestArgs (YesNo::NO, YesNo::YES);
     
     pub self () with super (false) {}
 
@@ -26,20 +26,20 @@ pub class @final InitCommand over SubCommand {
     pub self (args : [[c32]]) with super (true)
         throws &HelpPrinted
     {
-        let parser = ArgumentParser!(InitArgs)::new ()
-            :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
-            :.positional!"name" (comments-> "the name of the package to init");
+        let parser = ArgumentParser!(TestArgs)::new ()
+            :.info!"verbose" (short-> "v", comments-> "verbose mode")
+            :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true);
 
         {
             self._args = parser.parse (["./usage"] ~ args);
         } catch {
             err : &ArgumentError => {
-                println (parser.simpleUsage (cmd-> "gyllir init"));
+                println (parser.simpleUsage (cmd-> "gyllir test"));
                 println (parser.diagnosis (err));
                 throw HelpPrinted::new ();
             }
             _ : &HelpRequired => {
-                println (parser.usage (cmd-> "gyllir init"));
+                println (parser.usage (cmd-> "gyllir test"));
                 throw HelpPrinted::new ();
             }
         }
@@ -47,10 +47,10 @@ pub class @final InitCommand over SubCommand {
     }
 
     /**
-     * @returns: the name of the repo to create
+     * @returns: true iif the option --verbose is set
      */
-    pub def getName (self)-> [c32] {
-        self._args.name
+    pub def isVerbose (self)-> bool {
+        self._args.verbose
     }
-      
+
 }

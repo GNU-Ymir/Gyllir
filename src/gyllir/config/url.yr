@@ -7,6 +7,7 @@ import std::io;
 import std::tokenizer;
 import std::fs::path;
 import std::algorithm::search;
+import std::hash;
 
 /**
  * There are two types of url for the moment
@@ -33,6 +34,8 @@ pub class Url {
 
     let mut _type : UrlType = UrlType::LOCAL;
 
+    let mut _valid = false;
+    
     /**
      * Create an empty url
      */
@@ -45,7 +48,8 @@ pub class Url {
         throws &AssertError
     {
         import std::conv;
-        self:.parse (c.to![c32] ());
+        self:.parseStr (c.to![c32] ());
+        self._valid = true;
     }
 
     /**
@@ -54,7 +58,8 @@ pub class Url {
     pub self (c : [c32])
         throws &AssertError
     {
-        self:.parse (c);
+        self:.parseStr (c);
+        self._valid = true;
     }
     
     /**
@@ -70,12 +75,28 @@ pub class Url {
     pub self (cfg : &Config)
         throws &AssertError
     {
-        match cfg {
-            Str (str-> url : _) => {
-                self:.parse (url);
+        match cfg ["local"]? {
+            Ok (Str (str-> url : _)) => {
+                self._path = Path::new (url);
+                self._type = UrlType::LOCAL;
+                self._valid = true;
             }
-            _ => {
-                throw AssertError::new ("Expecting string");
+            _ => {                
+                match cfg ["git"]? {
+                    Ok (Str (str-> url : _)) => {
+                        self._path = Path::new (url);
+                        self._type = UrlType::GIT;
+                        self._valid = true;
+                    }
+
+                    _ => match cfg {
+                        Str (str-> url : _) => {
+                            self:.parseStr (url);
+                            self._valid = true;
+                        }
+                        _ => throw AssertError::new ("malformed url");
+                    }
+                }
             }
         }
     }
@@ -93,49 +114,37 @@ pub class Url {
     pub def getPath (self)-> &Path {
         self._path
     }
-    
+
+    /**
+     * @returns: true if the url parsing succeded
+     */
+    pub def isValid (self)-> bool {
+        self._valid
+    }
     
     /**
      * Parse an url from a string
      */
-    prv def parse (mut self, url : [c32])
+    prv def parseStr (mut self, url : [c32])
         throws &AssertError
     {
-        if url.startWith (UrlStarts::LOCAL) {
-            self:.parseLocal (url);
+        if url.startWith (UrlStarts::LOCAL) {            
+            self._path = Path::new (url [UrlStarts::LOCAL.len - 1us .. $]);
+            self._type = UrlType::LOCAL;
         } else {
-            self:.parseGit (url);
+            if url.startWith (UrlStarts::GIT) {
+                self._path = Path::new (url [UrlStarts::GIT.len - 1us .. $]);
+            } else {
+                self._path = Path::new (url);
+            }
+            self._type = UrlType::GIT;
         }
-    }
-    
-    /**
-     * Parse a local url
-     */
-    prv def parseLocal (mut self, url : [c32])
-        throws &AssertError
-    {
-        println (url, " ", UrlStarts::LOCAL.len);
-        self._path = Path::new (url [UrlStarts::LOCAL.len - 1us .. $]);
-        self._type = UrlType::LOCAL;
     } catch {
         _ => throw AssertError::new ("Failed to parse a local url");
     }
+    
 
-    prv def parseGit (mut self, url : [c32])
-        throws &AssertError
-    {
-        self._path = if url.startWith (UrlStarts::GIT) {
-            Path::new (url [UrlStarts::GIT.len - 1us .. $])
-        } else {
-            Path::new (url)
-        }
-        
-        self._type = UrlType::GIT;
-    } catch {
-        _ => throw AssertError::new ("Failed to parse a git url");
-    }
-
-
+    impl Hashable;
     impl Streamable;
     impl Serializable {
 
@@ -143,12 +152,15 @@ pub class Url {
          * Transform the url into a configuration
          */
         pub over serialize (self)-> &Config {
-            import std::conv;
+            import std::conv, std::config::conv;
             
-            match self._type {
-                UrlType::LOCAL => { Str::new (UrlStarts::LOCAL ~ self._path.toStr ().to![c32] ()) }
-                _ => { Str::new (UrlStarts::GIT ~ self._path.toStr ().to![c32] ()) }
+            let dmut d = Dict::new (); 
+            match self._type {                
+                UrlType::LOCAL => { d:.insert ("local", Str::new (self._path.toStr ().to![c32] ())); }
+                _ => { d:.insert ("git", Str::new (self._path.toStr ().to![c32] ())); }
             }
+
+            d
         }
     }
         

@@ -9,14 +9,30 @@ import std::tokenizer;
 import std::config::conv;
 import std::conv;
 
+import gyllir::config::url;
 import gyllir::config::version;
+
+pub class RecursiveDependency over Exception {
+
+    pub let msg : [c8];
+    
+    pub self (msg: [c8]) with msg = msg {}
+
+    impl Streamable {
+
+        pub over toStream (self, dmut stream : &StringStream) {
+            self::super.toStream (alias stream);
+        }
+    }
+}
+
 
 /**
  * A dependency is a git repo
  */
 pub struct
 | version: &Version /// The version to use
-| url: [c8] // The url of the git repo
+| url: &Url // The url of the git repo
  -> Dependency;
 
 /**
@@ -27,7 +43,7 @@ pub class DependencyList {
     /**
      * The list of dependencies
      */
-    pub let dmut _package = HashMap!{[c32], Dependency}::new ();
+    let dmut _package = HashMap!{[c32], Dependency}::new ();
 
     /**
      * Create an empty dependency list
@@ -51,7 +67,7 @@ pub class DependencyList {
      * =================
      */
     pub self (cfg : &Config)
-        throws &AssertError
+        throws &AssertError, &ConfigError
     {
         match cfg {
             x : &Dict => {
@@ -66,16 +82,16 @@ pub class DependencyList {
     /**
      * Insert the dependencies from a configuration dictionnary
      */
-    prv def insert (mut self, elem : &Dict) throws &AssertError
+    prv def insert (mut self, elem : &Dict) throws &ConfigError
     {
         for i, j in elem {                
             {    
                 self._package:.insert (i, j.to!Dependency())
             }
             catch {
-                _ : &ConfigError => {
-                    assert (false, "For package '" ~ i ~ "' : ");                    
-                 }
+                x : &ConfigError => {
+                    throw x;
+                }
             }            
         }
     }
@@ -89,6 +105,12 @@ pub class DependencyList {
         self._package:.remove(elem);
     }
 
+    /**
+     * @returns: the list of dependencies
+     */
+    pub def getList (self)-> &HashMap!{[c32], Dependency} {
+        self._package
+    }
 
     
     impl std::config::conv::Serializable {

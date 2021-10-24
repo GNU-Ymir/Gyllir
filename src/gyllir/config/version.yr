@@ -19,9 +19,38 @@ pub class Version {
     let mut _major : u32 = 0u32;
     let mut _minor : u32 = 1u32;
     let mut _patch : u32 = 0u32;
+
+
+    pub self (major : u32, minor : u32, patch : u32) with _major = major, _minor = minor, _patch = patch {}
     
     pub self () {}
 
+    pub self (version : [c32]) throws &AssertError {
+        let tzer = Tokenizer::new (tokens-> ["."]);
+        let res = tzer.tokenize (version);
+        let major = (res[0].to!u32())? 
+        let minor = (res[2].to!u32())?
+        let patch = (res[4].to!u32())?
+        self._major = match major {
+            Ok (a : u32) => { a }
+            Err (_ : &OutOfArray) => { throw AssertError::new ("need a major version") }
+            Err (_ : &CastFailure) => { throw AssertError::new ("Invalid major number") }
+            _  => { 0u32 }
+        }
+        
+        self._minor = match minor {
+            Ok (b: u32) => { b }
+            Err (_ : &CastFailure) => { throw AssertError::new ("Invalid minor number") }
+            _  => { 0u32 } 
+        }
+        
+        self._patch = match patch {
+            Ok (c : u32) => { c }
+            Err (_ : &CastFailure) => { throw AssertError::new ("Invalid patch number") }
+            _  => { 0u32 } 
+        };        
+    }
+    
     /**
      * Deserialize a version number
      */
@@ -31,42 +60,61 @@ pub class Version {
             Str (str->  version: _) => {
                 let tzer = Tokenizer::new (tokens-> ["."])
                 let res = tzer.tokenize (version);
-                {
-                    let major = (res[0].to!u32())? // on catch à la fois, OutOfArray et CastFailure
-                    let minor = (res[2].to!u32())?
-                    let patch = (res[4].to!u32())?
-                    self._major = match major {
-                        Ok (a : u32) => { a }
-                        Err (_ : &OutOfArray) => { throw AssertError::new ("need a major version") }
-                        Err (_ : &CastFailure) => { throw AssertError::new ("Invalid major number") }
-                        _  => { 0u32 }
-                    }
-                    
-                    self._minor = match minor {
-                        Ok (b: u32) => { b }
-                        Err (_ : &CastFailure) => { throw AssertError::new ("Invalid minor number") }
-                        _  => { 0u32 } 
-                    }
-                    
-                    self._patch = match patch {
-                        Ok (c : u32) => { c }
-                        Err (_ : &CastFailure) => { throw AssertError::new ("Invalid patch number") }
-                        _  => { 0u32 } 
-                    };
-                } catch {
-                    _ => {
-                        println ("invalid version number");
-                    }
-                }                
+                
+                let major = (res[0].to!u32())? 
+                let minor = (res[2].to!u32())?
+                let patch = (res[4].to!u32())?
+                self._major = match major {
+                    Ok (a : u32) => { a }
+                    Err (_ : &OutOfArray) => { throw AssertError::new ("need a major version") }
+                    Err (_ : &CastFailure) => { throw AssertError::new ("Invalid major number") }
+                    _  => { 0u32 }
+                }
+                
+                self._minor = match minor {
+                    Ok (b: u32) => { b }
+                    Err (_ : &CastFailure) => { throw AssertError::new ("Invalid minor number") }
+                    _  => { 0u32 } 
+                }
+                
+                self._patch = match patch {
+                    Ok (c : u32) => { c }
+                    Err (_ : &CastFailure) => { throw AssertError::new ("Invalid patch number") }
+                    _  => { 0u32 } 
+                };            
             }
             _ => {
                 assert (false, "version must be a string");
             }
         }            
     }
+
+    /**
+     * Increment the version 
+     */
+    pub def increment (self, major : bool, minor : bool, patch : bool)-> &Version {
+        if patch {
+            return Version::new (self._major, self._minor, self._patch + 1u32);
+        } else if minor {
+            return Version::new (self._major, self._minor + 1u32, self._patch);
+        } else if major {
+            return Version::new (self._major + 1u32, self._minor, self._patch);
+        } else { // by default it is a patch
+            return Version::new (self._major, self._minor, self._patch + 1u32);
+        }
+    }
+
+    /**
+     * @returns: the version into a string
+     */
+    pub def toStr (self)-> [c8] {
+        import std::stream;
+        let dmut s = StringStream::new ();
+        s:.write (self._major):.write ("."s8):.write (self._minor):.write ("."s8):.write (self._patch);
+        s[]
+    }
     
     impl Streamable;
-
     impl std::config::conv::Serializable {
 
         /**

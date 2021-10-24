@@ -4,4 +4,5 @@ pub import gyllir::args::build;
 pub import gyllir::args::init;
 pub import gyllir::args::clean;
 pub import gyllir::args::publish;
+pub import gyllir::args::test;
 pub import gyllir::args::sub;

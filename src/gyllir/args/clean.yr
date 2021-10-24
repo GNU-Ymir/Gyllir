@@ -25,7 +25,7 @@ pub class @final CleanCommand over SubCommand {
      * Constructor called by the argument parser
      */
     pub self (args : [[c32]]) with super (true)
-        throws &ArgumentError, &HelpPrinted
+        throws &HelpPrinted
     {
         let parser = ArgumentParser!(CleanArgs)::new ()
             :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
@@ -37,7 +37,8 @@ pub class @final CleanCommand over SubCommand {
         } catch {
             err : &ArgumentError => {
                 println (parser.simpleUsage (cmd-> "gyllir clean"));
-                throw err;
+                println (parser.diagnosis (err));
+                throw HelpPrinted::new ();
             }
             _ : &HelpRequired => {
                 println (parser.usage (cmd-> "gyllir clean"));

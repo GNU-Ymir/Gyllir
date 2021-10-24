@@ -14,7 +14,9 @@ _gyllir() {
     GLOBAL_COMMANDS="\
 		init\
 		build
-		clean"
+		clean
+		publish
+		test"
 
     GLOBAL_OPTIONS="\
 		-h --help"
@@ -27,7 +29,13 @@ _gyllir() {
 
     CLEAN_OPTIONS="\
 		-h --help --doc --all"
-		
+
+    PUBLISH_OPTION="\
+		-h --help minor major patch -y --yes --dry"
+    
+    TEST_OPTIONS="\
+		-h --help -v --verbose"
+    
     # Un-comment this for debug purposes:
     # echo -e "\nprev = $prev, cur = $cur, firstword = $firstword, lastword = $lastword\n"
     case "${firstword}" in
@@ -38,8 +46,16 @@ _gyllir() {
 	build)
 	    complete_options="$BUILD_OPTIONS"
 	    ;;
+
+	test)
+	    complete_options="$TEST_OPTIONS"
+	    ;;
+	
 	clean)
 	    complete_options="$CLEAN_OPTIONS"
+	    ;;
+	publish)
+	    complete_options="$PUBLISH_OPTION"
 	    ;;
 	*)
 	    case "${prev}" in

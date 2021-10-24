@@ -6,6 +6,8 @@ struct
 | major : YesNo
 | minor : YesNo
 | patch : YesNo
+| dry : YesNo
+| yes : YesNo
 | message : [c32]
 | mut help : YesNo
  -> PublishArgs;
@@ -19,7 +21,7 @@ struct
  */
 pub class @final PublishCommand over SubCommand {
 
-    let mut _args = PublishArgs (YesNo::NO, YesNo::NO, YesNo::NO, "", YesNo::YES);
+    let mut _args = PublishArgs (YesNo::NO, YesNo::NO, YesNo::NO, YesNo::NO, YesNo::NO, "", YesNo::YES);
     
     pub self () with super (false) {}
 
@@ -27,13 +29,15 @@ pub class @final PublishCommand over SubCommand {
      * Constructor called by the argument parser
      */
     pub self (args : [[c32]]) with super (true)
-        throws &ArgumentError, &HelpPrinted
+        throws &HelpPrinted
     {
         let parser = ArgumentParser!(PublishArgs)::new ()
             :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
             :.info!"major" (comments-> "publish a major version")
             :.info!"minor" (comments-> "publish a minor version")
             :.info!"patch" (comments-> "publish a patch")
+            :.info!"dry" (comments-> "do not verify the package before publishing (building and testing)")
+            :.info!"yes" (short-> "y", comments-> "do not ask for validation")
             :.positional!"message" (comments-> "the message of the version");
 
         {
@@ -41,7 +45,8 @@ pub class @final PublishCommand over SubCommand {
         } catch {
             err : &ArgumentError => {
                 println (parser.simpleUsage (cmd-> "gyllir publish"));
-                throw err;
+                println (parser.diagnosis (err));
+                throw HelpPrinted::new ();
             }
             _ : &HelpRequired => {
                 println (parser.usage (cmd-> "gyllir publish"));
@@ -77,6 +82,20 @@ pub class @final PublishCommand over SubCommand {
      */
     pub def isPatch (self)-> bool {
         self._args.patch
+    }
+
+    /**
+     * @returns: do not ask for validation
+     */
+    pub def isYes (self)-> bool {
+        self._args.yes
+    }
+
+    /**
+     * @returns: do not run verification ?
+     */
+    pub def isDry (self)-> bool {
+        self._args.dry
     }
       
 }

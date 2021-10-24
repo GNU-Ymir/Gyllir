@@ -40,10 +40,14 @@ __doc
  */
 pub aka __SRC_DIR__ = "src"s8;
 
-/**
- * The source directory name
- */
+
 pub aka __BUILD_DIR__ = ".build"s8;
+pub aka __TEST_DIR__ = "test"s8;
+pub aka __BUILD_TEST_DIR__ = ".build/.test"s8;
+pub aka __DEPENCY_DIR__ = ".build/.deps"s8;
 
 
 pub aka __YMIR_EXTENSION__ = "yr"s8
+pub aka __OBJECT_EXTENSION__ = "o"s8
+pub aka __DEP_EXTENSION__ = "dep.json"s8
+pub aka __LIBRARY_EXTENSION__ = "a"s8
