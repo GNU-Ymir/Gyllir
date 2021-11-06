@@ -96,9 +96,9 @@ pub class Version {
         if patch {
             return Version::new (self._major, self._minor, self._patch + 1u32);
         } else if minor {
-            return Version::new (self._major, self._minor + 1u32, self._patch);
+            return Version::new (self._major, self._minor + 1u32, 0u32);
         } else if major {
-            return Version::new (self._major + 1u32, self._minor, self._patch);
+            return Version::new (self._major + 1u32, 0u32, 0u32);
         } else { // by default it is a patch
             return Version::new (self._major, self._minor, self._patch + 1u32);
         }

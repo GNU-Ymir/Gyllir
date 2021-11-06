@@ -305,12 +305,12 @@ pub class GyllirManager {
             let opt = if (test) { ["-funittest"s8] } else { [] };
             with dmut subProc = SubProcess::run ("gyc"s8, opt ~ ["-o"s8, outputname] ~ ofiles.map!{|x| => const x.toStr ()} () ~ ldirs, cwd-> cwd) {
                 let _ = subProc:.wait ();               
-                if (verbose) {
+                if (verbose) {                                       
                     let o = subProc:.stdout ():.read ();
                     if (o != ""s8)
                         println (o);
                 }
-
+                
                 let err = subProc:.stderr ():.read ();
                 if (err != ""s8) {
                     println (err);
