@@ -1,22 +1,24 @@
-mod gyllir::args::test;
+mod gyllir::args::doc;
 import std::args, std::lexer, std::io;
 import gyllir::args::sub;
+import etc::c::sysinfo;
 
 struct
 | verbose : YesNo
+| j : i64 = cast!i64 (sysinfo::get_nprocs ())
 | mut help : YesNo
- -> TestArgs;
+ -> DocArgs;
 
 /**
- * Sub command used to build and run the test
+ * Sub command used to build the documentation of the repo
  * @example: 
  * =:bash===========
- * $ gyllir test 
+ * $ gyllir doc 
  * =================
  */
-pub class @final TestCommand over SubCommand {
+pub class @final DocCommand over SubCommand {
 
-    let mut _args = TestArgs (YesNo::NO, YesNo::YES);
+    let mut _args = DocArgs (YesNo::NO, YesNo::YES);
     
     pub self () with super (false) {}
 
@@ -26,20 +28,21 @@ pub class @final TestCommand over SubCommand {
     pub self (args : [[c32]]) with super (true)
         throws &HelpPrinted
     {
-        let parser = ArgumentParser!(TestArgs)::new ()
+        let parser = ArgumentParser!(DocArgs)::new ()
             :.info!"verbose" (short-> "v", comments-> "verbose mode")
+            :.info!"j" (comments-> "number of parallel threads to spawn")
             :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true);
 
         {
             self._args = parser.parse (["./usage"] ~ args);
         } catch {
             err : &ArgumentError => {
-                println (parser.simpleUsage (cmd-> "gyllir test"));
+                println (parser.simpleUsage (cmd-> "gyllir doc"));
                 println (parser.diagnosis (err));
                 throw HelpPrinted::new ();
             }
             _ : &HelpRequired => {
-                println (parser.usage (cmd-> "gyllir test"));
+                println (parser.usage (cmd-> "gyllir doc"));
                 throw HelpPrinted::new ();
             }
         }
@@ -51,6 +54,13 @@ pub class @final TestCommand over SubCommand {
      */
     pub def isVerbose (self)-> bool {
         self._args.verbose
+    }
+
+    /**
+     * @returns: the number of thread to spawn 
+     */
+    pub def getNbThreads (self)-> u32 {
+        cast!u32 (self._args.j)
     }
 
 }

@@ -9,10 +9,10 @@ struct
  -> CleanArgs;
 
 /**
- * Sub command used to create a new repo
+ * Sub command used to clean the repository
  * @example: 
  * =:bash===========
- * $ gyllir clean my-awesome-project
+ * $ gyllir clean --all 
  * =================
  */
 pub class @final CleanCommand over SubCommand {
@@ -30,7 +30,7 @@ pub class @final CleanCommand over SubCommand {
         let parser = ArgumentParser!(CleanArgs)::new ()
             :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
             :.info!"doc" (comments-> "clean the documentation")
-            :.info!"all" (comments-> "clean all the generated files (including documentation");
+            :.info!"all" (short-> "a", comments-> "clean all the generated files (including documentation");
            
         {
             self._args = parser.parse (["./usage"] ~ args);

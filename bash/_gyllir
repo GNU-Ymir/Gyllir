@@ -16,7 +16,8 @@ _gyllir() {
 		build
 		clean
 		publish
-		test"
+		test
+		doc"
 
     GLOBAL_OPTIONS="\
 		-h --help"
@@ -35,6 +36,9 @@ _gyllir() {
     
     TEST_OPTIONS="\
 		-h --help -v --verbose"
+
+    DOC_OPTIONS="\
+    		-h --help -v --verbose"
     
     # Un-comment this for debug purposes:
     # echo -e "\nprev = $prev, cur = $cur, firstword = $firstword, lastword = $lastword\n"
@@ -56,6 +60,9 @@ _gyllir() {
 	    ;;
 	publish)
 	    complete_options="$PUBLISH_OPTION"
+	    ;;
+	doc)
+	    complete_options="$DOC_OPTIONS"
 	    ;;
 	*)
 	    case "${prev}" in

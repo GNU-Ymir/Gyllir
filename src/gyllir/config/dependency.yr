@@ -6,7 +6,6 @@ import std::config::error;
 import std::collection::map;
 import std::io;
 import std::tokenizer;
-import std::config::conv;
 import std::conv;
 
 import gyllir::config::url;

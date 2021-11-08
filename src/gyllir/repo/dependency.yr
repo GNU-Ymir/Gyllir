@@ -1,0 +1,98 @@
+mod gyllir::repo::dependency;
+
+import std::config;
+import std::config::conv;
+import std::config::error;
+import std::collection::vec;
+import std::io;
+import std::tokenizer;
+import std::config::conv;
+import std::conv;
+import std::fs::path;
+
+import gyllir::repo::defaults;
+
+/**
+ * Store the dependency of a file
+ * A file dependency stores a list of files, whose update trigger the update of the file having this dependency
+ */
+pub class FileDependency {
+
+    /// The list of dependencies
+    let dmut _list = Vec!{&Path}::new ();
+
+    /**
+     * Create an empty file dependency
+     */
+    pub self () {}
+
+
+    /**
+     * Create a file dependency from a configuration
+     * This constructor can be used by the std for serialization
+     * @example: 
+     * ================
+     * def getConfiguration ()-> &Config;
+     * 
+     * let dmut deps = getConfiguration ().to!{&FileDependency} ();
+     */
+    pub self (cfg : &Config) {
+        let deps = cfg ["dependencies"]?;
+        match deps {
+            Ok (arr : &Array) => {
+                for i in 0us .. arr.len () {
+                    __pragma!trusted ({
+                        let p = self.toPath (arr [i].(config::conv::to)![c8] ());
+                        if (p.root () != "std"s8 && p.root () != "core"s8) {
+                            self._list:.push (p);
+                        }
+                    });
+                }
+            }
+        }
+    } 
+
+    /**
+     * @returns: the list of file dependencies
+     */
+    pub def opIndex (self)-> [&Path] {
+        self._list []
+    }
+    
+    /**
+     * Transform a module name into a path
+     * @params: 
+     *   - module: the name of the module
+     * @returns: a path
+     * @example: 
+     * =====================
+     * let modName = "gyllir::repo::dependency";
+     *
+     * assert (self.toPath (modName).toStr () == "gyllir/repo/dependency.yr");
+     * =====================
+     */
+    prv def toPath (self, module : [c8]) -> &Path {
+        let dmut res = StringStream::new ();
+        let mut i = 0us;
+        while i < module.len {
+            if i < (module.len - 2us) {
+                if (module [i .. i + 2us] == "::"s8) {
+                    res:.write ("/"s8);
+                    i += 2us;
+                } else {
+                    res:.write (module [i]);
+                    i += 1us;
+                }
+            } else {
+                res:.write (module [i]);
+                i += 1us;
+            }
+        }
+        Path::new (res []).addExtension (defaults::__YMIR_EXTENSION__)
+    } catch {
+        _ => __pragma!panic ();
+    }
+
+    
+    impl Streamable;    
+}

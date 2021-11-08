@@ -15,7 +15,7 @@ struct
  * Sub command for build option
  * @example: 
  * =:bash==================
- * $ gyllir build --debug --verbose
+ * $ gyllir build --release --verbose -j 12
  * ========================
  */
 pub class @final BuildCommand over SubCommand {
@@ -65,6 +65,9 @@ pub class @final BuildCommand over SubCommand {
         self._args.verbose
     }
 
+    /**
+     * @returns: the number of thread to spawn 
+     */
     pub def getNbThreads (self)-> u32 {
         cast!u32 (self._args.j)
     }

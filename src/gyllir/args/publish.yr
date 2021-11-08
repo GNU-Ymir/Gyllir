@@ -13,10 +13,10 @@ struct
  -> PublishArgs;
 
 /**
- * Sub command used to create a new repo
+ * Sub command used to publish a new release version of repo
  * @example: 
  * =:bash===========
- * $ gyllir publish my-awesome-project
+ * $ gyllir publish --minor "comment about the minor version"
  * =================
  */
 pub class @final PublishCommand over SubCommand {
