@@ -61,7 +61,7 @@ pub class DocDumper {
         }
 
         fs::removeDir (self._outDir, recursive-> true)?;
-        fs::createDir (self._outDir, recursive-> true)?;m       
+        fs::createDir (self._outDir, recursive-> true)?;       
     }
 
     

@@ -289,7 +289,7 @@ pub class GyllirManager {
         let toBuild = self.listToBuild (cwd, files);
         println ("[INFO] Building ", toBuild.len, " objects");
         
-        if (self:.buildFiles (cwd, toBuild, links, verbose-> self._args.build.isVerbose ())) {
+        if (self:.buildFiles (cwd, toBuild, links, srcDir-> defaults::__SRC_DIR__, verbose-> self._args.build.isVerbose ())) {
             if doLink {
                 let mut ofiles : [&Path] = [];
                 for file in files {
@@ -388,14 +388,14 @@ pub class GyllirManager {
     /**
      * Build the files 
      */
-    prv def buildFiles (mut self, cwd : &Path, files : [&Path], links : [&Path], buildDir : [c8] = defaults::__BUILD_DIR__, test : bool = false, verbose : bool = false) -> bool {
+    prv def buildFiles (mut self, cwd : &Path, files : [&Path], links : [&Path], srcDir : [c8] = defaults::__SRC_DIR__, buildDir : [c8] = defaults::__BUILD_DIR__, test : bool = false, verbose : bool = false) -> bool {
         self._failed = false;
         let mut percent = 0u64;
         for i in 0us .. files.len {
             let prc = (percent * 100u64) / files.len;
             percent += 1u64;
 
-            self._mail:.send ((prc, cwd.push (defaults::__SRC_DIR__).push (files [i]), cwd, buildDir, test, verbose, links, false));
+            self._mail:.send ((prc, cwd.push (srcDir).push (files [i]), cwd, buildDir, test, verbose, links, false));
         }
 
         let mut threads : [Thread] = [];
@@ -975,27 +975,38 @@ pub class GyllirManager {
             links = links ~ [link.push (defaults::__SRC_DIR__)];
         }
         
-        let files = {
-            self.listAllSourceFiles (cwd.push (defaults::__SRC_DIR__)) ~ self.listAllSourceFiles (cwd.push (defaults::__TEST_DIR__))
+        let srcFiles = {
+            self.listAllSourceFiles (cwd.push (defaults::__SRC_DIR__))
         } catch {
             _ : &FsError => {
-                println ("Invalid repository, missing test directory. Aborting");
+                println ("Invalid repository, missing src directory. Aborting");
                 return false;
             }
         }
 
         
-        let toBuild = self.listToBuild (cwd, files, buildDir-> defaults::__BUILD_TEST_DIR__);
-        if (self:.buildFiles (cwd, toBuild, links, buildDir-> defaults::__BUILD_TEST_DIR__, test-> true, verbose-> self._args.test.isVerbose ())) {
-            {
-                let mut ofiles : [&Path] = [];
-                for file in files {
-                    let oname = file.stripExtension ().addExtension (defaults::__OBJECT_EXTENSION__).file ();
-                    let odir = cwd.push (defaults::__BUILD_TEST_DIR__).push (file.parent ().removePrefix (cwd));
-                    ofiles = ofiles ~ [odir.push (oname)];
+        let toBuild = self.listToBuild (cwd, srcFiles, buildDir-> defaults::__BUILD_TEST_DIR__);
+        if (self:.buildFiles (cwd, toBuild, links, srcDir-> defaults::__SRC_DIR__, buildDir-> defaults::__BUILD_TEST_DIR__, test-> true, verbose-> self._args.test.isVerbose ())) {
+            let testFiles = {
+                self.listAllSourceFiles (cwd.push (defaults::__TEST_DIR__))
+            } catch {
+                _ : &FsError => {
+                    println ("Invalid repository, missing test directory. Aborting");
+                    return false;
                 }
-                
-                return self:.linkRepo (cwd, ofiles, conf, libs, conf.libraries, test-> true, verbose-> self._args.test.isVerbose ());
+            }
+            let toBuildTest = self.listToBuild (cwd, testFiles, buildDir-> defaults::__BUILD_TEST_DIR__);
+            if (self:.buildFiles (cwd, toBuildTest, links, srcDir-> defaults::__TEST_DIR__, buildDir-> defaults::__BUILD_TEST_DIR__, test-> true, verbose-> self._args.test.isVerbose ())) {
+                {
+                    let mut ofiles : [&Path] = [];
+                    for file in srcFiles ~ testFiles {
+                        let oname = file.stripExtension ().addExtension (defaults::__OBJECT_EXTENSION__).file ();
+                        let odir = cwd.push (defaults::__BUILD_TEST_DIR__).push (file.parent ().removePrefix (cwd));
+                        ofiles = ofiles ~ [odir.push (oname)];
+                    }
+                    
+                    return self:.linkRepo (cwd, ofiles, conf, libs, conf.libraries, test-> true, verbose-> self._args.test.isVerbose ());
+                }
             }
         } 
         
