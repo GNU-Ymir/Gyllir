@@ -1,0 +1,106 @@
+mod gyllir::doc::symbols::metamodule;
+
+import gyllir::utils::options;
+import gyllir::doc::symbols::_;
+import gyllir::doc::loader;
+import gyllir::repo::defaults;
+
+import std::io, std::fs::path;
+import std::collection::map;
+import std::config;
+
+
+/**
+ * A meta module is a tree, whose leafs are Modules
+ */
+pub class MetaModule {
+
+    /// The root of the tree
+    let dmut _root = internal::MetaNode::new (""s8, isRoot-> true);
+
+    
+    pub self () {}
+
+    /**
+     * Insert a module 
+     */
+    pub def insert (mut self, sym : &Module) {
+        let name = Path::new (self.toPath (sym.getName ()));
+        self._root:.insert (name, name, sym);
+        
+    }
+            
+    /**
+     * Transform a module name into a path
+     * @example: 
+     * ===========
+     * assert (self.toPath ("std::path"s8) == "std/path.yr"s8)
+     * ===========
+     */
+    prv def toPath (self, module : [c8], sep : [c8] = "::"s8, add : [c8] = "/"s8)-> [c8] {
+        let dmut res = StringStream::new ();
+        let mut i = 0us;
+        while i < module.len {
+            if i < (module.len - sep.len) {
+                if (module [i .. i + sep.len] == sep) {                    
+                    res:.write (add);
+                    i += sep.len;
+                } else {
+                    res:.write (module [i]);
+                    i += 1us;
+                } 
+            } else {
+                res:.write (module [i]);
+                i += 1us;
+            }
+        }
+        res []
+    } catch {
+        _ => __pragma!panic ();
+    }
+    
+}
+
+
+mod internal {
+
+    pub class MetaNode {
+
+        let _isRoot : bool;
+        
+        let _name : [c8];
+        
+        let dmut _childs = HashMap!{[c8], dmut &MetaNode}::new ();
+
+        let mut _module = Module::empty ();
+
+        let mut _fullPath = Path::new (""s8);
+               
+        pub self (name : [c8], isRoot : bool = false) with _name = name, _isRoot = isRoot  {}
+
+        /**
+         * Insert a new module in the tree
+         */
+        pub def insert (mut self, path : &Path, fullPath : &Path, sym : &Module) {
+            if (path.parts ().len == 0us) {
+                self._fullPath = fullPath;
+                self._module = sym;
+            } else {
+                let root = path.root ();
+                let dmut ch = self._childs:.find (root);
+                match ref ch {
+                    Ok (dmut sub : &MetaNode) => sub:.insert (path.removeRoot (), fullPath, sym);
+                    Err () => {
+                        let dmut n = MetaNode::new (path.root ());
+                        n:.insert (path.removeRoot (), fullPath, sym);
+                        self._childs:.insert (path.root (), alias n);
+                    }
+                }
+            }
+        }
+        
+    }
+        
+
+    
+}

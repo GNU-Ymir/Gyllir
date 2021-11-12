@@ -1,0 +1,87 @@
+mod gyllir::doc::symbols::_;
+
+import gyllir::utils::options;
+
+import std::config;
+import std::fs::path;
+import std::io;
+
+pub import gyllir::doc::symbols::aka_;
+pub import gyllir::doc::symbols::assert_;
+pub import gyllir::doc::symbols::class_;
+pub import gyllir::doc::symbols::enum_;
+pub import gyllir::doc::symbols::function;
+pub import gyllir::doc::symbols::implementation;
+pub import gyllir::doc::symbols::macro_;
+pub import gyllir::doc::symbols::macrorule;
+pub import gyllir::doc::symbols::metamodule;
+pub import gyllir::doc::symbols::method;
+pub import gyllir::doc::symbols::module;
+pub import gyllir::doc::symbols::param;
+pub import gyllir::doc::symbols::struct_;
+pub import gyllir::doc::symbols::template;
+pub import gyllir::doc::symbols::trait_;
+pub import gyllir::doc::symbols::variable;
+
+pub enum
+| PUB = 0u8
+| PROT = 1u8
+| PRV = 2u8
+ -> Protection;
+
+
+/**
+ * Ancestor class of all documentable symbols
+ */
+pub class Symbol {
+
+    /// The name of the symbol
+    let _name : [c8];
+
+    /// The location line of the symbol
+    let _locLine : u64;
+
+    /// The location column of the symbol
+    let _locColumn : u64;
+
+    /// The name of the file containing the symbol
+    let _locFile : &Path;
+
+    /// THe documentation above the symbol definition
+    let _doc : [c8];
+
+    /// The protection of the symbol
+    let _protection : Protection;
+
+    /**
+     * Create an empty symbol
+     */
+    pub self empty ()
+        with _name = ""s8, _locLine = 0u64, _locFile = Path::new (""s8), _locColumn = 0u64, _doc = ""s8, _protection = Protection::PRV
+    {
+    }
+    
+    /**
+     * Create a symbol from a configuration
+     */
+    pub self (config : &Config)
+        with
+    _name = (config ["name"]?).toOr (""s8),
+    _locFile = Path::new ((config ["loc_file"]?).toOr (""s8)),
+    _locLine = (config ["loc_line"]?).toOr (0u64),
+    _locColumn = (config ["loc_column"]?).toOr (0u64),
+    _doc = (config ["doc"]?).toOr (""s8),
+    _protection = ((config ["protection"]?).toOr ("prv"s8).(loader::to)!Protection ())
+    {}
+
+    /**
+     * @returns: the name of the symbol
+     */
+    pub def getName (self)-> [c8] {
+        self._name
+    }
+    
+
+    impl Streamable;
+    
+}

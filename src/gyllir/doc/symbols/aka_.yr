@@ -1,0 +1,31 @@
+mod gyllir::doc::symbols::aka_;
+
+import gyllir::utils::options;
+import gyllir::doc::symbols::_;
+import gyllir::doc::loader;
+import gyllir::doc::types::_;
+
+import std::io;
+import std::collection::vec;
+import std::config;
+
+/**
+ * An aka documentation symbol
+ */
+pub class Aka over Symbol {
+
+    /// The value of the variable
+    let _value : [c8];
+    
+    /**
+     * Create a aka from a configuration
+     */
+    pub self (config : &Config)
+        with super (config),
+    _value = (config ["value"]?).toOr (""s8)
+    {
+    }
+
+
+    impl Streamable;            
+}

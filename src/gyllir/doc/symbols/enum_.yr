@@ -1,0 +1,46 @@
+mod gyllir::doc::symbols::enum_;
+
+import gyllir::utils::options;
+import gyllir::doc::symbols::_;
+import gyllir::doc::loader;
+import gyllir::doc::types::_;
+
+import std::io;
+import std::collection::vec;
+import std::config;
+
+/**
+ * An enum documentation symbol
+ */
+pub class Enum over Symbol {
+
+    /// The field of the enum
+    let dmut _fields = Vec!{&Parameter}::new ();
+
+    /// The type of the enum
+    let mut _type = Type::none ();
+    
+    /**
+     * Create a enum from a configuration
+     */
+    pub self (config : &Config)
+        with super (config)
+    {
+        match config ["fields"]? {
+            Ok (arr : &Array) => {
+                for i in 0us .. arr.len () {
+                    __pragma!trusted ({
+                        self._fields:.push (Parameter::new (arr [i]));
+                    });
+                }
+            }
+        }
+        
+        match config ["en_type"]? {
+            Ok (type : _) => { self._type = loader::toType (type); }
+        }        
+    }
+
+
+    impl Streamable;            
+}

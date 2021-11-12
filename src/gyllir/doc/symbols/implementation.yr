@@ -1,0 +1,42 @@
+mod gyllir::doc::symbols::implementation;
+
+import gyllir::utils::options;
+import gyllir::doc::symbols::_;
+import gyllir::doc::loader;
+
+import std::io;
+import std::collection::vec;
+import std::config;
+
+/**
+ * A trait documentation symbol
+ */
+pub class Impl over Symbol {
+
+    /// The of symbols declared in the trait
+    let dmut _childs = Vec!{&Method}::new ();
+
+    /// The trait implemented
+    let _trait : [c8];
+
+    /**
+     * Create a trait from a configuration
+     */
+    pub self (config : &Config)
+        with super (config),
+    _trait = (config ["trait"]?).toOr (""s8)
+    {
+        match config ["childs"]? {
+            Ok (arr : &Array) => {
+                for i in 0us .. arr.len () {
+                    __pragma!trusted ({
+                        self._childs:.push (Method::new (arr [i]));
+                    });
+                }
+            }
+        }
+    }
+
+
+    impl Streamable;            
+}

@@ -1,0 +1,12 @@
+mod gyllir::doc::types::_;
+
+/**
+ * Ancestor of all kind of types
+ */
+pub class Type {
+    
+    /**
+     * Create a none type
+     */
+    pub self none () {}
+}

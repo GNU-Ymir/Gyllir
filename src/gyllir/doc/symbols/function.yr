@@ -1,0 +1,71 @@
+mod gyllir::doc::symbols::function;
+
+import gyllir::utils::options;
+import gyllir::doc::symbols::_;
+import gyllir::doc::loader;
+import gyllir::doc::types::_;
+
+import std::io;
+import std::collection::vec;
+import std::config;
+
+/**
+ * A function documentation symbol
+ */
+pub class Function over Symbol {
+
+    /// The list of parameters of the function
+    let dmut _params = Vec!{&Parameter}::new ();
+
+    /// The return type of the function
+    let mut _retType = Type::none ();
+
+    /// The list of attributes of the function
+    let dmut _attributes = Vec!{[c8]}::new ();
+
+    /// The list of throwers of the function
+    let dmut _throwers = Vec!{&Type}::new ();
+    
+    /**
+     * Create a function from a configuration
+     */
+    pub self (config : &Config)
+        with super (config)
+    {
+        match config ["params"]? {
+            Ok (arr : &Array) => {
+                for i in 0us .. arr.len () {
+                    __pragma!trusted ({
+                        self._params:.push (Parameter::new (arr [i]));
+                    });
+                }
+            }
+        }
+
+        match config ["throwers"]? {
+            Ok (arr : &Array) => {
+                for i in 0us .. arr.len () {
+                    __pragma!trusted ({
+                        self._throwers:.push (loader::toType (arr [i]));
+                    });
+                }
+            }
+        }
+        
+        match config ["ret_type"]? {
+            Ok (type : _) => { self._retType = loader::toType (type); }
+        }
+
+        match config ["attributes"]? {
+            Ok (arr : &Array) => {
+                for i in 0us .. arr.len () {
+                    self._attributes:.push ((arr [i]?).toOr (""s8));
+                }
+            }
+        }
+        
+    }
+
+
+    impl Streamable;            
+}

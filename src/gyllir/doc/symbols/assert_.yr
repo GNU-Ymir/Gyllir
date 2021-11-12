@@ -1,0 +1,35 @@
+mod gyllir::doc::symbols::assert_;
+
+import std::io;
+import std::config;
+
+import gyllir::doc::symbols::_;
+import gyllir::doc::types::_;
+import gyllir::utils::options;
+import gyllir::doc::loader;
+
+import std::collection::vec;
+
+/**
+ * An Assert
+ */
+pub class Assert over Symbol {
+
+    /// The test of the assert in a string
+    let _test : [c8];
+
+    /// The message printed when the assertion fails
+    let _msg : [c8];
+
+
+    /// The skipped tokens of the rule
+    let dmut _skips = Vec!{[c8]}::new ();
+
+    pub self (config : &Config)
+        with super (config),
+    _test = (config ["test"]?).toOr (""s8),
+    _msg = (config ["msg"]?).toOr (""s8)
+    {}
+
+    impl Streamable;    
+}

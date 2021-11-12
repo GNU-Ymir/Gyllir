@@ -1,0 +1,30 @@
+mod gyllir::doc::symbols::method;
+
+import gyllir::utils::options;
+import gyllir::doc::symbols::_;
+import gyllir::doc::loader;
+import gyllir::doc::types::_;
+
+import std::io;
+import std::collection::vec;
+import std::config;
+
+/**
+ * A method documentation symbol
+ */
+pub class Method over Function {
+
+    /// True if it is an over method
+    let _over = false;
+    
+    /**
+     * Create a method from a configuration
+     */
+    pub self (config : &Config)
+        with super (config),
+    _over = (config ["over"]?).toOr (false)
+    {}
+
+
+    impl Streamable;            
+}

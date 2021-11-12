@@ -1,0 +1,68 @@
+mod gyllir::doc::dumper;
+
+import std::fs::path;
+import std::fs::file;
+import std::config;
+import std::config::json;
+import std::io;
+import std::collection::vec;
+
+import gyllir::doc::symbols::_;
+import gyllir::doc::types::_;
+import gyllir::doc::loader;
+import gyllir::config::_;
+
+/**
+ * This class is used to generate html files
+ */
+pub class DocDumper {
+
+    /// the list of module doc.json files
+    let _files : [&Path];
+
+    /// The root path of the building directory
+    let _buildDir : &Path;
+
+    /// The path of the directory that will get the documentations
+    let _outDir : &Path;
+
+    /// If true print verbose logs
+    let _verbose = false;
+
+
+    let _config : GyllirConfig;
+    
+    /**
+     * @params:
+     *   - buildDir: the root of the building directory 
+     *   - files: the list of files to parse
+     *   - outDir: the directory in which dump the documentation
+     *   - verbose: if true prints verbose logs
+     */
+    pub self (conf : GyllirConfig, buildDir : &Path, files : [&Path], outDir : &Path, verbose : bool = false)
+        with _buildDir = buildDir, _files = files, _outDir = outDir, _verbose = verbose, _config = conf
+    {}
+
+    /**
+     * Generate the documentation
+     */
+    pub def generate (self) {
+        let dmut tree = MetaModule::new ();
+        let dmut modules = Vec!{&Module}::new ();
+        
+        for i in self._files {
+            with dmut f = File::open (i) {
+                let module = Module::new (json::parse (f:.readAll ()));
+                tree:.insert (module);
+                modules:.push (module);
+            } catch {
+                _ => println ("Failed to read : ", i);
+            }
+        }
+
+        fs::removeDir (self._outDir, recursive-> true)?;
+        fs::createDir (self._outDir, recursive-> true)?;m       
+    }
+
+    
+}

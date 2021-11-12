@@ -1,0 +1,40 @@
+mod gyllir::doc::symbols::param;
+
+import std::io;
+import std::config;
+
+import gyllir::doc::symbols::_;
+import gyllir::doc::types::_;
+import gyllir::utils::options;
+import gyllir::doc::loader;
+
+/**
+ * A function parameter
+ */
+pub class Parameter over Symbol {
+
+    /// the type of the parameter
+    let mut _type = Type::none ();
+
+    /// True if the parameter is mutable
+    let _mut : bool;
+
+    /// True if the parameter is a reference
+    let _ref : bool;
+
+    /// The default value of the parameter
+    let _value : [c8];
+
+    pub self (config : &Config)
+        with super (config),
+    _mut = (config ["mut"]?).toOr (false),
+    _ref = (config ["ref"]?).toOr (false),
+    _value = (config ["value"]?).toOr (""s8)
+    {
+        match config ["type"]? {
+            Ok (type : _) => { self._type = loader::toType (type); }
+        }
+    }
+
+    impl Streamable;    
+}

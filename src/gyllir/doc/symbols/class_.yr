@@ -1,0 +1,105 @@
+mod gyllir::doc::symbols::class_;
+
+import gyllir::utils::options;
+import gyllir::doc::symbols::_;
+import gyllir::doc::loader;
+import gyllir::doc::types::_;
+
+import std::io;
+import std::collection::vec;
+import std::config;
+
+/**
+ * An class documentation symbol
+ */
+pub class Class over Symbol {
+
+    // the list of fields of the class
+    let dmut _fields = Vec!{&Parameter}::new ();
+
+    /// The type of the ancestor class
+    let mut _ancestor = Type::none ();
+
+    /// Is the class abstract
+    let _abstract = false;
+
+    /// Is the class final
+    let _final = false;
+
+    /// The list of assertion in the class
+    let dmut _asserts = Vec!{&Assert}::new ();
+
+    /// The list of constructor of the class
+    let dmut _cstrs = Vec!{&Function}::new ();
+
+    /// The list of implementation
+    let dmut _impls = Vec!{&Impl}::new ();
+
+    /// The list of methods
+    let dmut _methods = Vec!{&Method}::new ();
+    
+    /**
+     * Create a class from a configuration
+     */
+    pub self (config : &Config)
+        with super (config)
+    {
+        match config ["fields"]? {
+            Ok (arr : &Array) => {
+                for i in 0us .. arr.len () {
+                    __pragma!trusted ({
+                        self._fields:.push (Parameter::new (arr [i]));
+                    });
+                }
+            }
+        }
+
+        match config ["asserts"]? {
+            Ok (arr : &Array) => {
+                for i in 0us .. arr.len () {
+                    __pragma!trusted ({
+                        self._asserts:.push (Assert::new (arr [i]));
+                    });
+                }
+            }
+        }
+
+        match config ["cstrs"]? {
+            Ok (arr : &Array) => {
+                for i in 0us .. arr.len () {
+                    __pragma!trusted ({
+                        self._cstrs:.push (Function::new (arr [i]));
+                    });
+                }
+            }
+        }
+
+        match config ["impls"]? {
+            Ok (arr : &Array) => {
+                for i in 0us .. arr.len () {
+                    __pragma!trusted ({
+                        self._impls:.push (Impl::new (arr [i]));
+                    });
+                }
+            }
+        }
+
+        match config ["methods"]? {
+            Ok (arr : &Array) => {
+                for i in 0us .. arr.len () {
+                    __pragma!trusted ({
+                        self._methods:.push (Method::new (arr [i]));
+                    });
+                }
+            }
+        }
+
+        match config ["ancestor"]? {
+            Ok (type : _) => { self._ancestor = loader::toType (type); }
+        }
+        
+    }
+
+
+    impl Streamable;            
+}

@@ -9,6 +9,7 @@ import std::time::_;
 import std::config::conv;
 import gyllir::repo::dependency;
 import std::config::json;
+import gyllir::doc::dumper;
 
 import std::collection::vec;
 import std::concurrency::process;
@@ -38,10 +39,28 @@ pub struct
  */
 pub class GyllirManager {
 
+    /// True iif the arguments are valid
     let mut _valid : bool = false;
+
+    /// The list of arguments passed to the program
     let mut _args : GyllirArgs = GyllirArgs (help-> YesNo::NO);
+
+    /** The mailbox used to send messages to the threads when compiling files
+     * ._0 = percentage
+     * ._1 = file path
+     * ._2 = cwd path
+     * ._3 = buildDirectory name
+     * ._4 = -ftest ?
+     * ._5 = -verbose
+     * ._6 = list of path to link -Idirectory
+     * ._7 = if true -fdoc else -fdependency
+     */
     let dmut _mail = MailBox!{(u64, &Path, &Path, [c8], bool, bool, [&Path], bool)}::new ();
+
+    /// Return value of the threads, set to true when one or more of them had failed
     let mut _failed : bool = false;
+
+    /// The list of dependencies that have already been treated, for recursive dependency checks
     let dmut _doneDependencies = HashSet!{&Url}::new ();
     
     /**
@@ -595,7 +614,7 @@ pub class GyllirManager {
         let dmut res = StringStream::new ();
         let mut i = 0us;
         while i < module.len {
-            if i < (module.len - sep.len - 1us) {
+            if i < (module.len - sep.len) {
                 if (module [i .. i + sep.len] == sep) {                    
                     res:.write (add);
                     i += sep.len;
@@ -1055,13 +1074,12 @@ pub class GyllirManager {
         }
        
         let toBuild = self.listDocToGenerate (cwd, files, buildDir-> defaults::__BUILD_DIR__);
-        let toMarkdown = self.listMarkdownToGenerate (cwd, files, buildDir-> defaults::__DOC_DIR__);
+        let toHtml = self.listHtmlToGenerate (cwd, files);
         
         println ("[INFO] Building ", toBuild.len, " objects");
         if (toBuild.len == 0us || self:.generateDocOfFiles (cwd, toBuild, links, verbose-> self._args.doc.isVerbose ())) {
-            
-            println ("[INFO] Building ", toMarkdown.len, " markdown files");
-            self:.generateMarkdownOfFiles (cwd, toMarkdown, verbose-> self._args.doc.isVerbose ());
+            println ("[INFO] Building ", toHtml.len, " html files");
+            self:.generateHtmlOfFiles (conf, cwd, toHtml, verbose-> self._args.doc.isVerbose ());
         }
     }
 
@@ -1097,7 +1115,7 @@ pub class GyllirManager {
 
     /**
      * Generate the documentation of the files
-     * Generate the markdown files that will be located in cwd.push (defaults::__DOC_DIR__);
+     * Generate the html files that will be located in cwd.push (defaults::__DOC_DIR__);
      */
     prv def generateDocOfFiles (mut self, cwd : &Path, files : [&Path], links : [&Path], verbose : bool = false, buildDir : [c8] = defaults::__BUILD_DIR__)-> bool {
         self._failed = false;
@@ -1124,34 +1142,27 @@ pub class GyllirManager {
             th.join ();
         }
         
-        self._failed
+        !self._failed
     } catch {
         x : &OutOfArray => { println (x); __pragma!panic (); }
     }
 
 
     /**
-     * List all the files whose markdown is not generated
-     * Either they don't have a .md already made, or the source file was modified more recently than the markdown file 
+     * List all the files whose html is not generated
+     * Either they don't have a .md already made, or the source file was modified more recently than the html file 
      * @params:
      *   - files: the list of source file
      * @returns: the list of source files to build
      */
-    prv def listMarkdownToGenerate (self, cwd : &Path, files : [&Path], buildDir : [c8] = defaults::__DOC_DIR__) -> [&Path] {
+    prv def listHtmlToGenerate (self, cwd : &Path, files : [&Path], buildDir : [c8] = defaults::__BUILD_DIR__) -> [&Path] {
         let dmut res = Vec!{&Path}::new ();        
         for file in files {
-            let toAdd = file.removePrefix (cwd).removeRoot ();
-            
             let odir = cwd.push (buildDir).push (file.parent ().removePrefix (cwd));            
-            let docname = file.stripExtension ().addExtension (defaults::__MARKDOWN_EXTENSION__).file ();
+            let docname = file.stripExtension ().addExtension (defaults::__DOC_EXTENSION__).file ();
             let docpath = odir.push (docname);
-            {
-                if (fs::isFile (docpath)) {
-                    if (fs::fileDate (docpath) < fs::fileDate (file)) res:.push (toAdd);
-                } else res:.push (toAdd);
-            } catch {
-                _ => res:.push (toAdd);
-            }
+            
+            res:.push (docpath);
         }
 
         res:.fit ();
@@ -1159,17 +1170,17 @@ pub class GyllirManager {
     }
 
     /**
-     * Build the markdown files
+     * Build the html files from the doc.json files
+     * @params: 
+     *  - cwd: the current directory path
+     *  - files: the list doc.json files
+     *  - verbose: verbose mode
+     *  - buildDir: the name of the build directory
+     *  - outDir: the name of the directory in which mardown files are sent
      */
-    prv def generateMarkdownOfFiles (mut self, cwd : &Path, files : [&Path], verbose : bool = false, buildDir : [c8] = defaults::__BUILD_DIR__, outDir : [c8] = defaults::__DOC_DIR__) {
-        verbose;
-        outDir;
-        for file in files {
-            let docname = cwd.push (buildDir).push (file.stripExtension ().addExtension (defaults::__DOC_EXTENSION__)).toStr ();
-            println (docname);            
-        }
-    }
-
+    prv def generateHtmlOfFiles (mut self, conf : GyllirConfig, cwd : &Path, files : [&Path], verbose : bool = false, buildDir : [c8] = defaults::__BUILD_DIR__, outDir : [c8] = defaults::__DOC_DIR__) {
+        DocDumper::new (conf, cwd.push (buildDir), files, cwd.push (outDir), verbose-> verbose).generate ()
+    } 
     
     /**
      * ================================================================================================================================================================

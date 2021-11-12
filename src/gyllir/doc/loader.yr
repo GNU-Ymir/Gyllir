@@ -1,0 +1,44 @@
+mod gyllir::doc::loader;
+
+import std::config;
+import gyllir::doc::symbols::_;
+import gyllir::doc::types::_;
+import gyllir::utils::options;
+
+/**
+ * Transform a configuration into a symbol
+ */
+pub def toSymbol (config : &Config)-> &Symbol {
+    match (config ["type"]?).toOr (""s8) {
+        "module"s8 => { Module::new (config) }
+        "function"s8 => { Function::new (config) }
+        "var"s8 => { Variable::new (config) }
+        "aka"s8 => { Aka::new (config) }
+        "struct"s8 => { Struct::new (config) }
+        "enum"s8 => { Enum::new (config) }
+        "trait"s8 => { Trait::new (config) }
+        "template"s8 => { Template::new (config) }
+        "macro"s8 => { Macro::new (config) }
+        "class"s8 => { Class::new (config) }
+        _ => { Symbol::new (config) }
+    }    
+}
+
+/**
+ * Transform a configuration into a type
+ */
+pub def toType (_ : &Config)-> &Type {
+    Type::none ()
+}
+
+/**
+ * Transform a string into protection
+ * @info: return private if the string is not a protection 
+ */
+pub def to {C of Protection, T of [U], U of c8} (a : T)-> Protection {
+    match a {
+        "pub"s8 => { Protection::PUB } 
+        "prot"s8 => { Protection::PROT }
+        _ => { Protection::PRV }
+    }
+}
