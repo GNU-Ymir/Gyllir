@@ -45,7 +45,6 @@ pub class Url {
      * Create an url from a string
      */
     pub self (c : [c8])
-        throws &AssertError
     {
         import std::conv;
         self:.parseStr (c.to![c32] ());
@@ -56,7 +55,6 @@ pub class Url {
      * Create an url from a string
      */
     pub self (c : [c32])
-        throws &AssertError
     {
         self:.parseStr (c);
         self._valid = true;
@@ -125,9 +123,7 @@ pub class Url {
     /**
      * Parse an url from a string
      */
-    prv def parseStr (mut self, url : [c32])
-        throws &AssertError
-    {
+    prv def parseStr (mut self, url : [c32]) {
         if url.startWith (UrlStarts::LOCAL) {            
             self._path = Path::new (url [UrlStarts::LOCAL.len - 1us .. $]);
             self._type = UrlType::LOCAL;
@@ -139,8 +135,6 @@ pub class Url {
             }
             self._type = UrlType::GIT;
         }
-    } catch {
-        _ => throw AssertError::new ("Failed to parse a local url");
     }
     
 

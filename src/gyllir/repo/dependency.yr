@@ -89,8 +89,6 @@ pub class FileDependency {
             }
         }
         Path::new (res []).addExtension (defaults::__YMIR_EXTENSION__)
-    } catch {
-        _ => __pragma!panic ();
     }
 
     

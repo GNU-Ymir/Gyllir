@@ -189,7 +189,4 @@ pub def userName (cwd : &Path = Path::new (".")) -> [c8]
     }
     
     stream []
-} catch {
-    err : &GitError => throw err;
-    x : &OutOfArray => { println (x); throw GitError::new (GitErrorCode::UNKNOWN, "user name not set\n"s8); }
 }

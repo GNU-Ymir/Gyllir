@@ -55,8 +55,6 @@ pub class MetaModule {
             }
         }
         res []
-    } catch {
-        _ => __pragma!panic ();
     }
     
 }

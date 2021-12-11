@@ -193,11 +193,6 @@ pub class GyllirManager {
                 let registry = {
                     let url = self.askUserFor ("Registry"s8, default-> (UrlStarts::LOCAL).(std::conv::to)![c8] () ~ gyllirHome.toStr ());
                     Url::new (url)
-                } catch {
-                    x : &AssertError => {
-                        println ("Invalid registry url : ", x.msg, ". Aborting");
-                        return {}
-                    }
                 }
                 
 
@@ -328,7 +323,10 @@ pub class GyllirManager {
                       
         if (conf.type.isExecutable () || test) {
             if (verbose) {
-                print ("[INFO] Running cmd gyc"s8, " -o "s8, outputname);
+                let d_option = if (self._args.build.isDebug ()) { ["-g"s8] } else { ["-O3"s8] };
+                print ("[INFO] Running cmd gyc"s8, " -o "s8);
+                for i in d_option print (i, ' ');
+                print (outputname);
                 if test { print (" -funittest") }
                 for i in ofiles print (" ", i.toStr ());
                 for l in libs print (" ", l.toStr ());
@@ -341,7 +339,8 @@ pub class GyllirManager {
             }
             
             let opt = if (test) { ["-funittest"s8] } else { [] };
-            with dmut subProc = SubProcess::run ("gyc"s8, opt ~ ["-o"s8, outputname] ~ ofiles.map!{|x| => const x.toStr ()} () ~ ldirs, cwd-> cwd) {
+            let d_option = if (self._args.build.isDebug ()) { ["-g"s8] } else { ["-O3"s8] };
+            with dmut subProc = SubProcess::run ("gyc"s8, opt ~ d_option ~ ["-o"s8, outputname] ~ ofiles.map!{|x| => const x.toStr ()} () ~ ldirs, cwd-> cwd) {
                 let _ = subProc:.wait ();               
                 if (verbose) {                                       
                     let o = subProc:.stdout ():.read ();
@@ -414,8 +413,6 @@ pub class GyllirManager {
         }
         
         !self._failed 
-    } catch {
-        x : &OutOfArray => { println (x); false }
     }
 
 
@@ -463,21 +460,24 @@ pub class GyllirManager {
             opt ~= if (doc) { ["-fdoc"s8] } else { ["-fdependency"s8] }
             {
                 let dmut subProc = atomic self {
-                    SubProcess::run ("gyc"s8, opt ~ [if (self._args.build.isDebug ()) "-g"s8 else "-O3"s8] ~ ["-c"s8, "-o"s8, odir.push (oname).toStr (), file.toStr (), "-I"s8, cwd.push ("src"s8).toStr ()] ~ idirs, cwd-> cwd.push (buildDir))
+                    let d_option = if (self._args.build.isDebug ()) { ["-g"s8] } else { ["-O3"s8] };
+                    SubProcess::run ("gyc"s8, opt ~ d_option ~ ["-c"s8, "-o"s8, odir.push (oname).toStr (), file.toStr (), "-I"s8, cwd.push ("src"s8).toStr ()] ~ idirs, cwd-> cwd.push (buildDir))
                 }
                 
                 {
                     let _ = subProc:.wait ();
-                    if (verbose) {
+                    if (verbose) {                        
                         let o = subProc:.stdout ():.read ();
-                        if o != ""s8 { println (o); }
+                        atomic self {
+                            if o != ""s8 { println (o); }
+                        }
                     }
 
                     let err = subProc:.stderr ():.read ();
                     if (err != ""s8) {
-                        println ("Failed to compile file : ", oname);
-                        println (err);
                         atomic self {
+                            println ("Failed to compile file : ", oname);
+                            println (err);
                             self._mail:.clear ();
                             self._failed = true;
                         }
@@ -499,8 +499,8 @@ pub class GyllirManager {
                     let _ = subProc:.wait ();
                     let err = subProc:.stderr ():.read ();
                     if (err != ""s8) {
-                        println (err);
                         atomic self {
+                            println (err);
                             self._mail:.clear ();
                             self._failed = true;
                         }
@@ -575,13 +575,8 @@ pub class GyllirManager {
                 newForce:.push (files [i]);
             } else newFiles:.push (files [i]);
 
-        } catch {
-            x : _ => {
-                println (x);
-                __pragma!panic ();
-            }
         }
-
+        
         if (added) return self.resolveDependencies (cwd, newFiles [], newForce [], dependencies, buildDir-> buildDir);
         else return newForce [];
     }
@@ -628,8 +623,6 @@ pub class GyllirManager {
             }
         }
         res []
-    } catch {
-        _ => __pragma!panic ();
     }
 
             
@@ -1154,8 +1147,6 @@ pub class GyllirManager {
         }
         
         !self._failed
-    } catch {
-        x : &OutOfArray => { println (x); __pragma!panic (); }
     }
 
 
