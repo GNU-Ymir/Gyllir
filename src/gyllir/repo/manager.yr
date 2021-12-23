@@ -62,6 +62,14 @@ pub class GyllirManager {
 
     /// The list of dependencies that have already been treated, for recursive dependency checks
     let dmut _doneDependencies = HashSet!{&Url}::new ();
+
+    let dmut _doneLinks = HashSet!{&Path}::new ();
+    
+    let dmut _links = Vec!{&Path}::new ();
+
+    let dmut _doneLibs = HashSet!{&Path}::new ();
+    
+    let dmut _libs = Vec!{&Path}::new ();
     
     /**
      * Create a Gyllir builder from an argument 
@@ -262,14 +270,19 @@ pub class GyllirManager {
             }
         }
 
-        let mut links : [&Path] = [];
-        let mut libs : [&Path] = [];        
         for name, dep in conf.dependencies.getList () {
             let (succ, link, lib) = self:.resolvePackageDependency (cwd, name.(std::conv::to)![c8] (), dep);
             if (!succ) return false;
+
+            if (lib !in self._doneLibs) {
+                self._libs:.push (lib);
+                self._doneLibs:.insert (lib);
+            }
             
-            libs = libs ~ [lib];
-            links = links ~ [link.push (defaults::__SRC_DIR__)];
+            if (link !in self._doneLinks) {
+                self._links:.push (link.push (defaults::__SRC_DIR__));
+                self._doneLinks:.insert (link);
+            }            
         }
         
         let files = {
@@ -284,7 +297,7 @@ pub class GyllirManager {
         let toBuild = self.listToBuild (cwd, files);
         println ("[INFO] Building ", toBuild.len, " objects");
         
-        if (self:.buildFiles (cwd, toBuild, links, srcDir-> defaults::__SRC_DIR__, verbose-> self._args.build.isVerbose ())) {
+        if (self:.buildFiles (cwd, toBuild, self._links[], srcDir-> defaults::__SRC_DIR__, verbose-> self._args.build.isVerbose ())) {
             if doLink {
                 let mut ofiles : [&Path] = [];
                 for file in files {
@@ -293,7 +306,7 @@ pub class GyllirManager {
                     ofiles = ofiles ~ [odir.push (oname)];
                 }
                 
-                let ret = self:.linkRepo (cwd, ofiles, conf, libs, conf.libraries, verbose-> self._args.build.isVerbose ());
+                let ret = self:.linkRepo (cwd, ofiles, conf, self._libs[], conf.libraries, verbose-> self._args.build.isVerbose ());
                 println ("[DONE] Exit building ", conf.name);
                 return ret;
             } else return true;
@@ -958,14 +971,20 @@ pub class GyllirManager {
             }
         }
 
-        let mut links : [&Path] = [];
-        let mut libs : [&Path] = [];        
         for name, dep in conf.dependencies.getList () {
             let (succ, link, lib) = self:.resolvePackageDependency (cwd, name.(std::conv::to)![c8] (), dep);
             if (!succ) return false;
+
+            if (lib !in self._doneLibs) {
+                self._libs:.push (lib);
+                self._doneLibs:.insert (lib);
+            }
             
-            libs = libs ~ [lib];
-            links = links ~ [link.push (defaults::__SRC_DIR__)];
+            if (link !in self._doneLinks) {
+                self._links:.push (link.push (defaults::__SRC_DIR__));
+                self._doneLinks:.insert (link);
+            }            
+
         }
         
         let srcFiles = {
@@ -979,7 +998,7 @@ pub class GyllirManager {
 
         
         let toBuild = self.listToBuild (cwd, srcFiles, buildDir-> defaults::__BUILD_TEST_DIR__);
-        if (self:.buildFiles (cwd, toBuild, links, srcDir-> defaults::__SRC_DIR__, buildDir-> defaults::__BUILD_TEST_DIR__, test-> true, verbose-> self._args.test.isVerbose ())) {
+        if (self:.buildFiles (cwd, toBuild, self._links[], srcDir-> defaults::__SRC_DIR__, buildDir-> defaults::__BUILD_TEST_DIR__, test-> true, verbose-> self._args.test.isVerbose ())) {
             let testFiles = {
                 self.listAllSourceFiles (cwd.push (defaults::__TEST_DIR__))
             } catch {
@@ -989,7 +1008,7 @@ pub class GyllirManager {
                 }
             }
             let toBuildTest = self.listToBuild (cwd, testFiles, buildDir-> defaults::__BUILD_TEST_DIR__);
-            if (self:.buildFiles (cwd, toBuildTest, links, srcDir-> defaults::__TEST_DIR__, buildDir-> defaults::__BUILD_TEST_DIR__, test-> true, verbose-> self._args.test.isVerbose ())) {
+            if (self:.buildFiles (cwd, toBuildTest, self._links[], srcDir-> defaults::__TEST_DIR__, buildDir-> defaults::__BUILD_TEST_DIR__, test-> true, verbose-> self._args.test.isVerbose ())) {
                 {
                     let mut ofiles : [&Path] = [];
                     for file in srcFiles ~ testFiles {
@@ -998,7 +1017,7 @@ pub class GyllirManager {
                         ofiles = ofiles ~ [odir.push (oname)];
                     }
                     
-                    return self:.linkRepo (cwd, ofiles, conf, libs, conf.libraries, test-> true, verbose-> self._args.test.isVerbose ());
+                    return self:.linkRepo (cwd, ofiles, conf, self._libs[], conf.libraries, test-> true, verbose-> self._args.test.isVerbose ());
                 }
             }
         } 

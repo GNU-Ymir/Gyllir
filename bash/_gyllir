@@ -26,7 +26,7 @@ _gyllir() {
 	     -h --help --name"
 
     BUILD_OPTIONS="\
-		-h --help --debug -v --verbose"
+		-h --help --release -v --verbose"
 
     CLEAN_OPTIONS="\
 		-h --help --doc --all"
