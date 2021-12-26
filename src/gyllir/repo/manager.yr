@@ -62,14 +62,6 @@ pub class GyllirManager {
 
     /// The list of dependencies that have already been treated, for recursive dependency checks
     let dmut _doneDependencies = HashSet!{&Url}::new ();
-
-    let dmut _doneLinks = HashSet!{&Path}::new ();
-    
-    let dmut _links = Vec!{&Path}::new ();
-
-    let dmut _doneLibs = HashSet!{&Path}::new ();
-    
-    let dmut _libs = Vec!{&Path}::new ();
     
     /**
      * Create a Gyllir builder from an argument 
@@ -256,7 +248,7 @@ pub class GyllirManager {
     /**
      * Build a repository 
      */
-    prv def buildRepo (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir (), doLink : bool = true)-> bool
+    prv def buildRepo (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir (), doLink : bool = true)-> (bool, [&Path], [&Path])
         throws &RecursiveDependency
     {        
         {
@@ -265,39 +257,35 @@ pub class GyllirManager {
             x : &FsError => {
                 if (x.code != FsErrorCode::ALREADY_EXISTS) {
                     println ("Failed to create build repository: "s8 ~ x.msg ~ " ("s8 ~ x.code.(fs::errors::to)![c8] () ~ "). Aborting"s8);
-                    return false;
+                    return (false, [], []);
                 }
             }
         }
-
+        
+        let mut links : [&Path] = [];
+        let mut libs : [&Path] = [];
         for name, dep in conf.dependencies.getList () {
-            let (succ, link, lib) = self:.resolvePackageDependency (cwd, name.(std::conv::to)![c8] (), dep);
-            if (!succ) return false;
+            let (succ, links_, libs_) = self:.resolvePackageDependency (cwd, name.(std::conv::to)![c8] (), dep);
+            if (!succ) return (false, [], []);
 
-            if (lib !in self._doneLibs) {
-                self._libs:.push (lib);
-                self._doneLibs:.insert (lib);
-            }
-            
-            if (link !in self._doneLinks) {
-                self._links:.push (link.push (defaults::__SRC_DIR__));
-                self._doneLinks:.insert (link);
-            }            
+            links = links ~ links_;
+            libs = libs ~ libs_;
         }
+        println ("Building : ", conf.name, " with : ", libs, " ", links);
         
         let files = {
             self.listAllSourceFiles (cwd.push (defaults::__SRC_DIR__))
         } catch {
             _ : &FsError => {
                 println ("Invalid repository, missing source directory. Aborting");
-                return false;
+                return (false, [], []);
             }
         }
 
         let toBuild = self.listToBuild (cwd, files);
         println ("[INFO] Building ", toBuild.len, " objects");
         
-        if (self:.buildFiles (cwd, toBuild, self._links[], srcDir-> defaults::__SRC_DIR__, verbose-> self._args.build.isVerbose ())) {
+        if (self:.buildFiles (cwd, toBuild, links, srcDir-> defaults::__SRC_DIR__, verbose-> self._args.build.isVerbose ())) {
             if doLink {
                 let mut ofiles : [&Path] = [];
                 for file in files {
@@ -306,13 +294,13 @@ pub class GyllirManager {
                     ofiles = ofiles ~ [odir.push (oname)];
                 }
                 
-                let ret = self:.linkRepo (cwd, ofiles, conf, self._libs[], conf.libraries, verbose-> self._args.build.isVerbose ());
+                let ret = self:.linkRepo (cwd, ofiles, conf, libs, conf.libraries, verbose-> self._args.build.isVerbose ());
                 println ("[DONE] Exit building ", conf.name);
-                return ret;
-            } else return true;
+                return (ret, links, libs);                
+            } else return (true, links, libs);
         }
 
-        false
+        (false, [], [])
     }
       
 
@@ -684,7 +672,7 @@ pub class GyllirManager {
     /**
      * Resolve a dependency, and build it
      */
-    pub def resolvePackageDependency (mut self, cwd : &Path, name : [c8], dependency : Dependency) -> (bool, &Path, &Path)
+    pub def resolvePackageDependency (mut self, cwd : &Path, name : [c8], dependency : Dependency) -> (bool, [&Path], [&Path])
         throws &RecursiveDependency
     {
         let depPath = cwd.push (defaults::__DEPENCY_DIR__).push (name);
@@ -696,7 +684,6 @@ pub class GyllirManager {
             
             if !isDir (depPath) {
                 fs::createDir (depPath, recursive-> true);
-                
                 if (dependency.url.getType () == UrlType::LOCAL) {
                     fs::copyDir (dependency.url.getPath (), depPath, recursive-> true);
                 } else {
@@ -712,12 +699,12 @@ pub class GyllirManager {
             } catch {
                 x : _ => {
                     println ("Failed to read configuration file (", x, "). Aborting");
-                    return (false, Path::new (""s8), Path::new (""s8));
+                    return (false, [], [])
                 }
             }
 
             self._doneDependencies:.insert (dependency.url);
-            let succ = { 
+            let (succ, allLinks, allLibs) = { 
                 self:.buildRepo (conf, cwd-> depPath)
             } catch {
                 r : &RecursiveDependency => {
@@ -725,24 +712,28 @@ pub class GyllirManager {
                 }
             }
             self._doneDependencies:.remove (dependency.url);
+
+            let retLinks = [depPath.push (defaults::__SRC_DIR__)] ~ allLinks;
+            let retLibs = if (conf.type.isLibrary ()) { [depPath.push (conf.name).addExtension (defaults::__LIBRARY_EXTENSION__)] ~ allLibs } else { allLibs };
             
-            return (succ, depPath, if (conf.type.isLibrary ()) depPath.push (conf.name).addExtension (defaults::__LIBRARY_EXTENSION__) else Path::new (""s8));
+            return (succ, retLinks, retLibs);
         } catch {
-            _ : &GitError => {
+            g : &GitError => {
+                println (g);
                 let versions = { self.toVersionList (git::getTagList (cwd-> depPath)) } catch { _ => [] }
                 println ("Missing version : ", dependency.version.toStr (), ". Aborting");
                 if (versions.len != 0us) {
                     println ("Available versions are : ", versions.map!{|x| const x.toStr ()} ());
                 }
                 
-                return (false, Path::new (""s8), Path::new (""s8));
+                return (false, [], []) 
             }
 
             r : &RecursiveDependency => throw r;
             
             _ => {
                 println ("Failure. Aborting");
-                return (false, Path::new (""s8), Path::new (""s8));
+                return (false, [], [])
             } 
         }
     }
@@ -971,20 +962,13 @@ pub class GyllirManager {
             }
         }
 
+        let mut libs : [&Path] = [];
+        let mut links : [&Path] = [];
         for name, dep in conf.dependencies.getList () {
-            let (succ, link, lib) = self:.resolvePackageDependency (cwd, name.(std::conv::to)![c8] (), dep);
+            let (succ, links_, libs_) = self:.resolvePackageDependency (cwd, name.(std::conv::to)![c8] (), dep);
             if (!succ) return false;
-
-            if (lib !in self._doneLibs) {
-                self._libs:.push (lib);
-                self._doneLibs:.insert (lib);
-            }
-            
-            if (link !in self._doneLinks) {
-                self._links:.push (link.push (defaults::__SRC_DIR__));
-                self._doneLinks:.insert (link);
-            }            
-
+            links = links ~ links_;
+            libs = libs ~ libs_;
         }
         
         let srcFiles = {
@@ -998,7 +982,7 @@ pub class GyllirManager {
 
         
         let toBuild = self.listToBuild (cwd, srcFiles, buildDir-> defaults::__BUILD_TEST_DIR__);
-        if (self:.buildFiles (cwd, toBuild, self._links[], srcDir-> defaults::__SRC_DIR__, buildDir-> defaults::__BUILD_TEST_DIR__, test-> true, verbose-> self._args.test.isVerbose ())) {
+        if (self:.buildFiles (cwd, toBuild, links, srcDir-> defaults::__SRC_DIR__, buildDir-> defaults::__BUILD_TEST_DIR__, test-> true, verbose-> self._args.test.isVerbose ())) {
             let testFiles = {
                 self.listAllSourceFiles (cwd.push (defaults::__TEST_DIR__))
             } catch {
@@ -1008,7 +992,7 @@ pub class GyllirManager {
                 }
             }
             let toBuildTest = self.listToBuild (cwd, testFiles, buildDir-> defaults::__BUILD_TEST_DIR__);
-            if (self:.buildFiles (cwd, toBuildTest, self._links[], srcDir-> defaults::__TEST_DIR__, buildDir-> defaults::__BUILD_TEST_DIR__, test-> true, verbose-> self._args.test.isVerbose ())) {
+            if (self:.buildFiles (cwd, toBuildTest, links, srcDir-> defaults::__TEST_DIR__, buildDir-> defaults::__BUILD_TEST_DIR__, test-> true, verbose-> self._args.test.isVerbose ())) {
                 {
                     let mut ofiles : [&Path] = [];
                     for file in srcFiles ~ testFiles {
@@ -1017,7 +1001,7 @@ pub class GyllirManager {
                         ofiles = ofiles ~ [odir.push (oname)];
                     }
                     
-                    return self:.linkRepo (cwd, ofiles, conf, self._libs[], conf.libraries, test-> true, verbose-> self._args.test.isVerbose ());
+                    return self:.linkRepo (cwd, ofiles, conf, libs, conf.libraries, test-> true, verbose-> self._args.test.isVerbose ());
                 }
             }
         } 
@@ -1078,12 +1062,14 @@ pub class GyllirManager {
             }
         }
 
-        let mut links : [&Path] = [];
+        let dmut links = Vec!{&Path}::new ();
         for name, dep in conf.dependencies.getList () {
-            let (succ, link, _) = self:.resolvePackageDependency (cwd, name.(std::conv::to)![c8] (), dep);
+            let (succ, links_, _) = self:.resolvePackageDependency (cwd, name.(std::conv::to)![c8] (), dep);
             if (!succ) return {}
-            
-            links = links ~ [link.push (defaults::__SRC_DIR__)];
+
+            for l in links_ {
+                links:.push (l.push (defaults::__SRC_DIR__));
+            }
         }
         
 
@@ -1100,7 +1086,7 @@ pub class GyllirManager {
         let toHtml = self.listHtmlToGenerate (cwd, files);
         
         println ("[INFO] Building ", toBuild.len, " objects");
-        if (toBuild.len == 0us || self:.generateDocOfFiles (cwd, toBuild, links, verbose-> self._args.doc.isVerbose ())) {
+        if (toBuild.len == 0us || self:.generateDocOfFiles (cwd, toBuild, links[], verbose-> self._args.doc.isVerbose ())) {
             println ("[INFO] Building ", toHtml.len, " html files");
             self:.generateHtmlOfFiles (conf, cwd, toHtml, verbose-> self._args.doc.isVerbose ());
         }

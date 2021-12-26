@@ -12,7 +12,7 @@ FILE (
 SET_SOURCE_FILES_PROPERTIES(${SRC} PROPERTIES LANGUAGE C)
 add_executable (gyllir ${SRC})
 include_directories(${CMAKE_SOURCE_DIR}/src/)
-install (TARGETS gyllir DESTINATION $ENV{HOME}/.local/bin/)
+install (TARGETS gyllir DESTINATION /usr/bin/)
 
 
 
