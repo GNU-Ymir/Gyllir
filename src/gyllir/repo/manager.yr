@@ -271,7 +271,6 @@ pub class GyllirManager {
             links = links ~ links_;
             libs = libs ~ libs_;
         }
-        println ("Building : ", conf.name, " with : ", libs, " ", links);
         
         let files = {
             self.listAllSourceFiles (cwd.push (defaults::__SRC_DIR__))
