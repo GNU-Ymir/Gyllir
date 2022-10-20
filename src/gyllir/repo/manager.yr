@@ -20,6 +20,8 @@ import std::collection::set;
 import std::lexer, std::tokenizer;
 import std::collection::map;
 
+import gyllir::repo::builder;
+
 /**
  * The structure containing all the command line arguments
  */
@@ -248,417 +250,24 @@ pub class GyllirManager {
     /**
      * Build a repository 
      */
-    prv def buildRepo (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir (), doLink : bool = true)-> (bool, [&Path], [&Path])
+    prv def buildRepo (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir (), doLink : bool = true)-> bool
         throws &RecursiveDependency
-    {        
-        {
-            fs::createDir (cwd.push (defaults::__BUILD_DIR__));
-        } catch {
-            x : &FsError => {
-                if (x.code != FsErrorCode::ALREADY_EXISTS) {
-                    println ("Failed to create build repository: "s8 ~ x.msg ~ " ("s8 ~ x.code.(fs::errors::to)![c8] () ~ "). Aborting"s8);
-                    return (false, [], []);
-                }
-            }
-        }
-        
-        let mut links : [&Path] = [];
-        let mut libs : [&Path] = [];
-        for name, dep in conf.dependencies.getList () {
-            let (succ, links_, libs_) = self:.resolvePackageDependency (cwd, name.(std::conv::to)![c8] (), dep);
-            if (!succ) return (false, [], []);
-
-            links = links ~ links_;
-            libs = libs ~ libs_;
-        }
-        
-        let files = {
-            self.listAllSourceFiles (cwd.push (defaults::__SRC_DIR__))
-        } catch {
-            _ : &FsError => {
-                println ("Invalid repository, missing source directory. Aborting");
-                return (false, [], []);
-            }
-        }
-
-        let toBuild = self.listToBuild (cwd, files);
-        println ("[INFO] Building ", toBuild.len, " objects");
-        
-        if (self:.buildFiles (cwd, toBuild, links, srcDir-> defaults::__SRC_DIR__, verbose-> self._args.build.isVerbose ())) {
-            if doLink {
-                let mut ofiles : [&Path] = [];
-                for file in files {
-                    let oname = file.stripExtension ().addExtension (defaults::__OBJECT_EXTENSION__).file ();
-                    let odir = cwd.push (defaults::__BUILD_DIR__).push (file.parent ().removePrefix (cwd));
-                    ofiles = ofiles ~ [odir.push (oname)];
-                }
-                
-                let ret = self:.linkRepo (cwd, ofiles, conf, libs, conf.libraries, verbose-> self._args.build.isVerbose ());
-                println ("[DONE] Exit building ", conf.name);
-                return (ret, links, libs);                
-            } else return (true, links, libs);
-        }
-
-        (false, [], [])
-    }
-      
-
-    /**
-     * Link the files to create the executable or library
-     */
-    prv def linkRepo (mut self, cwd : &Path, ofiles : [&Path], conf : GyllirConfig, libs : [&Path], libraries : [[c32]], test : bool = false, verbose : bool = false) -> bool {
-        let outputname = if !test {
-            cwd.push (self.toPath (conf.name, sep-> "/"s8, add-> "_"s8)).toStr ()
-        } else {
-            cwd.push ("test-"s8 ~ self.toPath (conf.name, sep-> "/"s8, add-> "_"s8)).toStr ()
-        }
-        
-        println ("[100%] Linking ", outputname);
-       
-
-        let mut ldirs : [[c8]] = [];
-        for l in libs {
-            ldirs = ldirs ~ [l.toStr ()];
-        }
-                      
-        if (conf.type.isExecutable () || test) {
-            if (verbose) {
-                let d_option = if (self._args.build.isDebug ()) { ["-g"s8] } else { ["-O3"s8] };
-                print ("[INFO] Running cmd gyc"s8, " -o "s8);
-                for i in d_option print (i, ' ');
-                print (outputname);
-                if test { print (" -funittest") }
-                for i in ofiles print (" ", i.toStr ());
-                for l in libs print (" ", l.toStr ());
-                for l in libraries print (" -l", l);
-                println ("");                
-            }
-            
-            for l in libraries {
-                ldirs = ldirs ~ ["-l"s8, l.(std::conv::to)![c8] ()];
-            }
-            
-            let opt = if (test) { ["-funittest"s8] } else { [] };
-            let d_option = if (self._args.build.isDebug ()) { ["-g"s8] } else { ["-O3"s8] };
-            with dmut subProc = SubProcess::run ("gyc"s8, opt ~ d_option ~ ["-o"s8, outputname] ~ ofiles.map!{|x| => const x.toStr ()} () ~ ldirs, cwd-> cwd) {
-                let _ = subProc:.wait ();               
-                if (verbose) {                                       
-                    let o = subProc:.stdout ():.read ();
-                    if (o != ""s8)
-                        println (o);
-                }
-                
-                let err = subProc:.stderr ():.read ();
-                if (err != ""s8) {
-                    println (err);
-                    return false
-                }
-            }
-        } else if (conf.type.isLibrary ()) {
-            if (verbose) {
-                print ("[INFO] Running cmd ar"s8, " cr "s8, outputname, ".a"s8);
-                for i in ofiles print (" ", i.toStr ());
-                for l in libs print (" ", l.toStr ());
-                for l in libraries print (" -l", l);
-                println ("");                
-            }
-            
-            with dmut subProc = SubProcess::run ("ar"s8, ["cr"s8, outputname ~ ".a"s8] ~ ofiles.map!{|x| => const x.toStr ()} () ~ ldirs, cwd-> cwd) {
-                let _ = subProc:.wait ();
-                if (verbose) {
-                    let o = subProc:.stdout ():.read ();
-                    if (o != ""s8)
-                        println (o);
-                }
-
-                let err = subProc:.stderr ():.read ();
-                if (err != ""s8) {
-                    println ("Linking failed : ");
-                    println (err);
-                    return false
-                }
-            }
-        }
-
-        true
-    }
-
-    
-    /**
-     * Build the files 
-     */
-    prv def buildFiles (mut self, cwd : &Path, files : [&Path], links : [&Path], srcDir : [c8] = defaults::__SRC_DIR__, buildDir : [c8] = defaults::__BUILD_DIR__, test : bool = false, verbose : bool = false) -> bool {
-        self._failed = false;
-        let mut percent = 0u64;
-        for i in 0us .. files.len {
-            let prc = (percent * 100u64) / files.len;
-            percent += 1u64;
-
-            self._mail:.send ((prc, cwd.push (srcDir).push (files [i]), cwd, buildDir, test, verbose, links, false));
-        }
-
-        let mut threads : [Thread] = [];
-        let nb_threads = clamp (self._args.build.getNbThreads (), 1u32, cast!u32 (files.len));
-        if (self._args.build.isVerbose () && nb_threads != 0u32) {
-            println ("[INFO] Spawning ", nb_threads, " threads");
-        }
-        
-        for _ in 0u32 .. nb_threads {
-            let th = spawnNoPipe (&self:.buildFile);
-            threads = threads ~ [th];
-        }
-
-        for th in threads {
-            th.join ();
-        }
-        
-        !self._failed 
-    }
-
-
-    /**
-     * Thread running file compilation
-     */
-    prv def buildFile (mut self, _ : Thread) {
-        loop {
-            let (p, file, cwd, buildDir, test, verbose, links, doc) = atomic self {
-                match self._mail:.receive () {
-                    Ok (x : _) => { x }
-                    _ => { return {} }
-                }
-            }
-
-            let oname = file.stripExtension ().addExtension (defaults::__OBJECT_EXTENSION__).file ();
-            let odir = cwd.push (buildDir).push (file.parent ().removePrefix (cwd));
-            atomic self {
-                fs::createDir (odir, recursive-> true)?
-            }
-
-            let mut idirs : [[c8]] = [];
-            atomic self {
-                for l in links {
-                    idirs = idirs ~ ["-I"s8, l.toStr ()];
-                }
-                
-                if (p < 10u64) 
-                    println ("[  ", p, "%] Building object ", odir.push (oname).toStr ());
-                else println ("[ ", p, "%] Building object ", odir.push (oname).toStr ());
-                if verbose {                    
-                    print ("[INFO] Running cmd gyc ");
-                    if (self._args.build.isDebug ()) print (" -g"s8)
-                    else print (" -O3"s8);                    
-                    print (if (test) { "-funittest" } else { "" }, if (doc) { " -fdoc" } else { " -fdependency" }, " -c -o", odir.push (oname).toStr (), " ", file.toStr (), " ", "-I "s8, cwd.push ("src"s8).toStr ());
-                    
-                    for i in idirs {
-                        print (" ", i);
-                    }
-                    println ("");
-                }
-            }
-
-            let mut opt = if (test) { ["-funittest"s8] } else { [] } ;
-            opt ~= if (doc) { ["-fdoc"s8] } else { ["-fdependency"s8] }
-            {
-                let dmut subProc = atomic self {
-                    let d_option = if (self._args.build.isDebug ()) { ["-g"s8] } else { ["-O3"s8] };
-                    SubProcess::run ("gyc"s8, opt ~ d_option ~ ["-c"s8, "-o"s8, odir.push (oname).toStr (), file.toStr (), "-I"s8, cwd.push ("src"s8).toStr ()] ~ idirs, cwd-> cwd.push (buildDir))
-                }
-                
-                {
-                    let _ = subProc:.wait ();
-                    if (verbose) {                        
-                        let o = subProc:.stdout ():.read ();
-                        atomic self {
-                            if o != ""s8 { println (o); }
-                        }
-                    }
-
-                    let err = subProc:.stderr ():.read ();
-                    if (err != ""s8) {
-                        atomic self {
-                            println ("Failed to compile file : ", oname);
-                            println (err);
-                            self._mail:.clear ();
-                            self._failed = true;
-                        }
-                        return {}
-                    }
-                } exit {
-                    subProc:.dispose ();
-                }
-            }
-
-            let ext = if (doc) { defaults::__DOC_EXTENSION__ } else { defaults::__DEP_EXTENSION__ }
-            let depname = self.toPath (file.stripExtension ().removePrefix (cwd).addExtension (ext).removeRoot ().toStr (), sep-> "/"s8, add-> "__"s8);
-            let dstname = file.stripExtension ().removePrefix (cwd).addExtension (ext).toStr ();
-            if (depname != dstname) {
-                let dmut subProc = atomic self {
-                    SubProcess::run ("mv"s8, [depname, dstname], cwd-> cwd.push (buildDir))
-                }
-                {
-                    let _ = subProc:.wait ();
-                    let err = subProc:.stderr ():.read ();
-                    if (err != ""s8) {
-                        atomic self {
-                            println (err);
-                            self._mail:.clear ();
-                            self._failed = true;
-                        }
-                        return {}
-                    }
-                } exit {
-                    subProc:.dispose ();
-                }
-            }
-        }
-    }
-    
-    /**
-     * List all the files to build 
-     * Either they don't have a .o binary already made, or the source file was modified more recently than the .o 
-     * @params:
-     *   - files: the list of source file
-     * @returns: the list of source files to build
-     */
-    prv def listToBuild (self, cwd : &Path, files : [&Path], buildDir : [c8] = defaults::__BUILD_DIR__) -> [&Path] {
-        let dmut res = Vec!{&Path}::new ();
-        let dmut no = Vec!{&Path}::new ();
-        let dmut dependencies = HashMap!{&Path, &FileDependency}::new ();
-        
-        for file in files {
-            let toAdd = file.removePrefix (cwd).removeRoot ();
-            let oname = file.stripExtension ().addExtension (defaults::__OBJECT_EXTENSION__).file ();
-            let odir = cwd.push (buildDir).push (file.parent ().removePrefix (cwd));
-            let opath = odir.push (oname);
-            
-            let depname = file.stripExtension ().addExtension (defaults::__DEP_EXTENSION__).file ();
-            let deppath = odir.push (depname);
-            {
-                if (fs::isFile (opath)) {
-                    if (fs::fileDate (opath) < fs::fileDate (file)) res:.push (toAdd);
-                    else no:.push (toAdd)
-                } else res:.push (toAdd);
-
-                if (fs::isFile (deppath)) {
-                    with dmut dep = File::open (deppath) {
-                        let dependency : &Config = json::parse (dep:.readAll ());
-                        dependencies:.insert (toAdd, config::conv::to!{&FileDependency} (dependency));
-                    }
-                }
-            } catch {
-                _ => res:.push (toAdd);
-            }
-        }
-
-        res:.fit ();
-        no:.fit ();        
-        self.resolveDependencies (cwd, no [], res [], dependencies, buildDir-> buildDir)
-    }
-
-    /**
-     * List all the files that have to be rebuild, due to dependencies
-     * @assume: all the files in `files` have a .o, and probabely a .dep.json    
-     * @params: 
-     *   - files: the list of files that are not build by default
-     *   - force: the list of files that will be rebuild
-     */
-    prv def resolveDependencies (self, cwd : &Path, files : [&Path], force : [&Path], dependencies : &HashMap!{&Path, &FileDependency}, buildDir : [c8] = defaults::__BUILD_DIR__)-> [&Path] {
-        let dmut newForce = Vec!{&Path}::new ();
-        let dmut newFiles = Vec!{&Path}::new ();            
-        let mut added = false;
-
-        for i in force { newForce:.push (i); }
-        
-        for i in 0us .. files.len {
-            if self.hasDependency ((dependencies [files [i]])?, force) {
-                added = true;
-                newForce:.push (files [i]);
-            } else newFiles:.push (files [i]);
-
-        }
-        
-        if (added) return self.resolveDependencies (cwd, newFiles [], newForce [], dependencies, buildDir-> buildDir);
-        else return newForce [];
-    }
-
-    /**
-     * @returns: true, if the file has a dependency in files
-     */
-    prv def hasDependency (self, dep : (&FileDependency)?, files : [&Path])-> bool {
-        match dep {
-            Ok (dependencies : &FileDependency) => {
-                for a in dependencies [] {
-                    for b in files {
-                        if (a.toStr () == b.toStr ()) return true;
-                    }
-                }
-            }
-        }
-
-        false
-    }
-
-    /**
-     * Transform a module name into a path
-     * @example: 
-     * ===========
-     * assert (self.toPath ("std::path"s8) == "std/path.yr"s8)
-     * ===========
-     */
-    prv def toPath (self, module : [c8], sep : [c8] = "::"s8, add : [c8] = "/"s8)-> [c8] {
-        let dmut res = StringStream::new ();
-        let mut i = 0us;
-        while i < module.len {
-            if i < (module.len - sep.len) {
-                if (module [i .. i + sep.len] == sep) {                    
-                    res:.write (add);
-                    i += sep.len;
-                } else {
-                    res:.write (module [i]);
-                    i += 1us;
-                } 
-            } else {
-                res:.write (module [i]);
-                i += 1us;
-            }
-        }
-        res []
-    }
-
-            
-
-            
-    /**
-     * List all the source files in a directory (recursively)
-     * A source file is a file, whose extension is __YMIR_EXTENSION__ (.yr)
-     * @params: 
-     *   - path: the path to the directory to traverse
-     */
-    prv def listAllSourceFiles (self, path : &Path)-> [&Path]
-        throws &FsError
     {
-        let dmut res = Vec!{&Path}::new ();
+        let dmut builder = RepoBuilder::new (alias self, conf, cwd-> cwd);
+        let mut succ = false;
         {
-            for entry in fs::readDir (path) {
-                match entry {
-                    f : &FileEntry => {
-                        if f.getPath ().extension () == defaults::__YMIR_EXTENSION__ {
-                            res:.push (path.push (f.getPath ()));
-                        }
-                    }
-                    d : &DirEntry => {
-                        let files = self.listAllSourceFiles (path.push (d.getPath ()));
-                        for f in files {
-                            res:.push (f);
-                        }
-                    }
-                }
+            succ = builder:.construct ();
+            if (succ && doLink) {
+                succ = builder:.compile ();
             }
+        } catch {
+            _ : &FsError => return false;
+            x : &RecursiveDependency => throw x;
         }
 
-        res:.fit ();
-        res []
-    }
+        return succ;
+    }      
+
     
     /**
      * ================================================================================================================================================================
@@ -671,7 +280,7 @@ pub class GyllirManager {
     /**
      * Resolve a dependency, and build it
      */
-    pub def resolvePackageDependency (mut self, cwd : &Path, name : [c8], dependency : Dependency) -> (bool, [&Path], [&Path])
+    pub def resolvePackageDependency (mut self, cwd : &Path, name : [c8], dependency : Dependency) -> bool
         throws &RecursiveDependency
     {
         let depPath = cwd.push (defaults::__DEPENCY_DIR__).push (name);
@@ -698,24 +307,20 @@ pub class GyllirManager {
             } catch {
                 x : _ => {
                     println ("Failed to read configuration file (", x, "). Aborting");
-                    return (false, [], [])
+                    return false;
                 }
             }
 
             self._doneDependencies:.insert (dependency.url);
-            let (succ, allLinks, allLibs) = { 
-                self:.buildRepo (conf, cwd-> depPath)
+            let succ = { 
+                self:.buildRepo (conf, cwd-> depPath, doLink-> false)
             } catch {
                 r : &RecursiveDependency => {
                     throw RecursiveDependency::new (name ~ ":"s8 ~ dependency.url.getPath ().toStr () ~ " => "s8 ~ r.msg);
                 }
             }
             self._doneDependencies:.remove (dependency.url);
-
-            let retLinks = [depPath.push (defaults::__SRC_DIR__)] ~ allLinks;
-            let retLibs = if (conf.type.isLibrary ()) { [depPath.push (conf.name).addExtension (defaults::__LIBRARY_EXTENSION__)] ~ allLibs } else { allLibs };
-            
-            return (succ, retLinks, retLibs);
+            return succ;
         } catch {
             g : &GitError => {
                 println (g);
@@ -725,14 +330,14 @@ pub class GyllirManager {
                     println ("Available versions are : ", versions.map!{|x| const x.toStr ()} ());
                 }
                 
-                return (false, [], []) 
+                return false;
             }
 
             r : &RecursiveDependency => throw r;
             
             _ => {
                 println ("Failure. Aborting");
-                return (false, [], [])
+                return false;
             } 
         }
     }
@@ -925,106 +530,11 @@ pub class GyllirManager {
     prv def runTests (mut self, cwd : &Path = env::currentDir ()) -> bool
         throws &RecursiveDependency
     {
-        let conf = {
-            self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
-        } catch {
-            _ => {
-                println ("Failed to read configuration file. Aborting");
-                return false
-            }
-        }        
-        if self:.buildTest (cwd, conf) {
-            let outputname =  cwd.push ("test-"s8 ~ self.toPath (conf.name, sep-> "/"s8, add-> "_"s8));
-            let res = self:.launchTest (cwd, outputname);
-            fs::removeFile (outputname)?;
-            return res;
-        }
-        
+        __pragma!fake_throw (&RecursiveDependency);
+        cwd;
         false
     }
     
-    /**
-     * Compile the test executable
-     */
-    prv def buildTest (mut self, cwd : &Path, conf : GyllirConfig)-> bool
-        throws &RecursiveDependency
-    {
-        {
-            fs::createDir (cwd.push (defaults::__BUILD_DIR__));
-            fs::createDir (cwd.push (defaults::__TEST_DIR__));
-        } catch {
-            x : &FsError => {
-                if (x.code != FsErrorCode::ALREADY_EXISTS) {
-                    println ("Failed to create build repository: "s8 ~ x.msg ~ " ("s8 ~ x.code.(fs::errors::to)![c8] () ~ "). Aborting"s8);
-                    return false;
-                }
-            }
-        }
-
-        let mut libs : [&Path] = [];
-        let mut links : [&Path] = [];
-        for name, dep in conf.dependencies.getList () {
-            let (succ, links_, libs_) = self:.resolvePackageDependency (cwd, name.(std::conv::to)![c8] (), dep);
-            if (!succ) return false;
-            links = links ~ links_;
-            libs = libs ~ libs_;
-        }
-        
-        let srcFiles = {
-            self.listAllSourceFiles (cwd.push (defaults::__SRC_DIR__))
-        } catch {
-            _ : &FsError => {
-                println ("Invalid repository, missing src directory. Aborting");
-                return false;
-            }
-        }
-
-        
-        let toBuild = self.listToBuild (cwd, srcFiles, buildDir-> defaults::__BUILD_TEST_DIR__);
-        if (self:.buildFiles (cwd, toBuild, links, srcDir-> defaults::__SRC_DIR__, buildDir-> defaults::__BUILD_TEST_DIR__, test-> true, verbose-> self._args.test.isVerbose ())) {
-            let testFiles = {
-                self.listAllSourceFiles (cwd.push (defaults::__TEST_DIR__))
-            } catch {
-                _ : &FsError => {
-                    println ("Invalid repository, missing test directory. Aborting");
-                    return false;
-                }
-            }
-            let toBuildTest = self.listToBuild (cwd, testFiles, buildDir-> defaults::__BUILD_TEST_DIR__);
-            if (self:.buildFiles (cwd, toBuildTest, links, srcDir-> defaults::__TEST_DIR__, buildDir-> defaults::__BUILD_TEST_DIR__, test-> true, verbose-> self._args.test.isVerbose ())) {
-                {
-                    let mut ofiles : [&Path] = [];
-                    for file in srcFiles ~ testFiles {
-                        let oname = file.stripExtension ().addExtension (defaults::__OBJECT_EXTENSION__).file ();
-                        let odir = cwd.push (defaults::__BUILD_TEST_DIR__).push (file.parent ().removePrefix (cwd));
-                        ofiles = ofiles ~ [odir.push (oname)];
-                    }
-                    
-                    return self:.linkRepo (cwd, ofiles, conf, libs, conf.libraries, test-> true, verbose-> self._args.test.isVerbose ());
-                }
-            }
-        } 
-        
-        false
-    }
-
-    /**
-     * Launch the tests
-     */
-    prv def launchTest (mut self, cwd : &Path, exec : &Path) -> bool {
-        with dmut subProc = SubProcess::run (exec.toStr (), [], cwd-> cwd) {
-            let code = subProc:.wait ();
-            print (subProc:.stdout ():.read ());
-
-            if (code != 0) {
-                println ("[ERROR] Return code : ", code);
-                println (subProc:.stderr ():.read ());
-                return false;
-            }
-        }
-        return true;
-    }
-
 
     /**
      * ================================================================================================================================================================
@@ -1040,153 +550,9 @@ pub class GyllirManager {
     prv def generateDoc (mut self, cwd : &Path = env::currentDir ())
         throws &RecursiveDependency
     {
-        let conf = {
-            self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
-        } catch {
-            _ => {
-                println ("Failed to read configuration file. Aborting");
-                return {}
-            }
-        }
-
-        {
-            fs::createDir (cwd.push (defaults::__BUILD_DIR__));
-            fs::createDir (cwd.push (defaults::__DOC_DIR__));
-        } catch {
-            x : &FsError => {
-                if (x.code != FsErrorCode::ALREADY_EXISTS) {
-                    println ("Failed to create build repository: "s8 ~ x.msg ~ " ("s8 ~ x.code.(fs::errors::to)![c8] () ~ "). Aborting"s8);
-                    return {}
-                }
-            }
-        }
-
-        let dmut links = Vec!{&Path}::new ();
-        for name, dep in conf.dependencies.getList () {
-            let (succ, links_, _) = self:.resolvePackageDependency (cwd, name.(std::conv::to)![c8] (), dep);
-            if (!succ) return {}
-
-            for l in links_ {
-                links:.push (l.push (defaults::__SRC_DIR__));
-            }
-        }
-        
-
-        let files = {
-            self.listAllSourceFiles (cwd.push (defaults::__SRC_DIR__))
-        } catch {
-            _ : &FsError => {
-                println ("Invalid repository, missing test directory. Aborting");
-                return {}
-            }
-        }
-       
-        let toBuild = self.listDocToGenerate (cwd, files, buildDir-> defaults::__BUILD_DIR__);
-        let toHtml = self.listHtmlToGenerate (cwd, files);
-        
-        println ("[INFO] Building ", toBuild.len, " objects");
-        if (toBuild.len == 0us || self:.generateDocOfFiles (cwd, toBuild, links[], verbose-> self._args.doc.isVerbose ())) {
-            println ("[INFO] Building ", toHtml.len, " html files");
-            self:.generateHtmlOfFiles (conf, cwd, toHtml, verbose-> self._args.doc.isVerbose ());
-        }
+        __pragma!fake_throw (&RecursiveDependency);
+        cwd;
     }
-
-    /**
-     * List all the files whose doc is not generated
-     * Either they don't have a .doc.json already made, or the source file was modified more recently than the doc file 
-     * @params:
-     *   - files: the list of source file
-     * @returns: the list of source files to build
-     */
-    prv def listDocToGenerate (self, cwd : &Path, files : [&Path], buildDir : [c8] = defaults::__BUILD_DIR__) -> [&Path] {
-        let dmut res = Vec!{&Path}::new ();        
-        for file in files {
-            let toAdd = file.removePrefix (cwd).removeRoot ();
-            //println (toAdd);
-            
-            let odir = cwd.push (buildDir).push (file.parent ().removePrefix (cwd));            
-            let docname = file.stripExtension ().addExtension (defaults::__DOC_EXTENSION__).file ();
-            let docpath = odir.push (docname);
-            {
-                if (fs::isFile (docpath)) {
-                    if (fs::fileDate (docpath) < fs::fileDate (file)) res:.push (toAdd);
-                } else res:.push (toAdd);
-            } catch {
-                _ => res:.push (toAdd);
-            }
-        }
-
-        res:.fit ();
-        res []
-    }
-    
-
-    /**
-     * Generate the documentation of the files
-     * Generate the html files that will be located in cwd.push (defaults::__DOC_DIR__);
-     */
-    prv def generateDocOfFiles (mut self, cwd : &Path, files : [&Path], links : [&Path], verbose : bool = false, buildDir : [c8] = defaults::__BUILD_DIR__)-> bool {
-        self._failed = false;
-        let mut percent = 0u64;
-        for i in 0us .. files.len {
-            let prc = (percent * 100u64) / files.len;
-            percent += 1u64;
-
-            self._mail:.send ((prc, cwd.push (defaults::__SRC_DIR__).push (files [i]), cwd, buildDir, false, verbose, links, true));
-        }
-       
-        let mut threads : [Thread] = [];
-        let nb_threads = clamp (self._args.doc.getNbThreads (), 1u32, cast!u32 (files.len));
-        if (self._args.build.isVerbose () && nb_threads != 0u32) {
-            println ("[INFO] Spawning ", nb_threads, " threads");
-        }
-
-        for _ in 0u32 .. nb_threads { 
-            let th = spawnNoPipe (&self:.buildFile);
-            threads = threads ~ [th];
-        }
-
-        for th in threads {
-            th.join ();
-        }
-        
-        !self._failed
-    }
-
-
-    /**
-     * List all the files whose html is not generated
-     * Either they don't have a .md already made, or the source file was modified more recently than the html file 
-     * @params:
-     *   - files: the list of source file
-     * @returns: the list of source files to build
-     */
-    prv def listHtmlToGenerate (self, cwd : &Path, files : [&Path], buildDir : [c8] = defaults::__BUILD_DIR__) -> [&Path] {
-        let dmut res = Vec!{&Path}::new ();        
-        for file in files {
-            let odir = cwd.push (buildDir).push (file.parent ().removePrefix (cwd));            
-            let docname = file.stripExtension ().addExtension (defaults::__DOC_EXTENSION__).file ();
-            let docpath = odir.push (docname);
-            
-            res:.push (docpath);
-        }
-
-        res:.fit ();
-        res []
-    }
-
-    /**
-     * Build the html files from the doc.json files
-     * @params: 
-     *  - cwd: the current directory path
-     *  - files: the list doc.json files
-     *  - verbose: verbose mode
-     *  - buildDir: the name of the build directory
-     *  - outDir: the name of the directory in which mardown files are sent
-     */
-    prv def generateHtmlOfFiles (mut self, conf : GyllirConfig, cwd : &Path, files : [&Path], verbose : bool = false, buildDir : [c8] = defaults::__BUILD_DIR__, outDir : [c8] = defaults::__DOC_DIR__) {
-        DocDumper::new (conf, cwd.push (buildDir), files, cwd.push (outDir), verbose-> verbose).generate ()
-    } 
     
     /**
      * ================================================================================================================================================================
@@ -1243,5 +609,40 @@ pub class GyllirManager {
             !self._args.test.isSet () &&
             !self._args.doc.isSet ()
     }
+
+    /**
+     * @returns: the arguments passed to the command line
+     */
+    pub def getArguments (self)-> GyllirArgs {
+        self._args
+    }
+    
+    /**
+     * Transform a module name into a path
+     * @example: 
+     * ===========
+     * assert (self.toPath ("std::path"s8) == "std/path.yr"s8)
+     * ===========
+     */
+    prv def toPath (self, module : [c8], sep : [c8] = "::"s8, add : [c8] = "/"s8)-> [c8] {
+        let dmut res = StringStream::new ();
+        let mut i = 0us;
+        while i < module.len {
+            if i < (module.len - sep.len) {
+                if (module [i .. i + sep.len] == sep) {                    
+                    res:.write (add);
+                    i += sep.len;
+                } else {
+                    res:.write (module [i]);
+                    i += 1us;
+                } 
+            } else {
+                res:.write (module [i]);
+                i += 1us;
+            }
+        }
+        res []
+    }
+
     
 }
