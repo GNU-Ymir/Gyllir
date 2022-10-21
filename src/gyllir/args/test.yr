@@ -1,9 +1,11 @@
 mod gyllir::args::test;
 import std::args, std::lexer, std::io;
 import gyllir::args::sub;
+import etc::c::sysinfo;
 
 struct
 | verbose : YesNo
+| j : i64 = cast!i64 (sysinfo::_yrt_get_nprocs ())
 | mut help : YesNo
  -> TestArgs;
 
@@ -28,6 +30,7 @@ pub class @final TestCommand over SubCommand {
     {
         let parser = ArgumentParser!(TestArgs)::new ()
             :.info!"verbose" (short-> "v", comments-> "verbose mode")
+            :.info!"j" (comments-> "number of parallel threads to spawn")
             :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true);
 
         {
@@ -51,6 +54,13 @@ pub class @final TestCommand over SubCommand {
      */
     pub def isVerbose (self)-> bool {
         self._args.verbose
+    }
+
+    /**
+     * @returns: the number of thread to spawn 
+     */
+    pub def getNbThreads (self)-> u32 {
+        cast!u32 (self._args.j)
     }
 
 }

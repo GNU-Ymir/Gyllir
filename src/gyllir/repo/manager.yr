@@ -10,6 +10,7 @@ import std::config::conv;
 import gyllir::repo::dependency;
 import std::config::json;
 import gyllir::doc::dumper;
+import gyllir::utils::colors;
 
 import std::collection::vec;
 import std::concurrency::process;
@@ -131,8 +132,17 @@ pub class GyllirManager {
         } else if (self._args.publish.isSet ()) {
             self:.publishRepo ();
         } else if (self._args.test.isSet ()) {
+            let cwd = env::currentDir ();
+            let conf = {
+                self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
+            } catch {
+                x : _ => {
+                    println ("Failed to read configuration file (", x, "). Aborting");
+                    return {}
+                }
+            }
             {
-                self:.runTests ();
+                self:.runTests (conf, cwd-> cwd);
             } catch {
                 r : &RecursiveDependency => {
                     println ("Failed to build repository, recursive dependency : ");
@@ -293,7 +303,7 @@ pub class GyllirManager {
             if !isDir (depPath) {
                 fs::createDir (depPath, recursive-> true);
                 if (dependency.url.getType () == UrlType::LOCAL) {
-                    fs::copyDir (dependency.url.getPath (), depPath, recursive-> true);
+                    self.runProcess ("cp"s8, ["-r"s8, dependency.url.getPath ().toStr (), depPath.toStr ()]);
                 } else {
                     git::clone (dependency.url.getPath ().toStr (), cwd-> depPath);
                 }
@@ -384,22 +394,24 @@ pub class GyllirManager {
 
 	if (doc || all) {
             if (fs::isDir (cwd.push ("__doc"s8))) {
-		fs::removeDir (cwd.push ("__doc"s8), recursive-> true);
+                self.runProcess ("rm"s8, ["-rf"s8, cwd.push ("__doc"s8).toStr ()]);
             }            
         }        
         
 	if (!doc || all) {
             if (fs::isDir (cwd.push (".build"s8))) {
-		fs::removeDir (cwd.push (".build"s8), recursive-> true);
+                self.runProcess ("rm"s8, ["-rf"s8, cwd.push (".build"s8).toStr ()]);
             }
             
-            let outputname = self.toPath (conf.name, sep-> "/"s8, add-> "_"s8);            
-            if (fs::isFile (cwd.push (outputname))) 
-                fs::removeFile (cwd.push (outputname));
+            let outputname = self.toPath (conf.name ~ ".exe"s8, sep-> "/"s8, add-> "_"s8);            
+            if (fs::isFile (cwd.push (outputname)))
+                self.runProcess ("rm"s8, [cwd.push (outputname).toStr ()]);
+
+            let testoutputname = self.toPath ("test_"s8 ~ conf.name ~ ".exe"s8, sep-> "/"s8, add-> "_"s8);            
+            if (fs::isFile (cwd.push (testoutputname)))
+                self.runProcess ("rm"s8, [cwd.push (testoutputname).toStr ()]);
         }        
-    } catch {
-        x : &FsError => println (x);
-    }
+    } 
 
     /**
      * ================================================================================================================================================================
@@ -462,7 +474,7 @@ pub class GyllirManager {
         self.cleanRepo (cwd-> cwd, all-> true);
         if (!self._args.publish.isDry ()) {
             let res = {
-                self:.runTests (cwd-> cwd)
+                self:.runTests (conf, cwd-> cwd)
             } catch {
                 r : &RecursiveDependency => {
                     println ("Failed to build repository, recursive dependency : ");
@@ -490,12 +502,12 @@ pub class GyllirManager {
         git::createTag ("v"s8 ~ version.toStr ());
 
         if isDir (path) {
-            fs::removeDir (path, recursive-> true);
+            self.runProcess ("rm"s8, ["-rf"s8, path.toStr ()]);
         }
         
         fs::createDir (path, recursive-> true);
-        println ("copy dir : ", path, " ", cwd);
-        fs::copyDir (cwd, path, recursive-> true);
+        println ("[INFO] publish to ", path.toStr ());
+        self.runProcess ("cp"s8, ["-r"s8, cwd.toStr (), path.toStr ()]);
         
         (true, version)
     }
@@ -527,12 +539,26 @@ pub class GyllirManager {
     /**
      * Run the tests of the repo
      */
-    prv def runTests (mut self, cwd : &Path = env::currentDir ()) -> bool
+    prv def runTests (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir ()) -> bool
         throws &RecursiveDependency
     {
-        __pragma!fake_throw (&RecursiveDependency);
-        cwd;
-        false
+        let dmut builder = RepoBuilder::new (alias self, conf, cwd-> cwd);
+        let mut succ = false;
+        {
+            succ = builder:.construct ();
+            succ = builder:.compile (forTest-> true);
+            
+            if (succ) {
+                succ = self.runProcess ("test_"s8 ~ conf.name, [], printOut-> true, printErr-> true);
+                if (!succ) println ("[ERROR] Tests failed."s8);
+            }
+        } catch {
+            _ : &FsError => return false;
+            x : &RecursiveDependency => throw x;
+        }
+
+        return succ;
+
     }
     
 
@@ -644,5 +670,28 @@ pub class GyllirManager {
         res []
     }
 
+    /**
+     * Run a process, and print its stdout / stderr
+     * @params:
+     *     - true if succeded, false otherwise
+     */
+    pub def runProcess (self, cmd : [c8], params : [[c8]], cwd : &Path = env::currentDir (), printOut : bool = false, printErr : bool = false)-> bool {        
+        with dmut subProc = SubProcess::run (cmd, params, cwd-> cwd) {
+            loop {
+                if (printOut) print (subProc:.stdout ():.readSome (len-> 1u32));                
+                if (subProc.isFinished ()) {                    
+                    let code = subProc:.wait ();
+                    if (printOut) print (subProc:.stdout ():.read ());
+                    if (printErr) print (subProc:.stderr ():.read ());
+                    if (code != 0) {
+                        return false;
+                    } else break {}
+                }
+            }
+        }
+
+        true
+    }
+    
     
 }
