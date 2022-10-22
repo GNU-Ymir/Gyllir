@@ -403,11 +403,21 @@ pub class GyllirManager {
                 self.runProcess ("rm"s8, ["-rf"s8, cwd.push (".build"s8).toStr ()]);
             }
             
-            let outputname = self.toPath (conf.name ~ ".exe"s8, sep-> "/"s8, add-> "_"s8);            
+            let outputname = __version WINDOWS {
+                self.toPath (conf.name ~ ".exe"s8, sep-> "/"s8, add-> "_"s8)
+            } else {
+                self.toPath (conf.name, sep-> "/"s8, add-> "_"s8)
+            }
+            
             if (fs::isFile (cwd.push (outputname)))
                 self.runProcess ("rm"s8, [cwd.push (outputname).toStr ()]);
 
-            let testoutputname = self.toPath ("test_"s8 ~ conf.name ~ ".exe"s8, sep-> "/"s8, add-> "_"s8);            
+            let testoutputname = __version WINDOWS {
+                self.toPath ("test_"s8 ~ conf.name ~ ".exe", sep-> "/"s8, add-> "_"s8)
+            } else {
+                self.toPath ("test_"s8 ~ conf.name, sep-> "/"s8, add-> "_"s8)
+            }
+            
             if (fs::isFile (cwd.push (testoutputname)))
                 self.runProcess ("rm"s8, [cwd.push (testoutputname).toStr ()]);
         }        

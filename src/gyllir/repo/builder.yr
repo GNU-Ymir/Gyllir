@@ -111,9 +111,17 @@ pub class RepoBuilder {
 
         let resPath =
             if (forTest) {
-                self._cwd.push ("test_"s8 ~ self._conf.name ~ ".exe"s8)
+                __version WINDOWS {
+                    self._cwd.push ("test_"s8 ~ self._conf.name ~ ".exe"s8)
+                } else {
+                    self._cwd.push ("test_"s8 ~ self._conf.name)
+                }
             } else if (self._conf.type.isExecutable ()) {
-                self._cwd.push (self._conf.name ~ ".exe"s8)
+                __version WINDOWS {
+                    self._cwd.push (self._conf.name ~ ".exe"s8 )
+                } else {
+                    self._cwd.push (self._conf.name)
+                }
             } else {
                 __version WINDOWS {
                     self._cwd.push (self._conf.name ~ ".lib"s8)
@@ -123,9 +131,17 @@ pub class RepoBuilder {
             };
 
         let buildPath = if (forTest) {
-            p.push ("gyl_test_"s8 ~ self._conf.name ~ ".exe"s8)
+            __version WINDOWS {
+                p.push ("gyl_test_"s8 ~ self._conf.name ~ ".exe"s8 )
+            } else {
+                p.push ("gyl_test_"s8 ~ self._conf.name)
+            }
         } else if self._conf.type.isExecutable () {
-            p.push ("gyl_"s8 ~ self._conf.name ~ ".exe"s8)
+            __version WINDOWS {
+                p.push ("gyl_"s8 ~ self._conf.name ~ ".exe"s8 )
+            } else {
+                p.push ("gyl_"s8 ~ self._conf.name)
+            }
         } else {
             p.push ("gyl_"s8 ~ self._conf.name ~ ".a"s8)
         };
@@ -161,7 +177,7 @@ pub class RepoBuilder {
             file:.write ("set(CMAKE_YMIR_OUTPUT_EXTENSION_REPLACE 1)\n"s8);
 
             file:.write ("set(CMAKE_YMIR_CREATE_STATIC_LIBRARY \"<CMAKE_AR> rc <TARGET> <LINK_FLAGS> <OBJECTS>\")\n"s8);
-            file:.write ("set(CMAKE_YMIR_LINK_EXECUTABLE \"${CMAKE_YMIR_COMPILER} -o <TARGET> <OBJECTS> <LINK_FLAGS> \")\n"s8);
+            file:.write ("set(CMAKE_YMIR_LINK_EXECUTABLE \"${CMAKE_YMIR_COMPILER} -o <TARGET> <OBJECTS> <LINK_FLAGS> <LINK_LIBRARIES>\")\n"s8);
             file:.write ("set(CMAKE_INCLUDE_FLAG_YMIR \"-I\")\n\n"s8);
             
             file:.write ("set(CMAKE_YMIR_FLAGS_DEBUG \"${CMAKE_C_FLAGS} -g\")\n\n"s8);            
