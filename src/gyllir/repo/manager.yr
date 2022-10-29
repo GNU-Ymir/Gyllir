@@ -10,7 +10,7 @@ import std::config::conv;
 import gyllir::repo::dependency;
 import std::config::json;
 import gyllir::doc::dumper;
-import gyllir::utils::colors;
+import gyllir::utils::colors, gyllir::utils::path;
 
 import std::collection::vec;
 import std::concurrency::process;
@@ -151,8 +151,17 @@ pub class GyllirManager {
                 }
             }
         } else if (self._args.doc.isSet ()) {
+            let cwd = env::currentDir ();
+            let conf = {
+                self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
+            } catch {
+                x : _ => {
+                    println ("Failed to read configuration file (", x, "). Aborting");
+                    return {}
+                }
+            }
             {
-                self:.generateDoc ();
+                self:.generateDoc (conf, cwd-> cwd);
             } catch {
                 r : &RecursiveDependency => {
                     println ("Failed to build repository, recursive dependency : ");
@@ -404,18 +413,18 @@ pub class GyllirManager {
             }
             
             let outputname = __version WINDOWS {
-                self.toPath (conf.name ~ ".exe"s8, sep-> "/"s8, add-> "_"s8)
+                utils::path::toPath (conf.name ~ ".exe"s8, sep-> "/"s8, add-> "_"s8)
             } else {
-                self.toPath (conf.name, sep-> "/"s8, add-> "_"s8)
+                utils::path::toPath (conf.name, sep-> "/"s8, add-> "_"s8)
             }
             
             if (fs::isFile (cwd.push (outputname)))
                 self.runProcess ("rm"s8, [cwd.push (outputname).toStr ()]);
 
             let testoutputname = __version WINDOWS {
-                self.toPath ("test_"s8 ~ conf.name ~ ".exe", sep-> "/"s8, add-> "_"s8)
+                utils::path::toPath ("test_"s8 ~ conf.name ~ ".exe", sep-> "/"s8, add-> "_"s8)
             } else {
-                self.toPath ("test_"s8 ~ conf.name, sep-> "/"s8, add-> "_"s8)
+                utils::path::toPath ("test_"s8 ~ conf.name, sep-> "/"s8, add-> "_"s8)
             }
             
             if (fs::isFile (cwd.push (testoutputname)))
@@ -583,11 +592,60 @@ pub class GyllirManager {
     /**
      * Generate the documentation of the repository
      */
-    prv def generateDoc (mut self, cwd : &Path = env::currentDir ())
+    prv def generateDoc (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir ())
         throws &RecursiveDependency
     {
-        __pragma!fake_throw (&RecursiveDependency);
-        cwd;
+        let d = self.getArguments ().doc;
+        let dmut jsons = Vec!{&Path}::new ();
+        if (d.inDir () != ""s8) {
+            {
+                for e in fs::readDir (Path::new (d.inDir ())) {
+                    match e {
+                        f : &FileEntry => {
+                            if (f.getPath ().extension () == "json"s8) {
+                                jsons:.push (f.getPath ());
+                            }
+                        }                        
+                    }
+                }
+            } catch {
+                x : &FsError => {
+                    println (x);
+                    println ("[ERROR] Doc compilation failed."s8);
+                    return {};
+                }
+            }
+        } else {
+            let dmut builder = RepoBuilder::new (alias self, conf, cwd-> cwd);        
+            let mut succ = false;
+            {
+                succ = builder:.construct ();
+                succ = builder:.compile (forDoc-> true);
+                if (succ) {
+                    let srcDir = cwd.push (defaults::__BUILD_DIR__).push (defaults::__DOC_DIR__);
+                    for e in fs::readDir (srcDir) {
+                        match e {
+                            f : &FileEntry => {
+                                if (f.getPath ().extension () == "json"s8) {
+                                    jsons:.push (f.getPath ());
+                                }
+                            }                        
+                        }
+                    }
+                } else println ("[ERROR] Doc compilation failed."s8);
+            } catch {
+                _ : &FsError => {
+                    println ("[ERROR] Doc compilation failed."s8);
+                    return {};
+                }
+                x : &RecursiveDependency => throw x;
+            }
+        }
+
+        let outDir = cwd.push (defaults::__DOC_DIR__);
+        let dmut docDumper = DocDumper::new (conf, jsons[], outDir, verbose-> d.isVerbose ());
+
+        docDumper.generate ();
     }
     
     /**
@@ -653,33 +711,6 @@ pub class GyllirManager {
         self._args
     }
     
-    /**
-     * Transform a module name into a path
-     * @example: 
-     * ===========
-     * assert (self.toPath ("std::path"s8) == "std/path.yr"s8)
-     * ===========
-     */
-    prv def toPath (self, module : [c8], sep : [c8] = "::"s8, add : [c8] = "/"s8)-> [c8] {
-        let dmut res = StringStream::new ();
-        let mut i = 0us;
-        while i < module.len {
-            if i < (module.len - sep.len) {
-                if (module [i .. i + sep.len] == sep) {                    
-                    res:.write (add);
-                    i += sep.len;
-                } else {
-                    res:.write (module [i]);
-                    i += 1us;
-                } 
-            } else {
-                res:.write (module [i]);
-                i += 1us;
-            }
-        }
-        res []
-    }
-
     /**
      * Run a process, and print its stdout / stderr
      * @params:

@@ -1,0 +1,35 @@
+mod gyllir::doc::types::struct_;
+
+import gyllir::doc::types::base;
+import std::fs::path;
+import gyllir::utils::path;
+import std::io;
+
+/**
+ * A structure type
+ */
+pub class StructType over Type {
+
+    let _module : &Path;
+    
+    /**
+     * @params: 
+     *   - name: the name of the struct
+     *   - isMut: bool is the struct is mutable
+     */
+    pub self (name : [c8], isMut : bool)
+        with super (name-> Path::new (utils::path::toPath (name, sep-> "::"s8)).file (), isMut-> isMut),
+             _module = Path::new (utils::path::toPath (name, sep-> "::"s8)).parent ()
+    {}
+
+    /**
+     * @returns: the module that declared the struct
+     */
+    pub def getModule (self)-> &Path {
+        self._module
+    }
+
+    
+    impl Streamable;
+    
+}

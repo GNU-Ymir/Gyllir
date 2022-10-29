@@ -1,0 +1,19 @@
+mod gyllir::doc::types::bool_;
+
+import gyllir::doc::types::base;
+import std::io;
+
+/**
+ * Bool type
+ */
+pub class BoolType over Type {
+
+    /**
+     * @params: 
+     *   - isMut: true if the type is mutable
+     */
+    pub self (isMut : bool) with super (isMut-> isMut) {}
+
+
+    impl Streamable;
+}

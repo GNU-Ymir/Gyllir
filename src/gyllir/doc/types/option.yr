@@ -1,0 +1,42 @@
+mod gyllir::doc::types::option;
+
+import gyllir::doc::types::base;
+import std::config, std::io, std::conv;
+import gyllir::utils::options;
+import gyllir::doc::loader;
+
+
+/**
+ * A fixed size option
+ */
+pub class OptionType over Type {
+
+    // The inner type of the option
+    let _child : &Type;
+    
+    /**
+     * @params: 
+     *    - name: the name of the type ("option")
+     *    - isMut: true if the type is mutable
+     *    - conf: the configuration of the option type (json content)
+     */
+    pub self (name : [c8], isMut : bool, conf : &Config)
+        with super (name-> name, isMut-> isMut), _child = {
+            {
+                loader::toType (conf["childs"][0])
+            } catch {
+                _ => Type::none ()
+            }
+        }
+    {}
+
+    /**
+     * @returns: the type contained in the option
+     */
+    pub def getInnerType (self)-> &Type {
+        return self._child
+    }
+
+    impl Streamable;
+    
+}

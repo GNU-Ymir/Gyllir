@@ -1,0 +1,34 @@
+mod gyllir::doc::types::enum_;
+
+import gyllir::doc::types::base;
+import std::fs::path;
+import gyllir::utils::path;
+import std::io;
+
+/**
+ * A enumure type
+ */
+pub class EnumType over Type {
+
+    let _module : &Path;
+    
+    /**
+     * @params: 
+     *   - name: the name of the enum
+     *   - isMut: bool is the enum is mutable
+     */
+    pub self (name : [c8], isMut : bool)
+        with super (name-> Path::new (utils::path::toPath (name, sep-> "::"s8)).file (), isMut-> isMut), _module = Path::new (utils::path::toPath (name, sep-> "::"s8)).parent ()
+    {}
+
+    /**
+     * @returns: the module that declared the enum
+     */
+    pub def getModule (self)-> &Path {
+        self._module
+    }
+
+    
+    impl Streamable;
+    
+}

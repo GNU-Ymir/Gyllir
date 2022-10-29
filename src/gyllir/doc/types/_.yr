@@ -1,12 +1,21 @@
 mod gyllir::doc::types::_;
 
-/**
- * Ancestor of all kind of types
- */
-pub class Type {
-    
-    /**
-     * Create a none type
-     */
-    pub self none () {}
-}
+pub import gyllir::doc::types::array;
+pub import gyllir::doc::types::base;
+pub import gyllir::doc::types::bool_;
+pub import gyllir::doc::types::char;
+pub import gyllir::doc::types::float;
+pub import gyllir::doc::types::void_;
+pub import gyllir::doc::types::int;
+pub import gyllir::doc::types::slice;
+pub import gyllir::doc::types::tuple;
+pub import gyllir::doc::types::struct_;
+pub import gyllir::doc::types::enum_;
+pub import gyllir::doc::types::pointer;
+pub import gyllir::doc::types::class_;
+pub import gyllir::doc::types::class_pointer;
+pub import gyllir::doc::types::range;
+pub import gyllir::doc::types::fn_pointer;
+pub import gyllir::doc::types::dg_pointer;
+pub import gyllir::doc::types::closure;
+pub import gyllir::doc::types::option;

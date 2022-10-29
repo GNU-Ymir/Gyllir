@@ -53,14 +53,17 @@ pub class RepoBuilder {
     /**
      * Compile a constructed repository using cmake
      */
-    pub def compile (mut self, forTest : bool = false)-> bool
+    pub def compile (mut self, forTest : bool = false, forDoc : bool = false)-> bool
         throws &FsError
     {
         println ("[INFO] Compiling project : ", self._conf.name);
         let b = self._context.getArguments ().build;
         let t = self._context.getArguments ().test;
+        let d = self._context.getArguments ().doc;
         
-        let p = if (forTest) {
+        let p = if (forDoc) {
+            self._cwd.push (defaults::__BUILD_DIR__).push (defaults::__DOC_DIR__)
+        } else if (forTest) {
             self._cwd.push (defaults::__BUILD_DIR__).push (defaults::__TEST_DIR__)
         } else if (b.isDebug ()) {
             self._cwd.push (defaults::__BUILD_DIR__).push (defaults::__DEBUG_DIR__)
@@ -71,15 +74,22 @@ pub class RepoBuilder {
         self.createCMakeBuildDir (p);
         
         let dmut cmakeOptions = Vec!{[c8]}::new ();
-        if (forTest) {
+        if (forDoc) {
+            cmakeOptions:.push ("-DCMAKE_BUILD_TYPE=Debug"s8);
+            cmakeOptions:.push ("-DTEST_TARGET=none"s8);
+            cmakeOptions:.push ("-DDOC_TARGET=gyl_doc_"s8 ~ self._conf.name);
+        } else if (forTest) {
             cmakeOptions:.push ("-DCMAKE_BUILD_TYPE=Debug"s8);
             cmakeOptions:.push ("-DTEST_TARGET=gyl_test_"s8 ~ self._conf.name);
+            cmakeOptions:.push ("-DDOC_TARGET=none"s8);
         } else if (b.isDebug ()) {
             cmakeOptions:.push ("-DCMAKE_BUILD_TYPE=Debug"s8);
             cmakeOptions:.push ("-DTEST_TARGET=none"s8);
+            cmakeOptions:.push ("-DDOC_TARGET=none"s8);
         } else {
             cmakeOptions:.push ("-DCMAKE_BUILD_TYPE=Release"s8);
             cmakeOptions:.push ("-DTEST_TARGET=none"s8);
+            cmakeOptions:.push ("-DDOC_TARGET=none"s8);
         }        
 
         if (!self._context.runProcess ("cmake"s8, [".."s8] ~ cmakeOptions[], cwd-> p)) {
@@ -88,7 +98,12 @@ pub class RepoBuilder {
         }
 
         let dmut options = Vec!{[c8]}::new ();
-        if (forTest) {
+        if (forDoc) {
+            options:.push ("-j"s8 ~ d.getNbThreads ().(std::conv::to)![c8] ());        
+            if (d.isVerbose ()) {
+                options:.push ("VERBOSE=1"s8);
+            }
+        } else if (forTest) {
             options:.push ("-j"s8 ~ t.getNbThreads ().(std::conv::to)![c8] ());        
             if (t.isVerbose ()) {
                 options:.push ("VERBOSE=1"s8);
@@ -102,54 +117,58 @@ pub class RepoBuilder {
         
         if (forTest) {
             options:.push ("gyl_test_"s8 ~ self._conf.name);
-        }        
+        } else if (forDoc) {
+            options:.push ("gyl_doc_"s8 ~ self._conf.name);
+        }
         
         if (!self._context.runProcess ("make"s8, options[], cwd-> p, printOut-> true, printErr-> true)) {
             println ("[ERROR] Compilation failed.");
             return false;
         }
 
-        let resPath =
-            if (forTest) {
-                __version WINDOWS {
-                    self._cwd.push ("test_"s8 ~ self._conf.name ~ ".exe"s8)
+        if (!forDoc) {
+            let resPath =
+                if (forTest) {
+                    __version WINDOWS {
+                        self._cwd.push ("test_"s8 ~ self._conf.name ~ ".exe"s8)
+                    } else {
+                        self._cwd.push ("test_"s8 ~ self._conf.name)
+                    }
+                } else if (self._conf.type.isExecutable ()) {
+                    __version WINDOWS {
+                        self._cwd.push (self._conf.name ~ ".exe"s8 )
+                    } else {
+                        self._cwd.push (self._conf.name)
+                    }
                 } else {
-                    self._cwd.push ("test_"s8 ~ self._conf.name)
+                    __version WINDOWS {
+                        self._cwd.push (self._conf.name ~ ".lib"s8)
+                    } else {
+                        self._cwd.push (self._conf.name ~ ".a"s8)
+                    }
+                };
+
+            let buildPath = if (forTest) {
+                __version WINDOWS {
+                    p.push ("gyl_test_"s8 ~ self._conf.name ~ ".exe"s8 )
+                } else {
+                    p.push ("gyl_test_"s8 ~ self._conf.name)
                 }
-            } else if (self._conf.type.isExecutable ()) {
+            } else if self._conf.type.isExecutable () {
                 __version WINDOWS {
-                    self._cwd.push (self._conf.name ~ ".exe"s8 )
+                    p.push ("gyl_"s8 ~ self._conf.name ~ ".exe"s8 )
                 } else {
-                    self._cwd.push (self._conf.name)
+                    p.push ("gyl_"s8 ~ self._conf.name)
                 }
             } else {
-                __version WINDOWS {
-                    self._cwd.push (self._conf.name ~ ".lib"s8)
-                } else {
-                    self._cwd.push (self._conf.name ~ ".a"s8)
-                }
+                p.push ("gyl_"s8 ~ self._conf.name ~ ".a"s8)
             };
 
-        let buildPath = if (forTest) {
-            __version WINDOWS {
-                p.push ("gyl_test_"s8 ~ self._conf.name ~ ".exe"s8 )
-            } else {
-                p.push ("gyl_test_"s8 ~ self._conf.name)
+            self._context.runProcess ("rm"s8, [resPath.toStr()]);
+            if (!self._context.runProcess ("cp"s8, [buildPath.toStr (), resPath.toStr ()])) {
+                println ("[ERROR] Failed to copy result");
+                return false;        
             }
-        } else if self._conf.type.isExecutable () {
-            __version WINDOWS {
-                p.push ("gyl_"s8 ~ self._conf.name ~ ".exe"s8 )
-            } else {
-                p.push ("gyl_"s8 ~ self._conf.name)
-            }
-        } else {
-            p.push ("gyl_"s8 ~ self._conf.name ~ ".a"s8)
-        };
-
-        self._context.runProcess ("rm"s8, [resPath.toStr()]);
-        if (!self._context.runProcess ("cp"s8, [buildPath.toStr (), resPath.toStr ()])) {
-            println ("[ERROR] Failed to copy result");
-            return false;        
         }
         
         true
@@ -180,7 +199,7 @@ pub class RepoBuilder {
             file:.write ("set(CMAKE_YMIR_LINK_EXECUTABLE \"${CMAKE_YMIR_COMPILER} -o <TARGET> <OBJECTS> <LINK_FLAGS> <LINK_LIBRARIES>\")\n"s8);
             file:.write ("set(CMAKE_INCLUDE_FLAG_YMIR \"-I\")\n\n"s8);
             
-            file:.write ("set(CMAKE_YMIR_FLAGS_DEBUG \"${CMAKE_C_FLAGS} -g\")\n\n"s8);            
+            file:.write ("set(CMAKE_YMIR_FLAGS_DEBUG \"${CMAKE_C_FLAGS} -g\")\n"s8);            
             file:.write ("set(CMAKE_YMIR_FLAGS_RELEASE \"${CMAKE_C_FLAGS} -O3\")\n\n"s8);            
             file:.write ("FILE (\n  GLOB_RECURSE\n  SRC\n  ../src/*.yr\n  )\n\n"s8);
             file:.write ("FILE (\n  GLOB_RECURSE\n  SRC_TEST\n  ../test/*.yr\n  )\n\n"s8);
@@ -242,7 +261,7 @@ pub class RepoBuilder {
             file:.write (" PRIVATE -g -funittest)\n\n"s8);
             
             if (linkNames.len () != 0us) {
-                file:.write ("target_link_libraries (gyl_test_"s8);
+                file:.write ("\ttarget_link_libraries (gyl_test_"s8);
                 file:.write (self._conf.name);
                 file:.write (" LINK_PUBLIC "s8);
                 for i in linkNames[] {
@@ -252,7 +271,34 @@ pub class RepoBuilder {
                 
                 file:.write (")\n"s8);
             }
-            file:.write ("endif()"s8);
+            file:.write ("endif()\n"s8);
+
+            file:.write ("if (${DOC_TARGET} STREQUAL \"gyl_doc_"s8);
+            file:.write (self._conf.name);
+            file:.write ("\")\n"s8);
+            file:.write ("\tadd_executable (gyl_doc_"s8);
+            file:.write (self._conf.name);
+            file:.write (" ${SRC})\n"s8);
+            file:.write ("\ttarget_compile_options (gyl_doc_"s8);
+            file:.write (self._conf.name);
+            file:.write (" PRIVATE -fdoc)\n"s8);
+
+            file:.write ("\ttarget_link_options (gyl_doc_"s8);
+            file:.write (self._conf.name);
+            file:.write (" PRIVATE -g -fdoc)\n\n"s8);
+            
+            if (linkNames.len () != 0us) {
+                file:.write ("\ttarget_link_libraries (gyl_doc_"s8);
+                file:.write (self._conf.name);
+                file:.write (" LINK_PUBLIC "s8);
+                for i in linkNames[] {
+                    file:.write (" "s8);
+                    file:.write (i);
+                }
+                
+                file:.write (")\n"s8);
+            }
+            file:.write ("endif()\n"s8);            
         }
 
         true

@@ -1,0 +1,42 @@
+mod gyllir::doc::types::pointer;
+
+import gyllir::doc::types::base;
+import std::config, std::io, std::conv;
+import gyllir::utils::options;
+import gyllir::doc::loader;
+
+
+/**
+ * A fixed size pointer
+ */
+pub class PointerType over Type {
+
+    // The inner type of the pointer
+    let _child : &Type;
+    
+    /**
+     * @params: 
+     *    - name: the name of the type ("pointer")
+     *    - isMut: true if the type is mutable
+     *    - conf: the configuration of the pointer type (json content)
+     */
+    pub self (name : [c8], isMut : bool, conf : &Config)
+        with super (name-> name, isMut-> isMut), _child = {
+            {
+                loader::toType (conf["childs"][0])
+            } catch {
+                _ => Type::none ()
+            }
+        }
+    {}
+
+    /**
+     * @returns: the type contained in the pointer
+     */
+    pub def getInnerType (self)-> &Type {
+        return self._child
+    }
+
+    impl Streamable;
+    
+}

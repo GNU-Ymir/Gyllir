@@ -1,0 +1,61 @@
+mod gyllir::doc::types::dg_pointer;
+
+import gyllir::doc::types::base;
+import std::config, std::io, std::conv;
+import gyllir::utils::options;
+import gyllir::doc::loader;
+import std::collection::vec;
+
+
+/**
+ * A fixed size dgPointer
+ */
+pub class DgPointerType over Type {
+
+    // The return type of the dg pointer
+    let _ret : &Type;
+
+    // The inner types of the tuple
+    let dmut _inner = Vec!{&Type}::new ();
+    
+    /**
+     * @params: 
+     *    - name: the name of the type ("dg_pointer")
+     *    - isMut: true if the type is mutable
+     *    - conf: the configuration of the dgPointer type (json content)
+     */
+    pub self (name : [c8], isMut : bool, conf : &Config)
+        with super (name-> name, isMut-> isMut), _ret = {
+            {
+                loader::toType (conf["childs"][0]["ret_type"])
+            } catch {
+                _ => Type::none ()
+            }
+        }
+    {
+        match conf["childs"][0]["childs"]? {
+            Ok (arr : &Array) => {
+                for i in 0us .. arr.len ()  {
+                    self._inner:.push (loader::toType (arr[i]))?;
+                }
+            }
+        }
+    }    
+
+    /**
+     * @returns: the parameter types of the dg pointer
+     */
+    pub def getParamTypes (self)-> [&Type] {
+        self._inner[]
+    }
+
+    /**
+     * @returns: the return type of the dg pointer
+     */
+    pub def getRetType (self)-> &Type {
+        self._ret
+    }
+    
+    impl Streamable;
+    
+}

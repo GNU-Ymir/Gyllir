@@ -1,0 +1,44 @@
+mod gyllir::doc::types::base;
+
+import std::io;
+
+/**
+ * Ancestor of all kind of types
+ */
+pub class Type {
+
+    // True if the type is mutable
+    let _isMut : bool;
+
+    // The name of the type
+    let _name : [c8];
+    
+    /**
+     * Create a none type
+     * @params: 
+     *     - name: the name of the type
+     *     - isMut: true if the type is mutable
+     */
+    pub self none (name : [c8] = ""s8, isMut : bool = false)
+        with _name = name, _isMut = isMut
+    {}
+
+
+    /**
+     * @returns: true if the type is mutable
+     */
+    pub def isMutable (self)-> bool {
+        self._isMut
+    }
+
+    /**
+     * @returns: the name of the type
+     */
+    pub def getName (self)-> [c8] {
+        self._name
+    }
+
+    impl Streamable;
+    
+}
+

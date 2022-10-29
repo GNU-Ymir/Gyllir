@@ -1,0 +1,31 @@
+mod gyllir::utils::path;
+
+import std::stream;
+import std::fs::path;
+
+/**
+ * Transform a module name into a path
+ * @example: 
+ * ===========
+ * assert (self.toPath ("std::path"s8) == "std/path.yr"s8)
+ * ===========
+ */
+pub def toPath (module : [c8], sep : [c8] = "::"s8, add : [c8] = "/"s8)-> [c8] {
+    let dmut res = StringStream::new ();
+    let mut i = 0us;
+    while i < module.len {
+        if i < (module.len - sep.len) {
+            if (module [i .. i + sep.len] == sep) {                    
+                res:.write (add);
+                i += sep.len;
+            } else {
+                res:.write (module [i]);
+                i += 1us;
+            } 
+        } else {
+            res:.write (module [i]);
+            i += 1us;
+        }
+    }
+    res []
+}

@@ -1,11 +1,12 @@
 mod gyllir::args::doc;
-import std::args, std::lexer, std::io;
+import std::args, std::lexer, std::io, std::conv;
 import gyllir::args::sub;
 import etc::c::sysinfo;
 
 struct
 | verbose : YesNo
 | j : i64 = cast!i64 (sysinfo::_yrt_get_nprocs ())
+| inDir : [c32] = ""
 | mut help : YesNo
  -> DocArgs;
 
@@ -31,7 +32,8 @@ pub class @final DocCommand over SubCommand {
         let parser = ArgumentParser!(DocArgs)::new ()
             :.info!"verbose" (short-> "v", comments-> "verbose mode")
             :.info!"j" (comments-> "number of parallel threads to spawn")
-            :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true);
+            :.info!"inDir" (comments-> "input directory for already dumped json files", short-> "i")
+            :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true);        
 
         {
             self._args = parser.parse (["./usage"] ~ args);
@@ -49,6 +51,13 @@ pub class @final DocCommand over SubCommand {
             
     }
 
+    /**
+     * @returns: the directory in which json files can be found
+     */
+    pub def inDir (self)-> [c8] {
+        self._args.inDir.to![c8] ()
+    }
+    
     /**
      * @returns: true iif the option --verbose is set
      */

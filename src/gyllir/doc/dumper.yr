@@ -20,16 +20,13 @@ pub class DocDumper {
     /// the list of module doc.json files
     let _files : [&Path];
 
-    /// The root path of the building directory
-    let _buildDir : &Path;
-
     /// The path of the directory that will get the documentations
     let _outDir : &Path;
 
     /// If true print verbose logs
     let _verbose = false;
 
-
+    // The configuration of the repo
     let _config : GyllirConfig;
     
     /**
@@ -39,8 +36,8 @@ pub class DocDumper {
      *   - outDir: the directory in which dump the documentation
      *   - verbose: if true prints verbose logs
      */
-    pub self (conf : GyllirConfig, buildDir : &Path, files : [&Path], outDir : &Path, verbose : bool = false)
-        with _buildDir = buildDir, _files = files, _outDir = outDir, _verbose = verbose, _config = conf
+    pub self (conf : GyllirConfig, files : [&Path], outDir : &Path, verbose : bool = false)
+        with  _files = files, _outDir = outDir, _verbose = verbose, _config = conf
     {}
 
     /**
@@ -61,7 +58,9 @@ pub class DocDumper {
         }
 
         fs::removeDir (self._outDir, recursive-> true)?;
-        fs::createDir (self._outDir, recursive-> true)?;       
+        fs::createDir (self._outDir, recursive-> true)?;
+
+        println (tree);
     }
 
     

@@ -1,0 +1,21 @@
+mod gyllir::doc::types::int;
+
+import gyllir::doc::types::base;
+import std::io;
+
+/**
+ * A int type
+ */
+pub class IntType over Type {
+
+    /**
+     * @params: 
+     *   - name: the name of the int type (assumed to be in i8, .. isize, u8 .. usize)
+     *   - isMut: true if the int is mutable
+     */
+    pub self (name : [c8], isMut : bool)
+        with super (name-> name, isMut-> isMut)
+    {}
+
+    impl Streamable;
+}

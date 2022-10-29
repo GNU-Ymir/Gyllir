@@ -4,6 +4,7 @@ import std::config;
 import gyllir::doc::symbols::_;
 import gyllir::doc::types::_;
 import gyllir::utils::options;
+import std::io;
 
 /**
  * Transform a configuration into a symbol
@@ -27,8 +28,30 @@ pub def toSymbol (config : &Config)-> &Symbol {
 /**
  * Transform a configuration into a type
  */
-pub def toType (_ : &Config)-> &Type {
-    Type::none ()
+pub def toType (conf : &Config)-> &Type {
+    let isMut = ((conf["mut"]?).toOr ("false"s8) == "true"s8);
+    let name = (conf["name"]?).toOr (""s8);
+    match (conf["type"]?).toOr (""s8) {
+        "void"s8 => { VoidType::new () }
+        "int"s8 => { IntType::new (name, isMut-> isMut) }
+        "bool"s8 => { BoolType::new (isMut-> isMut) }
+        "float"s8 => { FloatType::new (name, isMut) }
+        "char"s8 => { CharType::new (name, isMut) }
+        "array"s8 => { ArrayType::new (name, isMut, conf) }
+        "slice"s8 => { SliceType::new (name, isMut, conf) }
+        "tuple"s8 => { TupleType::new (name, isMut, conf) }
+        "struct"s8 => { StructType::new (name, isMut) }
+        "enum"s8 => { EnumType::new (name, isMut) }
+        "pointer"s8 => { PointerType::new (name, isMut, conf) }
+        "class_pointer"s8 => { ClassPointerType::new (name, isMut, conf) }
+        "class"s8 => { ClassType::new (name, isMut) }
+        "range"s8 => { RangeType::new (name, isMut, conf) }
+        "fn_pointer"s8 => { FnPointerType::new (name, isMut, conf) }
+        "dg_pointer"s8 => { DgPointerType::new (name, isMut, conf) }
+        "closure"s8 => { ClosureType::new (name, isMut, conf) }
+        "option"s8 => { OptionType::new (name, isMut, conf) }
+        _ => { Type::none (name-> name, isMut-> isMut) }        
+    }
 }
 
 /**

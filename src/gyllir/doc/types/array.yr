@@ -1,0 +1,57 @@
+mod gyllir::doc::types::array;
+
+import gyllir::doc::types::base;
+import std::config, std::io, std::conv;
+import gyllir::utils::options;
+import gyllir::doc::loader;
+
+
+/**
+ * A fixed size array
+ */
+pub class ArrayType over Type {
+
+    // The inner type of the array
+    let _child : &Type;
+
+    // The size of the array
+    let _size : usize;
+    
+
+    /**
+     * @params: 
+     *    - name: the name of the type ("array")
+     *    - isMut: true if the type is mutable
+     *    - conf: the configuration of the array type (json content)
+     */
+    pub self (name : [c8], isMut : bool, conf : &Config)
+        with super (name-> name, isMut-> isMut), _child = {
+            {
+                loader::toType (conf["childs"][0])
+            } catch {
+                _ => Type::none ()
+            }
+        }, _size = {
+            (conf["size"]?).toOr ("0"s8).to!usize ()
+        } catch {
+            _ => { 0us }
+        }
+    {}
+
+    /**
+     * @returns: the type contained in the array
+     */
+    pub def getInnerType (self)-> &Type {
+        return self._child
+    }
+
+    /**
+     * @returns: the size of the array
+     */
+    pub def getSize (self)-> usize {
+        self._size
+    }
+    
+    impl Streamable;
+    
+}

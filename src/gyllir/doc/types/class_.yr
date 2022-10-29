@@ -1,0 +1,35 @@
+mod gyllir::doc::types::class_;
+
+import gyllir::doc::types::base;
+import std::fs::path;
+import gyllir::utils::path;
+import std::io, std::config;
+
+/**
+ * A classure type
+ */
+pub class ClassType over Type {
+
+    let _module : &Path;
+    
+    /**
+     * @params: 
+     *   - name: the name of the class
+     *   - isMut: bool is the class is mutable
+     */
+    pub self (name : [c8], isMut : bool)
+        with super (name-> Path::new (utils::path::toPath (name, sep-> "::"s8)).file (), isMut-> isMut),
+             _module = Path::new (utils::path::toPath (name, sep-> "::"s8)).parent ()
+    {}
+
+    /**
+     * @returns: the module that declared the class
+     */
+    pub def getModule (self)-> &Path {
+        self._module
+    }
+
+    
+    impl Streamable;
+    
+}
