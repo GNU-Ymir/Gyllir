@@ -1,0 +1,52 @@
+mod gyllir::doc::html::head;
+
+import std::stream, std::fs::_, std::env;
+import std::format, std::conv, std::io;
+
+import gyllir::doc::symbols::_;
+import gyllir::doc::html::node;
+
+/**
+ * Html header of a page 
+ */
+pub class HtmlHeader over HtmlNode {
+
+    // The name of the page
+    let _name : [c8];
+
+    /**
+     * Create a header for a page 
+     * @params: 
+     *   - name: the name of the page
+     */
+    pub self (name : [c8])
+        with _name = name
+    {}
+
+    /**
+     * Dump the html content into the stream
+     * @params:
+     *   - stream: the stream to populate
+     */
+    pub over dumpHtml (self, dmut stream : &StringStream) {
+        let html_head = self.readResource ();
+
+        
+        stream:.write (format (html_head, self._name.to![c32] ()))?;
+    }
+
+
+    prv def readResource (self)-> [c8] {
+        let ymir_res = Path::new (std::env::getEnv ("GYLLIR_HOME"s8)).push ("res"s8);
+
+        let mut res = ""s8;
+        with dmut f = File::open (ymir_res.push ("html"s8).push ("header.html"s8)) {
+            res = f:.readAll ();
+        } catch {
+            _ => {}
+        }
+
+        return res;
+    }
+    
+}

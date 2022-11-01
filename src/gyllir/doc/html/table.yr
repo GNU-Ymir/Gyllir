@@ -1,0 +1,34 @@
+mod gyllir::doc::html::table;
+
+import std::stream;
+import gyllir::doc::symbols::_;
+import gyllir::doc::html::node;
+
+/**
+ * Module table html dumper
+ */
+pub class HtmlTable over HtmlNode {
+
+    // The tree to dump into html
+    let _tree = MetaModule::new ();
+
+    /**
+     * Index table
+     * @params: 
+     *    - tree: the tree to dump
+     */
+    pub self (tree : &MetaModule) with _tree = tree
+    {}    
+
+    /**
+     * Dump the html content into the stream
+     * @params:
+     *   - stream: the stream to populate
+     */
+    pub over dumpHtml (self, dmut stream : &StringStream) {
+        stream;
+        //stream:.write ();
+    }
+
+    
+}

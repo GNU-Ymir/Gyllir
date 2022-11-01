@@ -1,0 +1,42 @@
+mod gyllir::doc::html::foot;
+
+
+import std::stream, std::fs::_, std::env;
+import std::format, std::conv, std::io;
+
+import gyllir::doc::symbols::_;
+import gyllir::doc::html::node;
+
+/**
+ * Html footer of a page 
+ */
+pub class HtmlFooter over HtmlNode {
+    
+    /**
+     * Create a footer for a page 
+     */
+    pub self () {}
+
+    /**
+     * Dump the html content into the stream
+     * @params:
+     *   - stream: the stream to populate
+     */
+    pub over dumpHtml (self, dmut stream : &StringStream) {
+        stream:.write (self.readResource ());
+    }
+
+    prv def readResource (self)-> [c8] {
+        let ymir_res = Path::new (std::env::getEnv ("GYLLIR_HOME"s8)).push ("res"s8);
+
+        let mut res = ""s8;
+        with dmut f = File::open (ymir_res.push ("html"s8).push ("footer.html"s8)) {
+            res = f:.readAll ();
+        } catch {
+            _ => {}
+        }
+
+        return res;
+    }
+
+}

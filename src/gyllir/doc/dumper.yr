@@ -11,6 +11,7 @@ import gyllir::doc::symbols::_;
 import gyllir::doc::types::_;
 import gyllir::doc::loader;
 import gyllir::config::_;
+import gyllir::doc::html::_;
 
 /**
  * This class is used to generate html files
@@ -60,7 +61,17 @@ pub class DocDumper {
         fs::removeDir (self._outDir, recursive-> true)?;
         fs::createDir (self._outDir, recursive-> true)?;
 
-        println (tree);
+        let table = HtmlTable::new (tree);
+        let head = HtmlHeader::new ("test"s8);
+        let foot = HtmlFooter::new ();
+
+        let dmut stream = StringStream::new ();
+        head.dumpHtml (alias stream);
+        table.dumpHtml (alias stream);
+        foot.dumpHtml (alias stream);
+        
+        
+        println (stream[]);
     }
 
     

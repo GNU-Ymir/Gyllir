@@ -1,0 +1,16 @@
+mod gyllir::doc::html::node;
+
+import std::stream;
+
+pub class @abstract HtmlNode {
+
+    pub self () {}
+
+    /**
+     * Dump the html content into the stream
+     * @params:
+     *   - stream: the stream to populate
+     */
+    pub def dumpHtml (self, dmut stream : &StringStream);
+        
+}
