@@ -4,7 +4,7 @@ import std::fs::path;
 import std::fs::file;
 import std::config;
 import std::config::json;
-import std::io;
+import std::io, std::conv;
 import std::collection::vec;
 
 import gyllir::doc::symbols::_;
@@ -12,6 +12,7 @@ import gyllir::doc::types::_;
 import gyllir::doc::loader;
 import gyllir::config::_;
 import gyllir::doc::html::_;
+import gyllir::repo::manager;
 
 /**
  * This class is used to generate html files
@@ -29,6 +30,9 @@ pub class DocDumper {
 
     // The configuration of the repo
     let _config : GyllirConfig;
+
+    // The context of the doc creator
+    let dmut _context : &GyllirManager;
     
     /**
      * @params:
@@ -37,8 +41,8 @@ pub class DocDumper {
      *   - outDir: the directory in which dump the documentation
      *   - verbose: if true prints verbose logs
      */
-    pub self (conf : GyllirConfig, files : [&Path], outDir : &Path, verbose : bool = false)
-        with  _files = files, _outDir = outDir, _verbose = verbose, _config = conf
+    pub self (dmut context : &GyllirManager, conf : GyllirConfig, files : [&Path], outDir : &Path, verbose : bool = false)
+        with  _files = files, _outDir = outDir, _verbose = verbose, _config = conf, _context = alias context
     {}
 
     /**
@@ -50,6 +54,7 @@ pub class DocDumper {
         
         for i in self._files {
             with dmut f = File::open (i) {
+
                 let module = Module::new (json::parse (f:.readAll ()));
                 tree:.insert (module);
                 modules:.push (module);
@@ -70,8 +75,24 @@ pub class DocDumper {
         table.dumpHtml (alias stream);
         foot.dumpHtml (alias stream);
         
+        let ymir_res = Path::new (std::env::getEnv ("GYLLIR_HOME"s8)).push ("res"s8);        
+        if (!self._context.runProcess ("cp"s8, ["-r"s8, ymir_res.push ("js"s8).toStr (), self._outDir.toStr ()])) {
+            println ("[ERROR] Creating doc directory");            
+        }
+
+        if (!self._context.runProcess ("cp"s8, ["-r"s8, ymir_res.push ("css"s8).toStr (), self._outDir.toStr ()])) {
+            println ("[ERROR] Creating doc directory");            
+        }
         
-        println (stream[]);
+        with dmut f = File::create (self._outDir.push ("index.html"s8), write-> true) {
+            f:.write (stream[]);
+        } catch {
+            err : _ => {
+                println ("[ERROR] Creating index file");
+                println (err);
+            }
+        }
+        
     }
 
     
