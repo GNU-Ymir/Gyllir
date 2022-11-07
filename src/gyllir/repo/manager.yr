@@ -299,7 +299,7 @@ pub class GyllirManager {
     /**
      * Resolve a dependency, and build it
      */
-    pub def resolvePackageDependency (mut self, cwd : &Path, name : [c8], dependency : Dependency) -> bool
+    pub def resolvePackageDependency (mut self, cwd : &Path, name : [c8], dependency : Dependency) -> ([c8], bool)
         throws &RecursiveDependency
     {
         let depPath = cwd.push (defaults::__DEPENCY_DIR__).push (name);
@@ -310,9 +310,10 @@ pub class GyllirManager {
             }
             
             if !isDir (depPath) {
-                fs::createDir (depPath, recursive-> true);
+                fs::createDir (depPath.parent (), recursive-> true);
                 if (dependency.url.getType () == UrlType::LOCAL) {
-                    self.runProcess ("cp"s8, ["-r"s8, dependency.url.getPath ().toStr (), depPath.toStr ()]);
+                    self.runProcess ("cp"s8, ["-r"s8, dependency.url.getPath ().toStr (), depPath.parent ().toStr ()]);
+                    self.runProcess ("mv"s8, [dependency.url.getPath ().file (), name], cwd-> depPath.parent ());
                 } else {
                     git::clone (dependency.url.getPath ().toStr (), cwd-> depPath);
                 }
@@ -326,7 +327,7 @@ pub class GyllirManager {
             } catch {
                 x : _ => {
                     println ("Failed to read configuration file (", x, "). Aborting");
-                    return false;
+                    return (""s8, false);
                 }
             }
 
@@ -339,7 +340,7 @@ pub class GyllirManager {
                 }
             }
             self._doneDependencies:.remove (dependency.url);
-            return succ;
+            return (conf.name, succ);
         } catch {
             g : &GitError => {
                 println (g);
@@ -349,14 +350,14 @@ pub class GyllirManager {
                     println ("Available versions are : ", versions.map!{|x| const x.toStr ()} ());
                 }
                 
-                return false;
+                return (""s8, false);
             }
 
             r : &RecursiveDependency => throw r;
             
             _ => {
                 println ("Failure. Aborting");
-                return false;
+                return (""s8, false);
             } 
         }
     }
@@ -470,7 +471,7 @@ pub class GyllirManager {
                     if answer != "Y"s8 { println ("Aborting"); return {} }                    
                     let (succ, version) = self:.publishLocal (cwd, conf, path-> tmpDir, ask-> false);
                     if (succ) {
-                        self:.publishGit (conf, tmpDir, version);
+                        self:.publishGit (conf, tmpDir.push (conf.name), version);
                     }
                 }
             }
@@ -515,7 +516,7 @@ pub class GyllirManager {
                                               patch-> self._args.publish.isPatch ());
         let conf2 = GyllirConfig (conf.name, conf.license, conf.description, type-> conf.type, registry-> conf.registry, conf.author, version-> version, dependencies-> conf.dependencies, libraries-> conf.libraries);
         self.saveToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__), conf2.to!{&Config} ());
-
+        
         git::add (cwd.push ("."s8));
         git::commit (self._args.publish.getMessage ().(std::conv::to)![c8] (), cwd-> cwd);
         git::createTag ("v"s8 ~ version.toStr ());
@@ -524,7 +525,8 @@ pub class GyllirManager {
             self.runProcess ("rm"s8, ["-rf"s8, path.toStr ()]);
         }
         
-        fs::createDir (path, recursive-> true);
+        fs::createDir (path.parent (), recursive-> true)?;
+        
         println ("[INFO] publish to ", path.toStr ());
         self.runProcess ("cp"s8, ["-r"s8, cwd.toStr (), path.toStr ()]);
         
@@ -536,7 +538,6 @@ pub class GyllirManager {
      */
     pub def publishGit (mut self, conf : GyllirConfig, tmpDir : &Path, version : &Version)
     {
-        println (tmpDir);
         git::setRemote (cwd-> tmpDir, conf.registry.getPath ().toStr ());
         git::push (["v"s8 ~ version.toStr (), "master"s8], cwd-> tmpDir);
     } catch {
@@ -568,7 +569,7 @@ pub class GyllirManager {
             succ = builder:.compile (forTest-> true);
             
             if (succ) {
-                succ = self.runProcess ("test_"s8 ~ conf.name, [], printOut-> true, printErr-> true);
+                succ = self.runProcess ("./test_"s8 ~ conf.name, [], printOut-> true, printErr-> true);
                 if (!succ) println ("[ERROR] Tests failed."s8);
             }
         } catch {

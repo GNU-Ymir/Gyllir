@@ -77,10 +77,10 @@ pub class RepoBuilder {
         if (forDoc) {
             cmakeOptions:.push ("-DCMAKE_BUILD_TYPE=Debug"s8);
             cmakeOptions:.push ("-DTEST_TARGET=none"s8);
-            cmakeOptions:.push ("-DDOC_TARGET=gyl_doc_"s8 ~ self._conf.name);
+            cmakeOptions:.push ("-DDOC_TARGET=doc_"s8 ~ self._conf.name);
         } else if (forTest) {
             cmakeOptions:.push ("-DCMAKE_BUILD_TYPE=Debug"s8);
-            cmakeOptions:.push ("-DTEST_TARGET=gyl_test_"s8 ~ self._conf.name);
+            cmakeOptions:.push ("-DTEST_TARGET=test_"s8 ~ self._conf.name);
             cmakeOptions:.push ("-DDOC_TARGET=none"s8);
         } else if (b.isDebug ()) {
             cmakeOptions:.push ("-DCMAKE_BUILD_TYPE=Debug"s8);
@@ -116,9 +116,9 @@ pub class RepoBuilder {
         }
         
         if (forTest) {
-            options:.push ("gyl_test_"s8 ~ self._conf.name);
+            options:.push ("test_"s8 ~ self._conf.name);
         } else if (forDoc) {
-            options:.push ("gyl_doc_"s8 ~ self._conf.name);
+            options:.push ("doc_"s8 ~ self._conf.name);
         }
         
         if (!self._context.runProcess ("make"s8, options[], cwd-> p, printOut-> true, printErr-> true)) {
@@ -144,24 +144,24 @@ pub class RepoBuilder {
                     __version WINDOWS {
                         self._cwd.push (self._conf.name ~ ".lib"s8)
                     } else {
-                        self._cwd.push (self._conf.name ~ ".a"s8)
+                        self._cwd.push ("lib"s8 ~ self._conf.name ~ ".a"s8)
                     }
                 };
 
             let buildPath = if (forTest) {
                 __version WINDOWS {
-                    p.push ("gyl_test_"s8 ~ self._conf.name ~ ".exe"s8 )
+                    p.push ("test_"s8 ~ self._conf.name ~ ".exe"s8 )
                 } else {
-                    p.push ("gyl_test_"s8 ~ self._conf.name)
+                    p.push ("test_"s8 ~ self._conf.name)
                 }
             } else if self._conf.type.isExecutable () {
                 __version WINDOWS {
-                    p.push ("gyl_"s8 ~ self._conf.name ~ ".exe"s8 )
+                    p.push (""s8 ~ self._conf.name ~ ".exe"s8 )
                 } else {
-                    p.push ("gyl_"s8 ~ self._conf.name)
+                    p.push (""s8 ~ self._conf.name)
                 }
             } else {
-                p.push ("gyl_"s8 ~ self._conf.name ~ ".a"s8)
+                p.push ("lib"s8 ~ self._conf.name ~ ".a"s8)
             };
 
             self._context.runProcess ("rm"s8, [resPath.toStr()]);
@@ -209,24 +209,24 @@ pub class RepoBuilder {
             let dmut linkNames = Vec!{[c8]}::new ();
             for i in links {
                 file:.write ("add_subdirectory (${CMAKE_CURRENT_SOURCE_DIR}/.deps/"s8);
-                file:.write (i);
+                file:.write (i.0);
                 file:.write ("/.build/)\n"s8);
 
-                linkNames:.push ("gyl_"s8 ~ i);
+                linkNames:.push (i.1);
             }
 
             file:.write ("\ninclude_directories (${CMAKE_CURRENT_SOURCE_DIR}/../src)\n"s8);            
             if (self._conf.type.isExecutable ()) {
-                file:.write ("add_executable (gyl_"s8);
+                file:.write ("add_executable ("s8);
                 file:.write (self._conf.name);
                 file:.write (" ${SRC})\n"s8);
             } else {
-                file:.write ("add_library (gyl_"s8);
+                file:.write ("add_library ("s8);
                 file:.write (self._conf.name);
                 file:.write (" ${SRC})\n"s8);
             }
 
-            file:.write ("target_include_directories (gyl_"s8);
+            file:.write ("target_include_directories ("s8);
             file:.write (self._conf.name);
             file:.write (" PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../src)\n\n"s8);
             
@@ -235,7 +235,7 @@ pub class RepoBuilder {
             }
 
             if (linkNames.len () != 0us) {
-                file:.write ("target_link_libraries (gyl_"s8);
+                file:.write ("target_link_libraries ("s8);
                 file:.write (self._conf.name);
                 file:.write (" LINK_PUBLIC "s8);
                 for i in linkNames[] {
@@ -246,22 +246,22 @@ pub class RepoBuilder {
                 file:.write (")\n"s8);
             }
 
-            file:.write ("if (${TEST_TARGET} STREQUAL \"gyl_test_"s8);
+            file:.write ("if (${TEST_TARGET} STREQUAL \"test_"s8);
             file:.write (self._conf.name);
             file:.write ("\")\n"s8);
-            file:.write ("\tadd_executable (gyl_test_"s8);
+            file:.write ("\tadd_executable (test_"s8);
             file:.write (self._conf.name);
             file:.write (" ${SRC} ${SRC_TEST})\n"s8);
-            file:.write ("\ttarget_compile_options (gyl_test_"s8);
+            file:.write ("\ttarget_compile_options (test_"s8);
             file:.write (self._conf.name);
             file:.write (" PRIVATE -g -funittest)\n"s8);
 
-            file:.write ("\ttarget_link_options (gyl_test_"s8);
+            file:.write ("\ttarget_link_options (test_"s8);
             file:.write (self._conf.name);
             file:.write (" PRIVATE -g -funittest)\n\n"s8);
             
             if (linkNames.len () != 0us) {
-                file:.write ("\ttarget_link_libraries (gyl_test_"s8);
+                file:.write ("\ttarget_link_libraries (test_"s8);
                 file:.write (self._conf.name);
                 file:.write (" LINK_PUBLIC "s8);
                 for i in linkNames[] {
@@ -273,22 +273,22 @@ pub class RepoBuilder {
             }
             file:.write ("endif()\n"s8);
 
-            file:.write ("if (${DOC_TARGET} STREQUAL \"gyl_doc_"s8);
+            file:.write ("if (${DOC_TARGET} STREQUAL \"doc_"s8);
             file:.write (self._conf.name);
             file:.write ("\")\n"s8);
-            file:.write ("\tadd_executable (gyl_doc_"s8);
+            file:.write ("\tadd_executable (doc_"s8);
             file:.write (self._conf.name);
             file:.write (" ${SRC})\n"s8);
-            file:.write ("\ttarget_compile_options (gyl_doc_"s8);
+            file:.write ("\ttarget_compile_options (doc_"s8);
             file:.write (self._conf.name);
             file:.write (" PRIVATE -fdoc)\n"s8);
 
-            file:.write ("\ttarget_link_options (gyl_doc_"s8);
+            file:.write ("\ttarget_link_options (doc_"s8);
             file:.write (self._conf.name);
             file:.write (" PRIVATE -g -fdoc)\n\n"s8);
             
             if (linkNames.len () != 0us) {
-                file:.write ("\ttarget_link_libraries (gyl_doc_"s8);
+                file:.write ("\ttarget_link_libraries (doc_"s8);
                 file:.write (self._conf.name);
                 file:.write (" LINK_PUBLIC "s8);
                 for i in linkNames[] {
@@ -310,15 +310,17 @@ pub class RepoBuilder {
      *    - .0: the list of link directories
      *    - .1: the list of libraries to link
      */
-    prv def resolveDependencies (mut self)-> (bool, [[c8]])
+    prv def resolveDependencies (mut self)-> (bool, [([c8], [c8])])
         throws &RecursiveDependency
     {
-        let mut links : [[c8]] = [];
+        let mut links : [([c8], [c8])] = [];
         for name, dep in self._conf.dependencies.getList () {
-            if (!self._context:.resolvePackageDependency (self._cwd, name.(std::conv::to)![c8] (), dep)) {
+            let (confName, succ) = self._context:.resolvePackageDependency (self._cwd, name.(std::conv::to)![c8] (), dep)
+            if (!succ) {
                 return (false, []);
             }
-            links = links ~ [std::conv::to![c8] (name)];
+            
+            links = links ~ [(std::conv::to![c8] (name), confName)];
         }
 
         (true, links)
