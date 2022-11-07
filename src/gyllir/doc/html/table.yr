@@ -1,5 +1,8 @@
 mod gyllir::doc::html::table;
 
+import std::stream, std::fs::_, std::env;
+import std::format, std::conv, std::io;
+
 import std::stream;
 import gyllir::doc::symbols::_;
 import gyllir::doc::html::node;
@@ -26,9 +29,72 @@ pub class HtmlTable over HtmlNode {
      *   - stream: the stream to populate
      */
     pub over dumpHtml (self, dmut stream : &StringStream) {
-        stream;
-        //stream:.write ();
+        let leaf = self.readLeafResource ();
+        let parent = self.readParentResource ();
+        let parentNohref = self.readParentResourceNoHref ();
+
+        for _, c in self._tree.getRoot ().getChilds () {
+            self.dumpModule (c, alias stream, leaf, parent, parentNohref);
+        }
     }
 
+    
+    prv def dumpModule (self, node : &MetaNode, dmut stream : &StringStream, leafTemplate : [c8], parentTemplate : [c8], parentTemplateNoHref : [c8]) {
+        if (node.getChilds ().len () != 0us) {
+            let dmut innerStream = StringStream::new ();
+            for _, n in node.getChilds () {
+                self.dumpModule (n, alias innerStream, leafTemplate, parentTemplate, parentTemplateNoHref);                
+            }
+
+            if (node.getPath ().toStr () != ""s8) {
+                stream:.write (format (parentTemplate, node.getName ().to![c32] (), node.getPath ().toStr (sep-> "_"s8).to![c32] (), innerStream[].to![c32] ()))?;
+            } else {
+                stream:.write (format (parentTemplateNoHref, node.getName ().to![c32] (), innerStream[].to![c32] ()))?;
+            }
+        } else {
+            stream:.write (format (leafTemplate, node.getName ().to![c32] (), node.getPath ().toStr (sep-> "_"s8).to![c32] ()))?;
+        }        
+    }
+
+    prv def readLeafResource (self)-> [c8] {
+        let ymir_res = Path::new (std::env::getEnv ("GYLLIR_HOME"s8)).push ("res"s8);
+
+        let mut res = ""s8;
+        with dmut f = File::open (ymir_res.push ("html"s8).push ("leaf_node.html"s8)) {
+            res = f:.readAll ();
+        } catch {
+            _ => {}
+        }
+
+        return res;
+    }
+
+    prv def readParentResource (self)-> [c8] {
+        let ymir_res = Path::new (std::env::getEnv ("GYLLIR_HOME"s8)).push ("res"s8);
+
+        let mut res = ""s8;
+        with dmut f = File::open (ymir_res.push ("html"s8).push ("parent_node.html"s8)) {
+            res = f:.readAll ();
+        } catch {
+            _ => {}
+        }
+
+        return res;
+    }
+
+    prv def readParentResourceNoHref (self)-> [c8] {
+        let ymir_res = Path::new (std::env::getEnv ("GYLLIR_HOME"s8)).push ("res"s8);
+
+        let mut res = ""s8;
+        with dmut f = File::open (ymir_res.push ("html"s8).push ("parent_node_no_href.html"s8)) {
+            res = f:.readAll ();
+        } catch {
+            _ => {}
+        }
+
+        return res;
+    }
+
+    
     
 }

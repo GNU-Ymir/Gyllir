@@ -67,12 +67,11 @@ pub class DocDumper {
         fs::createDir (self._outDir, recursive-> true)?;
 
         let table = HtmlTable::new (tree);
-        let head = HtmlHeader::new ("test"s8);
-        let foot = HtmlFooter::new ();
+        let head = HtmlHeader::new ("test"s8, table);
+        let foot = HtmlFooter::new ("test"s8);
 
         let dmut stream = StringStream::new ();
         head.dumpHtml (alias stream);
-        table.dumpHtml (alias stream);
         foot.dumpHtml (alias stream);
         
         let ymir_res = Path::new (std::env::getEnv ("GYLLIR_HOME"s8)).push ("res"s8);        
@@ -83,6 +82,7 @@ pub class DocDumper {
         if (!self._context.runProcess ("cp"s8, ["-r"s8, ymir_res.push ("css"s8).toStr (), self._outDir.toStr ()])) {
             println ("[ERROR] Creating doc directory");            
         }
+
         
         with dmut f = File::create (self._outDir.push ("index.html"s8), write-> true) {
             f:.write (stream[]);

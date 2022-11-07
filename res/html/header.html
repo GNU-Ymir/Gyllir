@@ -6,67 +6,57 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
     <!-- Bootstrap CSS -->
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-EVSTQN3/azprG1Anm3QDgpJLIm9Nao0Yz1ztcQTwFspd3yD65VohhpuuCOmLASjC" crossorigin="anonymous">
+    <link href="./css/bootstrap.css" rel="stylesheet">
+    <link href="./css/bootstrap.responsive.css" rel="stylesheet">
     <link href="./css/style.css" rel="stylesheet">
-    <link href="./css/sidebar.css" rel="stylesheet">    
+    <link href="./css/sidebar.css" rel="stylesheet">
     
     <title>{0:}</title>
   </head>
   <body>
-
-
-    <nav class="navbar navbar-light bg-light">
-      <div class="container-fluid">
-	<a class="navbar-brand">{0:}</a>
-	<form class="d-flex">
-	  <input class="form-control me-2" type="search" placeholder="Search" aria-label="Search">
-	  <button class="btn btn-outline-success" type="submit">Search</button>
-	</form>
+    
+    <div class="navbar">
+      <div class="navbar-inner">
+	<div class="container-fluid">
+	  <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
+	    <span class="icon-bar"></span>
+	    <span class="icon-bar"></span>
+	    <span class="icon-bar"></span>
+	  </a>
+	  <a class="brand" href="index.html">{0:}</a>
+	  <div class="nav-collapse">	    
+	    <form id="gotosymbol" class="navbar-search pull-left">
+	      <input type="text" class="search-query" placeholder="Go to symbol in index" data-provide="typeahead" data-items="4">
+	    </form>
+	    
+	    <p class="navbar-text pull-right"><a href="{0:}">Github Page</a></p>
+	  </div><!--/.nav-collapse -->
+	</div>
       </div>
-    </nav>
-
-        <main>
-    <div class="flex-shrink-0 p-3 bg-white" style="width: 280px;">
-      <ul class="list-unstyled ps-0">
-	<li class="mb-1">
-          <button class="btn btn-toggle align-items-center rounded collapsed" data-bs-toggle="collapse" data-bs-target="#home-collapse" aria-expanded="true">
-          </button>
-	  <a href="#ho" class="nav-head link-dark">Home</a>
-          <div class="collapse show" id="home-collapse">
-            <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small">
-	      <li><a href="#ov" class="link-dark rounded">Overview</a></li>
-	      <li><a href="#up" class="link-dark rounded">Updates</a></li>
-	      <li><a href="#re" class="link-dark rounded">Reports</a></li>
-            </ul>
-          </div>
-	</li>
-
-	<li class="mb-1">
-          <button class="btn btn-toggle align-items-center rounded collapsed" data-bs-toggle="collapse" data-bs-target="#home-collapse" aria-expanded="false">
-          </button>
-	  <a href="#ho" class="nav-head link-dark">Home</a>
-          <div class="collapse" id="home-collapse">
-            <ul class="btn-toggle-nav list-unstyled fw-normal pb-1 small">
-	      <li><a href="#ov" class="link-dark rounded">Overview</a></li>
-	      <li><a href="#up" class="link-dark rounded">Updates</a></li>
-	      <li><a href="#re" class="link-dark rounded">Reports</a></li>
-            </ul>
-          </div>
-	</li>
-
-      </ul>
     </div>
-    
-
 
     
-    <nav style="--bs-breadcrumb-divider: url(&#34;data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='8'%3E%3Cpath d='M2.5 0L1 1.5 3.5 4 1 6.5 2.5 8l4-4-4-4z' fill='currentColor'/%3E%3C/svg%3E&#34;);" aria-label="breadcrumb">
-      <ol class="breadcrumb">
-	<li class="breadcrumb-item"><a href="#">Home</a></li>
-	<li class="breadcrumb-item active" aria-current="page">Library</li>
-      </ol>
-    </nav>
+    <div class="container-fluid">
+      <div class="row-fluid">
+	<div class="span2">
+	  <div class="well sidebar-nav">
+	    <ul class="nav nav-list">
+	      <li id="module-list" class="nav-header sidebar-list-entry">
+		Modules
+		{1:}
+	      </li>
+	    </ul>
+	  </div>
+	</div>
 
+	<div class="span10">
+	  <div class="row-fluid">
+	    <div class="span11">
+	      <ul id="module-breadcrumb" class="breadcrumb">
+	    </div>
+	  </div>
+	</div>
+      
+      </div>
 
-    
-</main>
+    </div>

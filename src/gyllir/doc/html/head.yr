@@ -5,6 +5,7 @@ import std::format, std::conv, std::io;
 
 import gyllir::doc::symbols::_;
 import gyllir::doc::html::node;
+import gyllir::doc::html::table;
 
 /**
  * Html header of a page 
@@ -14,13 +15,16 @@ pub class HtmlHeader over HtmlNode {
     // The name of the page
     let _name : [c8];
 
+    // The toc of the page
+    let _table : &HtmlTable;
+
     /**
      * Create a header for a page 
      * @params: 
      *   - name: the name of the page
      */
-    pub self (name : [c8])
-        with _name = name
+    pub self (name : [c8], table : &HtmlTable)
+        with _name = name, _table = table
     {}
 
     /**
@@ -31,8 +35,10 @@ pub class HtmlHeader over HtmlNode {
     pub over dumpHtml (self, dmut stream : &StringStream) {
         let html_head = self.readResource ();
 
+        let dmut streamToc = StringStream::new ();
+        self._table.dumpHtml (alias streamToc);
         
-        stream:.write (format (html_head, self._name.to![c32] ()))?;
+        stream:.write (format (html_head, self._name.to![c32] (), streamToc[].to![c32]()))?;
     }
 
 

@@ -16,7 +16,7 @@ import std::config;
 pub class MetaModule {
 
     /// The root of the tree
-    let dmut _root = internal::MetaNode::new (""s8, isRoot-> true);
+    let dmut _root = MetaNode::new (""s8, isRoot-> true);
 
     
     pub self () {}
@@ -29,7 +29,7 @@ pub class MetaModule {
         self._root:.insert (name, name, sym);
         
     }
-            
+    
     /**
      * Transform a module name into a path
      * @example: 
@@ -57,64 +57,92 @@ pub class MetaModule {
         res []
     }
 
+    /**
+     * @returns: the root of the meta module
+     */
+    pub def getRoot (self)-> &MetaNode {
+        self._root
+    }
+    
     impl Streamable;
     
 }
 
 
-mod internal {
 
-    pub class MetaNode {
 
-        let _isRoot : bool;
-        
-        let _name : [c8];
-        
-        let dmut _childs = HashMap!{[c8], dmut &MetaNode}::new ();
+pub class MetaNode {
 
-        let mut _module = Module::empty ();
+    let _isRoot : bool;
+    
+    let _name : [c8];
+    
+    let dmut _childs = HashMap!{[c8], dmut &MetaNode}::new ();
 
-        let mut _fullPath = Path::new (""s8);
-               
-        pub self (name : [c8], isRoot : bool = false) with _name = name, _isRoot = isRoot  {}
+    let mut _module = Module::empty ();
 
-        /**
-         * Insert a new module in the tree
-         */
-        pub def insert (mut self, path : &Path, fullPath : &Path, sym : &Module) {
-            if (path.parts ().len == 0us) {
-                self._fullPath = fullPath;
-                self._module = sym;
-            } else {
-                let root = path.root ();
-                let dmut ch = self._childs:.find (root);
-                match ref ch {
-                    Ok (dmut sub : &MetaNode) => sub:.insert (path.removeRoot (), fullPath, sym);
-                    Err () => {
-                        let dmut n = MetaNode::new (path.root ());
-                        n:.insert (path.removeRoot (), fullPath, sym);
-                        self._childs:.insert (path.root (), alias n);
-                    }
+    let mut _fullPath = Path::new (""s8);
+    
+    pub self (name : [c8], isRoot : bool = false) with _name = name, _isRoot = isRoot  {}
+
+    /**
+     * Insert a new module in the tree
+     */
+    pub def insert (mut self, path : &Path, fullPath : &Path, sym : &Module) {
+        if (path.parts ().len == 0us) {
+            self._fullPath = fullPath;
+            self._module = sym;
+        } else {
+            let root = path.root ();
+            let dmut ch = self._childs:.find (root);
+            match ref ch {
+                Ok (dmut sub : &MetaNode) => sub:.insert (path.removeRoot (), fullPath, sym);
+                Err () => {
+                    let dmut n = MetaNode::new (path.root ());
+                    n:.insert (path.removeRoot (), fullPath, sym);
+                    self._childs:.insert (path.root (), alias n);
                 }
-            }
-        }
-
-
-        impl Streamable {
-
-            pub over toStream (self, dmut stream : &StringStream) {
-                stream:.writeln (self._name);
-                stream:.entabing ();
-
-                for _, j in self._childs {
-                    j.toStream (alias stream);
-                }
-                
-                stream:.detabing ();
-            }
-
+            }                        
         }
     }
-        
 
+    /**
+     * @returns: the name of the module
+     */
+    pub def getName (self)-> [c8] {
+        self._name
+    }
+
+    /**
+     * @returns: the path of the module
+     */
+    pub def getPath (self)-> &Path {
+        self._fullPath
+    }
+    
+    /**
+     * @returns: the childs of the meta node
+     */
+    pub def getChilds (self)-> &HashMap!{[c8], dmut &MetaNode} {
+        self._childs
+    }
+    
+
+    impl Streamable {
+
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.writeln (self._name);
+            stream:.entabing ();
+
+            for _, j in self._childs {
+                j.toStream (alias stream);
+            }
+            
+            stream:.detabing ();
+        }
+
+    }
 }
+
+
+

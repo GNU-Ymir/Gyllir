@@ -11,11 +11,13 @@ import gyllir::doc::html::node;
  * Html footer of a page 
  */
 pub class HtmlFooter over HtmlNode {
+
+    let _title : [c8];
     
     /**
      * Create a footer for a page 
      */
-    pub self () {}
+    pub self (title : [c8]) with _title = title {}
 
     /**
      * Dump the html content into the stream
@@ -23,7 +25,7 @@ pub class HtmlFooter over HtmlNode {
      *   - stream: the stream to populate
      */
     pub over dumpHtml (self, dmut stream : &StringStream) {
-        stream:.write (self.readResource ());
+        stream:.write (format (self.readResource (), self._title.to![c32] ()))?;
     }
 
     prv def readResource (self)-> [c8] {
