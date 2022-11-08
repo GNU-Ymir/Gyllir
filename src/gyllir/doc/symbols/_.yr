@@ -80,7 +80,7 @@ pub class Symbol {
     pub def getName (self)-> [c8] {
         self._name
     }
-    
+
 
     impl Streamable;
     

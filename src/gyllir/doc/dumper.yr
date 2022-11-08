@@ -65,14 +65,6 @@ pub class DocDumper {
 
         fs::removeDir (self._outDir, recursive-> true)?;
         fs::createDir (self._outDir, recursive-> true)?;
-
-        let table = HtmlTable::new (tree);
-        let head = HtmlHeader::new ("test"s8, table);
-        let foot = HtmlFooter::new ("test"s8);
-
-        let dmut stream = StringStream::new ();
-        head.dumpHtml (alias stream);
-        foot.dumpHtml (alias stream);
         
         let ymir_res = Path::new (std::env::getEnv ("GYLLIR_HOME"s8)).push ("res"s8);        
         if (!self._context.runProcess ("cp"s8, ["-r"s8, ymir_res.push ("js"s8).toStr (), self._outDir.toStr ()])) {
@@ -82,9 +74,23 @@ pub class DocDumper {
         if (!self._context.runProcess ("cp"s8, ["-r"s8, ymir_res.push ("css"s8).toStr (), self._outDir.toStr ()])) {
             println ("[ERROR] Creating doc directory");            
         }
-
         
-        with dmut f = File::create (self._outDir.push ("index.html"s8), write-> true) {
+        let table = HtmlTable::new (tree);        
+        for m in modules {
+            self.generatePage (self._config.name, self._config.registry.getPath ().toStr (), table, m);
+        }
+    }
+
+    prv def generatePage (self, project : [c8], git : [c8], table : &HtmlTable, module : &Module) {               
+        let head = HtmlHeader::new (project, git, module.getName (), table);
+        let foot = HtmlFooter::new (module.getName ());
+
+        let dmut stream = StringStream::new ();
+        head.dumpHtml (alias stream);
+        foot.dumpHtml (alias stream);
+
+        let path = Path::new (utils::path::toPath (module.getName ())).addExtension ("html"s8).toStr (sep-> "_"s8);
+        with dmut f = File::create (self._outDir.push (path), write-> true) {
             f:.write (stream[]);
         } catch {
             err : _ => {
