@@ -1,0 +1,518 @@
+mod gyllir::doc::html::body;
+
+import std::stream, std::fs::_, std::env;
+import std::io, std::format, std::conv;
+import std::collection::map;
+
+import gyllir::doc::symbols::_;
+import gyllir::doc::types::_;
+import gyllir::doc::html::node;
+import gyllir::doc::html::table;
+import gyllir::doc::formatter;
+import gyllir::doc::parser;
+
+
+/**
+ * Html body of a page 
+ */
+pub class HtmlBody over HtmlNode {
+
+    // The module to dump
+    let _module : &Module;
+
+    // The name of the project
+    let _project : [c8];
+
+    // The head part of a declaration
+    let mut _declHead : [c8] = ""s8;
+
+    // Inline code
+    let mut _inlineCode = ""s8;
+
+    // The declaration of member of a declaration
+    let mut _declMembers = ""s8;
+
+    // The declaration of member headers
+    let mut _memberHead = ""s8;
+    
+    /**
+     * @params: 
+     *    - project: the name of the project
+     *    - module: the content of the page to dump
+     */
+    pub self (project : [c8], module : &Module)
+        with _project = project, _module = module
+    {
+        self:.loadHtmls ();
+    }
+    
+    /**
+     * Dump the module into a html page
+     * @params:
+     *    - stream: the stream to populate
+     */
+    pub over dumpHtml (self, dmut stream : &StringStream) {
+        for ch in self._module.getChilds () {
+            self.dumpContent (alias stream, ch);
+        }
+    }
+
+    /**
+     * Load the Html contents
+     */
+    prv def loadHtmls (mut self) {
+        let ymir_res = Path::new (std::env::getEnv ("GYLLIR_HOME"s8)).push ("res"s8);
+
+        with dmut f = File::open (ymir_res.push ("html"s8).push ("declaration.html"s8)) {
+            self._declHead = f:.readAll ();
+        }?;
+        
+        with dmut f = File::open (ymir_res.push ("html"s8).push ("inline_code.html"s8)) {
+            self._inlineCode = f:.readAll ();
+        }?;
+
+        with dmut f = File::open (ymir_res.push ("html"s8).push ("members.html"s8)) {
+            self._declMembers = f:.readAll ();
+        }?;
+
+        with dmut f = File::open (ymir_res.push ("html"s8).push ("member_head.html"s8)) {
+            self._memberHead = f:.readAll ();
+        }?;
+    }
+    
+    /**
+     * Dump a symbol into html
+     * @params: 
+     *    - stream: the stream to populate
+     *    - sym: the symbol to dump
+     */
+    prv def dumpContent (self, dmut stream : &StringStream, sym : &Symbol) {
+        match sym {
+            a : &Aka => self.dumpAka (alias stream, a);
+            a : &Assert => self.dumpAssert (alias stream, a);
+            c : &Class => self.dumpClass (alias stream, c);
+        }
+    }
+
+    /**
+     * Dump an aka to html
+     * @params: 
+     *    - stream: the stream to populate
+     *    - a: the aka to dump
+     */
+    prv def dumpAka (self, dmut stream : &StringStream, a : &Aka) {
+        let p = Path::new (utils::path::toPath (a.getName ()));
+        let dmut innerStream = StringStream::new ();
+        
+        let code = std::format::format ("{} aka {} = {}"s8,
+                                        self.convertProtection (a.getProtection ()),
+                                        p.file (),
+                                        a.getValue ());
+        
+        innerStream:.write (std::format::format (self._inlineCode, code));
+
+        self.dumpCommonSymbol (alias innerStream, a);
+
+        stream:.write (std::format::format (self._declHead,
+                                            "aka"s8,
+                                            p.file (),
+                                            innerStream[]));        
+    } catch {
+        err : _ => println (err);
+    }
+
+    /**
+     * Dump an assertion 
+     * @params: 
+     *    - stream: the stream to populate
+     *    - a: the assertion to dump
+     */
+    prv def dumpAssert (self, dmut stream : &StringStream, a : &Assert) {
+        let code = if (a.getMessage () != ""s8) {
+            std::format::format ("assert ({}, {})"s8, a.getTest (), a.getMessage ())
+        } else {
+            std::format::format ("assert ({})"s8, a.getTest ())
+        };
+
+        stream:.write (std::format::format (self._inlineCode, code));
+        self.dumpCommonSymbol (alias stream, a);
+    } catch {
+        err : _ => println (err);
+    }
+
+   
+    /**
+     * Dump a class to html
+     * @params: 
+     *    - stream: the stream to populate
+     *    - c: the class to dump
+     */
+    prv def dumpClass (self, dmut stream : &StringStream, c : &Class) {
+        let p = Path::new (utils::path::toPath (c.getName ()));
+        
+        let dmut innerStream = StringStream::new ();
+
+        
+        let ancestor = if (c.getAncestor ().getName () != ""s8) {
+            std::format::format ("over {}"s8, c.getAncestor ().getName ())
+        } else {
+            ""s8
+        };
+
+        let attrs =
+            if (c.isFinal ()) { " @final"s8 
+            } else if (c.isAbstract ()) { " @abstract"s8 
+            } else { ""s8 };
+        
+        let code = std::format::format ("{}{} class {} {} {{ /** full declaration omitted */ }"s8,
+                                        self.convertProtection (c.getProtection ()),
+                                        attrs,
+                                        p.file (),
+                                        ancestor);
+        
+        innerStream:.write (std::format::format (self._inlineCode, code));
+        self.dumpCommonSymbol (alias innerStream, c);
+
+        let dmut contentStream = StringStream::new ();
+        self.dumpClassAsserts (alias contentStream, c);
+        self.dumpClassFields (alias contentStream, c);
+        self.dumpClassCstrs (alias contentStream, c);
+        self.dumpClassMethods (alias contentStream, c);
+        
+        innerStream:.write (std::format::format (self._declMembers, contentStream[]));
+        
+        stream:.write (std::format::format (self._declHead,
+                                            "class"s8,
+                                            p.file (),
+                                            innerStream[]));
+
+    } catch {
+        err : _ => println (err);
+    }
+
+
+    /**
+     * Dump the cstrs of the class into the stream
+     * @params: 
+     *     - stream: the stream to populate
+     *     - c: the class containing cstrs to dump
+     */
+    prv def dumpClassCstrs (self, dmut stream : &StringStream, c : &Class) {
+        if (c.getCstrs ().len == 0us) return {}
+        let dmut innerStream = StringStream::new ();
+        
+        for p in c.getCstrs () {
+            let dmut innerStream2 = StringStream::new ();
+            self.dumpFunction (alias innerStream2, p);
+            
+            innerStream:.write (std::format::format (self._declHead,
+                                                "self"s8, ""s8,
+                                                innerStream2[]));
+        }
+
+        stream:.write (std::format::format (self._memberHead,
+                                            "Constructors"s8,
+                                            innerStream[]));
+    } catch {
+        err : _ => println (err);
+    }
+
+
+    prv def dumpFunction (self, dmut stream : &StringStream, func : &Function, isOver : bool = false) {
+        let dmut codeStream = StringStream::new ();
+
+        let name = Path::new (utils::path::toPath (func.getName ())).file ();
+        let df = if isOver { "over "s8 } else if name != "self"s8 { "def "s8 } else { ""s8 };
+        
+        
+        codeStream:.write (std::format::format ("{} {}{} ("s8,
+                                                self.convertProtection (func.getProtection ()),
+                                                df,
+                                                name));
+        
+        if (func.getParameters ().len != 0us) {
+            codeStream:.write ("\n");
+            for i, p in func.getParameters () {
+                let value = if (p.getValue ().len != 0us) {
+                    std::format::format (" = {}"s8, p.getValue ())
+                } else { ""s8 };
+
+                let mut type = self.dumpType (p.getType ());
+                type = if (type.len != 0us) {
+                    std::format::format (" : {}"s8, type)
+                } else { ""s8 };
+
+                let isMut = if (p.isMutable ()) { "mut "s8 } else { ""s8 };
+                let isRef = if (p.isRef ()) { "ref "s8 } else { ""s8 };
+
+                if (i != 0us) codeStream:.write (",\n");
+                codeStream:.write (std::format::format ("\t{}{}{} {} {}"s8,
+                                                        isRef,
+                                                        isMut,
+                                                        p.getName (),
+                                                        type,
+                                                        value));
+            }
+            
+            codeStream:.write ("\n)"s8);
+        } else codeStream:.write (")"s8);
+
+        if (func.getThrowers ().len != 0us) {
+            codeStream:.write ("\n\tthrows ");
+            for i, p in func.getThrowers () {
+                if (i != 0us) codeStream:.write (", "s8);
+                codeStream:.write (self.dumpType (p));
+            }
+        }
+
+        if (name != "self"s8) {
+            codeStream:.write ("\n-> "s8):.write (self.dumpType (func.getRetType ()));
+        }
+        
+        stream:.write (std::format::format (self._inlineCode, codeStream[]));
+        self.dumpCommonSymbol (alias stream, func);        
+    } catch {
+        err : _ => println (err);
+    }
+    
+    /**
+     * Dump the method of the class into the stream
+     * @params: 
+     *     - stream: the stream to populate
+     *     - c: the class containing methods to dump
+     */
+    prv def dumpClassMethods (self, dmut stream : &StringStream, c : &Class) {
+        if (c.getMethods ().len == 0us) return {}
+        let dmut innerStream = StringStream::new ();
+        
+        for p in c.getMethods () {
+            let dmut innerStream2 = StringStream::new ();
+            self.dumpFunction (alias innerStream2, p, isOver-> p.isOver ());
+
+            let name = Path::new (utils::path::toPath (p.getName ())).file ();
+            innerStream:.write (std::format::format (self._declHead,
+                                                     "def"s8, name,
+                                                     innerStream2[]));
+        }
+
+        stream:.write (std::format::format (self._memberHead,
+                                            "Methods"s8,
+                                            innerStream[]));
+    } catch {
+        err : _ => println (err);
+    }
+
+    /**
+     * Dump the fields of a class
+     * @params: 
+     *     - stream: the stream to populate
+     *     - c: the class containing methods to dump
+     */
+    prv def dumpClassFields (self, dmut stream : &StringStream, c : &Class) {
+        if (c.getFields ().len == 0us) return {}
+        
+        let dmut innerStream = StringStream::new ();
+        for p in c.getFields () {
+            let dmut innerStream2 = StringStream::new ();
+            
+            let value = if (p.getValue ().len != 0us) {
+                std::format::format (" = {}"s8, p.getValue ())
+            } else { ""s8 };
+
+            let mut type = self.dumpType (p.getType ());
+            type = if (type.len != 0us) {
+                std::format::format (" : {}"s8, type)
+            } else { ""s8 };
+
+            let isMut = if (p.isMutable ()) { " mut"s8 } else { ""s8 };
+            
+            let code = std::format::format ("{} let{} {} {} {};"s8,
+                                            self.convertProtection (p.getProtection ()),
+                                            isMut,
+                                            p.getName (),
+                                            type,
+                                            value);
+
+            innerStream2:.write (std::format::format (self._inlineCode, code));
+            self.dumpCommonSymbol (alias innerStream2, p);
+            
+            innerStream:.write (std::format::format (self._declHead,
+                                                     "let"s8,
+                                                     p.getName (),
+                                                     innerStream2[]));
+        }
+
+        stream:.write (std::format::format (self._memberHead,
+                                            "Fields"s8,
+                                            innerStream[]));
+        
+    } catch {
+        err : _ => println (err);
+    }
+
+    /**
+     * Dump the assertions of a class
+     * @params: 
+     *     - stream: the stream to populate
+     *     - c: the class containing methods to dump
+     */
+    prv def dumpClassAsserts (self, dmut stream : &StringStream, c : &Class) {
+        if (c.getAsserts ().len == 0us) return {}
+        let dmut innerStream = StringStream::new ();
+        
+        for a in c.getAsserts () {
+            let dmut innerStream2 = StringStream::new ();
+            self.dumpAssert (alias innerStream2, a);
+            
+            innerStream:.write (std::format::format (self._declHead,
+                                                     ""s8, ""s8,
+                                                     innerStream2[]));
+        }
+
+        stream:.write (std::format::format (self._memberHead,
+                                            "Assertions"s8,
+                                            innerStream[]));
+    } catch {
+        err : _ => println (err);
+    }      
+    
+    /**
+     * Dump the elements common to all symbols
+     * @params: 
+     *     - stream: the stream to populate
+     *     - s: the symbol to dump 
+     */
+    prv def dumpCommonSymbol (self, dmut stream : &StringStream, s : &Symbol) {        
+        let doc = parser::parseDoc (s.getDoc ());
+        self.dumpDoc (alias stream, doc);
+    }
+
+    /**
+     * Dump a doc node into html
+     */
+    prv def dumpDoc (self, dmut stream : &StringStream, doc : &Doc) {
+        match doc.getType () {
+            DocType::TEXT => {
+                stream:.write (doc.getContent ());
+            }
+            DocType::CODE => {
+                stream:.write (std::format::format (self._inlineCode, doc.getContent ()));                
+            }
+            DocType::LIST => {
+                stream:.write ("<li>"s8):.write (doc.getContent ()):.write ("</li>");
+            }
+            _ => {
+                if (doc.getChilds ().len != 0us || doc.getType () != DocType::DESCRIPTION) {
+                    stream:.write ("<dt>"):.write (doc.getTypeStr ()):.write ("</dt>");
+                    stream:.write ("<dd>");
+                    let mut list_open = false;
+                    for i in doc.getChilds () {                        
+                        if (i.getType () == DocType::LIST && !list_open) {
+                            stream:.write ("<ul>");
+                            list_open = true;
+                        } else if (i.getType () != DocType::LIST && i.getType () != DocType::TEXT && list_open) {
+                            stream:.write ("</ul>");
+                            list_open = false;
+                        }
+                            
+                        self.dumpDoc (alias stream, i);
+                    }
+
+                    if (list_open) stream:.write ("</ul>");
+                    stream:.write ("</dd>");
+                }
+            }
+        }
+    } catch {
+        err : _ => println (err);
+    }
+
+
+    prv def dumpType (self, type : &Type) -> [c8] {
+        let inner = match type {
+            a : &ArrayType => {
+                std::format::format ("[{} ; {}]"s8, self.dumpType (a.getInnerType ()), a.getSize ())
+            }
+            _ : &BoolType => { "bool"s8 }
+            c : &CharType => { c.getName () }
+            c : &ClassPointerType => {
+                std::format::format ("&({})"s8, self.dumpType (c.getInnerType ()))
+            }
+            c : &ClassType => { "<a href=\""s8 ~ c.getModule ().toStr (sep-> "_"s8) ~ ".html#"s8 ~ c.getName () ~ "\">"s8 ~ c.getName () ~ "</a>"s8 }
+            c : &ClosureType => {
+                let dmut stream = StringStream::new ();
+                stream:.write ("#closure{");
+                for i, j in c.getInnerTypes () {
+                    if (i != 0us) stream:.write (", ");
+                    stream:.write (self.dumpType (j));
+                }
+                stream:.write ("}");
+                stream[]
+            }
+            dgp : &DgPointerType => {
+                let dmut stream = StringStream::new ();
+                stream:.write ("dg(");
+                for i, j in dgp.getParamTypes () {
+                    if (i != 0us) stream:.write (",");
+                    stream:.write (self.dumpType (j));
+                }
+                stream:.write (")->"s8);
+                stream:.write (self.dumpType (dgp.getRetType ()));
+                stream[]
+            }
+            e : &EnumType => { "<a href=\""s8 ~ e.getModule ().toStr (sep-> "_"s8) ~ ".html#"s8 ~ e.getName () ~ "\">"s8 ~ e.getName () ~ "</a>"s8 }
+            f : &FloatType => { f.getName () }
+            f : &FnPointerType => {
+                let dmut stream = StringStream::new ();
+                stream:.write ("fn(");
+                for i, j in f.getParamTypes () {
+                    if (i != 0us) stream:.write (",");
+                    stream:.write (self.dumpType (j));
+                }
+                stream:.write (")->"s8);
+                stream:.write (self.dumpType (f.getRetType ()));
+                stream[]
+            }
+            i : &IntType => { i.getName () }
+            o : &OptionType => { std::format::format ("({})?"s8, self.dumpType (o.getInnerType ())) }
+            p : &PointerType => { std::format::format ("&({})"s8, self.dumpType (p.getInnerType ())) }
+            r : &RangeType => { std::format::format ("..{}"s8, self.dumpType (r.getInnerType ())) }
+            s : &SliceType => { std::format::format ("[{}]"s8, self.dumpType (s.getInnerType ())) }
+            s : &StructType => { "<a href=\""s8 ~ s.getModule ().toStr (sep-> "_"s8) ~ ".html"s8 ~ s.getName () ~ "\">"s8 ~ s.getName () ~ "</a>"s8 }
+            t : &TupleType => {
+                let dmut stream = StringStream::new ();
+                stream:.write ("(");
+                for i, j in t.getInnerTypes () {
+                    if (i != 0us) stream:.write (",");
+                    stream:.write (self.dumpType (j));
+                }
+                stream:.write (")"s8);
+                stream[]
+            }
+            _ : &VoidType => { "void"s8 }
+            _ => { ""s8 }            
+        }
+
+        if (type.isMutable () && inner.len != 0us) {
+            "mut "s8 ~ inner
+        } else inner
+    } catch {
+        err : _ => {
+            println (err);
+            ""s8
+        }
+    }
+
+    /**
+     * Convert a protection into string
+     */
+    prv def convertProtection (self, protection : Protection)-> [c8] {
+        match protection {
+            Protection::PUB => { "pub"s8 }
+            Protection::PROT => { "prot"s8 }
+            _ => { "prv"s8 }
+                
+        }
+    }
+    
+}

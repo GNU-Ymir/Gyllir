@@ -1,6 +1,10 @@
 import gyllir::repo::manager;
+import gyllir::doc::formatter;
+import std::stream;
+import std::collection::map;
+import std::io;
 
 def main (args : [[c8]]) {
-    GyllirManager::new (args):.run ();    
+    GyllirManager::new (args):.run ();
 }
 

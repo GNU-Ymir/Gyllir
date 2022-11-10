@@ -67,5 +67,21 @@ pub class Function over Symbol {
     }
 
 
+    pub def getParameters (self)-> [&Parameter] {
+        self._params[]
+    }
+
+    pub def getThrowers (self)-> [&Type] {
+        self._throwers[]
+    }
+
+    pub def getAttributes (self)-> [[c8]] {
+        self._attributes[]
+    }
+
+    pub def getRetType (self)-> &Type {
+        self._retType
+    }
+
     impl Streamable;            
 }

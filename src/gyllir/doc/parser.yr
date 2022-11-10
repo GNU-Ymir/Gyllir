@@ -1,0 +1,222 @@
+mod gyllir::doc::parser;
+
+import std::fs::path;
+import std::fs::file;
+import std::config;
+import std::config::json;
+import std::io, std::conv;
+import std::collection::vec;
+
+import gyllir::doc::symbols::_;
+import gyllir::doc::types::_;
+import gyllir::doc::html::_;
+
+
+/**
+ * Parse a block of documentation an generate dumpable Doc nodes
+ * @params: 
+ *    - doc: the comments to parse
+ */
+pub def parseDoc (doc : [c8])-> &Doc {
+    let dmut node = Doc::new (DocType::DESCRIPTION);
+    let mut rest = doc;
+    while rest.len != 0us {
+        let (beg, form, rest_, type) = findNext (rest);
+
+        if (beg.len != 0us && beg != "\n"s8) {
+            node:.insertChild (Doc::new (DocType::TEXT, content-> beg));
+        }
+        
+        if (form.len != 0us) {
+            let (ch, rest__) = parseForm (form, rest_, type);
+            node:.insertChild (ch);
+            rest = rest__;
+        } else rest = rest_;
+    }
+
+    node
+}
+
+pub enum
+| DESCRIPTION = 0u32
+| TEXT        = 1u32
+| CODE        = 2u32
+| WARNING     = 3u32
+| EXAMPLE     = 4u32
+| ASSERT      = 5u32
+| PARAMS      = 6u32
+| RETURNS     = 7u32
+| LIST        = 8u32
+| UNKNOWN     = 9u32
+ -> DocType;
+
+
+/**
+ * A doc is the parsing of the comments documenting a symbol
+ */
+pub class Doc {
+
+    /// THe content of the doc
+    let _content : [c8];
+
+    /// The type of code block
+    let mut _type : DocType;
+
+    /// The sub docs
+    let dmut _childs = Vec!{&Doc}::new ();
+
+    pub self (type : DocType, content : [c8] = ""s8) with _type = type, _content = content {}
+
+    /**
+     * @returns: the type of doc block
+     */
+    pub def getType (self)-> DocType {
+        self._type
+    }
+
+    /**
+     * @returns: the name of the type of block
+     */
+    pub def getTypeStr (self)-> [c8] {
+        match self._type {
+            DocType::DESCRIPTION => { "Description"s8 }
+            DocType::WARNING => { "Warning"s8 }
+            DocType::EXAMPLE => { "Example"s8 }
+            DocType::ASSERT => { "Assert"s8 }
+            DocType::RETURNS => { "Returns"s8 }
+            DocType::PARAMS => { "Parameters"s8 }
+            _ => { ""s8 }
+        }
+    }
+        
+    /**
+     * @returns: the text content of the block
+     */
+    pub def getContent (self)-> [c8] {
+        self._content
+    }
+
+    /**
+     * @returns: the list of childs
+     */
+    pub def getChilds (self)-> [&Doc] {
+        self._childs[]
+    }
+
+    /**
+     * Insert a new child in the doc
+     * @params: 
+     *    - ch: the child to insert
+     */
+    pub def insertChild (mut self, ch : &Doc) {
+        self._childs:.push (ch);
+    }
+    
+}
+
+
+/**
+ * Find the next form '@IDENT:'
+ * @params: 
+ *    - content: the content of the string 
+ * @returns:
+ *    - .0: the text before the format
+ *    - .1: the format content
+ *    - .2: the text after the format 
+ */
+prv def findNext (content : [c8]) -> ([c8], [c8], [c8], DocType) {
+    let mut i = 0us;
+    while i < content.len { 
+        if content[i] == '@'c8 {
+            let mut j = i;
+            while j < content.len - 1us {
+                if (content[j] == ' 'c8 || content[j] == '\n'c8 || content[j] == ':'c8) break {}
+                j += 1us;
+            }
+
+            let form = content[i + 1us .. j];
+            let start = content[0us .. i];
+            let rest = content[j + 1us .. $];
+            
+            return (start, form, rest, DocType::UNKNOWN);
+        } else if i + 3us < content.len && content[i .. i + 3us] == "==="s8 {
+            let mut j = i, mut to_break = false, mut to_line_end = false;
+            let mut r_start = j, mut r_end = j;
+            while j < content.len {
+                if (!to_break) {
+                    if (content[j] == '\n'c8) {
+                        r_start = j + 1us;
+                        to_break = true;
+                    }
+                } else if !to_line_end {
+                    if (j + 3us < content.len && content[j .. j + 3us] == "==="s8) {
+                        to_line_end = true;
+                        r_end = j - 2us;
+                    }
+                } else {
+                    if (content[j] == '\n'c8) break {}
+                }
+                
+                j += 1us;
+            }
+
+
+            if (r_end <= r_start) {
+                if (to_line_end) {
+                    return (content[0us..i], ""s8, content[j..$], DocType::UNKNOWN);
+                } else {
+                    return (content[0us..i], ""s8, content[r_start+1us..$], DocType::UNKNOWN);
+                }
+            } else {
+                let form = content[r_start .. r_end];
+                
+                let start = content[0us .. i];
+                let rest = content[j .. $];
+                
+                return (start, form, rest, DocType::CODE);
+            }
+        } else if content[i] == '-'c8 {
+            let mut j = i;
+            while j < content.len - 1us {
+                if (content[j] == '\n'c8) break {}
+                j += 1us;
+            }
+
+            let form = content[i + 1us .. j];
+            let start = content[0us .. i];
+            let rest = content[j + 1us .. $];
+            
+            return (start, form, rest, DocType::LIST);
+        }
+        
+        i += 1us;
+    }
+
+    return (content, ""s8, ""s8, DocType::TEXT);
+}
+
+
+prv def parseForm (form : [c8], next : [c8], type : DocType)-> (&Doc, [c8]) {
+    let res = match form {
+        "warning"s8 => {
+            Doc::new (DocType::WARNING)
+        }
+        "example"s8 => {
+            Doc::new (DocType::EXAMPLE)
+        }
+        "assert"s8 | "asserts"s8 => {
+            Doc::new (DocType::ASSERT)
+        }
+        "return"s8 | "returns"s8 => {
+            Doc::new (DocType::RETURNS)
+        }
+        "param"s8 | "params"s8 => {
+            Doc::new (DocType::PARAMS)
+        }
+        _ => {                
+            Doc::new (type, content-> form)        
+        }        
+    }
+    
+    (res, next)    
+}

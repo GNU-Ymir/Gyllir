@@ -36,5 +36,34 @@ pub class Parameter over Symbol {
         }
     }
 
+
+    /**
+     * @returns: the value of the param
+     */
+    pub def getValue (self)-> [c8] {
+        self._value
+    }
+
+    /**
+     * @returns: the value of the type
+     */
+    pub def getType (self)-> &Type {
+        self._type
+    }
+
+    /**
+     * @returns: true iif the param is mutable
+     */
+    pub def isMutable (self)-> bool {
+        self._mut
+    }
+
+    /**
+     * @returns: true iif the param is a ref
+     */
+    pub def isRef (self)-> bool {
+        self._ref
+    }
+    
     impl Streamable;    
 }

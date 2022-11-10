@@ -1,0 +1,63 @@
+mod gyllir::doc::formatter;
+
+import std::collection::map;
+import std::stream, std::io;
+
+
+/**
+ * Format a text and write it in 'stream'
+ * @params: 
+ *   - stream: the stream to fill
+ *   - content: the content to format
+ *   - values: the values to use during the formatting
+ */
+pub def format (dmut stream : &StringStream, content : [c8], values : &HashMap!{[c8], [c8]}) {
+    let mut rest = content;
+    while rest.len != 0us {
+        let (beg, form, rest_) = findNext (rest);
+        stream:.write (beg);
+        if (form.len != 0us) {
+            stream:.write (match values [form]? {
+                Ok (x : _) => { x }
+                _ => { ""s8 }
+            });
+        }
+
+        rest = rest_;
+    }        
+}
+
+/**
+ * Find the next format
+ * @params: 
+ *    - content: the content of the string 
+ * @returns:
+ *    - .0: the text before the format
+ *    - .1: the format content
+ *    - .2: the text after the format 
+ */
+prv def findNext (content : [c8]) -> ([c8], [c8], [c8]) {
+    let mut i = 0us;
+    while i < content.len - 3us { // format is at least $()
+        if content[i .. i + 2us] == "$("s8 {
+            let mut j = i + 1us, mut nb_close = 0;
+            while j < content.len - 1us {
+                if (content[j] == ')'c8) nb_close -= 1;
+                else if (content[j] == '('c8) nb_close += 1;
+                if (nb_close == 0) break {};
+                j += 1us;
+            }
+
+            if (nb_close == 0) {
+                let form = content[i + 2us .. j];
+                let start = content[0us .. i];
+                let rest = content[j + 1us .. $];
+
+                return (start, form, rest);
+            }                
+        }
+        i += 1us;
+    }
+
+    return (content, ""s8, ""s8);
+}

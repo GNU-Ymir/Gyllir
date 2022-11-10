@@ -81,8 +81,9 @@ pub class DocDumper {
         }
     }
 
-    prv def generatePage (self, project : [c8], git : [c8], table : &HtmlTable, module : &Module) {               
-        let head = HtmlHeader::new (project, git, module.getName (), table);
+    prv def generatePage (self, project : [c8], git : [c8], table : &HtmlTable, module : &Module) {
+        let body = HtmlBody::new (project, module);
+        let head = HtmlHeader::new (project, git, module.getName (), table, body);
         let foot = HtmlFooter::new (module.getName ());
 
         let dmut stream = StringStream::new ();

@@ -26,10 +26,25 @@ pub class Assert over Symbol {
     let dmut _skips = Vec!{[c8]}::new ();
 
     pub self (config : &Config)
-        with super (config),
-    _test = (config ["test"]?).toOr (""s8),
-    _msg = (config ["msg"]?).toOr (""s8)
+        with super (config), _test = (config ["test"]?).toOr (""s8), _msg = (config ["msg"]?).toOr (""s8)
     {}
 
+
+    /**
+     * @returns: the message of the assertion
+     */
+    pub def getMessage (self)-> [c8] {
+        self._msg
+    }
+
+    /**
+     * @returns: the test of the assertion
+     */
+    pub def getTest (self)-> [c8] {
+        self._test
+    }
+
+    
+    
     impl Streamable;    
 }

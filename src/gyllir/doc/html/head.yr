@@ -1,11 +1,15 @@
 mod gyllir::doc::html::head;
 
 import std::stream, std::fs::_, std::env;
-import std::format, std::conv, std::io;
+import std::io;
+import std::collection::map;
 
 import gyllir::doc::symbols::_;
 import gyllir::doc::html::node;
 import gyllir::doc::html::table;
+import gyllir::doc::html::body;
+import gyllir::doc::formatter;
+
 
 /**
  * Html header of a page 
@@ -24,13 +28,16 @@ pub class HtmlHeader over HtmlNode {
     // The toc of the page
     let _table : &HtmlTable;
 
+    // The body of the page
+    let _body : &HtmlBody;
+
     /**
      * Create a header for a page 
      * @params: 
      *   - name: the name of the page
      */
-    pub self (project : [c8], git : [c8], name : [c8], table : &HtmlTable)
-        with _project = project, _git = git, _name = name, _table = table
+    pub self (project : [c8], git : [c8], name : [c8], table : &HtmlTable, body : &HtmlBody)
+        with _project = project, _git = git, _name = name, _table = table, _body = body
     {}
 
     /**
@@ -44,17 +51,24 @@ pub class HtmlHeader over HtmlNode {
         let dmut streamToc = StringStream::new ();
         self._table.dumpHtml (alias streamToc);
 
+        let dmut streamBody = StringStream::new ();
+        self._body.dumpHtml (alias streamBody);
+
         let mut gitUrl = self._git;
         let githubStart = "git@github.com:"s8;
         if (gitUrl.len > githubStart.len && gitUrl[0us..githubStart.len] == githubStart) {
             gitUrl = "https://github.com/"s8 ~ gitUrl[githubStart.len .. $ - 4us];            
         }
-        
-        stream:.write (format (html_head,                               
-                               self._project.to![c32] (),
-                               gitUrl.to![c32] (),
-                               // self._name.to![c32] (),
-                               streamToc[].to![c32]()))?;
+
+        let prj = self._project;
+        let map = hmap#{
+            "Title"s8 => prj,
+            "GitURL"s8 => gitUrl,
+            "Modules"s8 => streamToc[],
+            "Body"s8 => streamBody[]
+        };
+
+        formatter::format (alias stream, html_head, map);
     }
 
 

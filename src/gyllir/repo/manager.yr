@@ -310,7 +310,10 @@ pub class GyllirManager {
             }
             
             if !isDir (depPath) {
-                fs::createDir (depPath.parent (), recursive-> true);
+                if !isDir (depPath.parent ()) {
+                    fs::createDir (depPath.parent (), recursive-> true);
+                }
+                
                 if (dependency.url.getType () == UrlType::LOCAL) {
                     self.runProcess ("cp"s8, ["-r"s8, dependency.url.getPath ().toStr (), depPath.parent ().toStr ()]);
                     self.runProcess ("mv"s8, [dependency.url.getPath ().file (), name], cwd-> depPath.parent ());
@@ -355,8 +358,8 @@ pub class GyllirManager {
 
             r : &RecursiveDependency => throw r;
             
-            _ => {
-                println ("Failure. Aborting");
+            x : _ => {
+                println ("Failure. Aborting", x);
                 return (""s8, false);
             } 
         }

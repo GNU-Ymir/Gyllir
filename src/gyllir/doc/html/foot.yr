@@ -2,7 +2,9 @@ mod gyllir::doc::html::foot;
 
 
 import std::stream, std::fs::_, std::env;
-import std::format, std::conv, std::io;
+import std::io;
+import gyllir::doc::formatter;
+import std::collection::map;
 
 import gyllir::doc::symbols::_;
 import gyllir::doc::html::node;
@@ -25,7 +27,12 @@ pub class HtmlFooter over HtmlNode {
      *   - stream: the stream to populate
      */
     pub over dumpHtml (self, dmut stream : &StringStream) {
-        stream:.write (format (self.readResource (), self._title.to![c32] ()))?;
+        let prj = self._title;
+        let map = hmap#{
+            "Title"s8 => prj
+        };
+
+        formatter::format (alias stream, self.readResource (), map);
     }
 
     prv def readResource (self)-> [c8] {

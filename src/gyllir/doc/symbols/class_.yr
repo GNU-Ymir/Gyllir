@@ -21,10 +21,10 @@ pub class Class over Symbol {
     let mut _ancestor = Type::none ();
 
     /// Is the class abstract
-    let _abstract = false;
+    let mut _abstract = false;
 
     /// Is the class final
-    let _final = false;
+    let mut _final = false;
 
     /// The list of assertion in the class
     let dmut _asserts = Vec!{&Assert}::new ();
@@ -54,6 +54,15 @@ pub class Class over Symbol {
             }
         }
 
+        match config["abstract"]? {
+            Ok (Str (str-> x : _)) => { self._abstract = (x == "true"); }
+        }
+
+        match config["final"]? {
+            Ok (Str (str-> x : _)) => { self._final = (x == "true"); }
+        }
+
+        
         match config ["asserts"]? {
             Ok (arr : &Array) => {
                 for i in 0us .. arr.len () {
@@ -99,7 +108,55 @@ pub class Class over Symbol {
         }
         
     }
+    
+    /**
+     * @returns: true iif the class is final
+     */
+    pub def isFinal (self)-> bool {
+        self._final
+    }
 
+    /**
+     * @returns: true iif the class is abstract
+     */
+    pub def isAbstract (self)-> bool {
+        self._abstract
+    }
+    
+    /**
+     * @returns: the ancestor of the class
+     */
+    pub def getAncestor (self)-> &Type {
+        self._ancestor
+    }
+
+    /**
+     * @returns: the list of constructor of the class
+     */
+    pub def getCstrs (self)-> [&Function] {
+        self._cstrs[]
+    }
+
+    /**
+     * @returns: the list of fields of the class
+     */
+    pub def getFields (self)-> [&Parameter] {
+        self._fields[]
+    }
+    
+    /**
+     * @returns: the list of methods of the class
+     */
+    pub def getMethods (self)-> [&Method] {
+        self._methods[]
+    }
+
+    /**
+     * @returns: the list of assertion of the class
+     */
+    pub def getAsserts (self)-> [&Assert] {
+        self._asserts[]
+    }
 
     impl Streamable;            
 }

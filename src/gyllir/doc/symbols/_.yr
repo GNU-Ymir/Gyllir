@@ -29,7 +29,6 @@ pub enum
 | PRV = 2u8
  -> Protection;
 
-
 /**
  * Ancestor class of all documentable symbols
  */
@@ -81,7 +80,18 @@ pub class Symbol {
         self._name
     }
 
+    /**
+     * @returns: the documentation about the symbol
+     */
+    pub def getDoc (self)-> [c8] {
+        self._doc
+    }
 
+    pub def getProtection (self)-> Protection {
+        self._protection
+    }
+
+    
     impl Streamable;
     
 }

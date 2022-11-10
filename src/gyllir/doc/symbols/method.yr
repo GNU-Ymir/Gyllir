@@ -26,5 +26,10 @@ pub class Method over Function {
     {}
 
 
+    pub def isOver (self)-> bool {
+        self._over
+    }
+    
+
     impl Streamable;            
 }

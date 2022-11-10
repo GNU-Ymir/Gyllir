@@ -37,7 +37,13 @@ pub class Module over Symbol {
             }
         }
     }
-
+    
+    /**
+     * @returns: the list of children of the module
+     */
+    pub def getChilds (self)-> [&Symbol] {    
+        self._childs[]
+    }        
 
     impl Streamable {
         pub over toStream (self, dmut stream : &StringStream) {
