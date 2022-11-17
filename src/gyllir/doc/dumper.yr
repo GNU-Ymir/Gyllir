@@ -67,7 +67,7 @@ pub class DocDumper {
         fs::removeDir (self._outDir, recursive-> true)?;
         fs::createDir (self._outDir, recursive-> true)?;
         
-        let ymir_res = Path::new (std::env::getEnv ("GYLLIR_HOME"s8)).push ("res"s8);        
+        let ymir_res = Path::new ("/etc/gyllir/res");        
         if (!self._context.runProcess ("cp"s8, ["-r"s8, ymir_res.push ("js"s8).toStr (), self._outDir.toStr ()])) {
             println ("[ERROR] Creating doc directory");            
         }
@@ -89,7 +89,7 @@ pub class DocDumper {
     prv def generatePage (self, project : [c8], git : [c8], table : &HtmlTable, module : &Module) {
         let body = HtmlBody::new (project, module);
         let head = HtmlHeader::new (project, git, module.getName (), table, body);
-        let foot = HtmlFooter::new (module.getName ());
+        let foot = HtmlFooter::new (module.getName (), git);
 
         let dmut stream = StringStream::new ();
         head.dumpHtml (alias stream);

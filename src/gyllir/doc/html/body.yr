@@ -51,6 +51,7 @@ pub class HtmlBody over HtmlNode {
      *    - stream: the stream to populate
      */
     pub over dumpHtml (self, dmut stream : &StringStream) {
+        self.dumpCommonSymbol (alias stream, self._module);
         for ch in self._module.getChilds () {
             self.dumpContent (alias stream, ch);
         }
@@ -60,7 +61,7 @@ pub class HtmlBody over HtmlNode {
      * Load the Html contents
      */
     prv def loadHtmls (mut self) {
-        let ymir_res = Path::new (std::env::getEnv ("GYLLIR_HOME"s8)).push ("res"s8);
+        let ymir_res = Path::new ("/etc/gyllir/res"s8);
 
         with dmut f = File::open (ymir_res.push ("html"s8).push ("declaration.html"s8)) {
             self._declHead = f:.readAll ();
@@ -111,9 +112,11 @@ pub class HtmlBody over HtmlNode {
                 }
             }
             t : &Trait => self.dumpTrait (alias stream, t);
-            // x : _ => {
-            //     println (x) ; __pragma!panic ();
-            // }
+            m : &Macro => self.dumpMacro (alias stream, m);
+            b : &Block => self.dumpBlock (alias stream, b);
+            x : _ => {
+                println (x) ; __pragma!panic ();
+            }
         }
     }
 
@@ -260,8 +263,6 @@ pub class HtmlBody over HtmlNode {
         if (t.getProtection () != Protection::PUB) return {}
         
         let p = Path::new (utils::path::toPath (t.getName ()));
-
-        println (p.toStr ());
         
         let dmut innerStream = StringStream::new ();        
         
@@ -293,6 +294,41 @@ pub class HtmlBody over HtmlNode {
     }
 
 
+    /**
+     * Dump a macro
+     * @params: 
+     *    - stream: the stream to populate
+     *    - m: the macro to dump
+     */
+    pub def dumpMacro (self, dmut stream : &StringStream, m : &Macro) {
+        if (m.getProtection () != Protection::PUB) return {}
+        
+        let p = Path::new (utils::path::toPath (m.getName ()));
+        
+        let dmut innerStream = StringStream::new ();        
+        
+        let code = std::format::format ("{} macro {} {{ \n\t/** full declaration omitted */ \n}"s8,
+                                        self.convertProtection (m.getProtection ()),
+                                        p.file ());
+        
+        innerStream:.write (std::format::format (self._inlineCode, code));
+        self.dumpCommonSymbol (alias innerStream, m);
+        
+        // let dmut contentStream = StringStream::new ();
+        // for j in t.getChilds () {
+        //     self.dumpContent (alias contentStream, j);
+        // }
+        
+        // innerStream:.write (std::format::format (self._declMembers, contentStream[]));
+        
+        stream:.write (std::format::format (self._declHead,
+                                            "macro"s8,
+                                            p.file (),
+                                            ""s8,
+                                            innerStream[]));
+    } catch {
+        err : _ => println (err);
+    }        
     
     /**
      * Dump a class to html
@@ -425,6 +461,28 @@ pub class HtmlBody over HtmlNode {
         err : _ => println (err);
     }    
 
+
+    /**
+     * Dump an inner module
+     * @params: 
+     *   - stream: the stream to populate
+     *   - m: the module to dump
+     */
+    prv def dumpBlock (self, dmut stream : &StringStream, b : &Block) {
+        //if (b.getProtection () != Protection::PUB) return {}
+        
+        for j in b.getChilds () {
+            self.dumpContent (alias stream, j);
+        }                
+    }
+
+
+    /**
+     * Dump a function that was not declared in a class, trait or something like that
+     * @params: 
+     *    - stream: the stream to populate
+     *    - func: the function to dump
+     */
     prv def dumpFunctionGlob (self, dmut stream : &StringStream, func : &Function, tempTest : [c8] = ""s8, tempParams : [c8] = ""s8) {
         if (func.getProtection () != Protection::PUB) return {}
         

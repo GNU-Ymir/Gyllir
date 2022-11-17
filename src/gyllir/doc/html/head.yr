@@ -73,7 +73,7 @@ pub class HtmlHeader over HtmlNode {
 
 
     prv def readResource (self)-> [c8] {
-        let ymir_res = Path::new (std::env::getEnv ("GYLLIR_HOME"s8)).push ("res"s8);
+        let ymir_res = Path::new ("/etc/gyllir/res"s8);
 
         let mut res = ""s8;
         with dmut f = File::open (ymir_res.push ("html"s8).push ("header.html"s8)) {

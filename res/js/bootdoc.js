@@ -158,16 +158,17 @@ function moduleNameToPath(modName) {
 function updateBreadcrumb(qualifiedName, sourceRepoUrl) {
     var $breadcrumb = $('#module-breadcrumb');
 
-    var parts = qualifiedName.split('.');
+    var parts = qualifiedName.split('::');
+
     for(var i = 0; i < parts.length; i++) {
 	var part = parts[i];
-
-	// if(i == parts.length - 1) {
-	// 	var sourceUrl = sourceRepoUrl + '/' + moduleNameToPath(qualifiedName);
-	// 	$breadcrumb.append('<li class="active"><h2>' + part + ' <a href="' + sourceUrl + '"><small>view source</small></a></h2></li>');
-	// } else {
-	$breadcrumb.append('<li><h2>' + part + '<span class="divider">/</span></h2></li>');
-	//	}
+	
+	if(i == parts.length - 1) {
+	    var sourceUrl = sourceRepoUrl + '/' + moduleNameToPath(qualifiedName);
+	    $breadcrumb.append('<li class="active"><h2>' + part + ' <a href="' + sourceUrl + '"><small>view source</small></a></h2></li>');
+	} else {
+	    $breadcrumb.append('<li><h2>' + part + '<span class="divider">/</span></h2></li>');
+	}
     }
 }
 
@@ -449,7 +450,8 @@ $(document).ready(function() {
     // Adding the hljs class gives code blocks the color css
     // even if highlighting doesn't apply
     $('code').addClass('hljs');
-    
+
+    console.log (SourceRepository);
     // Setup page title.
     updateBreadcrumb(Title, SourceRepository);
 

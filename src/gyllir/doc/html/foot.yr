@@ -14,12 +14,15 @@ import gyllir::doc::html::node;
  */
 pub class HtmlFooter over HtmlNode {
 
+    // The git repo
+    let _git : [c8];
+    
     let _title : [c8];
     
     /**
      * Create a footer for a page 
      */
-    pub self (title : [c8]) with _title = title {}
+    pub self (title : [c8], git : [c8]) with _title = title, _git = git {}
 
     /**
      * Dump the html content into the stream
@@ -28,15 +31,25 @@ pub class HtmlFooter over HtmlNode {
      */
     pub over dumpHtml (self, dmut stream : &StringStream) {
         let prj = self._title;
+
+        let mut gitUrl = self._git;
+        let githubStart = "git@github.com:"s8;
+        if (gitUrl.len > githubStart.len && gitUrl[0us..githubStart.len] == githubStart) {
+            gitUrl = "https://github.com/"s8 ~ gitUrl[githubStart.len .. $ - 4us] ~ "/tree/master/src/"s8;            
+        }
+
+        println (self._git, " ", gitUrl);
+        
         let map = hmap#{
-            "Title"s8 => prj
+            "Title"s8 => prj,
+            "GitURL"s8 => gitUrl
         };
 
         formatter::format (alias stream, self.readResource (), map);
     }
 
     prv def readResource (self)-> [c8] {
-        let ymir_res = Path::new (std::env::getEnv ("GYLLIR_HOME"s8)).push ("res"s8);
+        let ymir_res = Path::new ("/etc/gyllir/res"s8);
 
         let mut res = ""s8;
         with dmut f = File::open (ymir_res.push ("html"s8).push ("footer.html"s8)) {

@@ -57,7 +57,7 @@ pub class HtmlTable over HtmlNode {
     }
 
     prv def readLeafResource (self)-> [c8] {
-        let ymir_res = Path::new (std::env::getEnv ("GYLLIR_HOME"s8)).push ("res"s8);
+        let ymir_res = Path::new ("/etc/gyllir/res"s8);
 
         let mut res = ""s8;
         with dmut f = File::open (ymir_res.push ("html"s8).push ("leaf_node.html"s8)) {
