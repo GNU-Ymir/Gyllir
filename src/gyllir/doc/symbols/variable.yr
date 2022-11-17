@@ -37,5 +37,19 @@ pub class Variable over Symbol {
     }
 
 
+    pub def getType (self)-> &Type {
+        self._varType
+    }
+
+    pub def isMutable (self)-> bool {
+        self._mut
+    }
+
+    pub def getValue (self)-> [c8] {
+        self._value
+    }
+        
+    
+
     impl Streamable;            
 }

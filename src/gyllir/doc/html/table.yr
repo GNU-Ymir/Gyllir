@@ -45,7 +45,10 @@ pub class HtmlTable over HtmlNode {
             "Name"s8 => node.getPath ().toStr (sep-> "::"s8)
         };
 
-        formatter::format (alias stream, leafTemplate, map);
+        if (node.getPath ().toStr ().len != 0us) {
+            formatter::format (alias stream, leafTemplate, map);
+        }
+        
         if (node.getChilds ().len () != 0us) {
             for _, n in node.getChilds () {
                 self.dumpModule (n, alias stream, leafTemplate);                

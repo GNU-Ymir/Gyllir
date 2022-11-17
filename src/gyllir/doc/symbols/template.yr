@@ -14,7 +14,7 @@ import std::config;
 pub class Template over Symbol {
 
     /// The of symbols declared in the template
-    let dmut _childs = Vec!{&Symbol}::new ();
+    let dmut _child : &Symbol;
 
     /// The list of parameters of the template
     let dmut _params = Vec!{[c8]}::new ();
@@ -27,27 +27,37 @@ pub class Template over Symbol {
      */
     pub self (config : &Config)
         with super (config),
-    _test = (config ["test"]?).toOr (""s8)
+    _test = (config ["test"]?).toOr (""s8),
+    _child = {
+        alias loader::toSymbol (config["child"])
+    } catch {
+        _ => Symbol::empty ()
+    }
     {
-        match config ["childs"]? {
-            Ok (arr : &Array) => {
-                for i in 0us .. arr.len () {
-                    __pragma!trusted ({
-                        self._childs:.push (loader::toSymbol (arr [i]));
-                    });
-                }
-            }
-        }
-
         match config ["params"]? {
             Ok (arr : &Array) => {
                 for i in 0us .. arr.len () {
                     self._params:.push ((arr [i]?).toOr (""s8));
                 }
             }
-        }                
+        }
+
+        self._child:.setProtection (self._protection);
     }
 
+
+    pub def getChild (self)-> &Symbol {
+        self._child
+    }
+
+    pub def getParams (self)-> [[c8]] {
+        self._params[]
+    }
+
+    pub def getTest (self)-> [c8] {
+        self._test
+    }
+    
 
     impl Streamable;            
 }

@@ -17,7 +17,6 @@ pub class Struct over Symbol {
     /// The list of attributes of the struct
     let dmut _attributes = Vec!{[c8]}::new ();
 
-
     let dmut _fields = Vec!{&Parameter}::new ();
     
     /**
@@ -45,6 +44,15 @@ pub class Struct over Symbol {
         }
     }
 
+    pub def getAttrs (self)-> [[c8]] {
+        self._attributes[]
+    }
+
+
+    pub def getFields (self)-> [&Parameter] {
+        self._fields[]
+    }
+    
 
     impl Streamable;            
 }

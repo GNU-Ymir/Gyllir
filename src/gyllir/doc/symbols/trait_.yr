@@ -33,6 +33,10 @@ pub class Trait over Symbol {
         }
     }
 
+    pub def getChilds (self)-> [&Symbol] {
+        self._childs[]
+    }
+
 
     impl Streamable;            
 }

@@ -31,7 +31,7 @@ pub class Function over Symbol {
      */
     pub self (config : &Config)
         with super (config)
-    {
+    {        
         match config ["params"]? {
             Ok (arr : &Array) => {
                 for i in 0us .. arr.len () {
@@ -42,6 +42,16 @@ pub class Function over Symbol {
             }
         }
 
+        match config ["param"]? {
+            Ok (arr : &Array) => {
+                for i in 0us .. arr.len () {
+                    __pragma!trusted ({
+                        self._params:.push (Parameter::new (arr [i]));
+                    });
+                }
+            }
+        }
+        
         match config ["throwers"]? {
             Ok (arr : &Array) => {
                 for i in 0us .. arr.len () {

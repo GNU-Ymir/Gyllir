@@ -9,19 +9,20 @@ import std::io;
 /**
  * Transform a configuration into a symbol
  */
-pub def toSymbol (config : &Config)-> &Symbol {
+pub def toSymbol (config : &Config)-> dmut &Symbol {
     match (config ["type"]?).toOr (""s8) {
-        "module"s8 => { Module::new (config) }
-        "function"s8 => { Function::new (config) }
-        "var"s8 => { Variable::new (config) }
-        "aka"s8 => { Aka::new (config) }
-        "struct"s8 => { Struct::new (config) }
-        "enum"s8 => { Enum::new (config) }
-        "trait"s8 => { Trait::new (config) }
-        "template"s8 => { Template::new (config) }
-        "macro"s8 => { Macro::new (config) }
-        "class"s8 => { Class::new (config) }
-        _ => { Symbol::new (config) }
+        "module"s8 => { return Module::new (config); }
+        "function"s8 => { return Function::new (config); }
+        "var"s8 => { return Variable::new (config); }
+        "aka"s8 => { return Aka::new (config); }
+        "struct"s8 => { return Struct::new (config); }
+        "enum"s8 => { return Enum::new (config); }
+        "trait"s8 => { return Trait::new (config); }
+        "template"s8 => { return Template::new (config); }
+        "macro"s8 => { return Macro::new (config); }
+        "class"s8 => { return Class::new (config); }
+        "template_class"s8 => { return Class::new (config); }
+        _ => { return Symbol::new (config); }
     }    
 }
 

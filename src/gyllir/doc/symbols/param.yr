@@ -17,22 +17,32 @@ pub class Parameter over Symbol {
     let mut _type = Type::none ();
 
     /// True if the parameter is mutable
-    let _mut : bool;
+    let mut _mut : bool = false;
 
     /// True if the parameter is a reference
-    let _ref : bool;
+    let mut _ref : bool = false;
 
     /// The default value of the parameter
     let _value : [c8];
 
     pub self (config : &Config)
         with super (config),
-    _mut = (config ["mut"]?).toOr (false),
-    _ref = (config ["ref"]?).toOr (false),
     _value = (config ["value"]?).toOr (""s8)
     {
         match config ["type"]? {
             Ok (type : _) => { self._type = loader::toType (type); }
+        }
+
+        match config ["mut"]? {
+            Ok (Str (str-> "true")) => { self._mut = true; }
+            Ok (Bool (b-> true)) => { self._mut = true; }
+            _ =>  { self._mut = false; }
+        }
+
+        match config ["ref"]? {
+            Ok (Str (str-> "true")) => { self._ref = true; }
+            Ok (Bool (b-> true)) => { self._ref = true; }
+            _ => { self._ref = false; }
         }
     }
 

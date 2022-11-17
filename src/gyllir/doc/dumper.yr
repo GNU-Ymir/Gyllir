@@ -52,9 +52,10 @@ pub class DocDumper {
         let dmut tree = MetaModule::new ();
         let dmut modules = Vec!{&Module}::new ();
         
-        for i in self._files {
+        for j, i in self._files {
             with dmut f = File::open (i) {
-
+                let perc = j.to!f32 () / (self._files.len).to!f32 () * 100.0f; 
+                println (std::format::format ("[{0:.2}%] Loading {1:}"s8, perc, i.toStr ()))?;
                 let module = Module::new (json::parse (f:.readAll ()));
                 tree:.insert (module);
                 modules:.push (module);
@@ -72,6 +73,10 @@ pub class DocDumper {
         }
 
         if (!self._context.runProcess ("cp"s8, ["-r"s8, ymir_res.push ("css"s8).toStr (), self._outDir.toStr ()])) {
+            println ("[ERROR] Creating doc directory");            
+        }
+
+        if (!self._context.runProcess ("cp"s8, ["-r"s8, ymir_res.push ("ico"s8).toStr (), self._outDir.toStr ()])) {
             println ("[ERROR] Creating doc directory");            
         }
         

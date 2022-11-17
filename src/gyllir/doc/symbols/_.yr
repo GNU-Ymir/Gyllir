@@ -50,7 +50,7 @@ pub class Symbol {
     let _doc : [c8];
 
     /// The protection of the symbol
-    let _protection : Protection;
+    let mut _protection : Protection;
 
     /**
      * Create an empty symbol
@@ -91,6 +91,10 @@ pub class Symbol {
         self._protection
     }
 
+
+    pub def setProtection (mut self, protection : Protection) {
+        self._protection = protection;
+    }
     
     impl Streamable;
     

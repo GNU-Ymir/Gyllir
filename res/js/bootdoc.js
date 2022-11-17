@@ -30,7 +30,10 @@ function buildModuleTree(modlist) {
 	    var node;
 
 	    if(partIndex == parts.length - 1) {
-		node = {'type': 'module', 'qualifiedName': qualifiedName};
+		node = {'type': 'module', 'qualifiedName': qualifiedName, 'members': {}};
+		if (parent.type == 'module') {
+		    parent.type = 'module_package';
+		}
 		parent.members[name] = node;
 	    } else {
 		node = parent.members[name];
@@ -66,6 +69,12 @@ function populateModuleList(modTree) {
     function treePackageNode(name) {
 	return '<li class="dropdown sidebar-list-entry">' +
 	    '<a class="tree-node" href="javascript:;" title="' + name + '"><i class="icon-th-list"></i> ' + name + '<b class="caret"></b></a>' +
+	    '<ul class="custom-icon-list"></ul></li>';
+    }
+
+    function treeModulePackageNode(name, url) {
+	return '<li class="sidebar-list-entry">' +
+	    '<a class="tree-leaf tree-node" href="' + url + '" title="' + name + '"><i class="icon-th-list"></i> ' + name + '<b class="caret"></b></a>' +
 	    '<ul class="custom-icon-list"></ul></li>';
     }
 
@@ -106,6 +115,28 @@ function populateModuleList(modTree) {
 			$up = $up.parent();
 		    }
 		}
+	    } else if (member.type == 'module_package') {
+		var url = qualifiedModuleNameToUrl(member.qualifiedName);
+		var $elem = $(treeModulePackageNode(name, url));
+		$parentList.append($elem);
+
+		var $ul = $elem.find('ul');
+		if($parentList != $listHeader) {
+		    $ul.hide();
+		}
+
+		if(member.qualifiedName == Title) { // Current module.
+		    $elem.find('a').append(' <i class="icon-asterisk"></i>');
+
+		    var $up = $ul;
+		    while(!$up.is($listHeader)) {
+			$up.show();
+			$up = $up.parent();
+		    }
+		}
+
+		
+		traverser(member, $ul);
 	    }
 	}
     }
@@ -143,10 +174,12 @@ function updateBreadcrumb(qualifiedName, sourceRepoUrl) {
 var enumRegex = /^enum /;
 var structRegex = /^struct /;
 var classRegex = /^class /;
+var modRegex = /^mod /;
+var traitRegex = /^trait /;
 var templateRegex = /^template /;
-var functionRegex = /\);\s*$/m;
+var functionRegex = /^def /;
 var propertyRegex = /@property/m;
-var constructorRegex = /^[^(]*?this\(+/;
+var constructorRegex = /^[^(]*?self\(+/;
 
 /**
  * Build a table out of all symbols declared in the current module.
@@ -180,11 +213,10 @@ function buildSymbolTree() {
 		};
 
 		parentNode.push(subTree);
-
-		var subMembers = $decl.next('.declaration-content').children('.member-list').children('.member-list-entry');
-
-		subMembers.each (function () {
-		    fillTree (subTree.members, $(this).children ('.content'))
+		
+		var subMembers = $decl.next('.declaration-content').children('.member-list');
+		subMembers.each (function () {		    
+		    fillTree (subTree.members, $(this))
 		});
 		    		
 	    }
@@ -212,12 +244,12 @@ function buildSymbolTree() {
 		fillSubTree('class');
 	    } else if(templateRegex.test(text)) {
 		fillSubTree('template');
+	    } else if (modRegex.test (text)) {
+		fillSubTree ('mod');
+	    } else if (traitRegex.test (text)) {
+		fillSubTree ('trait');
 	    } else if(functionRegex.test(text)) {
-		if(propertyRegex.test(text)) {
-		    addLeaf('property');
-		} else {
-		    addLeaf('function');
-		}
+		addLeaf('function');		
 	    } else {
 		addLeaf('variable');
 	    }
@@ -237,6 +269,10 @@ function buildSymbolTree() {
  * Returns an array of the anchor names for the symbols in the list.
  */
 function populateSymbolList(tree) {
+    function jumpNode (name, anchor, type) {
+	return '<div id=quickindex.' + name + '" class="quickindex"><p><b>Jump to: </b><span class="jumpto notranslate donthyphenate"></p></div>';
+    }
+    
     function expandableNode(name, anchor, type) {
 	return '<li class="dropdown sidebar-list-entry"><span>' +
 	    '<i class="ddoc-icon-' + type + '"></i><a class="symbol-link" href="#' + anchor + '" title="' + name + '">' + name + '</a>' +
@@ -247,9 +283,13 @@ function populateSymbolList(tree) {
 	return '<li class="sidebar-list-entry"><span><i class="ddoc-icon-' + type + '"></i><a class="symbol-link" href="#' + anchor + '" title="' + name + '">' + name + '</a></span></li>';
     }
 
+    function leafNodeJump (name, anchor, type) {
+	return '<a href="#' + anchor + '">' + name + '</a>';
+    }
+
     var anchorNames = new Array();
 
-    function traverser(parent, $parent, anchorTail) {
+    function traverser(parent, $parent, $parentJump, anchorTail) {
 	for(var i = 0; i < parent.length; i++) {
 	    var node = parent[i];
 	    var isTree = typeof node.members !== 'undefined';
@@ -260,9 +300,9 @@ function populateSymbolList(tree) {
 		var $decl = node.decl;
 
 		// Bare DDOC_PSYMBOL
-		var symbolTemplate = '<span class="symbol-target">&nbsp;</span><a class="symbol-link">this</a>';
+		var symbolTemplate = '<span class="symbol-target">&nbsp;</span><a class="symbol-link">self</a>';
 
-		var fixedSymbol = $decl.html().replace(/this/, symbolTemplate);
+		var fixedSymbol = $decl.html().replace(/self/, symbolTemplate);
 		$decl.html(fixedSymbol);
 
 		node.symbolTargetNode = $decl.find('.symbol-target');
@@ -286,19 +326,35 @@ function populateSymbolList(tree) {
 		var $list = $node.find('ul');
 		$list.attr('id', anchorName + '_member-list');
 		$list.hide(); // Default to closed.
-		traverser(node.members, $list, anchorName + '.');
+
+		var $jump_node = $(jumpNode (node.name, anchorName, node.type));
+		node.decl.prepend ($jump_node);
+		var $inner_jump = $jump_node.find ('span');
+		
+		
+		traverser(node.members, $list, $inner_jump, anchorName + '.');
 	    } else {
 		var $node = $(leafNode(node.name, anchorName, node.type));
 		$parent.append($node);
+		
+		if ($parentJump != '') {
+		    var $node_jump = $(leafNodeJump (node.name, anchorName, node.type));
+		    if (i != 0) {
+			$parentJump.append (" . ");
+		    }
+		    $parentJump.append ($node_jump)
+		}
 	    }
 	}
     }
 
     var $symbolHeader = $('#symbol-list');
     $symbolHeader.removeClass('hidden');
+    console.log (tree)
+    
+    traverser(tree, $symbolHeader.parent(), '', '');
 
-    traverser(tree, $symbolHeader.parent(), '');
-
+    
     return anchorNames;
 }
 
@@ -425,10 +481,6 @@ $(document).ready(function() {
     function standaloneNodeClick() {
 	$(this).parent().parent().children('ul').toggle();
     }
-
-    function memberListClick () {
-	$(this).children('.content').toggle ();
-    }
     
     var $treeNodes = $('.tree-node');
     var $standaloneTreeNodes = $('.tree-node-standalone');
@@ -436,5 +488,4 @@ $(document).ready(function() {
     
     $treeNodes.click(treeNodeClick);
     $standaloneTreeNodes.click(standaloneNodeClick);
-    $memberNodes.click (memberListClick);
 });

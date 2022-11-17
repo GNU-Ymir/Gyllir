@@ -83,7 +83,7 @@ pub class Class over Symbol {
             }
         }
 
-        match config ["impls"]? {
+        match config ["impls"]? {            
             Ok (arr : &Array) => {
                 for i in 0us .. arr.len () {
                     __pragma!trusted ({
@@ -158,5 +158,12 @@ pub class Class over Symbol {
         self._asserts[]
     }
 
+    /**
+     * @returns: the list of impl of the class
+     */
+    pub def getImpls (self)-> [&Impl] {
+        self._impls[]
+    }
+    
     impl Streamable;            
 }

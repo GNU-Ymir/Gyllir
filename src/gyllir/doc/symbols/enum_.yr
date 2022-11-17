@@ -38,7 +38,21 @@ pub class Enum over Symbol {
         
         match config ["en_type"]? {
             Ok (type : _) => { self._type = loader::toType (type); }
-        }        
+        }
+    }
+
+    /**
+     * @returns: the type of the enum
+     */
+    pub def getType (self)-> &Type {
+        self._type
+    }
+
+    /**
+     * @returns: the field of the enum
+     */
+    pub def getFields (self)-> [&Parameter] {
+        self._fields[]
     }
 
 

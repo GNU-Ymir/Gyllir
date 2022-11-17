@@ -1,0 +1,489 @@
+mod gyllir::doc::markdown::parser;
+
+import std::lexer, std::io;
+import std::collection::vec;
+import gyllir::doc::markdown::tokens;
+
+/**
+ * This class parse markdown in order to transform documentation blocks into html elements
+ */
+pub class MarkdownParser {
+
+    // The lexec of the parser
+    let dmut _lex : &Lexer!{c8};
+
+    // The content created by the parser
+    let dmut _node = MarkdownNode::new ("Description"s8);
+    
+
+    pub self (content : [c8]) with 
+        _lex = Lexer!{c8}::new (content-> content, tokens-> MarkdownTokens::__members__, comments-> [], skips-> [])    
+    {
+        self:.parse ()            
+    }
+
+    /**
+     * @returns: the content
+     */
+    pub def dumpHtml (self, dmut stream : &StringStream) {
+        self._node.dumpHtml (alias stream)
+    }            
+
+    /**
+     * Start the parsing of the node
+     */
+    prv def parse (mut self) {
+        let mut nb_space = 0us, mut line_ret = true;
+        let dmut currentStream = StringStream::new ();
+        
+        loop {
+            let (n, _, _) = self._lex:.next ();
+            
+            match n {
+                ""s8 => break {}
+                
+                MarkdownTokens::HEAD_LEVEL_1 | MarkdownTokens::HEAD_LEVEL_AT => {
+                    if (currentStream[].len != 0us) {                        
+                        self._node:.addChild (MarkdownText::new (currentStream[]));
+                        currentStream:.clear ();
+                    }
+
+                    self._node:.addChild (self:.parseInnerDoc ());
+                }
+                MarkdownTokens::CODE_BLOCK | MarkdownTokens::CODE_BLOCK_SEVEN => {
+                    if (currentStream[].len != 0us) {                        
+                        self._node:.addChild (MarkdownText::new (currentStream[]));
+                        currentStream:.clear ();
+                    }
+
+                    self._node:.addChild (self:.parseCodeBlock (n, nb_space));
+                }
+                MarkdownTokens::LIST_ITEM_SUB | MarkdownTokens::LIST_ITEM_PLUS => {
+                    if (currentStream[].len != 0us) {                        
+                        self._node:.addChild (MarkdownText::new (currentStream[]));
+                        currentStream:.clear ();
+                    }
+
+                    if (line_ret) {
+                        self._node:.addChild (self:.parseListBlock (n, nb_space));
+                    } else {
+                        self._node:.addChild (MarkdownText::new (n));
+                    }
+                }
+                MarkdownTokens::BOLD_UNDER | MarkdownTokens::BOLD_STAR |
+                MarkdownTokens::ITALIC_UNDER | MarkdownTokens::ITALIC_STAR |
+                MarkdownTokens::CODE_SEVEN => {
+                    if (currentStream[].len != 0us) {                        
+                        self._node:.addChild (MarkdownText::new (currentStream[]));
+                        currentStream:.clear ();
+                    }
+                    
+                    self._node:.addChild (self:.parseBoldItalicBlock (n));
+                }
+                _ => {
+                    currentStream:.write (n);
+                }
+            }
+                
+            if (n == MarkdownTokens::LINE_RET) line_ret = true;
+            else if (n == MarkdownTokens::SPACE && line_ret) nb_space += 1us;
+            else { nb_space = 0us; line_ret = false; }
+        }
+
+        if (currentStream[].len != 0us) {                        
+            self._node:.addChild (MarkdownText::new (currentStream[]));
+            currentStream:.clear ();
+        }
+    }
+
+    /**
+     * Parse a sub module element
+     */
+    prv def parseInnerDoc (mut self) -> &MarkdownNode {
+        let (name, _, _) = self._lex:.next ();
+        self:.skipSpaces ();
+        
+        let (ig, _, _) = self._lex:.nextNoConsume ();
+        if (ig == MarkdownTokens::DCOLON) { self._lex:.next (); }
+
+        let dmut node = MarkdownNode::new (name);
+        let dmut currentStream = StringStream::new ();
+        let mut nb_space = 0us, mut line_ret = true;
+        
+        loop {
+            let (n, _, _) = self._lex:.nextNoConsume ();            
+            match n {
+                ""s8 => break {}
+                MarkdownTokens::HEAD_LEVEL_1 | MarkdownTokens::HEAD_LEVEL_AT => {
+                    break {}
+                }
+                MarkdownTokens::CODE_BLOCK | MarkdownTokens::CODE_BLOCK_SEVEN => {
+                    if (currentStream[].len != 0us) {                        
+                        node:.addChild (MarkdownText::new (currentStream[]));
+                        currentStream:.clear ();
+                    }
+                    
+                    self._lex:.next ();
+                    node:.addChild (self:.parseCodeBlock (n, nb_space));
+                }
+                MarkdownTokens::LIST_ITEM_SUB | MarkdownTokens::LIST_ITEM_PLUS => {
+                    if (currentStream[].len != 0us) {                        
+                        node:.addChild (MarkdownText::new (currentStream[]));
+                        currentStream:.clear ();
+                    }
+                    
+                    self._lex:.next ();
+                    if (line_ret) {
+                        node:.addChild (self:.parseListBlock (n, nb_space));
+                    } else {
+                        node:.addChild (MarkdownText::new (n));
+                    }
+                }
+                MarkdownTokens::BOLD_UNDER | MarkdownTokens::BOLD_STAR |
+                MarkdownTokens::ITALIC_UNDER | MarkdownTokens::ITALIC_STAR |
+                MarkdownTokens::CODE_SEVEN => {
+                    if (currentStream[].len != 0us) {                        
+                        node:.addChild (MarkdownText::new (currentStream[]));
+                        currentStream:.clear ();
+                    }
+                    
+                    node:.addChild (self:.parseBoldItalicBlock (n));
+                }
+                _ => {
+                    self._lex:.next ();
+                    currentStream:.write (n);
+                }
+            }
+
+            if (n == MarkdownTokens::LINE_RET) line_ret = true;
+            else if (n == MarkdownTokens::SPACE && line_ret) nb_space += 1us;
+            else { nb_space = 0us; line_ret = false; }
+        }
+
+
+        if (currentStream[].len != 0us) {                        
+            node:.addChild (MarkdownText::new (currentStream[]));
+            currentStream:.clear ();
+        }
+        
+        node
+    }
+
+    /**
+     * Parse a block of code
+     * @params: 
+     *   - type: the start token of the code block
+     *   - nb_space: the number of space entabing the code block (they are remove from the returned block)
+     * @returns: a block of code
+     */
+    prv def parseCodeBlock (mut self, type : [c8], nb_space : usize)-> &MarkdownCode {
+        self:.skipTo (MarkdownTokens::LINE_RET);
+        let dmut stream = StringStream::new ();
+        let mut skip_space = 0us, mut do_skip = true;
+        loop {
+            let (n, _, _) = self._lex:.next ();
+            match n {
+                ""s8 | type => break {}
+                MarkdownTokens::LINE_RET => {
+                    skip_space = 0us;
+                    do_skip = true;
+                    stream:.write (n);
+                }
+                MarkdownTokens::SPACE => {
+                    if skip_space >= nb_space || !do_skip {
+                        stream:.write (n);
+                        do_skip = false;
+                    } else skip_space += 1us;                     
+                }
+                _ => {                    
+                    stream:.write (n);
+                    do_skip = false;
+                }
+            }
+        }
+
+        self:.skipTo (MarkdownTokens::LINE_RET);
+
+        MarkdownCode::new (stream[])        
+    }
+
+    /**
+     * Parse an item list
+     * @params: 
+     *   - type: the type of item list (- or +)
+     *   - item_nb_space: the number of space the item are aligned with
+     */
+    prv def parseListBlock (mut self, type : [c8], item_nb_space : usize)-> &MarkdownList {
+        let mut nb_space = 0us, mut line_ret = false;
+        let dmut list = MarkdownList::new ();
+        let dmut node = MarkdownListItem::new ();
+        let dmut currentStream = StringStream::new ();
+        
+        loop {
+            let (n, _, _) = self._lex:.nextNoConsume ();
+            let mut add_sub_list = false;
+            
+            match n {
+                ""s8 => break {}
+                MarkdownTokens::CODE_BLOCK | MarkdownTokens::CODE_BLOCK_SEVEN => {
+                    if (currentStream[].len != 0us) {                        
+                        node:.addChild (MarkdownText::new (currentStream[]));
+                        currentStream:.clear ();
+                    }
+                    
+                    self._lex:.next ();
+                    node:.addChild (self:.parseCodeBlock (n, nb_space));
+                }
+                type => {
+                    if (currentStream[].len != 0us) {                        
+                        node:.addChild (MarkdownText::new (currentStream[]));
+                        currentStream:.clear ();
+                    }
+                    
+                    
+                    self._lex:.next ();
+                    list:.addChild (node);
+                    node = MarkdownListItem::new ();
+                }
+                MarkdownTokens::LIST_ITEM_PLUS | MarkdownTokens::LIST_ITEM_SUB => {
+                    if (currentStream[].len != 0us) {                        
+                        node:.addChild (MarkdownText::new (currentStream[]));
+                        currentStream:.clear ();
+                    }
+                                        
+                    if (line_ret && nb_space > item_nb_space) {
+                        self._lex:.next ();
+                        node:.addChild (self:.parseListBlock (n, nb_space));
+                        add_sub_list = true;
+                        line_ret = true;
+                        nb_space = 0us;
+                    } else break {}
+                }
+                MarkdownTokens::BOLD_UNDER | MarkdownTokens::BOLD_STAR |
+                MarkdownTokens::ITALIC_UNDER | MarkdownTokens::ITALIC_STAR |
+                MarkdownTokens::CODE_SEVEN => {
+                    if (currentStream[].len != 0us) {                        
+                        node:.addChild (MarkdownText::new (currentStream[]));
+                        currentStream:.clear ();
+                    }
+                    
+                    node:.addChild (self:.parseBoldItalicBlock (n));
+                }
+                _ => {                                      
+                    if (line_ret && nb_space < item_nb_space && n != MarkdownTokens::SPACE) {
+                        break {}
+                    }
+
+                    self._lex:.next ();
+                    currentStream:.write (n);                
+                }
+            }
+
+            if (!add_sub_list) {
+                if (n == MarkdownTokens::LINE_RET) line_ret = true;
+                else if (n == MarkdownTokens::SPACE && line_ret) nb_space += 1us;
+                else { nb_space = 0us; line_ret = false; }
+            }
+            
+        }
+
+        if (currentStream[].len != 0us) {                        
+            node:.addChild (MarkdownText::new (currentStream[]));
+            currentStream:.clear ();
+        }
+
+        list:.addChild (node);
+        list 
+    }
+
+    prv def parseBoldItalicBlock (mut self, type : [c8])-> &MarkdownStyle {
+        let dmut stream = StringStream::new ();
+        loop {
+            let (n, _, _) = self._lex:.next ();
+            match n {
+                type | ""s8 => break {}
+                _ => { stream:.write (n); }
+            }
+        }
+
+        MarkdownStyle::new (type, stream[])
+    }
+
+    /**
+     * Move the cursor of the lexer until it reach the token `tok` or the end of the content
+     * @params: 
+     *    - tok: the token to reach
+     */
+    prv def skipTo (mut self, tok : [c8]) {
+        loop {
+            let (n, _, _) = self._lex:.next ();
+            match n {
+                tok | ""s8 => break {}
+            }
+        }
+    }
+
+    /**
+     * Move the cursor until it reaches something that is not a space
+     */
+    prv def skipSpaces (mut self) {
+        loop {
+            let (n, _, _) = self._lex:.nextNoConsume ();
+            match n {
+                MarkdownTokens::SPACE => { self._lex:.next (); }
+                _ => { break {} }
+            }
+        }
+    }
+    
+    
+}
+
+prv class MarkdownNode {
+
+    // The head of the markdown node
+    let _head : [c8];
+    
+    // The children of the node
+    let dmut _childrens = Vec!{&MarkdownNode}::new ();
+
+    
+    prot self () with _head = ""s8 {}
+    
+    /**
+     * Create a new markdown node 
+     * @params: 
+     *    - head: the html head of the node
+     */
+    pub self (head : [c8])
+        with _head = head
+    {}
+
+    /**
+     * Transform the node into html
+     * @params: 
+     *    - stream: the stream to populate
+     */
+    pub def dumpHtml (self, dmut stream : &StringStream) {
+        stream:.write ("<dt>"s8);
+        match self._head {
+            "param"s8 | "params"s8 => { stream:.write ("Parameters"s8); }
+            "return"s8 | "returns"s8 => { stream:.write ("Returns"s8); }
+            "throw"s8 | "throws"s8 => { stream:.write ("Throws"s8); }
+            "complexity"s8 => { stream:.write ("Complexity"s8); }
+            "assume"s8 | "assumes"s8 => { stream:.write ("Assumes"s8); }
+            "assert"s8 | "asserts"s8 => { stream:.write ("Assertions"s8); }
+            "example"s8 => { stream:.write ("Example"s8); }
+            "warning"s8 => { stream:.write ("Warning"s8); }
+            _ => { stream:.write (self._head); }
+        }
+                   
+        stream:.write ("</dt><dd>"s8);
+        for i in self._childrens[] {
+            i.dumpHtml (alias stream);
+        }
+        stream:.write ("</dd>"s8);
+    }
+
+    /**
+     * Add a child in the node
+     * @params: 
+     *    - ch: the child to add
+     */
+    pub def addChild (mut self, ch : &MarkdownNode) {
+        self._childrens:.push (ch);
+    }
+
+    impl std::stream::Streamable;
+    
+}
+
+
+prv class MarkdownText over MarkdownNode {
+
+    let _content : [c8];
+
+    pub self (content : [c8]) with  _content = content {}
+
+    pub over dumpHtml (self, dmut stream : &StringStream) {
+        stream:.write (self._content);
+    }
+    
+    impl std::stream::Streamable;
+    
+}
+
+
+prv class MarkdownStyle over MarkdownNode {
+
+    let _style : [c8];
+    
+    let _content : [c8];
+
+    pub self (style : [c8], content : [c8]) with  _style = style, _content = content {}
+
+    pub over dumpHtml (self, dmut stream : &StringStream) {
+        match self._style {
+            MarkdownTokens::BOLD_STAR | MarkdownTokens::BOLD_UNDER => {
+                stream:.write ("<strong>"s8, self._content, "</strong>"s8);
+            }
+            MarkdownTokens::ITALIC_STAR | MarkdownTokens::ITALIC_UNDER => {
+                stream:.write ("<em>"s8, self._content, "</em>"s8);
+            }
+            MarkdownTokens::CODE_SEVEN => {
+                stream:.write ("<code class=\"hljs\">"s8, self._content, "</code>"s8);
+            }
+        }
+    }
+
+    impl std::stream::Streamable;
+}
+
+
+prv class MarkdownCode over MarkdownNode {
+
+    let _content : [c8];
+
+    pub self (content : [c8]) with  _content = content {}
+
+    pub over dumpHtml (self, dmut stream : &StringStream) {
+        stream:.write ("<pre><code class=\"language-ymir\">"s8);       
+        stream:.write (self._content);
+        stream:.write ("</code></pre>"s8);
+    }
+
+    impl std::stream::Streamable;
+}
+
+prv class MarkdownList over MarkdownNode {
+
+    pub self () {}
+
+    pub over dumpHtml (self, dmut stream : &StringStream) {
+        stream:.write ("<ul>"s8);
+        for i in self._childrens[] {
+            i.dumpHtml (alias stream);
+        }
+        stream:.write ("</ul>"s8);
+    }
+
+    impl std::stream::Streamable;
+}
+
+
+
+prv class MarkdownListItem over MarkdownNode {
+
+    pub self () {}
+
+    pub over dumpHtml (self, dmut stream : &StringStream) {
+        stream:.write ("<li>"s8);
+        for i in self._childrens[] {
+            i.dumpHtml (alias stream);
+        }
+        stream:.write ("</li>"s8);
+    }
+
+    impl std::stream::Streamable;
+}
+

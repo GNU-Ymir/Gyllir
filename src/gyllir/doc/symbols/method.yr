@@ -16,20 +16,43 @@ pub class Method over Function {
 
     /// True if it is an over method
     let _over = false;
+
+    // True if the method is mutable
+    let mut _mut = false;
+
+    let mut _final = false;
     
     /**
      * Create a method from a configuration
      */
     pub self (config : &Config)
-        with super (config),
-    _over = (config ["over"]?).toOr (false)
-    {}
+        with super (config), _over = (config ["over"]?).toOr (false)
+    {
+        match config["attributes"]? {
+            Ok (a : &Array)=> {
+                for i in a {
+                    match i {
+                        Str (str-> "mut") => { self._mut = true; }
+                        Str (str-> "final") => { self._final = true; }
+                    }
+                }
+            }
+        }
+    }
 
 
     pub def isOver (self)-> bool {
         self._over
     }
-    
 
+
+    pub def isMut (self)-> bool {
+        self._mut
+    }
+
+    pub def isFinal (self)-> bool {
+        self._final
+    }
+    
     impl Streamable;            
 }
