@@ -35,10 +35,8 @@ pub class HtmlFooter over HtmlNode {
         let mut gitUrl = self._git;
         let githubStart = "git@github.com:"s8;
         if (gitUrl.len > githubStart.len && gitUrl[0us..githubStart.len] == githubStart) {
-            gitUrl = "https://github.com/"s8 ~ gitUrl[githubStart.len .. $ - 4us] ~ "/tree/master/src/"s8;            
+            gitUrl = "https://github.com/"s8 ~ gitUrl[githubStart.len .. $ - 4us] ~ "/tree/master/"s8;            
         }
-
-        println (self._git, " ", gitUrl);
         
         let map = hmap#{
             "Title"s8 => prj,
