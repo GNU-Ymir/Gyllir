@@ -106,6 +106,8 @@ pub class Class over Symbol {
         match config ["ancestor"]? {
             Ok (type : _) => { self._ancestor = loader::toType (type); }
         }
+
+        
         
     }
     

@@ -100,7 +100,6 @@ function populateModuleList(modTree) {
 		}
 
 		traverser(member, $ul);
-
 	    } else if(member.type == 'module') {
 		var url = qualifiedModuleNameToUrl(member.qualifiedName);
 		var $elem = $(treeModuleNode(name, url));
@@ -422,6 +421,14 @@ function setupGotoSymbolForm(typeaheadData) {
     });
 
     $form.removeClass('hidden');
+}
+
+function sortList(ul) {
+  var ul = document.getElementById(ul);
+
+  Array.from(ul.getElementsByTagName("LI"))
+    .sort((a, b) => a.textContent.localeCompare(b.textContent))
+    .forEach(li => ul.appendChild(li));
 }
 
 // 'Title' and 'SourceRepository' are created inline in the DDoc generated HTML page.

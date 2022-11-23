@@ -154,7 +154,7 @@ textarea {
 body {
   margin: 0;
   font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
-  font-size: 13px;
+  font-size: 16px;
   line-height: 18px;
   color: #333333;
   background-color: #ffffff;
@@ -568,6 +568,10 @@ dd {
   margin-left: 9px;
 }
 
+dt.head {
+    line-height: 25px;
+}
+
 .dl-horizontal dt {
   float: left;
   width: 120px;
@@ -585,8 +589,8 @@ dd {
 hr {
   margin: 18px 0;
   border: 0;
-  border-top: 1px solid #eeeeee;
-  border-bottom: 1px solid #ffffff;
+  border-top: 4px solid #dddddd;
+  border-bottom: 4px solid #ffffff;
 }
 
 strong {

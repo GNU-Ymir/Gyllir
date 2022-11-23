@@ -367,7 +367,7 @@ prv class MarkdownNode {
     pub def dumpHtml (self, dmut stream : &StringStream) {
         if (self._childrens[].len == 0us && self._head == "Description"s8) return {}
         
-        stream:.write ("<dt>"s8);
+        stream:.write ("<dt class=\"head\">"s8);
         match self._head {
             "param"s8 | "params"s8 => { stream:.write ("Parameters"s8); }
             "return"s8 | "returns"s8 => { stream:.write ("Returns"s8); }
@@ -434,7 +434,7 @@ prv class MarkdownStyle over MarkdownNode {
                 stream:.write ("<em>"s8, self._content, "</em>"s8);
             }
             MarkdownTokens::CODE_SEVEN => {
-                stream:.write ("<code class=\"hljs\">"s8, self._content, "</code>"s8);
+                stream:.write ("<code class=\"language-ymir hljs\">"s8, self._content, "</code>"s8);
             }
         }
     }
