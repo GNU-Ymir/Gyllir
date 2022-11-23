@@ -93,6 +93,16 @@ pub class Class over Symbol {
             }
         }
 
+        match config ["others"]? {            
+            Ok (arr : &Array) => {
+                for i in 0us .. arr.len () {
+                    __pragma!trusted ({
+                        self._impls:.push (Impl::new (arr [i]));
+                    });
+                }
+            }
+        }
+
         match config ["methods"]? {
             Ok (arr : &Array) => {
                 for i in 0us .. arr.len () {

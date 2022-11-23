@@ -13,7 +13,7 @@ pub class MarkdownParser {
     let dmut _lex : &Lexer!{c8};
 
     // The content created by the parser
-    let dmut _node = MarkdownNode::new ("Description"s8);
+    let dmut _node = MarkdownNode::new (""s8);
     
 
     pub self (content : [c8]) with 
@@ -35,6 +35,7 @@ pub class MarkdownParser {
     prv def parse (mut self) {
         let mut nb_space = 0us, mut line_ret = true;
         let dmut currentStream = StringStream::new ();
+        let mut wasWhite = true;
         
         loop {
             let (n, _, _) = self._lex:.next ();
@@ -73,12 +74,14 @@ pub class MarkdownParser {
                 MarkdownTokens::BOLD_UNDER | MarkdownTokens::BOLD_STAR |
                 MarkdownTokens::ITALIC_UNDER | MarkdownTokens::ITALIC_STAR |
                 MarkdownTokens::CODE_SEVEN => {
-                    if (currentStream[].len != 0us) {                        
-                        self._node:.addChild (MarkdownText::new (currentStream[]));
-                        currentStream:.clear ();
-                    }
+                    if (wasWhite) {
+                        if (currentStream[].len != 0us) {                        
+                            self._node:.addChild (MarkdownText::new (currentStream[]));
+                            currentStream:.clear ();
+                        }
                     
-                    self._node:.addChild (self:.parseBoldItalicBlock (n));
+                        self._node:.addChild (self:.parseBoldItalicBlock (n));
+                    } else currentStream:.write (n);  
                 }
                 _ => {
                     currentStream:.write (n);
@@ -88,6 +91,9 @@ pub class MarkdownParser {
             if (n == MarkdownTokens::LINE_RET) line_ret = true;
             else if (n == MarkdownTokens::SPACE && line_ret) nb_space += 1us;
             else { nb_space = 0us; line_ret = false; }
+
+            if (n == MarkdownTokens::SPACE) wasWhite = true;
+            else wasWhite = false;
         }
 
         if (currentStream[].len != 0us) {                        
@@ -108,7 +114,7 @@ pub class MarkdownParser {
 
         let dmut node = MarkdownNode::new (name);
         let dmut currentStream = StringStream::new ();
-        let mut nb_space = 0us, mut line_ret = true;
+        let mut nb_space = 0us, mut line_ret = true, mut wasWhite = true;
         
         loop {
             let (n, _, _) = self._lex:.nextNoConsume ();            
@@ -142,12 +148,17 @@ pub class MarkdownParser {
                 MarkdownTokens::BOLD_UNDER | MarkdownTokens::BOLD_STAR |
                 MarkdownTokens::ITALIC_UNDER | MarkdownTokens::ITALIC_STAR |
                 MarkdownTokens::CODE_SEVEN => {
-                    if (currentStream[].len != 0us) {                        
-                        node:.addChild (MarkdownText::new (currentStream[]));
-                        currentStream:.clear ();
+                    self._lex:.next ();
+                    if (wasWhite) {
+                        if (currentStream[].len != 0us) {                        
+                            node:.addChild (MarkdownText::new (currentStream[]));
+                            currentStream:.clear ();
+                        }
+
+                        node:.addChild (self:.parseBoldItalicBlock (n));
+                    } else {
+                        currentStream:.write (n);
                     }
-                    
-                    node:.addChild (self:.parseBoldItalicBlock (n));
                 }
                 _ => {
                     self._lex:.next ();
@@ -158,6 +169,9 @@ pub class MarkdownParser {
             if (n == MarkdownTokens::LINE_RET) line_ret = true;
             else if (n == MarkdownTokens::SPACE && line_ret) nb_space += 1us;
             else { nb_space = 0us; line_ret = false; }
+
+            if (n == MarkdownTokens::SPACE) wasWhite = true;
+            else wasWhite = false;
         }
 
 
@@ -214,7 +228,7 @@ pub class MarkdownParser {
      *   - item_nb_space: the number of space the item are aligned with
      */
     prv def parseListBlock (mut self, type : [c8], item_nb_space : usize)-> &MarkdownList {
-        let mut nb_space = 0us, mut line_ret = false;
+        let mut nb_space = 0us, mut line_ret = false, mut wasWhite = true;
         let dmut list = MarkdownList::new ();
         let dmut node = MarkdownListItem::new ();
         let dmut currentStream = StringStream::new ();
@@ -262,12 +276,17 @@ pub class MarkdownParser {
                 MarkdownTokens::BOLD_UNDER | MarkdownTokens::BOLD_STAR |
                 MarkdownTokens::ITALIC_UNDER | MarkdownTokens::ITALIC_STAR |
                 MarkdownTokens::CODE_SEVEN => {
-                    if (currentStream[].len != 0us) {                        
-                        node:.addChild (MarkdownText::new (currentStream[]));
-                        currentStream:.clear ();
+                    self._lex:.next ();
+                    if (wasWhite) {
+                        if (currentStream[].len != 0us) {                        
+                            node:.addChild (MarkdownText::new (currentStream[]));
+                            currentStream:.clear ();
+                        }
+                        
+                        node:.addChild (self:.parseBoldItalicBlock (n));
+                    } else {
+                        currentStream:.write (n);
                     }
-                    
-                    node:.addChild (self:.parseBoldItalicBlock (n));
                 }
                 _ => {                                      
                     if (line_ret && nb_space < item_nb_space && n != MarkdownTokens::SPACE) {
@@ -284,6 +303,9 @@ pub class MarkdownParser {
                 else if (n == MarkdownTokens::SPACE && line_ret) nb_space += 1us;
                 else { nb_space = 0us; line_ret = false; }
             }
+            
+            if (n == MarkdownTokens::SPACE) wasWhite = true;
+            else wasWhite = false;
             
         }
 

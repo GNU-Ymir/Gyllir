@@ -43,6 +43,13 @@
     margin: 10px;
 }
 
+.doc {
+    padding-left: 30px;
+    padding-right: 30px;
+    padding-top: 10px;
+    padding-bottom: 10px;
+}
+
 .quickindex {
     margin-top: 10px;
     margin-bottom: 10px;

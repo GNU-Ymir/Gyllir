@@ -6,6 +6,7 @@ import std::config;
 import gyllir::doc::symbols::_;
 import gyllir::doc::types::_;
 import gyllir::utils::options;
+import gyllir::utils::string;
 import gyllir::doc::loader;
 
 /**

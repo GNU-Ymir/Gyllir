@@ -31,7 +31,7 @@ pub class Function over Symbol {
      */
     pub self (config : &Config)
         with super (config)
-    {        
+    {
         match config ["params"]? {
             Ok (arr : &Array) => {
                 for i in 0us .. arr.len () {

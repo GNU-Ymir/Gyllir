@@ -145,9 +145,9 @@ pub class HtmlBody over HtmlNode {
         innerStream:.write (tempDoc);
 
         stream:.write (std::format::format (self._declHead,
-                                            "aka"s8 ~ tempTest,
+                                            "aka"s8,
                                             p.file (),
-                                            tempParams,                                            
+                                            tempParams ~ tempTest,                                            
                                             innerStream[]));        
     } catch {
         err : _ => println (err);
@@ -200,9 +200,9 @@ pub class HtmlBody over HtmlNode {
         innerStream:.write (std::format::format (self._declMembers, contentStream[]));
         
         stream:.write (std::format::format (self._declHead,
-                                            "enum"s8 ~ tempTest,
+                                            "enum"s8,
                                             p.file (),
-                                            tempParams,
+                                            tempParams ~ tempTest,
                                             innerStream[]));
 
     } catch {
@@ -246,9 +246,9 @@ pub class HtmlBody over HtmlNode {
         innerStream:.write (std::format::format (self._declMembers, contentStream[]));
         
         stream:.write (std::format::format (self._declHead,
-                                            "struct"s8 ~ tempTest,
+                                            "struct"s8,
                                             p.file (),
-                                            tempParams,
+                                            tempParams ~ tempTest,
                                             innerStream[]));
 
     } catch {
@@ -287,9 +287,9 @@ pub class HtmlBody over HtmlNode {
         innerStream:.write (std::format::format (self._declMembers, contentStream[]));
         
         stream:.write (std::format::format (self._declHead,
-                                            "trait"s8 ~ tempTest,
+                                            "trait"s8,
                                             p.file (),
-                                            tempParams,
+                                            tempParams ~ tempTest,
                                             innerStream[]));
 
     } catch {
@@ -383,14 +383,14 @@ pub class HtmlBody over HtmlNode {
         self.dumpClassAsserts (alias contentStream, c);
         self.dumpClassFields (alias contentStream, c.getFields ());
         self.dumpClassCstrs (alias contentStream, c);
-        self.dumpClassMethods (alias contentStream, c);
+        self.dumpClassMethods (alias contentStream, c, fromTemplate-> tempParams != ""s8);
         
         innerStream:.write (std::format::format (self._declMembers, contentStream[]));
         
         stream:.write (std::format::format (self._declHead,
-                                            "class"s8 ~ tempTest,
+                                            "class"s8,
                                             p.file (),
-                                            tempParams,
+                                            tempParams ~ tempTest,
                                             innerStream[]));
 
     } catch {
@@ -457,9 +457,9 @@ pub class HtmlBody over HtmlNode {
         innerStream:.write (std::format::format (self._declMembers, contentStream[]));
         
         stream:.write (std::format::format (self._declHead,
-                                            "mod"s8 ~ tempTest,
+                                            "mod"s8,
                                             p.file (),
-                                            tempParams,
+                                            tempParams ~ tempTest,
                                             innerStream[]));
 
     } catch {
@@ -497,7 +497,7 @@ pub class HtmlBody over HtmlNode {
         self.dumpFunction (alias innerStream, func, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
         
         stream:.write (std::format::format (self._declHead,
-                                            "def"s8 ~ tempTest, name, tempParams,
+                                            "def"s8, name, tempParams ~ tempTest,
                                             innerStream[]));
     } catch {
         err : _ => println (err);
@@ -511,7 +511,7 @@ pub class HtmlBody over HtmlNode {
      *   - func: the function to dump
      *   - isOver: true iif the function is an overriden method
      */
-    prv def dumpFunction (self, dmut stream : &StringStream, func : &Function, isOver : bool = false,  tempTest : [c8] = ""s8, tempParams : [c8] = ""s8, tempDoc : [c8] = ""s8) {
+    prv def dumpFunction (self, dmut stream : &StringStream, func : &Function, isOver : bool = false,  tempTest : [c8] = ""s8, tempParams : [c8] = ""s8, tempDoc : [c8] = ""s8, fromTemplate : bool = false) {
         let dmut codeStream = StringStream::new ();
 
         let name = Path::new (utils::path::toPath (func.getName ())).file ();
@@ -520,10 +520,12 @@ pub class HtmlBody over HtmlNode {
         let mut fstParam = ""s8, mut attributes = ""s8;
         match func {
             m : &Method => {
-                if (m.isMut ()) {
-                    fstParam = "mut self"s8;                    
-                } else fstParam = "self"s8;
-                if (m.getParameters ().len != 0us) fstParam = fstParam ~ ", "s8;
+                if (!fromTemplate) {
+                    if (m.isMut ()) {
+                        fstParam = "\n\tmut self"s8;                    
+                    } else fstParam = "\n\tself"s8;
+                    if (m.getParameters ().len != 0us) fstParam = fstParam ~ ", "s8;
+                }
 
                 if m.isFinal () { attributes = " @final "s8; }
             }
@@ -592,7 +594,7 @@ pub class HtmlBody over HtmlNode {
      *     - stream: the stream to populate
      *     - c: the class containing methods to dump
      */
-    prv def dumpClassMethods (self, dmut stream : &StringStream, c : &Class, tempTest : [c8] = ""s8, tempParams : [c8] = ""s8) {
+    prv def dumpClassMethods (self, dmut stream : &StringStream, c : &Class, tempTest : [c8] = ""s8, tempParams : [c8] = ""s8, fromTemplate : bool = false) {
         if (c.getMethods ().len == 0us) return {}
         let dmut innerStream = StringStream::new ();
         
@@ -600,11 +602,11 @@ pub class HtmlBody over HtmlNode {
             if (p.getProtection () == Protection::PUB) {
                 
                 let dmut innerStream2 = StringStream::new ();
-                self.dumpFunction (alias innerStream2, p, isOver-> p.isOver (), tempTest-> tempTest, tempParams-> tempParams);
+                self.dumpFunction (alias innerStream2, p, isOver-> p.isOver (), tempTest-> tempTest, tempParams-> tempParams, fromTemplate-> fromTemplate);
 
                 let name = Path::new (utils::path::toPath (p.getName ())).file ();
                 innerStream:.write (std::format::format (self._declHead,
-                                                         "def"s8 ~ tempTest, name, tempParams,
+                                                         "def"s8, name, tempParams ~ tempTest,
                                                          innerStream2[]));
             }
         }
@@ -700,8 +702,8 @@ pub class HtmlBody over HtmlNode {
         innerStream:.write (tempDoc);
         
         stream:.write (std::format::format (self._declHead,
-                                            "static"s8 ~ tempTest,
-                                            p.file (), tempParams,
+                                            "static"s8,
+                                            p.file (), tempParams ~ tempTest,
                                             innerStream[]));        
     } catch {
         err : _ => println (err);
@@ -824,7 +826,9 @@ pub class HtmlBody over HtmlNode {
         import gyllir::doc::markdown::parser;
         
         let p = MarkdownParser::new (s.getDoc ());
+        stream:.write ("<div class=\"doc\">");
         p.dumpHtml (alias stream);
+        stream:.write ("</div>");
     }
 
     prv def dumpType (self, type : &Type) -> [c8] {

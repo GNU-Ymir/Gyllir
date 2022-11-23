@@ -1,9 +1,11 @@
 mod gyllir::doc::symbols::variable;
 
 import gyllir::utils::options;
+import gyllir::utils::string;
 import gyllir::doc::symbols::_;
 import gyllir::doc::loader;
 import gyllir::doc::types::_;
+
 
 import std::io;
 import std::collection::vec;
@@ -30,7 +32,7 @@ pub class Variable over Symbol {
         with super (config),
     _mut = (config ["mut"]?).toOr (false),
     _value = (config ["value"]?).toOr (""s8)
-    {
+    {                
         match config ["var_type"]? {
             Ok (type : _) => { self._varType = loader::toType (type); }
         }
