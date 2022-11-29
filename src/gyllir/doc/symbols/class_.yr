@@ -37,6 +37,11 @@ pub class Class over Symbol {
 
     /// The list of methods
     let dmut _methods = Vec!{&Method}::new ();
+
+    // The list of template conditions
+    let dmut _templateCond = Vec!{&TemplateCond}::new ();
+
+    let dmut _templates = Vec!{&Template}::new ();
     
     /**
      * Create a class from a configuration
@@ -92,12 +97,18 @@ pub class Class over Symbol {
                 }
             }
         }
-
+        
         match config ["others"]? {            
             Ok (arr : &Array) => {
                 for i in 0us .. arr.len () {
                     __pragma!trusted ({
-                        self._impls:.push (Impl::new (arr [i]));
+                        if ((arr[i]["type"]?).toOr (""s8) == "impl"s8) {
+                            self._impls:.push (Impl::new (arr [i]));
+                        } else if ((arr[i]["type"]?).toOr (""s8) == "template_condition"s8) {
+                            self._templateCond:.push (TemplateCond::new (arr[i]));
+                        } else if ((arr[i]["type"]?).toOr (""s8) == "template"s8) {
+                            self._templates:.push (Template::new (arr[i]));
+                        }
                     });
                 }
             }
@@ -176,6 +187,17 @@ pub class Class over Symbol {
     pub def getImpls (self)-> [&Impl] {
         self._impls[]
     }
+
+    pub def getTemplates (self)-> [&Template] {
+        self._templates[]
+    }
     
+    /**
+     * @returns: the list of template conditions
+     */
+    pub def getTemplateConds (self)-> [&TemplateCond] {
+        self._templateCond[]
+    }
+
     impl Streamable;            
 }

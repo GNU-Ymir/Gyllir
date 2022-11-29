@@ -675,20 +675,19 @@ cite {
 
 code,
 pre {
-  padding: 0 3px 2px;
-  font-family: Menlo, Monaco, Consolas, "Courier New", monospace;
-  font-size: 12px;
+  padding: 0 0px 0px;
+  font-family:   "Source Code Pro",monospace;
+  font-size: 15px;
+  line-height: 25px;
   color: #333333;
-  -webkit-border-radius: 3px;
-     -moz-border-radius: 3px;
-          border-radius: 3px;
+  border-radius: 3px;
 }
 
 code {
-  padding: 2px 4px;
+  /* padding: 2px 4px; */
   color: #d14;
   background-color: #f7f7f9;
-  border: 1px solid #e1e1e8;
+  /* border: 1px solid #e1e1e8; */
 }
 
 pre {

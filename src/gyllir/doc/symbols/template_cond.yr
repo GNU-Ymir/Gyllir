@@ -1,0 +1,123 @@
+mod gyllir::doc::symbols::template_cond;
+
+
+import gyllir::utils::options;
+import gyllir::doc::symbols::_;
+import gyllir::doc::loader;
+import gyllir::doc::types::_;
+
+import std::io;
+import std::collection::vec;
+import std::config;
+
+/**
+ * A template condition symbol
+ */
+pub class TemplateCond over Symbol {
+    
+    /// The of symbols declared in the module
+    let dmut _impls = Vec!{&Impl}::new ();
+
+    let dmut _cstrs = Vec!{&Function}::new ();
+
+    let dmut _meths = Vec!{&Method}::new ();
+
+    let dmut _templateCond = Vec!{&TemplateCond}::new ();
+
+    let dmut _templates = Vec!{&Template}::new ();
+
+    // The condition to respect 
+    let _condition : [c8];
+    
+    /**
+     * Create an empty module
+     */
+    pub self empty () with _condition = ""s8 {}
+    
+    /**
+     * Create a module from a configuration
+     */
+    pub self (config : &Config)
+        with super (config), _condition = (config["condition"]?).toOr (""s8)
+    {        
+        match config ["others"]? {
+            Ok (arr : &Array) => {
+                for i in 0us .. arr.len () {
+                    __pragma!trusted ({
+                        if ((arr[i]["type"]?).toOr (""s8) == "impl"s8) {
+                            self._impls:.push (Impl::new (arr [i]));
+                        } else if ((arr[i]["type"]?).toOr (""s8) == "template"s8) {
+                            self._templates:.push (Template::new (arr[i]));
+                        } else if ((arr[i]["type"]?).toOr (""s8) == "template_condition"s8) {
+                            self._templateCond:.push (TemplateCond::new (arr[i]));
+                        } else if ((arr[i]["type"]?).toOr (""s8) == "function"s8) {
+                            self._meths:.push (Method::new (arr[i]));
+                        }
+                    });
+                }
+            }
+        }
+        
+        match config["methods"]? {
+            Ok (arr : &Array) => {
+                for i in 0us .. arr.len () {
+                    __pragma!trusted ({
+                        self._meths:.push (Method::new (arr [i]));
+                    });
+                }
+            }
+        }
+
+        match config["cstrs"]? {
+            Ok (arr : &Array) => {
+                for i in 0us .. arr.len () {
+                    __pragma!trusted ({
+                        self._cstrs:.push (Function::new (arr [i]));
+                    });
+                }
+            }
+        }
+        
+    }
+    
+    /**
+     * @returns: the list of children of the module
+     */
+    pub def getImpls (self)-> [&Impl] {    
+        self._impls[]
+    }        
+
+    /**
+     * @returns: the condition of the cte if
+     */
+    pub def getCondition (self)-> [c8] {
+        self._condition
+    }
+
+    /**
+     * @returns: the list of constructors
+     */
+    pub def getCstrs (self)-> [&Function] {
+        self._cstrs[]
+    }
+
+    pub def getMethods (self)-> [&Method] {
+        self._meths[]
+    }
+
+    pub def getTemplateConds (self)-> [&TemplateCond] {
+        self._templateCond[]
+    }
+
+    pub def getTemplates (self)-> [&Template] {
+        self._templates[]
+    }
+
+    
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write ("Template condition (", self._name, ")");
+        }
+    }
+    
+}

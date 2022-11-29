@@ -43,12 +43,12 @@ pub class MarkdownParser {
             match n {
                 ""s8 => break {}
                 
-                MarkdownTokens::HEAD_LEVEL_1 | MarkdownTokens::HEAD_LEVEL_AT => {
+                MarkdownTokens::HEAD_LEVEL_AT => {
                     if (currentStream[].len != 0us) {                        
                         self._node:.addChild (MarkdownText::new (currentStream[]));
                         currentStream:.clear ();
                     }
-
+                    
                     self._node:.addChild (self:.parseInnerDoc ());
                 }
                 MarkdownTokens::CODE_BLOCK | MarkdownTokens::CODE_BLOCK_SEVEN => {
@@ -92,7 +92,7 @@ pub class MarkdownParser {
             else if (n == MarkdownTokens::SPACE && line_ret) nb_space += 1us;
             else { nb_space = 0us; line_ret = false; }
 
-            if (n == MarkdownTokens::SPACE) wasWhite = true;
+            if (n == MarkdownTokens::SPACE || n == MarkdownTokens::LINE_RET) wasWhite = true;
             else wasWhite = false;
         }
 
@@ -120,9 +120,9 @@ pub class MarkdownParser {
             let (n, _, _) = self._lex:.nextNoConsume ();            
             match n {
                 ""s8 => break {}
-                MarkdownTokens::HEAD_LEVEL_1 | MarkdownTokens::HEAD_LEVEL_AT => {
+                MarkdownTokens::HEAD_LEVEL_AT => {
                     break {}
-                }
+                }                
                 MarkdownTokens::CODE_BLOCK | MarkdownTokens::CODE_BLOCK_SEVEN => {
                     if (currentStream[].len != 0us) {                        
                         node:.addChild (MarkdownText::new (currentStream[]));

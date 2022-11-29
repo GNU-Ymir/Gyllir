@@ -20,6 +20,9 @@ pub class Parameter over Symbol {
     /// True if the parameter is mutable
     let mut _mut : bool = false;
 
+    /// True if the parameter is deeply mutable
+    let mut _dmut : bool = false;
+    
     /// True if the parameter is a reference
     let mut _ref : bool = false;
 
@@ -38,6 +41,12 @@ pub class Parameter over Symbol {
             Ok (Str (str-> "true")) => { self._mut = true; }
             Ok (Bool (b-> true)) => { self._mut = true; }
             _ =>  { self._mut = false; }
+        }
+
+        match config["dmut"]? {
+            Ok (Str (str-> "true")) => { self._dmut = true; }
+            Ok (Bool (b-> true)) => { self._dmut = true; }
+            _ =>  { self._dmut = false; }
         }
 
         match config ["ref"]? {
@@ -69,6 +78,13 @@ pub class Parameter over Symbol {
         self._mut
     }
 
+    /**
+     * @returns: true iif the param is deeply mutable
+     */
+    pub def isDeeplyMutable (self)-> bool {
+        self._dmut
+    }
+    
     /**
      * @returns: true iif the param is a ref
      */

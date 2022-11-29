@@ -10,11 +10,11 @@ hljs.registerLanguage("ymir",
 		      function(){"use strict";
 				 return function(e){
 				     var n="([ui](8|16|32|64|128|size)|f(32|64))?",
-					 t="drop i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize f32 f64 str char bool mut dmut const pure";
+					 t="drop i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize f32 f64 str char bool mut dmut const pure true false";
 				     return{name:"Ymir",
 					    aliases:["yr"],
 					    keywords:{$pattern:e.IDENT_RE+"!?",
-						      keyword:"break else enum extern fn for if in let match mod return sizeof static self struct super def dg typeof while with import assert macro move copy dcopy class throws over aka trait throw mut dmut false true pub prv prot ref with new alias is impl catch error success failure",
+						      keyword:"break else enum extern fn for if in let match mod return sizeof static self struct super def dg typeof while with import assert macro move copy dcopy class throws over aka trait throw mut dmut pub prv prot ref with new alias is impl catch error success failure cte of",
 						      literal:"true false",
 						      built_in:t},
 					    illegal:"</",

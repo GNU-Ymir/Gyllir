@@ -111,3 +111,8 @@
     border-radius: 3px;
     color: #6e6b5e;
 }
+
+.width-limiter {
+    max-width: 1100px;
+    margin-right: auto;
+}

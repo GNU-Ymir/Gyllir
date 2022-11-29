@@ -106,6 +106,7 @@ pub class HtmlBody over HtmlNode {
                     m : &Module => self.dumpInnerModule (alias stream, m, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
                     s : &Struct => self.dumpStruct (alias stream, s, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
                     v : &Variable => self.dumpVariable (alias stream, v, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
+                    tr : &Trait => self.dumpTrait (alias stream, tr, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
                     // x : _ => {
                     //     println (x); __pragma!panic ();
                     // }
@@ -131,6 +132,10 @@ pub class HtmlBody over HtmlNode {
         
         let p = Path::new (utils::path::toPath (a.getName ()));
         let dmut innerStream = StringStream::new ();
+
+        let tempTestCode = if (tempTest != ""s8) {
+            std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTest)
+        } else { ""s8 };
         
         let code = std::format::format ("{} aka {}{}{} = {}"s8,
                                         self.convertProtection (a.getProtection ()),
@@ -147,7 +152,7 @@ pub class HtmlBody over HtmlNode {
         stream:.write (std::format::format (self._declHead,
                                             "aka"s8,
                                             p.file (),
-                                            tempParams ~ tempTest,                                            
+                                            tempParams ~ tempTestCode,                                            
                                             innerStream[]));        
     } catch {
         err : _ => println (err);
@@ -198,11 +203,16 @@ pub class HtmlBody over HtmlNode {
         let dmut contentStream = StringStream::new ();
         self.dumpFields (alias contentStream, e.getFields ());
         innerStream:.write (std::format::format (self._declMembers, contentStream[]));
+
+        let tempTestCode = if (tempTest != ""s8) {
+            std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTest)
+        } else { ""s8 };
+        
         
         stream:.write (std::format::format (self._declHead,
                                             "enum"s8,
                                             p.file (),
-                                            tempParams ~ tempTest,
+                                            tempParams ~ tempTestCode,
                                             innerStream[]));
 
     } catch {
@@ -244,11 +254,15 @@ pub class HtmlBody over HtmlNode {
         let dmut contentStream = StringStream::new ();
         self.dumpFields (alias contentStream, s.getFields ());
         innerStream:.write (std::format::format (self._declMembers, contentStream[]));
+
+        let tempTestCode = if (tempTest != ""s8) {
+            std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTest)
+        } else { ""s8 };        
         
         stream:.write (std::format::format (self._declHead,
                                             "struct"s8,
                                             p.file (),
-                                            tempParams ~ tempTest,
+                                            tempParams ~ tempTestCode,
                                             innerStream[]));
 
     } catch {
@@ -285,11 +299,16 @@ pub class HtmlBody over HtmlNode {
         }
         
         innerStream:.write (std::format::format (self._declMembers, contentStream[]));
+
+
+        let tempTestCode = if (tempTest != ""s8) {
+            std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTest)
+        } else { ""s8 };
         
         stream:.write (std::format::format (self._declHead,
                                             "trait"s8,
                                             p.file (),
-                                            tempParams ~ tempTest,
+                                            tempParams ~ tempTestCode,
                                             innerStream[]));
 
     } catch {
@@ -358,6 +377,13 @@ pub class HtmlBody over HtmlNode {
             let ip = Path::new (utils::path::toPath (i.getTrait ()));
             impls:.write (std::format::format ("\n\timpl <a href=\"{}.html#{}\">{}</a>;\n"s8, ip.parent ().toStr (sep-> "_"s8), ip.file (), ip.toStr (sep-> "::"s8)));
         }
+
+        for tc in c.getTemplateConds () {
+            for i in tc.getImpls () {
+                let ip = Path::new (utils::path::toPath (i.getTrait ()));
+                impls:.write (std::format::format ("\n\tcte if {} {{\n\t\timpl <a href=\"{}.html#{}\">{}</a>;\n\t}\n"s8, tc.getCondition (), ip.parent ().toStr (sep-> "_"s8), ip.file (), ip.toStr (sep-> "::"s8)));
+            }
+        }
         
         let attrs =
             if (c.isFinal ()) { " @final"s8 
@@ -386,11 +412,16 @@ pub class HtmlBody over HtmlNode {
         self.dumpClassMethods (alias contentStream, c, fromTemplate-> tempParams != ""s8);
         
         innerStream:.write (std::format::format (self._declMembers, contentStream[]));
+
+        let tempTestCode = if (tempTest != ""s8) {
+            std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTest)
+        } else { ""s8 };
+        
         
         stream:.write (std::format::format (self._declHead,
                                             "class"s8,
                                             p.file (),
-                                            tempParams ~ tempTest,
+                                            tempParams ~ tempTestCode,
                                             innerStream[]));
 
     } catch {
@@ -408,7 +439,7 @@ pub class HtmlBody over HtmlNode {
         let dmut innerStream = StringStream::new ();
         
         for p in c.getCstrs () {
-            if (p.getProtection () == Protection::PUB) {
+            if (p.getProtection () != Protection::PRV) {
                 let dmut innerStream2 = StringStream::new ();
                 self.dumpFunction (alias innerStream2, p);
             
@@ -418,6 +449,11 @@ pub class HtmlBody over HtmlNode {
             }
         }
 
+
+        for tc in c.getTemplateConds () {
+            self.dumpClassTemplateCondCstrs (alias innerStream, tc);
+        }
+        
         if (innerStream[].len != 0us) 
             stream:.write (std::format::format (self._memberHead,
                                                 "Constructors"s8,
@@ -426,7 +462,29 @@ pub class HtmlBody over HtmlNode {
         err : _ => println (err);
     }
 
+           
 
+    prv def dumpClassTemplateCondCstrs (self, dmut stream : &StringStream, tc : &TemplateCond) {
+        for p in tc.getCstrs () {
+            if (p.getProtection () != Protection::PRV) {
+                let dmut innerStream2 = StringStream::new ();
+                self.dumpFunction (alias innerStream2, p, tempTest-> tc.getCondition ());
+                
+                stream:.write (std::format::format (self._declHead,
+                                                         "self"s8, ""s8, ""s8, 
+                                                         innerStream2[]));
+            }                       
+        }
+
+        for tc2 in tc.getTemplateConds () {
+            self.dumpClassTemplateCondCstrs (alias stream, tc2);
+        }
+    } catch {
+        err : _ => println (err);
+    }
+        
+
+    
     /**
      * Dump an inner module
      * @params: 
@@ -434,7 +492,7 @@ pub class HtmlBody over HtmlNode {
      *   - m: the module to dump
      */
     prv def dumpInnerModule (self, dmut stream : &StringStream, m : &Module, tempTest : [c8] = ""s8, tempParams : [c8] = ""s8, tempDoc : [c8] = ""s8) {
-        if (m.getProtection () != Protection::PUB) return {}
+        if (m.getProtection () == Protection::PRV) return {}
             
         let p = Path::new (utils::path::toPath (m.getName ()));        
         let dmut innerStream = StringStream::new ();
@@ -455,17 +513,21 @@ pub class HtmlBody over HtmlNode {
         }
         
         innerStream:.write (std::format::format (self._declMembers, contentStream[]));
+
+        let tempTestCode = if (tempTest != ""s8) {
+            std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTest)
+        } else { ""s8 };
+        
         
         stream:.write (std::format::format (self._declHead,
                                             "mod"s8,
                                             p.file (),
-                                            tempParams ~ tempTest,
+                                            tempParams ~ tempTestCode,
                                             innerStream[]));
 
     } catch {
         err : _ => println (err);
-    }    
-
+    }           
 
     /**
      * Dump an inner module
@@ -495,9 +557,13 @@ pub class HtmlBody over HtmlNode {
 
         let dmut innerStream = StringStream::new ();
         self.dumpFunction (alias innerStream, func, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
-        
+
+        let tempTestCode = if (tempTest != ""s8) {
+            std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTest)
+        } else { ""s8 };
+                
         stream:.write (std::format::format (self._declHead,
-                                            "def"s8, name, tempParams ~ tempTest,
+                                            "def"s8, name, tempParams ~ tempTestCode,
                                             innerStream[]));
     } catch {
         err : _ => println (err);
@@ -526,17 +592,30 @@ pub class HtmlBody over HtmlNode {
                     } else fstParam = "\n\tself"s8;
                     if (m.getParameters ().len != 0us) fstParam = fstParam ~ ", "s8;
                 }
-
-                if m.isFinal () { attributes = " @final "s8; }
             }
         }
 
+        let mut close = false;
+        if (func.getAttributes ().len > 1us) {
+            attributes = " @{"s8; close = true;
+        } else if (func.getAttributes ().len != 0us) {
+            attributes = " @"s8;
+        }
         
+        for i, attr in func.getAttributes () {
+            if i != 0us { attributes = attributes ~ ", "s8; }
+            attributes = attributes ~ attr;
+        }
+
+        if (close) attributes = attributes ~ "} "s8;
+        else attributes ~= " "s8;
+        
+        let tempTestIf = if (tempTest != ""s8) { "if ("s8 ~ tempTest ~ ")"s8 } else { ""s8 };
         
         codeStream:.write (std::format::format ("{} {}{}{}{}{} ({}"s8,
                                                 self.convertProtection (func.getProtection ()),
                                                 df,
-                                                attributes, tempTest,
+                                                tempTestIf, attributes, 
                                                 name, tempParams, fstParam));
 
         
@@ -552,7 +631,7 @@ pub class HtmlBody over HtmlNode {
                     std::format::format (" : {}"s8, type)
                 } else { ""s8 };
 
-                let isMut = if (p.isMutable ()) { "mut "s8 } else { ""s8 };
+                let isMut = if (p.isDeeplyMutable ()) { "dmut "s8 } else if (p.isMutable ()) { "mut "s8 } else { ""s8 };
                 let isRef = if (p.isRef ()) { "ref "s8 } else { ""s8 };
 
                 
@@ -569,15 +648,17 @@ pub class HtmlBody over HtmlNode {
         } else codeStream:.write (")"s8);
 
         if (func.getThrowers ().len != 0us) {
-            codeStream:.write ("\n\tthrows ");
+            codeStream:.write (" throws ");
             for i, p in func.getThrowers () {
                 if (i != 0us) codeStream:.write (", "s8);
                 codeStream:.write (self.dumpType (p));
             }
         }
 
+
+        let type = self.dumpType (func.getRetType ());
         if (name != "self"s8) {
-            codeStream:.write ("\n-> "s8):.write (self.dumpType (func.getRetType ()));
+            codeStream:.write ("\n-> "s8):.write (if (type != ""s8) type else "void"s8);
         }
         
         stream:.write (std::format::format (self._inlineCode, codeStream[]));
@@ -599,18 +680,48 @@ pub class HtmlBody over HtmlNode {
         let dmut innerStream = StringStream::new ();
         
         for p in c.getMethods () {
-            if (p.getProtection () == Protection::PUB) {
+            if (p.getProtection () != Protection::PRV) {
                 
                 let dmut innerStream2 = StringStream::new ();
                 self.dumpFunction (alias innerStream2, p, isOver-> p.isOver (), tempTest-> tempTest, tempParams-> tempParams, fromTemplate-> fromTemplate);
 
+                let tempTestCode = if (tempTest != ""s8) {
+                    std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTest)
+                } else { ""s8 };
+                                
                 let name = Path::new (utils::path::toPath (p.getName ())).file ();
                 innerStream:.write (std::format::format (self._declHead,
-                                                         "def"s8, name, tempParams ~ tempTest,
+                                                         "def"s8, name, tempParams ~ tempTestCode,
                                                          innerStream2[]));
             }
         }
 
+        for tc in c.getTemplateConds () {
+            self.dumpClassTemplateCondMethods (alias innerStream, tc, tempTest-> tempTest, tempParams-> tempParams);
+        }
+
+        for tmp in c.getTemplates () {
+            match tmp.getChild () {
+                p : &Function => {
+                    if (p.getProtection () != Protection::PRV) {
+                        let (tempTestIn, tempParamsIn, tempDocIn) = self.dumpTemplate (tmp);
+                        
+                        let dmut innerStream2 = StringStream::new ();
+                        self.dumpFunction (alias innerStream2, p, tempTest-> tempTestIn, tempParams-> tempParamsIn, tempDoc-> tempDocIn, fromTemplate-> true);
+                        
+                        let tempTestCode = if (tempTestIn != ""s8) {
+                            std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTestIn)
+                        } else { ""s8 };
+                        
+                        let name = Path::new (utils::path::toPath (p.getName ())).file ();
+                        innerStream:.write (std::format::format (self._declHead,
+                                                                 "def"s8, name, tempParamsIn ~ tempTestCode,
+                                                                 innerStream2[]));
+                    }
+                }
+            }
+        }
+        
         if (innerStream[].len != 0us) 
             stream:.write (std::format::format (self._memberHead,
                                                 "Methods"s8,
@@ -618,6 +729,60 @@ pub class HtmlBody over HtmlNode {
     } catch {
         err : _ => println (err);
     }
+
+    
+    prv def dumpClassTemplateCondMethods (self, dmut stream : &StringStream, tc : &TemplateCond, tempTest : [c8] = ""s8, tempParams : [c8] = ""s8) {
+        let tmpTest = if (tempTest != ""s8) {
+            tempTest ~ " && "s8 ~ tc.getCondition ()
+        } else { tc.getCondition () };
+
+        let tmpTestCode = if (tmpTest != ""s8) {
+            std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tmpTest)
+        } else { ""s8 };                
+        
+        for p in tc.getMethods () {
+            let dmut innerStream2 = StringStream::new ();            
+            self.dumpFunction (alias innerStream2, p, isOver-> p.isOver (), tempTest-> tmpTest, tempParams-> tempParams, fromTemplate-> true);
+
+            let name = Path::new (utils::path::toPath (p.getName ())).file ();
+
+            stream:.write (std::format::format (self._declHead,
+                                                "def"s8, name, tempParams ~ tmpTestCode,
+                                                innerStream2[]));
+        }                       
+    
+        for tmp in tc.getTemplates () {
+            match tmp.getChild () {
+                p : &Function => {
+                    if (p.getProtection () != Protection::PRV) {
+                        let (tempTestIn, tempParamsIn, tempDocIn) = self.dumpTemplate (tmp);
+
+                        let tempTestInAnd = if (tempTestIn != ""s8) { tempTestIn ~ " && "s8 ~ tmpTest } else { tmpTest };
+                        
+                        let dmut innerStream2 = StringStream::new ();
+                        self.dumpFunction (alias innerStream2, p, tempTest-> tempTestInAnd, tempParams-> tempParamsIn, tempDoc-> tempDocIn, fromTemplate-> true);
+                        
+                        let tmpTestCodeAnd = if (tempTestInAnd != ""s8) {
+                            std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTestInAnd)
+                        } else { ""s8 };                
+                        
+                        let name = Path::new (utils::path::toPath (p.getName ())).file ();
+                        stream:.write (std::format::format (self._declHead,
+                                                                 "def"s8, name, tempParamsIn ~ tmpTestCodeAnd,
+                                                                 innerStream2[]));
+                    }
+                }
+            }
+        }
+
+        for tmpc in tc.getTemplateConds () {
+            self.dumpClassTemplateCondMethods (alias stream, tmpc, tempTest-> tmpTest, tempParams-> tempParams);
+        }
+        
+    } catch {
+        err : _ => println (err); 
+    }
+
 
     /**
      * Dump a list of fields 
@@ -700,10 +865,14 @@ pub class HtmlBody over HtmlNode {
         innerStream:.write (std::format::format (self._inlineCode, code));
         self.dumpCommonSymbol (alias innerStream, v);
         innerStream:.write (tempDoc);
+
+        let tempTestCode = if (tempTest != ""s8) {
+            std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTest)
+        } else { ""s8 };       
         
         stream:.write (std::format::format (self._declHead,
                                             "static"s8,
-                                            p.file (), tempParams ~ tempTest,
+                                            p.file (), tempParams ~ tempTestCode,
                                             innerStream[]));        
     } catch {
         err : _ => println (err);
@@ -804,17 +973,11 @@ pub class HtmlBody over HtmlNode {
         self.dumpCommonSymbol (alias docStream, t);
         
         if (t.getTest () != ""s8) {
-            (std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, t.getTest ()), paramStream[], docStream[])
+            (t.getTest (), paramStream[], docStream[])
         } else {
             (""s8, paramStream[], docStream[])
         }
-    } catch {
-        err : _ => {
-            println (err);
-            (""s8, ""s8, ""s8)
-        } 
-    }
-
+    } 
     
     /**
      * Dump the elements common to all symbols

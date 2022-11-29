@@ -2,7 +2,6 @@ mod gyllir::doc::markdown::tokens;
 
 
 pub enum 
-| HEAD_LEVEL_1	  = "#"s8
 | HEAD_LEVEL_AT   = "@"s8
 | CODE_BLOCK      = "==="s8
 | CODE_BLOCK_SEVEN      = "```"s8

@@ -23,6 +23,7 @@ pub import gyllir::doc::symbols::struct_;
 pub import gyllir::doc::symbols::template;
 pub import gyllir::doc::symbols::trait_;
 pub import gyllir::doc::symbols::variable;
+pub import gyllir::doc::symbols::template_cond;
 
 pub enum
 | PUB = 0u8

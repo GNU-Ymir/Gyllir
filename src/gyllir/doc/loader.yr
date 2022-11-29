@@ -22,6 +22,8 @@ pub def toSymbol (config : &Config)-> dmut &Symbol {
         "macro"s8 => { return Macro::new (config); }
         "class"s8 => { return Class::new (config); }
         "template_class"s8 => { return Class::new (config); }
+        "template_condition"s8 => { return TemplateCond::new (config); }
+        "impl"s8 => { return Impl::new (config); }
         "block"s8 | "extern"s8 => { return Block::new (config); }
         _ => {
             return Symbol::new (config);
