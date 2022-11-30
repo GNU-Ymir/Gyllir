@@ -181,7 +181,7 @@ var traitRegex = /^trait /;
 var templateRegex = /^template /;
 var functionRegex = /^def /;
 var propertyRegex = /@property/m;
-var constructorRegex = /^[^(]*?self\(+/;
+var constructorRegex = /^self /;
 
 /**
  * Build a table out of all symbols declared in the current module.
@@ -202,6 +202,9 @@ function buildSymbolTree() {
 		}
 	    } else {
 		symbol = $symbolLink.html();
+		if (symbol == '' && constructorRegex.test (text)) {
+		    symbol = 'self';
+		}
 	    }
 	    
 	    function fillSubTree(type) {
@@ -479,6 +482,18 @@ $(document).ready(function() {
 	var targetId = $(this).attr('href');
 	highlightSymbol(targetId);
     });
+
+    $('.symbol-closing').click (function () {
+	var id = $(this).attr("id");
+	id = id.substring (0, id.length - 8);
+	$(this).parent ().next ("#" + id + "-content").toggle ();
+	if ($(this).text () == "[−]") {
+	    $(this).text ("[+]");
+	} else {
+	    $(this).text ("[−]");
+	}
+    });
+
 
     if(document.location.hash.length > 0) {
 	highlightSymbol(document.location.hash);

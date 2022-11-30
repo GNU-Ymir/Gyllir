@@ -116,3 +116,16 @@
     max-width: 1100px;
     margin-right: auto;
 }
+
+.y_dd_decl_name {
+    width: 90%;
+    display: inline;
+}
+
+.symbol-closing {
+    vertical-align: middle;
+    float: right;
+    cursor: pointer;
+    font-size: 18px;
+    color: #6e6b5e;
+}

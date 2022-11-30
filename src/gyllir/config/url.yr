@@ -6,7 +6,7 @@ import std::config::error;
 import std::io;
 import std::tokenizer;
 import std::fs::path;
-import std::algorithm::search;
+import std::algorithm::searching;
 import std::hash;
 
 /**
@@ -118,6 +118,15 @@ pub class Url {
      */
     pub def isValid (self)-> bool {
         self._valid
+    }
+
+    /**
+     * @returns: true if self == o
+     */
+    pub def opEquals (self, o : &Url)-> bool {
+        self._path == o._path &&
+            self._type == o._type &&
+            self._valid == o._valid
     }
     
     /**

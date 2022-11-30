@@ -102,7 +102,7 @@ pub class HtmlBody over HtmlNode {
                     a : &Aka => self.dumpAka (alias stream, a, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
                     c : &Class => self.dumpClass (alias stream, c, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
                     e : &Enum => self.dumpEnum (alias stream, e, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
-                    f : &Function => self.dumpFunctionGlob (alias stream, f, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);                    
+                    f : &Function => self.dumpFunctionGlob (alias stream, f, tempTest-> tempTest, tempParams-> tempParams);                    
                     m : &Module => self.dumpInnerModule (alias stream, m, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
                     s : &Struct => self.dumpStruct (alias stream, s, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
                     v : &Variable => self.dumpVariable (alias stream, v, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
