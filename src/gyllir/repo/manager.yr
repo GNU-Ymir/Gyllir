@@ -667,7 +667,7 @@ pub class GyllirManager {
     {
         import std::config::toml;
         with dmut f = File::create (path, write-> true) {
-            f:.write (content.dump ().(std::conv::to)![c8] ());
+            f:.write (content.dump ());
         }
     }
 
