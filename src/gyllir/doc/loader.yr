@@ -1,6 +1,6 @@
 mod gyllir::doc::loader;
 
-import std::config;
+import std::config::_;
 import gyllir::doc::symbols::_;
 import gyllir::doc::types::_;
 import gyllir::utils::options;

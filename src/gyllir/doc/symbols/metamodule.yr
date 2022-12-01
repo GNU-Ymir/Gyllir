@@ -7,7 +7,7 @@ import gyllir::repo::defaults;
 
 import std::io, std::fs::path;
 import std::collection::map;
-import std::config;
+import std::config::_;
 
 
 /**

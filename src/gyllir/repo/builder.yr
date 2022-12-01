@@ -1,13 +1,11 @@
 mod gyllir::repo::builder;
 
 import std::io;
-import std::fs::_, std::env, std::args, std::config;
+import std::fs::_, std::env, std::args, std::config::_;
 import gyllir::config::_;
 import gyllir::repo::defaults;
-import std::config::conv;
 import gyllir::repo::dependency;
 import gyllir::repo::manager;
-import std::config::json;
 import std::collection::vec;
 import std::concurrency::process;
 

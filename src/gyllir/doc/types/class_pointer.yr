@@ -1,7 +1,7 @@
 mod gyllir::doc::types::class_pointer;
 
 import gyllir::doc::types::base;
-import std::config, std::io, std::conv;
+import std::config::_, std::io, std::conv;
 import gyllir::utils::options;
 import gyllir::doc::loader;
 

@@ -51,7 +51,10 @@ pub class HtmlBody over HtmlNode {
      *    - stream: the stream to populate
      */
     pub over dumpHtml (self, dmut stream : &StringStream) {
+        stream:.write ("<div class=\"module description\"><h3 class=\"y_dd_decl_name\">Description</h3><span class=\"module-closing\" id=\"mod-desc-closing\">[−]</span><div class=\"inner\">");
         self.dumpCommonSymbol (alias stream, self._module);
+        stream:.write ("</div></div>");
+        
         for ch in self._module.getChilds () {
             self.dumpContent (alias stream, ch);
         }
@@ -102,7 +105,7 @@ pub class HtmlBody over HtmlNode {
                     a : &Aka => self.dumpAka (alias stream, a, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
                     c : &Class => self.dumpClass (alias stream, c, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
                     e : &Enum => self.dumpEnum (alias stream, e, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
-                    f : &Function => self.dumpFunctionGlob (alias stream, f, tempTest-> tempTest, tempParams-> tempParams);                    
+                    f : &Function => self.dumpFunctionGlob (alias stream, f, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);                    
                     m : &Module => self.dumpInnerModule (alias stream, m, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
                     s : &Struct => self.dumpStruct (alias stream, s, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
                     v : &Variable => self.dumpVariable (alias stream, v, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
@@ -146,8 +149,7 @@ pub class HtmlBody over HtmlNode {
         
         innerStream:.write (std::format::format (self._inlineCode, code));
 
-        self.dumpCommonSymbol (alias innerStream, a);
-        innerStream:.write (tempDoc);
+        self.dumpCommonSymbol (alias innerStream, a, tempDoc-> tempDoc);
 
         stream:.write (std::format::format (self._declHead,
                                             "aka"s8,
@@ -197,8 +199,7 @@ pub class HtmlBody over HtmlNode {
                                         p.file (), tempTest);
         
         innerStream:.write (std::format::format (self._inlineCode, code));
-        self.dumpCommonSymbol (alias innerStream, e);
-        innerStream:.write (tempDoc);
+        self.dumpCommonSymbol (alias innerStream, e, tempDoc-> tempDoc);
         
         let dmut contentStream = StringStream::new ();
         self.dumpFields (alias contentStream, e.getFields ());
@@ -231,25 +232,16 @@ pub class HtmlBody over HtmlNode {
         
         let p = Path::new (utils::path::toPath (s.getName ()));
 
-        let dmut attrs = StringStream::new ();
-        if (s.getAttrs ().len > 1us) attrs:.write ("@{"s8);
-        else if (s.getAttrs ().len == 1us) attrs:.write ("@"s8);
-        for j, i in s.getAttrs () {
-            if (j != 0us) attrs:.write (", ");
-            attrs:.write (i);
-        }
-        if (s.getAttrs ().len > 1us) attrs:.write ("}"s8);
-        
+        let attrs = self.dumpAttrsStruct (s);
         let dmut innerStream = StringStream::new ();
         let code = std::format::format ("{}{} struct {}\n| /** full declaration omitted */ \n-> {}{};"s8,
                                         self.convertProtection (s.getProtection ()),
-                                        attrs[],
+                                        attrs,
                                         tempParams,
                                         p.file (), tempTest);
         
         innerStream:.write (std::format::format (self._inlineCode, code));
-        self.dumpCommonSymbol (alias innerStream, s);
-        innerStream:.write (tempDoc);
+        self.dumpCommonSymbol (alias innerStream, s, tempDoc-> tempDoc);
 
         let dmut contentStream = StringStream::new ();
         self.dumpFields (alias contentStream, s.getFields ());
@@ -271,6 +263,36 @@ pub class HtmlBody over HtmlNode {
 
 
     /**
+     * Dump the attribute of a struct
+     * @params:
+     *    - s: the struct which has attributes to dump
+     * @returns: the string containing the attributes 
+     */
+    prv def dumpAttrsStruct (self, s : &Struct)-> [c8] {
+        let dmut attrs = StringStream::new ();
+        let mut nb = 0us;
+        for _, i in s.getAttrs () {
+            let write = match i {
+                "union"s8 | "packed"s8 => { true }
+                _ => { false }
+            }
+            if (write) {
+                if (nb != 0us) attrs:.write (", "s8);
+                attrs:.write (i);
+                nb += 1us;
+            }
+        }
+
+        if (nb > 1us) {
+            "@{"s8 ~ attrs[] ~ "}"s8
+        } else if nb == 1us {
+            "@"s8 ~ attrs[]
+        } else {
+            ""s8
+        }        
+    }
+    
+    /**
      * Dump a trait to html
      * @params: 
      *   - stream: the stream to populate
@@ -290,8 +312,7 @@ pub class HtmlBody over HtmlNode {
                                         tempParams);
         
         innerStream:.write (std::format::format (self._inlineCode, code));
-        self.dumpCommonSymbol (alias innerStream, t);
-        innerStream:.write (tempDoc);        
+        self.dumpCommonSymbol (alias innerStream, t, tempDoc-> tempDoc);
         
         let dmut contentStream = StringStream::new ();
         for j in t.getChilds () {
@@ -375,13 +396,13 @@ pub class HtmlBody over HtmlNode {
         let dmut impls = StringStream::new ();
         for i in c.getImpls () {
             let ip = Path::new (utils::path::toPath (i.getTrait ()));
-            impls:.write (std::format::format ("\n\timpl <a href=\"{}.html#{}\">{}</a>;\n"s8, ip.parent ().toStr (sep-> "_"s8), ip.file (), ip.toStr (sep-> "::"s8)));
+            impls:.write (std::format::format ("\timpl <a href=\"{}.html#{}\">{}</a>;\n"s8, ip.parent ().toStr (sep-> "_"s8), ip.file (), ip.toStr (sep-> "::"s8)));
         }
 
         for tc in c.getTemplateConds () {
             for i in tc.getImpls () {
                 let ip = Path::new (utils::path::toPath (i.getTrait ()));
-                impls:.write (std::format::format ("\n\tcte if {} {{\n\t\timpl <a href=\"{}.html#{}\">{}</a>;\n\t}\n"s8, tc.getCondition (), ip.parent ().toStr (sep-> "_"s8), ip.file (), ip.toStr (sep-> "::"s8)));
+                impls:.write (std::format::format ("\tcte if {} {{\n\t\timpl <a href=\"{}.html#{}\">{}</a>;\n\t}\n"s8, tc.getCondition (), ip.parent ().toStr (sep-> "_"s8), ip.file (), ip.toStr (sep-> "::"s8)));
             }
         }
         
@@ -392,7 +413,7 @@ pub class HtmlBody over HtmlNode {
 
         
         
-        let code = std::format::format ("{}{} class{} {}{} {} {{ \n\t/** full declaration omitted */ \n{}}"s8,
+        let code = std::format::format ("{}{} class{} {}{} {} {{ \n\t/** full declaration omitted */ \n\n{}}"s8,
                                         self.convertProtection (c.getProtection ()),
                                         attrs,
                                         tempTest,
@@ -402,8 +423,7 @@ pub class HtmlBody over HtmlNode {
                                         impls[]);
         
         innerStream:.write (std::format::format (self._inlineCode, code));
-        self.dumpCommonSymbol (alias innerStream, c);
-        innerStream:.write (tempDoc);
+        self.dumpCommonSymbol (alias innerStream, c, tempDoc-> tempDoc);
         
         let dmut contentStream = StringStream::new ();
         self.dumpClassAsserts (alias contentStream, c);
@@ -439,12 +459,13 @@ pub class HtmlBody over HtmlNode {
         let dmut innerStream = StringStream::new ();
         
         for p in c.getCstrs () {
+            let name = Path::new (utils::path::toPath (p.getName ())).file ();
             if (p.getProtection () != Protection::PRV) {
                 let dmut innerStream2 = StringStream::new ();
-                self.dumpFunction (alias innerStream2, p);
+                self.dumpFunction (alias innerStream2, p, isConstruct-> true);
             
                 innerStream:.write (std::format::format (self._declHead,
-                                                         "self"s8, ""s8, ""s8, 
+                                                         "ctor"s8, name, ""s8, 
                                                          innerStream2[]));
             }
         }
@@ -467,11 +488,12 @@ pub class HtmlBody over HtmlNode {
     prv def dumpClassTemplateCondCstrs (self, dmut stream : &StringStream, tc : &TemplateCond) {
         for p in tc.getCstrs () {
             if (p.getProtection () != Protection::PRV) {
+                let name = Path::new (utils::path::toPath (p.getName ())).file ();
                 let dmut innerStream2 = StringStream::new ();
-                self.dumpFunction (alias innerStream2, p, tempTest-> tc.getCondition ());
+                self.dumpFunction (alias innerStream2, p, tempTest-> tc.getCondition (), isConstruct-> true);
                 
                 stream:.write (std::format::format (self._declHead,
-                                                         "self"s8, ""s8, ""s8, 
+                                                         "self"s8, name, ""s8, 
                                                          innerStream2[]));
             }                       
         }
@@ -504,8 +526,7 @@ pub class HtmlBody over HtmlNode {
                                         tempParams);
         
         innerStream:.write (std::format::format (self._inlineCode, code));
-        self.dumpCommonSymbol (alias innerStream, m);
-        innerStream:.write (tempDoc);
+        self.dumpCommonSymbol (alias innerStream, m, tempDoc-> tempDoc);
 
         let dmut contentStream = StringStream::new ();
         for j in m.getChilds () {
@@ -577,17 +598,18 @@ pub class HtmlBody over HtmlNode {
      *   - func: the function to dump
      *   - isOver: true iif the function is an overriden method
      */
-    prv def dumpFunction (self, dmut stream : &StringStream, func : &Function, isOver : bool = false,  tempTest : [c8] = ""s8, tempParams : [c8] = ""s8, tempDoc : [c8] = ""s8, fromTemplate : bool = false) {
+    prv def dumpFunction (self, dmut stream : &StringStream, func : &Function, isOver : bool = false,  tempTest : [c8] = ""s8, tempParams : [c8] = ""s8, tempDoc : [c8] = ""s8, fromTemplate : bool = false, isConstruct : bool = false) {
         let dmut codeStream = StringStream::new ();
 
         let name = Path::new (utils::path::toPath (func.getName ())).file ();
-        let df = if isOver { "over "s8 } else if name != "self"s8 { "def "s8 } else { ""s8 };
+        let df = if isOver { "over"s8 } else if name != "self"s8 { if (isConstruct) { "self"s8 } else { "def"s8 } } else { ""s8 };
 
-        let mut fstParam = ""s8, mut attributes = ""s8;
+        let mut fstParam = ""s8;
+        let (attributes, funcIsMut) = self.dumpAttrsFunction (func);
         match func {
             m : &Method => {
                 if (!fromTemplate) {
-                    if (m.isMut ()) {
+                    if (m.isMut () || funcIsMut) {
                         fstParam = "\n\tmut self"s8;                    
                     } else fstParam = "\n\tself"s8;
                     if (m.getParameters ().len != 0us) fstParam = fstParam ~ ", "s8;
@@ -595,22 +617,7 @@ pub class HtmlBody over HtmlNode {
             }
         }
 
-        let mut close = false;
-        if (func.getAttributes ().len > 1us) {
-            attributes = " @{"s8; close = true;
-        } else if (func.getAttributes ().len != 0us) {
-            attributes = " @"s8;
-        }
-        
-        for i, attr in func.getAttributes () {
-            if i != 0us { attributes = attributes ~ ", "s8; }
-            attributes = attributes ~ attr;
-        }
-
-        if (close) attributes = attributes ~ "} "s8;
-        else attributes ~= " "s8;
-        
-        let tempTestIf = if (tempTest != ""s8) { "if ("s8 ~ tempTest ~ ")"s8 } else { ""s8 };
+        let tempTestIf = if (tempTest != ""s8) { " if ("s8 ~ tempTest ~ ")"s8 } else { ""s8 };
         
         codeStream:.write (std::format::format ("{} {}{}{}{}{} ({}"s8,
                                                 self.convertProtection (func.getProtection ()),
@@ -645,6 +652,7 @@ pub class HtmlBody over HtmlNode {
             }
             
             codeStream:.write ("\n)"s8);
+        } else if (fstParam != ""s8) { codeStream:.write ("\n)"s8); 
         } else codeStream:.write (")"s8);
 
         if (func.getThrowers ().len != 0us) {
@@ -662,12 +670,45 @@ pub class HtmlBody over HtmlNode {
         }
         
         stream:.write (std::format::format (self._inlineCode, codeStream[]));
-        self.dumpCommonSymbol (alias stream, func);
-        stream:.write (tempDoc);
+        self.dumpCommonSymbol (alias stream, func, tempDoc-> tempDoc);        
         
     } catch {
         err : _ => println (err);
     }
+
+    /**
+     * Dump the attributes of a function
+     * @params: 
+     *    - func: the function that has attributes to dump
+     * @returns: 
+     *    - .0: the list of attributes in a string, (some of them are ignored)
+     *    - .1: true if the function has the attribute `mut`
+     */
+    prv def dumpAttrsFunction (self, func : &Function)-> ([c8], bool) {
+        let dmut attrs = StringStream::new ();
+        let mut nb = 0us, mut isMut = false;
+        for _, i in func.getAttributes () {
+            let write = match i {
+                "final"s8 | "virtual"s8 => { true }
+                "mut"s8 => { isMut = true; false }
+                _ => { false }
+            }
+            if (write) {
+                if (nb != 0us) attrs:.write (", "s8);
+                attrs:.write (i);
+                nb += 1us;
+            }
+        }
+
+        if (nb > 1us) {
+            (" @{"s8 ~ attrs[] ~ "} "s8, isMut)
+        } else if nb == 1us {
+            (" @"s8 ~ attrs[] ~ " "s8, isMut)
+        } else {
+            (" "s8, isMut)
+        }        
+    }
+    
     
     /**
      * Dump the method of the class into the stream
@@ -863,8 +904,7 @@ pub class HtmlBody over HtmlNode {
                                         value);
 
         innerStream:.write (std::format::format (self._inlineCode, code));
-        self.dumpCommonSymbol (alias innerStream, v);
-        innerStream:.write (tempDoc);
+        self.dumpCommonSymbol (alias innerStream, v, tempDoc-> tempDoc);
 
         let tempTestCode = if (tempTest != ""s8) {
             std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTest)
@@ -985,13 +1025,16 @@ pub class HtmlBody over HtmlNode {
      *     - stream: the stream to populate
      *     - s: the symbol to dump 
      */
-    prv def dumpCommonSymbol (self, dmut stream : &StringStream, s : &Symbol) {
+    prv def dumpCommonSymbol (self, dmut stream : &StringStream, s : &Symbol, tempDoc : [c8] = ""s8) {
         import gyllir::doc::markdown::parser;
         
         let p = MarkdownParser::new (s.getDoc ());
         stream:.write ("<div class=\"doc\">");
         p.dumpHtml (alias stream);
         stream:.write ("</div>");
+        if (s.getDoc ().len == 0us) {
+            stream:.write (tempDoc);
+        }
     }
 
     prv def dumpType (self, type : &Type) -> [c8] {

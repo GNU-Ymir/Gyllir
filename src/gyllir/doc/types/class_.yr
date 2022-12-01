@@ -3,7 +3,7 @@ mod gyllir::doc::types::class_;
 import gyllir::doc::types::base;
 import std::fs::path;
 import gyllir::utils::path;
-import std::io, std::config;
+import std::io, std::config::_;
 
 /**
  * A classure type

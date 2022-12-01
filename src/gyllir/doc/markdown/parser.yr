@@ -390,6 +390,14 @@ prv class MarkdownNode {
         if (self._childrens[].len == 0us && self._head == "Description"s8) return {}
         
         stream:.write ("<dt class=\"head\">"s8);
+        let dmut innerStream = StringStream::new ();
+        for i in self._childrens[] {
+            i.dumpHtml (alias innerStream);
+        }
+        
+        if (self._head != ""s8 && innerStream[].len > 256us)
+            stream:.write ("<span class=\"desc-closing\">[−]</span> ");
+        
         match self._head {
             "param"s8 | "params"s8 => { stream:.write ("Parameters"s8); }
             "return"s8 | "returns"s8 => { stream:.write ("Returns"s8); }
@@ -400,14 +408,12 @@ prv class MarkdownNode {
             "example"s8 => { stream:.write ("Example"s8); }
             "warning"s8 => { stream:.write ("Warning"s8); }
             "info"s8 | "infos"s8 => { stream:.write ("Information"s8); }
+            "authors"s8 | "author"s8 => { stream:.write ("Authors"s8); }
+            "license"s8 => { stream:.write ("License"s8); }
             _ => { stream:.write (self._head); }
         }
-                   
-        stream:.write ("</dt><dd>"s8);
-        for i in self._childrens[] {
-            i.dumpHtml (alias stream);
-        }
-        stream:.write ("</dd>"s8);
+        
+        stream:.write ("</dt><dd>"s8, innerStream[], "</dd>"s8);
     }
 
     /**

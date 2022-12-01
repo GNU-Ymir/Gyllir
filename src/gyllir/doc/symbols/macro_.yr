@@ -6,7 +6,7 @@ import gyllir::doc::loader;
 
 import std::io;
 import std::collection::vec;
-import std::config;
+import std::config::_;
 
 /**
  * A macro documentation symbol

@@ -1,14 +1,12 @@
 mod gyllir::repo::manager;
 
 import std::io;
-import std::fs::_, std::env, std::args, std::config;
+import std::fs::_, std::env, std::args, std::config::_;
 import gyllir::config::_;
 import gyllir::args::_;
 import gyllir::repo::defaults;
 import std::time::_;
-import std::config::conv;
 import gyllir::repo::dependency;
-import std::config::json;
 import gyllir::doc::dumper;
 import gyllir::utils::colors, gyllir::utils::path;
 

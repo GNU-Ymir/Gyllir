@@ -692,7 +692,7 @@ code {
 
 pre {
   display: block;
-  padding: 8.5px;
+  padding: 14px;
   margin: 0 0 9px;
   font-size: 12.025px;
   line-height: 18px;
@@ -700,9 +700,9 @@ pre {
   word-wrap: break-word;
   white-space: pre;
   white-space: pre-wrap;
-  background-color: #f5f5f5;
-  border: 1px solid #ccc;
-  border: 1px solid rgba(0, 0, 0, 0.15);
+  background-color: #f1f1f1;
+  border: 0px solid #ccc;
+  border: 0px solid rgba(0, 0, 0, 0.15);
   -webkit-border-radius: 4px;
      -moz-border-radius: 4px;
           border-radius: 4px;
@@ -2468,17 +2468,10 @@ table .span24 {
 
 .well {
   min-height: 20px;
-  padding: 19px;
+  padding-top: 19px;
+  padding-bottom: 19px;
   margin-bottom: 20px;
-  background-color: #f5f5f5;
-  border: 1px solid #eee;
-  border: 1px solid rgba(0, 0, 0, 0.05);
-  -webkit-border-radius: 4px;
-     -moz-border-radius: 4px;
-          border-radius: 4px;
-  -webkit-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.05);
-     -moz-box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.05);
-          box-shadow: inset 0 1px 1px rgba(0, 0, 0, 0.05);
+  background-color: #fbfbfb;
 }
 
 .well blockquote {
@@ -2487,17 +2480,17 @@ table .span24 {
 }
 
 .well-large {
-  padding: 24px;
-  -webkit-border-radius: 6px;
-     -moz-border-radius: 6px;
-          border-radius: 6px;
+    padding-top: 24px;
+    padding-bottom: 24px;
 }
 
 .well-small {
-  padding: 9px;
-  -webkit-border-radius: 3px;
-     -moz-border-radius: 3px;
-          border-radius: 3px;
+    padding-top: 9px;
+    padding-bottom: 9px;
+}
+
+.nav {
+    witdth: 20%;
 }
 
 .fade {
@@ -3950,25 +3943,11 @@ input[type="submit"].btn.btn-mini {
 }
 
 .breadcrumb {
-  padding: 7px 14px;
+  padding: 10px 20px;
   margin: 0 0 18px;
   list-style: none;
   background-color: #fbfbfb;
-  background-image: -moz-linear-gradient(top, #ffffff, #f5f5f5);
-  background-image: -ms-linear-gradient(top, #ffffff, #f5f5f5);
-  background-image: -webkit-gradient(linear, 0 0, 0 100%, from(#ffffff), to(#f5f5f5));
-  background-image: -webkit-linear-gradient(top, #ffffff, #f5f5f5);
-  background-image: -o-linear-gradient(top, #ffffff, #f5f5f5);
-  background-image: linear-gradient(top, #ffffff, #f5f5f5);
-  background-repeat: repeat-x;
-  border: 1px solid #ddd;
-  -webkit-border-radius: 3px;
-     -moz-border-radius: 3px;
-          border-radius: 3px;
-  filter: progid:dximagetransform.microsoft.gradient(startColorstr='#ffffff', endColorstr='#f5f5f5', GradientType=0);
-  -webkit-box-shadow: inset 0 1px 0 #ffffff;
-     -moz-box-shadow: inset 0 1px 0 #ffffff;
-          box-shadow: inset 0 1px 0 #ffffff;
+  border-radius: 3px;
 }
 
 .breadcrumb li {

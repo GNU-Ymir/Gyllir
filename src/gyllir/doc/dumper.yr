@@ -2,8 +2,7 @@ mod gyllir::doc::dumper;
 
 import std::fs::path;
 import std::fs::file;
-import std::config;
-import std::config::json;
+import std::config::_;
 import std::io, std::conv;
 import std::collection::vec;
 

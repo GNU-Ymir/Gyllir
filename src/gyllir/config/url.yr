@@ -1,8 +1,6 @@
 mod gyllir::config::url;
 
-import std::config;
-import std::config::conv;
-import std::config::error;
+import std::config::_;
 import std::io;
 import std::tokenizer;
 import std::fs::path;

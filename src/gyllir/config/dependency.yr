@@ -1,8 +1,6 @@
 mod gyllir::config::dependency;
 
-import std::config;
-import std::config::conv;
-import std::config::error;
+import std::config::_;
 import std::collection::map;
 import std::io;
 import std::tokenizer;

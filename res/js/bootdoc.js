@@ -238,10 +238,11 @@ function buildSymbolTree() {
 		parentNode.push(leaf);
 	    }
 	    
-	    if(symbol == 'self' || text == 'self') {
-		symbol = 'self';
-		addLeaf('constructor');
-	    } else if(enumRegex.test(text)) {
+	    // if(symbol == 'self' || text == 'self') {
+	    // 	symbol = 'self';
+	    // 	addLeaf('constructor');
+	    // } else
+	    if(enumRegex.test(text)) {
 		fillSubTree('enum');
 	    } else if(structRegex.test(text)) {
 		fillSubTree('struct');
@@ -486,7 +487,9 @@ $(document).ready(function() {
     $('.symbol-closing').click (function () {
 	var id = $(this).attr("id");
 	id = id.substring (0, id.length - 8);
-	$(this).parent ().next ("#" + id + "-content").toggle ();
+	
+	// <h3.decl_name><div.declaration> => <div.declaration-content>
+	$(this).parent ().parent ().next ("#" + id + "-content").toggle ();
 	if ($(this).text () == "[−]") {
 	    $(this).text ("[+]");
 	} else {
@@ -494,6 +497,24 @@ $(document).ready(function() {
 	}
     });
 
+    $('.module-closing').click (function () {
+	$(this).parent ().children (".inner").toggle ();
+	if ($(this).text () == "[−]") {
+	    $(this).text ("[+]");
+	} else {
+	    $(this).text ("[−]");
+	}
+    });
+
+    $('.desc-closing').click (function () {
+	$(this).parent ().next ("dd").toggle ();
+	if ($(this).text () == "[−]") {
+	    $(this).text ("[+]");
+	} else {
+	    $(this).text ("[−]");
+	}
+    });
+    
 
     if(document.location.hash.length > 0) {
 	highlightSymbol(document.location.hash);

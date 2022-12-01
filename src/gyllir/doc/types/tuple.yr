@@ -2,7 +2,7 @@ mod gyllir::doc::types::tuple;
 
 import gyllir::doc::types::base;
 import std::collection::vec;
-import std::io, std::config;
+import std::io, std::config::_;
 import gyllir::doc::loader;
 
 

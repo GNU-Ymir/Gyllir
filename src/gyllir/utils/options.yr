@@ -1,5 +1,5 @@
 mod gyllir::utils::options;
-import std::config;
+import std::config::_;
 
 
 pub def toOr {T} (u : T?, o : T)-> T {

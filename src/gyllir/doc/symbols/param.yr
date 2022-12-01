@@ -1,7 +1,7 @@
 mod gyllir::doc::symbols::param;
 
 import std::io;
-import std::config;
+import std::config::_;
 
 import gyllir::doc::symbols::_;
 import gyllir::doc::types::_;
