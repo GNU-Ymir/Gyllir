@@ -114,6 +114,18 @@ pub class Class over Symbol {
             }
         }
 
+        match config ["templates"]? {
+            Ok (arr : &Array) => {
+                for i in 0us .. arr.len () {
+                    __pragma!trusted ({
+                        if ((arr[i]["type"]?).toOr (""s8) == "template"s8) {
+                            self._templates:.push (Template::new (arr[i]));
+                        }
+                    });
+                }
+            }
+        }
+
         match config ["methods"]? {
             Ok (arr : &Array) => {
                 for i in 0us .. arr.len () {

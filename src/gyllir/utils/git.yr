@@ -2,8 +2,7 @@ mod gyllir::utils::git;
 
 import gyllir::utils::errors;
 import std::concurrency::process;
-import std::fs::path;
-import std::fs;
+import std::fs::_;
 import std::io;
 
 pub def init (cwd : &Path = Path::new ("."))
@@ -21,7 +20,7 @@ pub def clone (url : [c8], cwd : &Path = Path::new ("."))
     throws &GitError
 {
     let parent = cwd.parent ();
-    fs::createDir (parent)?;
+    fs::sys::createDir (parent)?;
     with dmut subproc = SubProcess::run ("git"s8, ["clone"s8, url, cwd.file ()], cwd-> parent) {        
         let code = subproc:.wait ();
         if (code != 0) {

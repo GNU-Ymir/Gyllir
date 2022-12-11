@@ -90,7 +90,7 @@ pub class Url {
                             self:.parseStr (url);
                             self._valid = true;
                         }
-                        _ => throw AssertError::new ("malformed url");
+                        _ => throw AssertError::new ("malformed url"s8);
                     }
                 }
             }

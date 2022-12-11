@@ -142,3 +142,12 @@
     font-size: 18px;
     color: #6e6b5e;
 }
+
+
+pre button{
+  position: absolute;
+  top: 5px;
+  right: 5px;
+
+  /* more stuff */
+}

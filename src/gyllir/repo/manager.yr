@@ -208,7 +208,7 @@ pub class GyllirManager {
                 let license = self.askUserFor ("License"s8, default-> "proprietary"s8);
                 let type = self.askUserFor ("Type (executable/library)"s8, default-> "executable"s8);
 
-                let gyllirHome = Path::new (env::getEnv ("HOME"s8)).push (".local"s8).push ("gyllir"s8).push (name);
+                let gyllirHome = Path::new (env::getVar ("HOME"s8)).push (".local"s8).push ("gyllir"s8).push (name);
                 let registry = {
                     let url = self.askUserFor ("Registry"s8, default-> (UrlStarts::LOCAL).(std::conv::to)![c8] () ~ gyllirHome.toStr ());
                     Url::new (url)
@@ -233,11 +233,11 @@ pub class GyllirManager {
     prv def createEmptyRepo (self, path : &Path, conf : GyllirConfig)
         throws &FsError, &GitError
     {
-        fs::createDir (path, recursive-> true)?;
+        fs::sys::createDir (path, recursive-> true)?;
         self.saveToml (path.push (defaults::__GYLLIR_CONFIG_FILENAME__), conf.to!{&Config} ());
 
-        fs::createDir (path.push (defaults::__SRC_DIR__))?;
-        fs::createDir (path.push (defaults::__TEST_DIR__))?;
+        fs::sys::createDir (path.push (defaults::__SRC_DIR__))?;
+        fs::sys::createDir (path.push (defaults::__TEST_DIR__))?;
         with dmut f = File::create (path.push (defaults::__SRC_DIR__).push (defaults::__MAIN_FILE__), write-> true) {
             f:.write (defaults::__MAIN_CONTENT__);
         }
@@ -309,7 +309,7 @@ pub class GyllirManager {
             
             if !isDir (depPath) {
                 if !isDir (depPath.parent ()) {
-                    fs::createDir (depPath.parent (), recursive-> true);
+                    fs::sys::createDir (depPath.parent (), recursive-> true);
                 }
                 
                 if (dependency.url.getType () == UrlType::LOCAL) {
@@ -404,13 +404,13 @@ pub class GyllirManager {
         }
 
 	if (doc || all) {
-            if (fs::isDir (cwd.push ("__doc"s8))) {
+            if (fs::sys::isDir (cwd.push ("__doc"s8))) {
                 self.runProcess ("rm"s8, ["-rf"s8, cwd.push ("__doc"s8).toStr ()]);
             }            
         }        
         
 	if (!doc || all) {
-            if (fs::isDir (cwd.push (".build"s8))) {
+            if (fs::sys::isDir (cwd.push (".build"s8))) {
                 self.runProcess ("rm"s8, ["-rf"s8, cwd.push (".build"s8).toStr ()]);
             }
             
@@ -420,7 +420,7 @@ pub class GyllirManager {
                 utils::path::toPath (conf.name, sep-> "/"s8, add-> "_"s8)
             }
             
-            if (fs::isFile (cwd.push (outputname)))
+            if (fs::sys::isFile (cwd.push (outputname)))
                 self.runProcess ("rm"s8, [cwd.push (outputname).toStr ()]);
 
             let testoutputname = __version WINDOWS {
@@ -429,7 +429,7 @@ pub class GyllirManager {
                 utils::path::toPath ("test_"s8 ~ conf.name, sep-> "/"s8, add-> "_"s8)
             }
             
-            if (fs::isFile (cwd.push (testoutputname)))
+            if (fs::sys::isFile (cwd.push (testoutputname)))
                 self.runProcess ("rm"s8, [cwd.push (testoutputname).toStr ()]);
         }        
     } 
@@ -526,7 +526,7 @@ pub class GyllirManager {
             self.runProcess ("rm"s8, ["-rf"s8, path.toStr ()]);
         }
         
-        fs::createDir (path.parent (), recursive-> true)?;
+        fs::sys::createDir (path.parent (), recursive-> true)?;
         
         println ("[INFO] publish to ", path.toStr ());
         self.runProcess ("cp"s8, ["-r"s8, cwd.toStr (), path.toStr ()]);
@@ -601,7 +601,7 @@ pub class GyllirManager {
         let dmut jsons = Vec!{&Path}::new ();
         if (d.inDir () != ""s8) {
             {
-                for e in fs::readDir (Path::new (d.inDir ())) {
+                for e in fs::sys::readDir (Path::new (d.inDir ())) {
                     match e {
                         f : &FileEntry => {
                             if (f.getPath ().extension () == "json"s8) {
@@ -625,7 +625,7 @@ pub class GyllirManager {
                 succ = builder:.compile (forDoc-> true);
                 if (succ) {
                     let srcDir = cwd.push (defaults::__BUILD_DIR__).push (defaults::__DOC_DIR__);
-                    for e in fs::readDir (srcDir) {
+                    for e in fs::sys::readDir (srcDir) {
                         match e {
                             f : &FileEntry => {
                                 if (f.getPath ().extension () == "json"s8) {

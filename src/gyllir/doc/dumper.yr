@@ -63,8 +63,8 @@ pub class DocDumper {
             }
         }
 
-        fs::removeDir (self._outDir, recursive-> true)?;
-        fs::createDir (self._outDir, recursive-> true)?;
+        fs::sys::removeDir (self._outDir, recursive-> true)?;
+        fs::sys::createDir (self._outDir, recursive-> true)?;
         
         let ymir_res = Path::new ("/etc/gyllir/res");        
         if (!self._context.runProcess ("cp"s8, ["-r"s8, ymir_res.push ("js"s8).toStr (), self._outDir.toStr ()])) {

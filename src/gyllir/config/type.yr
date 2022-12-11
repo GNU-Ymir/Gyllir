@@ -27,7 +27,7 @@ pub class BuildType {
             "library"s8 => {
                 self._type = BuildTypeEnum::LIBRARY;
             }
-            _ => throw AssertError::new (("Unknown type : "s8 ~ type).to![c32] ());
+            _ => throw AssertError::new ("Unknown type : "s8 ~ type);
         }
 
     }
@@ -40,7 +40,7 @@ pub class BuildType {
             Str (str->  "library") => {
                 self._type = BuildTypeEnum::LIBRARY;
             }
-            x : _ => throw AssertError::new (("Unknown type : "s8 ~ x.(std::conv::to)![c8] ()).to![c32] ());
+            x : _ => throw AssertError::new ("Unknown type : "s8 ~ x.(std::conv::to)![c8] ());
         }
     }
 

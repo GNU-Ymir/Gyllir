@@ -71,7 +71,7 @@ pub class DependencyList {
                 self:.insert (x);
             }
             _ => {
-                throw AssertError::new ("Expecting a dictionnary");
+                throw AssertError::new ("Expecting a dictionnary"s8);
             }
         }
     }

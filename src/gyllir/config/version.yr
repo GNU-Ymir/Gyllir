@@ -31,20 +31,20 @@ pub class Version {
         let patch = (res[4].to!u32())?
         self._major = match major {
             Ok (a : u32) => { a }
-            Err (_ : &OutOfArray) => { throw AssertError::new ("need a major version") }
-            Err (_ : &CastFailure) => { throw AssertError::new ("Invalid major number") }
+            Err (_ : &OutOfArray) => { throw AssertError::new ("need a major version"s8) }
+            Err (_ : &CastFailure) => { throw AssertError::new ("Invalid major number"s8) }
             _  => { 0u32 }
         }
         
         self._minor = match minor {
             Ok (b: u32) => { b }
-            Err (_ : &CastFailure) => { throw AssertError::new ("Invalid minor number") }
+            Err (_ : &CastFailure) => { throw AssertError::new ("Invalid minor number"s8) }
             _  => { 0u32 } 
         }
         
         self._patch = match patch {
             Ok (c : u32) => { c }
-            Err (_ : &CastFailure) => { throw AssertError::new ("Invalid patch number") }
+            Err (_ : &CastFailure) => { throw AssertError::new ("Invalid patch number"s8) }
             _  => { 0u32 } 
         };        
     }
@@ -64,20 +64,20 @@ pub class Version {
                 let patch = (res[4].to!u32())?
                 self._major = match major {
                     Ok (a : u32) => { a }
-                    Err (_ : &OutOfArray) => { throw AssertError::new ("need a major version") }
-                    Err (_ : &CastFailure) => { throw AssertError::new ("Invalid major number") }
+                    Err (_ : &OutOfArray) => { throw AssertError::new ("need a major version"s8) }
+                    Err (_ : &CastFailure) => { throw AssertError::new ("Invalid major number"s8) }
                     _  => { 0u32 }
                 }
                 
                 self._minor = match minor {
                     Ok (b: u32) => { b }
-                    Err (_ : &CastFailure) => { throw AssertError::new ("Invalid minor number") }
+                    Err (_ : &CastFailure) => { throw AssertError::new ("Invalid minor number"s8) }
                     _  => { 0u32 } 
                 }
                 
                 self._patch = match patch {
                     Ok (c : u32) => { c }
-                    Err (_ : &CastFailure) => { throw AssertError::new ("Invalid patch number") }
+                    Err (_ : &CastFailure) => { throw AssertError::new ("Invalid patch number"s8) }
                     _  => { 0u32 } 
                 };            
             }

@@ -294,13 +294,15 @@ function populateSymbolList(tree) {
     }
 
     var anchorNames = new Array();
+    var symNames = new Array ();
 
-    function traverser(parent, $parent, $parentJump, anchorTail) {
+    function traverser(parent, $parent, $parentJump, anchorTail, symTail) {
 	for(var i = 0; i < parent.length; i++) {
 	    var node = parent[i];
 	    var isTree = typeof node.members !== 'undefined';
-	    var anchorName = anchorTail + node.name;
+	    var anchorName = anchorTail + node.name + "_" + i;
 	    anchorNames.push(anchorName);
+	    symNames.push (symTail + node.name);
 
 	    if(node.type == 'constructor') { // Constructor fixup.
 		var $decl = node.decl;
@@ -338,7 +340,7 @@ function populateSymbolList(tree) {
 		var $inner_jump = $jump_node.find ('span');
 		
 		
-		traverser(node.members, $list, $inner_jump, anchorName + '.');
+		traverser(node.members, $list, $inner_jump, anchorName + '.', symTail + node.name + ".");
 	    } else {
 		var $node = $(leafNode(node.name, anchorName, node.type));
 		$parent.append($node);
@@ -356,12 +358,11 @@ function populateSymbolList(tree) {
 
     var $symbolHeader = $('#symbol-list');
     $symbolHeader.removeClass('hidden');
-    console.log (tree)
     
-    traverser(tree, $symbolHeader.parent(), '', '');
+    traverser(tree, $symbolHeader.parent(), '', '', '');
 
     
-    return anchorNames;
+    return [symNames, anchorNames];
 }
 
 /**
@@ -400,13 +401,19 @@ function highlightSymbol(targetId) {
 /**
  * Configure the goto-symbol search form in the titlebar.
  */
-function setupGotoSymbolForm(typeaheadData) {
+function setupGotoSymbolForm(typeaheadData, typeaheahAnchors) {
+    var dict = new Object ();
+
+    for (var i = 0; i < typeaheahAnchors.length ; i++) {
+	dict[typeaheadData[i]] = typeaheahAnchors[i];
+    }
+    
     var $form = $('#gotosymbol');
     var $input = $form.children('input');
 
     function go(target) {
-	window.location.hash = target;
-	highlightSymbol('#' + target);
+	window.location.hash = dict[target];	
+	highlightSymbol('#' + dict[target]);
 	$input.blur();
     }
 
@@ -475,7 +482,7 @@ $(document).ready(function() {
     var symbolTree = buildSymbolTree();
     if(symbolTree.length > 0) {
 	var symbolAnchors = populateSymbolList(symbolTree);
-	setupGotoSymbolForm(symbolAnchors);
+	setupGotoSymbolForm(symbolAnchors[0], symbolAnchors[1]);
     }
 
     // Setup symbol anchor highlighting.
@@ -535,4 +542,5 @@ $(document).ready(function() {
     
     $treeNodes.click(treeNodeClick);
     $standaloneTreeNodes.click(standaloneNodeClick);
+    
 });

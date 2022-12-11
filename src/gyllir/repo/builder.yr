@@ -41,7 +41,7 @@ pub class RepoBuilder {
         throws &FsError, &RecursiveDependency
     {
         self.createBuildDir ();
-        if (!fs::isFile (self._cwd.push (defaults::__BUILD_DIR__).push (defaults::__CMAKE_FILE__))) {
+        if (!fs::sys::isFile (self._cwd.push (defaults::__BUILD_DIR__).push (defaults::__CMAKE_FILE__))) {
             if (!self:.createCMakeFile ()) return false;
         }
 
@@ -329,7 +329,7 @@ pub class RepoBuilder {
      */
     prv def createBuildDir (self) throws &FsError {
         {
-            fs::createDir (self._cwd.push (defaults::__BUILD_DIR__));
+            fs::sys::createDir (self._cwd.push (defaults::__BUILD_DIR__));
         } catch {
             x : &FsError => {
                 if (x.code != FsErrorCode::ALREADY_EXISTS) {
@@ -344,7 +344,7 @@ pub class RepoBuilder {
      */
     prv def createCMakeBuildDir (self, path : &Path) throws &FsError {
         {
-            fs::createDir (path);
+            fs::sys::createDir (path);
         } catch {
             x : &FsError => {
                 if (x.code != FsErrorCode::ALREADY_EXISTS) {
