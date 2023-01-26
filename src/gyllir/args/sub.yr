@@ -1,6 +1,6 @@
 mod gyllir::args::sub;
 
-import std::args, std::lexer;
+import std::args, std::syntax::lexer;
 import std::io;
 
 /**

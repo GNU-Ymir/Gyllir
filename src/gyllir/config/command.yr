@@ -1,0 +1,60 @@
+mod gyllir::config::command;
+
+import std::config::_;
+import std::collection::map;
+import std::io;
+import std::syntax::tokenizer;
+import std::config::conv;
+import std::conv;
+
+struct
+| cmd : [c8]
+| post : bool = false
+| cwd : [c8] = "."s8
+ -> Cmd;
+
+pub class CustomCommandList {
+
+    let dmut _lst = HashMap!{[c32], Cmd}::new ();
+    
+    pub self () {}
+
+    pub self (cfg : &Config)
+        throws &AssertError, &ConfigError
+    {
+        match cfg {
+            x : &Dict =>
+                self:.insert (x);
+            _ => throw AssertError::new ("Expecting a dictionnary"s8);
+        }
+    }
+
+
+    pub def getList (self)-> &HashMap!{[c32], Cmd} {
+        self._lst
+    }
+    
+    prv def insert (mut self, cfg : &Dict)
+        throws &ConfigError
+    {
+
+        for i, j in cfg {
+            self._lst:.insert (i, j.to!Cmd ());
+        }        
+    }       
+
+    impl Streamable;
+
+    impl Serializable {
+        
+        pub over serialize (self)-> &Config {
+            let dmut ret = Dict::new ();
+            for i, j in self._lst {
+                ret:.insert (i, j.to!(&Config) ());
+            }
+            ret
+        }
+    }
+
+}
+

@@ -2,7 +2,7 @@ mod gyllir::config::url;
 
 import std::config::_;
 import std::io;
-import std::tokenizer;
+import std::syntax::tokenizer;
 import std::fs::path;
 import std::algorithm::searching;
 import std::hash;
@@ -132,7 +132,7 @@ pub class Url {
      */
     prv def parseStr (mut self, url : [c32]) {
         if url.startWith (UrlStarts::LOCAL) {            
-            self._path = Path::new (url [UrlStarts::LOCAL.len - 1us .. $]);
+            self._path = Path::new (url [UrlStarts::LOCAL.len .. $]);
             self._type = UrlType::LOCAL;
         } else {
             if url.startWith (UrlStarts::GIT) {

@@ -15,6 +15,8 @@ pub aka __GITIGNORE_FILENAME__ = ".gitignore"s8;
  */
 pub aka __MAIN_FILE__ = "main.yr"s8;
 
+pub aka __FST_TEST_FILE__ = "first_test.yr"s8;
+
 /**
  * The content of the initial file
  */
@@ -26,11 +28,24 @@ def main () {
 }
 };
 
+
+pub aka __FST_TEST_CONTENT__ = str8#{mod first_test;
+import std::io;
+    
+__test {
+    println ("Example of first test"s8);
+                
+    // To make a test fail, throw an exception
+    // for example, assert (false);
+}
+};
+
 /**
  * The content of the gitignore file
  */
 pub aka __GITIGNORE_CONTENT__ = str8#{
 .build
+__libs
 __doc        
 };        
 
@@ -45,6 +60,7 @@ pub aka __SRC_DIR__ = "src"s8;
 pub aka __BUILD_DIR__ = ".build"s8;
 pub aka __DEBUG_DIR__ = "debug"s8;
 pub aka __RELEASE_DIR__ = "release"s8;
+pub aka __LIB_DIR__ = "__libs"s8
 pub aka __TEST_DIR__ = "test"s8;
 pub aka __DOC_DIR__ = "__doc"s8;
 pub aka __BUILD_TEST_DIR__ = ".build/.test"s8;

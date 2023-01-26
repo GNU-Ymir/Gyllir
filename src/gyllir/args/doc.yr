@@ -1,5 +1,5 @@
 mod gyllir::args::doc;
-import std::args, std::lexer, std::io, std::conv;
+import std::args, std::syntax::lexer, std::io, std::conv;
 import gyllir::args::sub;
 import etc::c::sysinfo;
 

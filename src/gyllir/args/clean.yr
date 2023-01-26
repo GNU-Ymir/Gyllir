@@ -1,5 +1,5 @@
 mod gyllir::args::clean;
-import std::args, std::lexer, std::io;
+import std::args, std::syntax::lexer, std::io;
 import gyllir::args::sub;
 
 struct

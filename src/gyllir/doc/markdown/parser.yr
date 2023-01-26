@@ -1,6 +1,6 @@
 mod gyllir::doc::markdown::parser;
 
-import std::lexer, std::io;
+import std::syntax::lexer, std::io;
 import std::collection::vec;
 import gyllir::doc::markdown::tokens;
 

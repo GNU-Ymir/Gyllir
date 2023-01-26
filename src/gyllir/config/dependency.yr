@@ -3,7 +3,7 @@ mod gyllir::config::dependency;
 import std::config::_;
 import std::collection::map;
 import std::io;
-import std::tokenizer;
+import std::syntax::tokenizer;
 import std::conv;
 
 import gyllir::config::url;

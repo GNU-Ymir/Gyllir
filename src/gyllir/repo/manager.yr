@@ -16,7 +16,7 @@ import gyllir::utils::git, gyllir::utils::errors;
 import std::concurrency::thread, std::concurrency::mailbox;
 import std::algorithm::comparison, std::algorithm::iteration;
 import std::collection::set;
-import std::lexer, std::tokenizer;
+import std::syntax::_;
 import std::collection::map;
 
 import gyllir::repo::builder;
@@ -242,6 +242,10 @@ pub class GyllirManager {
             f:.write (defaults::__MAIN_CONTENT__);
         }
 
+        with dmut f = File::create (path.push (defaults::__TEST_DIR__).push (defaults::__FST_TEST_FILE__), write-> true) {
+            f:.write (defaults::__FST_TEST_CONTENT__);
+        }
+
         with dmut f = File::create (path.push (defaults::__GITIGNORE_FILENAME__), write-> true) {
             f:.write (defaults::__GITIGNORE_CONTENT__);
             if conf.type.isExecutable () {
@@ -267,13 +271,13 @@ pub class GyllirManager {
     /**
      * Build a repository 
      */
-    prv def buildRepo (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir (), doLink : bool = true)-> bool
+    prv def buildRepo (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir (), doLink : bool = true, inDependency : bool = false)-> bool
         throws &RecursiveDependency
     {
         let dmut builder = RepoBuilder::new (alias self, conf, cwd-> cwd);
         let mut succ = false;
         {
-            succ = builder:.construct ();
+            succ = builder:.construct (inDependency-> inDependency);
             if (succ && doLink) {
                 succ = builder:.compile ();
             }
@@ -301,12 +305,12 @@ pub class GyllirManager {
         throws &RecursiveDependency
     {
         let depPath = cwd.push (defaults::__DEPENCY_DIR__).push (name);
-        println ("[INFO] Resolving dependency : ", name, " to ", depPath.toStr ());
         {
             if (dependency.url in self._doneDependencies) {
                 throw RecursiveDependency::new (name ~ ":"s8 ~ dependency.url.getPath ().toStr ())
             }
-            
+
+            println ("[INFO] Resolving dependency : ", name, " to ", depPath.toStr ());
             if !isDir (depPath) {
                 if !isDir (depPath.parent ()) {
                     fs::sys::createDir (depPath.parent (), recursive-> true);
@@ -327,14 +331,19 @@ pub class GyllirManager {
                 self.loadToml (depPath.push (defaults::__GYLLIR_CONFIG_FILENAME__))
             } catch {
                 x : _ => {
-                    println ("Failed to read configuration file (", x, "). Aborting");
+                    eprintln ("Failed to read configuration file (", x, "). Aborting");
                     return (""s8, false);
                 }
             }
 
+            if (conf.type.isExecutable ()) {
+                eprintln ("Dependency : ", dependency.url, " is not a library. Aborting.");
+                return (""s8, false);
+            }
+            
             self._doneDependencies:.insert (dependency.url);
             let succ = { 
-                self:.buildRepo (conf, cwd-> depPath, doLink-> false)
+                self:.buildRepo (conf, cwd-> depPath, doLink-> false, inDependency-> true)
             } catch {
                 r : &RecursiveDependency => {
                     throw RecursiveDependency::new (name ~ ":"s8 ~ dependency.url.getPath ().toStr () ~ " => "s8 ~ r.msg);
@@ -410,8 +419,12 @@ pub class GyllirManager {
         }        
         
 	if (!doc || all) {
-            if (fs::sys::isDir (cwd.push (".build"s8))) {
-                self.runProcess ("rm"s8, ["-rf"s8, cwd.push (".build"s8).toStr ()]);
+            if (fs::sys::isDir (cwd.push (defaults::__BUILD_DIR__))) {
+                self.runProcess ("rm"s8, ["-rf"s8, cwd.push (defaults::__BUILD_DIR__).toStr ()]);
+            }
+
+            if (fs::sys::isDir (cwd.push (defaults::__LIB_DIR__))) {
+                self.runProcess ("rm"s8, ["-rf"s8, cwd.push (defaults::__LIB_DIR__).toStr ()]);
             }
             
             let outputname = __version WINDOWS {
@@ -604,8 +617,8 @@ pub class GyllirManager {
                 for e in fs::sys::readDir (Path::new (d.inDir ())) {
                     match e {
                         f : &FileEntry => {
-                            if (f.getPath ().extension () == "json"s8) {
-                                jsons:.push (f.getPath ());
+                            if (f.path.extension () == "json"s8) {
+                                jsons:.push (f.path);
                             }
                         }                        
                     }
@@ -628,8 +641,8 @@ pub class GyllirManager {
                     for e in fs::sys::readDir (srcDir) {
                         match e {
                             f : &FileEntry => {
-                                if (f.getPath ().extension () == "json"s8) {
-                                    jsons:.push (f.getPath ());
+                                if (f.path.extension () == "json"s8) {
+                                    jsons:.push (f.path);
                                 }
                             }                        
                         }

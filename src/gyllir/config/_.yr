@@ -4,6 +4,7 @@ pub import gyllir::config::dependency;
 pub import gyllir::config::version;
 pub import gyllir::config::type;
 pub import gyllir::config::url;
+pub import gyllir::config::command;
 
 
 pub struct
@@ -16,6 +17,7 @@ pub struct
 | version: &Version = Version::new ()
 | dependencies: &DependencyList = DependencyList::new ()
 | libraries : [[c32]] = []
+| commands : &CustomCommandList = CustomCommandList::new ()
  -> GyllirConfig; 
 
 

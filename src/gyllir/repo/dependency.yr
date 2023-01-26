@@ -3,7 +3,7 @@ mod gyllir::repo::dependency;
 import std::config::_;
 import std::collection::vec;
 import std::io;
-import std::tokenizer;
+import std::syntax::tokenizer;
 import std::config::conv;
 import std::conv;
 import std::fs::path;
