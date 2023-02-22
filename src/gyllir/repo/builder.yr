@@ -135,9 +135,9 @@ pub class RepoBuilder {
             println ("[ERROR] Compilation failed.");
             return false;
         }
-
+        
         if (!forDoc) {
-            if (!self._context.runProcess ("make"s8, ["install"s8], cwd-> p)) {
+            if (!self._context.runProcess ("make"s8, ["install"s8], cwd-> p, printErr-> true)) {
                 eprintln ("[ERROR] Failed to install result");
                 return false;        
             }                        
@@ -215,9 +215,9 @@ pub class RepoBuilder {
             file:.write ("FILE (\n  GLOB_RECURSE\n  SRC_TEST\n  ../test/*.yr\n  )\n\n"s8);
             
             file:.write ("SET_SOURCE_FILES_PROPERTIES(${SRC} ${SRC_TEST} PROPERTIES LANGUAGE C)\n"s8);
-
-
-            file:.write ("\ninclude_directories (${CMAKE_CURRENT_SOURCE_DIR}/../src)\n"s8);            
+            file:.write ("\ninclude_directories (${CMAKE_CURRENT_SOURCE_DIR}/../src)\n\n"s8);
+            
+            if (!inDependency)   file:.write ("if (${TEST_TARGET} STREQUAL \"none\")\n"s8);
             if (self._conf.type.isExecutable ()) {
                 file:.write ("add_executable ("s8);
                 file:.write (self._conf.name);
@@ -235,8 +235,9 @@ pub class RepoBuilder {
                 
                 file:.write ("install (TARGETS "s8);
                 file:.write (self._conf.name);
-                file:.write (" DESTINATION ${CMAKE_SOURCE_DIR}/../)\n\n"s8);                
+                file:.write (" DESTINATION ${CMAKE_SOURCE_DIR}/../)\n\n"s8);
             } else {
+                if (!inDependency)   file:.write ("if (${TEST_TARGET} STREQUAL \"none\")\n"s8);
                 file:.write ("add_library ("s8);
                 file:.write (self._conf.name);
                 if (self._conf.type.isShared ()) {
@@ -250,10 +251,6 @@ pub class RepoBuilder {
                 file:.write (defaults::__LIB_DIR__);
                 file:.write (")\n\n"s8);
             }
-
-            file:.write ("target_include_directories ("s8);
-            file:.write (self._conf.name);
-            file:.write (" PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../src)\n\n"s8);
             
             for i in self._conf.libraries {
                 linkNames:.push (std::conv::to!{[c8]} (i));
@@ -270,7 +267,9 @@ pub class RepoBuilder {
                 
                 file:.write (")\n"s8);
             }
-
+            
+            if (!inDependency) file:.write ("endif()\n"s8);
+            
             if (!inDependency) {
                 file:.write ("if (${TEST_TARGET} STREQUAL \"test_"s8);
                 file:.write (self._conf.name);

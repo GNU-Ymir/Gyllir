@@ -250,7 +250,11 @@ pub class GyllirManager {
             f:.write (defaults::__GITIGNORE_CONTENT__);
             if conf.type.isExecutable () {
                 f:.write ("/"s8 ~ conf.name);
-            } else f:.write ("/"s8 ~ conf.name ~ ".a"s8);
+                f:.write ("/test_"s8 ~ conf.name);
+            } else {
+                f:.write ("/"s8 ~ conf.name ~ ".a"s8);
+                f:.write ("/test_"s8 ~ conf.name);
+            }
             f:.write ("\n"s8);
         }
 
