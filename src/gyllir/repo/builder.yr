@@ -237,7 +237,6 @@ pub class RepoBuilder {
                 file:.write (self._conf.name);
                 file:.write (" DESTINATION ${CMAKE_SOURCE_DIR}/../)\n\n"s8);
             } else {
-                if (!inDependency)   file:.write ("if (${TEST_TARGET} STREQUAL \"none\")\n"s8);
                 file:.write ("add_library ("s8);
                 file:.write (self._conf.name);
                 if (self._conf.type.isShared ()) {
@@ -251,6 +250,11 @@ pub class RepoBuilder {
                 file:.write (defaults::__LIB_DIR__);
                 file:.write (")\n\n"s8);
             }
+
+            
+            file:.write ("target_include_directories ("s8);
+            file:.write (self._conf.name);
+            file:.write (" PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../src)\n\n"s8);
             
             for i in self._conf.libraries {
                 linkNames:.push (std::conv::to!{[c8]} (i));
