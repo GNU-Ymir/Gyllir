@@ -140,7 +140,7 @@ pub class GyllirManager {
                 }
             }
             {
-                self:.runTests (conf, cwd-> cwd);
+                self:.runTests (conf, cwd-> cwd, self._args.test.isDry ());
             } catch {
                 r : &RecursiveDependency => {
                     println ("Failed to build repository, recursive dependency : ");
@@ -512,7 +512,7 @@ pub class GyllirManager {
         self.cleanRepo (cwd-> cwd, all-> true);
         if (!self._args.publish.isDry ()) {
             let res = {
-                self:.runTests (conf, cwd-> cwd)
+                self:.runTests (conf, cwd-> cwd, false)
             } catch {
                 r : &RecursiveDependency => {
                     println ("Failed to build repository, recursive dependency : ");
@@ -577,7 +577,7 @@ pub class GyllirManager {
     /**
      * Run the tests of the repo
      */
-    prv def runTests (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir ()) -> bool
+    prv def runTests (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir (), isDry : bool) -> bool
         throws &RecursiveDependency
     {
         let dmut builder = RepoBuilder::new (alias self, conf, cwd-> cwd);
@@ -586,7 +586,7 @@ pub class GyllirManager {
             succ = builder:.construct ();
             succ = builder:.compile (forTest-> true);
             
-            if (succ) {
+            if (succ && !isDry) {
                 succ = self.runProcess ("./test_"s8 ~ conf.name, [], printOut-> true, printErr-> true);
                 if (!succ) println ("[ERROR] Tests failed."s8);
             }

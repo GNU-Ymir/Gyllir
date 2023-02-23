@@ -7,6 +7,7 @@ struct
 | verbose : YesNo
 | j : i64 = cast!i64 (sysinfo::_yrt_get_nprocs ())
 | mut help : YesNo
+| dry : YesNo = YesNo::NO
  -> TestArgs;
 
 /**
@@ -31,8 +32,9 @@ pub class @final TestCommand over SubCommand {
         let parser = ArgumentParser!(TestArgs)::new ()
             :.info!"verbose" (short-> "v", comments-> "verbose mode")
             :.info!"j" (comments-> "number of parallel threads to spawn")
+            :.info!"dry" (comments-> "only compile the test executable, but does not run them")
             :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true);
-
+        
         {
             self._args = parser.parse (["./usage"] ~ args);
         } catch {
@@ -63,4 +65,11 @@ pub class @final TestCommand over SubCommand {
         cast!u32 (self._args.j)
     }
 
+    /**
+     * @returns: true iif test must not be executed
+     */
+    pub def isDry (self)-> bool {
+        self._args.dry
+    }
+    
 }
