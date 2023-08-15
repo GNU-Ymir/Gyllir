@@ -285,6 +285,10 @@ pub class RepoBuilder {
                 file:.write (self._conf.name);
                 file:.write (" PRIVATE -g -funittest)\n"s8);
 
+                file:.write ("target_include_directories (test_"s8);
+                file:.write (self._conf.name);
+                file:.write (" PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/../test)\n\n"s8);
+                
                 file:.write ("\ttarget_link_options (test_"s8);
                 file:.write (self._conf.name);
                 file:.write (" PRIVATE -g -funittest)\n\n"s8);

@@ -736,21 +736,10 @@ pub class GyllirManager {
      *     - true if succeded, false otherwise
      */
     pub def runProcess (self, cmd : [c8], params : [[c8]], cwd : &Path = env::currentDir (), printOut : bool = false, printErr : bool = false)-> bool {        
-        with dmut subProc = SubProcess::run (cmd, params, cwd-> cwd) {
-            loop {
-                if (printOut) print (subProc:.stdout ():.readSome (len-> 1u32));                
-                if (subProc.isFinished ()) {                    
-                    let code = subProc:.wait ();
-                    if (printOut) print (subProc:.stdout ():.read ());
-                    if (printErr) print (subProc:.stderr ():.read ());
-                    if (code != 0) {
-                        return false;
-                    } else break {}
-                }
-            }
+        with dmut subProc = SubProcess::run (cmd, params, cwd-> cwd, redirectStdout-> !printOut, redirectStderr-> !printErr) {
+            let code = subProc:.wait ();
+            code == 0
         }
-
-        true
     }
     
     
