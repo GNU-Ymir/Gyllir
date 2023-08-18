@@ -8,6 +8,7 @@ struct
 | j : i64 = cast!i64 (sysinfo::_yrt_get_nprocs ())
 | mut help : YesNo
 | dry : YesNo = YesNo::NO
+| release : YesNo = YesNo::NO
  -> TestArgs;
 
 /**
@@ -33,6 +34,7 @@ pub class @final TestCommand over SubCommand {
             :.info!"verbose" (short-> "v", comments-> "verbose mode")
             :.info!"j" (comments-> "number of parallel threads to spawn")
             :.info!"dry" (comments-> "only compile the test executable, but does not run them")
+            :.info!"release" (comments-> "compile test in release mode (debug by default)")
             :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true);
         
         {
@@ -56,6 +58,13 @@ pub class @final TestCommand over SubCommand {
      */
     pub def isVerbose (self)-> bool {
         self._args.verbose
+    }
+
+    /**
+     * @returns: false iif the option --release is set
+     * */
+    pub def isDebug (self)-> bool {
+        !self._args.release
     }
 
     /**

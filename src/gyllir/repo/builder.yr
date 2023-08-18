@@ -74,7 +74,11 @@ pub class RepoBuilder {
         let p = if (forDoc) {
             self._cwd.push (defaults::__BUILD_DIR__).push (defaults::__DOC_DIR__)
         } else if (forTest) {
-            self._cwd.push (defaults::__BUILD_DIR__).push (defaults::__TEST_DIR__)
+            if (t.isDebug ()) {
+                self._cwd.push (defaults::__BUILD_DIR__).push (defaults::__DEBUG_DIR__)
+            } else {
+                self._cwd.push (defaults::__BUILD_DIR__).push (defaults::__RELEASE_DIR__)
+            }
         } else if (b.isDebug ()) {
             self._cwd.push (defaults::__BUILD_DIR__).push (defaults::__DEBUG_DIR__)
         } else {
@@ -89,8 +93,13 @@ pub class RepoBuilder {
             cmakeOptions:.push ("-DTEST_TARGET=none"s8);
             cmakeOptions:.push ("-DDOC_TARGET=doc_"s8 ~ self._conf.name);
         } else if (forTest) {
-            cmakeOptions:.push ("-DCMAKE_BUILD_TYPE=Debug"s8);
-            cmakeOptions:.push ("-DTEST_TARGET=test_"s8 ~ self._conf.name);
+            if (t.isDebug ()) {
+                cmakeOptions:.push ("-DCMAKE_BUILD_TYPE=Debug"s8);
+                cmakeOptions:.push ("-DTEST_TARGET=test_"s8 ~ self._conf.name);
+            } else {
+                cmakeOptions:.push ("-DCMAKE_BUILD_TYPE=Release"s8);
+                cmakeOptions:.push ("-DTEST_TARGET=test_"s8 ~ self._conf.name);
+            }
             cmakeOptions:.push ("-DDOC_TARGET=none"s8);
         } else if (b.isDebug ()) {
             cmakeOptions:.push ("-DCMAKE_BUILD_TYPE=Debug"s8);
@@ -283,7 +292,7 @@ pub class RepoBuilder {
                 file:.write (" ${SRC} ${SRC_TEST})\n"s8);
                 file:.write ("\ttarget_compile_options (test_"s8);
                 file:.write (self._conf.name);
-                file:.write (" PRIVATE -g -funittest)\n"s8);
+                file:.write (" PRIVATE -funittest)\n"s8);
 
                 file:.write ("target_include_directories (test_"s8);
                 file:.write (self._conf.name);
@@ -291,7 +300,7 @@ pub class RepoBuilder {
                 
                 file:.write ("\ttarget_link_options (test_"s8);
                 file:.write (self._conf.name);
-                file:.write (" PRIVATE -g -funittest)\n\n"s8);
+                file:.write (" PRIVATE -funittest)\n\n"s8);
 
                 file:.write ("set_target_properties (test_"s8);
                 file:.write (self._conf.name);
