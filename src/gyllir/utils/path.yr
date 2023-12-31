@@ -10,7 +10,7 @@ import std::fs::path;
  * assert (self.toPath ("std::path"s8) == "std/path.yr"s8)
  * ===========
  */
-pub def toPath (module : [c8], sep : [c8] = "::"s8, add : [c8] = "/"s8)-> [c8] {
+pub fn toPath (module : [c8], sep : [c8] = "::"s8, add : [c8] = "/"s8)-> [c8] {
     let dmut res = StringStream::new ();
     let mut i = 0us;
     while i < module.len {

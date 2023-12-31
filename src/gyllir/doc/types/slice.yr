@@ -33,7 +33,7 @@ pub class SliceType over Type {
     /**
      * @returns: the type contained in the slice
      */
-    pub def getInnerType (self)-> &Type {
+    pub fn getInnerType (self)-> &Type {
         return self._child
     }
 

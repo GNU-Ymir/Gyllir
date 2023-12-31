@@ -45,14 +45,14 @@ pub class DgPointerType over Type {
     /**
      * @returns: the parameter types of the dg pointer
      */
-    pub def getParamTypes (self)-> [&Type] {
+    pub fn getParamTypes (self)-> [&Type] {
         self._inner[]
     }
 
     /**
      * @returns: the return type of the dg pointer
      */
-    pub def getRetType (self)-> &Type {
+    pub fn getRetType (self)-> &Type {
         self._ret
     }
     

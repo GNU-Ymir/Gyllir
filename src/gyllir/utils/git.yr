@@ -5,7 +5,7 @@ import std::concurrency::process;
 import std::fs::_;
 import std::io;
 
-pub def init (cwd : &Path = Path::new ("."))
+pub fn init (cwd : &Path = Path::new ("."))
     throws &GitError
 {
     with dmut subproc = SubProcess::run ("git"s8, ["init"s8], cwd-> cwd) {
@@ -16,7 +16,7 @@ pub def init (cwd : &Path = Path::new ("."))
     }
 }
 
-pub def clone (url : [c8], cwd : &Path = Path::new ("."))
+pub fn clone (url : [c8], cwd : &Path = Path::new ("."))
     throws &GitError
 {
     let parent = cwd.parent ();
@@ -30,7 +30,7 @@ pub def clone (url : [c8], cwd : &Path = Path::new ("."))
 }
 
 
-pub def setRemote (url : [c8], cwd : &Path = Path::new ("."))
+pub fn setRemote (url : [c8], cwd : &Path = Path::new ("."))
     throws &GitError
 {
     with dmut subproc = SubProcess::run ("git"s8, ["remote"s8, "add"s8, "origin"s8, url], cwd-> cwd) {        
@@ -46,7 +46,7 @@ pub def setRemote (url : [c8], cwd : &Path = Path::new ("."))
     }    
 }
 
-pub def push (tags : [[c8]], cwd : &Path = Path::new ("."))
+pub fn push (tags : [[c8]], cwd : &Path = Path::new ("."))
     throws &GitError
 {
     with dmut subproc = SubProcess::run ("git"s8, ["push"s8, "origin"s8] ~ tags, cwd-> cwd) {
@@ -58,7 +58,7 @@ pub def push (tags : [[c8]], cwd : &Path = Path::new ("."))
 }
 
 
-pub def add (path : &Path)
+pub fn add (path : &Path)
     throws &GitError
 {
     let parent = path.parent ();
@@ -70,7 +70,7 @@ pub def add (path : &Path)
     }
 }
 
-pub def createBranch (name : [c8], cwd : &Path = Path::new ("."))
+pub fn createBranch (name : [c8], cwd : &Path = Path::new ("."))
     throws &GitError
 {
     with dmut subproc = SubProcess::run ("git"s8, ["branch"s8, name], cwd-> cwd) {
@@ -81,7 +81,7 @@ pub def createBranch (name : [c8], cwd : &Path = Path::new ("."))
     }    
 }
 
-pub def deleteBranch (name : [c8], cwd : &Path = Path::new ("."))
+pub fn deleteBranch (name : [c8], cwd : &Path = Path::new ("."))
     throws &GitError
 {
     with dmut subproc = SubProcess::run ("git"s8, ["branch"s8, "-D"s8, name], cwd-> cwd) {
@@ -92,7 +92,7 @@ pub def deleteBranch (name : [c8], cwd : &Path = Path::new ("."))
     }    
 }
 
-pub def createTag (name : [c8], cwd : &Path = Path::new ("."))
+pub fn createTag (name : [c8], cwd : &Path = Path::new ("."))
     throws &GitError
 {
     with dmut subproc = SubProcess::run ("git"s8, ["tag"s8, name], cwd-> cwd) {
@@ -103,7 +103,7 @@ pub def createTag (name : [c8], cwd : &Path = Path::new ("."))
     }    
 }
 
-pub def deleteTag (name : [c8], cwd : &Path = Path::new ("."))
+pub fn deleteTag (name : [c8], cwd : &Path = Path::new ("."))
     throws &GitError
 {
     with dmut subproc = SubProcess::run ("git"s8, ["tag"s8, "-D"s8, name], cwd-> cwd) {
@@ -114,7 +114,7 @@ pub def deleteTag (name : [c8], cwd : &Path = Path::new ("."))
     }    
 }
 
-pub def fetchTags (cwd : &Path = Path::new ("."))
+pub fn fetchTags (cwd : &Path = Path::new ("."))
     throws &GitError
 {
     with dmut subproc = SubProcess::run ("git"s8,  ["fetch"s8, "--tags"s8, "--depth=1"s8], cwd-> cwd) {
@@ -126,7 +126,7 @@ pub def fetchTags (cwd : &Path = Path::new ("."))
 }
 
 
-pub def checkout (name : [c8], cwd : &Path = Path::new ("."))
+pub fn checkout (name : [c8], cwd : &Path = Path::new ("."))
     throws &GitError
 {
     with dmut subproc = SubProcess::run ("git"s8, ["checkout"s8, name], cwd-> cwd) {
@@ -138,7 +138,7 @@ pub def checkout (name : [c8], cwd : &Path = Path::new ("."))
 }
 
 
-pub def getTagList (cwd : &Path = Path::new ("."))-> [c8]
+pub fn getTagList (cwd : &Path = Path::new ("."))-> [c8]
     throws &GitError
 {
     with dmut subproc = SubProcess::run ("git"s8, ["tag"s8], cwd-> cwd) {
@@ -151,7 +151,7 @@ pub def getTagList (cwd : &Path = Path::new ("."))-> [c8]
 }
 
 
-pub def commit (message : [c8], cwd : &Path = Path::new ("."))
+pub fn commit (message : [c8], cwd : &Path = Path::new ("."))
     throws &GitError
 {
     with dmut subproc = SubProcess::run ("git"s8, ["commit"s8, "-m"s8, message], cwd-> cwd) {
@@ -163,7 +163,7 @@ pub def commit (message : [c8], cwd : &Path = Path::new ("."))
 }
 
 
-pub def userName (cwd : &Path = Path::new (".")) -> [c8]
+pub fn userName (cwd : &Path = Path::new (".")) -> [c8]
     throws &GitError
 {
     import std::stream;

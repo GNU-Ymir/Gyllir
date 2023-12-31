@@ -47,7 +47,7 @@ pub class DocDumper {
     /**
      * Generate the documentation
      */
-    pub def generate (self) {
+    pub fn generate (self) {
         let dmut tree = MetaModule::new ();
         let dmut modules = Vec!{&Module}::new ();
         
@@ -85,7 +85,7 @@ pub class DocDumper {
         }
     }
 
-    prv def generatePage (self, project : [c8], git : [c8], table : &HtmlTable, module : &Module) {
+    prv fn generatePage (self, project : [c8], git : [c8], table : &HtmlTable, module : &Module) {
         let body = HtmlBody::new (project, module);
         let head = HtmlHeader::new (project, git, module.getName (), table, body);
         let foot = HtmlFooter::new (module.getName (), git);

@@ -59,42 +59,42 @@ pub class @final PublishCommand over SubCommand {
     /**
      * @returns: the message of the commit
      */
-    pub def getMessage (self)-> [c32] {
+    pub fn getMessage (self)-> [c32] {
         self._args.message
     }
 
     /**
      * @returns: is this a major publish
      */
-    pub def isMajor (self)-> bool {
+    pub fn isMajor (self)-> bool {
         self._args.major
     }
 
     /**
      * @returns: is this a minor publish
      */
-    pub def isMinor (self)-> bool {
+    pub fn isMinor (self)-> bool {
         self._args.minor
     }
 
     /**
      * @returns: is this a patch publish
      */
-    pub def isPatch (self)-> bool {
+    pub fn isPatch (self)-> bool {
         self._args.patch
     }
 
     /**
      * @returns: do not ask for validation
      */
-    pub def isYes (self)-> bool {
+    pub fn isYes (self)-> bool {
         self._args.yes
     }
 
     /**
      * @returns: do not run verification ?
      */
-    pub def isDry (self)-> bool {
+    pub fn isDry (self)-> bool {
         self._args.dry
     }
       

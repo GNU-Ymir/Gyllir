@@ -33,7 +33,7 @@ pub class ClassPointerType over Type {
     /**
      * @returns: the type contained in the class pointer
      */
-    pub def getInnerType (self)-> &Type {
+    pub fn getInnerType (self)-> &Type {
         return self._child
     }
 

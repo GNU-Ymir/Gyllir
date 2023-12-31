@@ -33,7 +33,7 @@ pub class OptionType over Type {
     /**
      * @returns: the type contained in the option
      */
-    pub def getInnerType (self)-> &Type {
+    pub fn getInnerType (self)-> &Type {
         return self._child
     }
 

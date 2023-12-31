@@ -40,7 +40,7 @@ pub class Impl over Symbol {
     /**
      * @returns: the trait that is implemented
      */
-    pub def getTrait (self)-> [c8] {
+    pub fn getTrait (self)-> [c8] {
         self._trait
     }
     

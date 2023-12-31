@@ -27,14 +27,14 @@ pub class Type {
     /**
      * @returns: true if the type is mutable
      */
-    pub def isMutable (self)-> bool {
+    pub fn isMutable (self)-> bool {
         self._isMut
     }
 
     /**
      * @returns: the name of the type
      */
-    pub def getName (self)-> [c8] {
+    pub fn getName (self)-> [c8] {
         self._name
     }
 

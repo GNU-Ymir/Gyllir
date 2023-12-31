@@ -2,21 +2,21 @@ mod gyllir::utils::options;
 import std::config::_;
 
 
-pub def toOr {T} (u : T?, o : T)-> T {
+pub fn toOr {T} (u : T?, o : T)-> T {
     match u {
         Ok (x : _)=> x
         _ => o
     }
 }
 
-pub def toOr {T} (v : &Config?, val : T) -> T {
+pub fn toOr {T} (v : &Config?, val : T) -> T {
     match v {
         Ok (x : _) => { x.to!{T} () } catch { _ => val }
         _ => { val }
     }
 }
 
-pub def toOrThrow {T, E} (v : &Config?, err : E)-> T
+pub fn toOrThrow {T, E} (v : &Config?, err : E)-> T
     throws E
 {
     match v {

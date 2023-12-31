@@ -25,7 +25,7 @@ pub class ClassType over Type {
     /**
      * @returns: the module that declared the class
      */
-    pub def getModule (self)-> &Path {
+    pub fn getModule (self)-> &Path {
         self._module
     }
 

@@ -40,7 +40,7 @@ pub class HtmlTable over HtmlNode {
     }
 
     
-    prv def dumpModule (self, node : &MetaNode, dmut stream : &StringStream, leafTemplate : [c8]) {
+    prv fn dumpModule (self, node : &MetaNode, dmut stream : &StringStream, leafTemplate : [c8]) {
         let map = hmap#{
             "Name"s8 => node.getPath ().toStr (sep-> "::"s8)
         };
@@ -56,7 +56,7 @@ pub class HtmlTable over HtmlNode {
         }
     }
 
-    prv def readLeafResource (self)-> [c8] {
+    prv fn readLeafResource (self)-> [c8] {
         let ymir_res = Path::new ("/etc/gyllir/res"s8);
 
         let mut res = ""s8;

@@ -43,7 +43,7 @@ pub class Block over Symbol {
     /**
      * @returns: the list of children of the block
      */
-    pub def getChilds (self)-> [&Symbol] {    
+    pub fn getChilds (self)-> [&Symbol] {
         self._childs[]
     }        
 

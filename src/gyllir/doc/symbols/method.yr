@@ -41,16 +41,16 @@ pub class Method over Function {
     }
 
 
-    pub def isOver (self)-> bool {
+    pub fn isOver (self)-> bool {
         self._over
     }
 
 
-    pub def isMut (self)-> bool {
+    pub fn isMut (self)-> bool {
         self._mut
     }
 
-    pub def isFinal (self)-> bool {
+    pub fn isFinal (self)-> bool {
         self._final
     }
     

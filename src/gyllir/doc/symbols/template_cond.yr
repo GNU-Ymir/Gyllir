@@ -83,33 +83,33 @@ pub class TemplateCond over Symbol {
     /**
      * @returns: the list of children of the module
      */
-    pub def getImpls (self)-> [&Impl] {    
+    pub fn getImpls (self)-> [&Impl] {
         self._impls[]
     }        
 
     /**
      * @returns: the condition of the cte if
      */
-    pub def getCondition (self)-> [c8] {
+    pub fn getCondition (self)-> [c8] {
         self._condition
     }
 
     /**
      * @returns: the list of constructors
      */
-    pub def getCstrs (self)-> [&Function] {
+    pub fn getCstrs (self)-> [&Function] {
         self._cstrs[]
     }
 
-    pub def getMethods (self)-> [&Method] {
+    pub fn getMethods (self)-> [&Method] {
         self._meths[]
     }
 
-    pub def getTemplateConds (self)-> [&TemplateCond] {
+    pub fn getTemplateConds (self)-> [&TemplateCond] {
         self._templateCond[]
     }
 
-    pub def getTemplates (self)-> [&Template] {
+    pub fn getTemplates (self)-> [&Template] {
         self._templates[]
     }
 

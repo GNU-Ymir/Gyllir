@@ -50,14 +50,14 @@ pub class @final CleanCommand over SubCommand {
     /**
      * Just the documentation must be cleaned
      */
-    pub def isDoc (self)-> bool {
+    pub fn isDoc (self)-> bool {
         self._args.doc
     }
 
     /**
      * Everything must be cleaned
      */
-    pub def isAll (self)-> bool {
+    pub fn isAll (self)-> bool {
         self._args.all
     }
       

@@ -36,7 +36,7 @@ pub class ClosureType over Type {
     /**
      * @returns: the parameter types of the dg pointer
      */
-    pub def getInnerTypes (self)-> [&Type] {
+    pub fn getInnerTypes (self)-> [&Type] {
         self._inner[]
     }
     

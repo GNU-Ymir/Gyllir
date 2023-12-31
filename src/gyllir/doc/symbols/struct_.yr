@@ -44,12 +44,12 @@ pub class Struct over Symbol {
         }
     }
 
-    pub def getAttrs (self)-> [[c8]] {
+    pub fn getAttrs (self)-> [[c8]] {
         self._attributes[]
     }
 
 
-    pub def getFields (self)-> [&Parameter] {
+    pub fn getFields (self)-> [&Parameter] {
         self._fields[]
     }
     

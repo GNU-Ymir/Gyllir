@@ -77,19 +77,19 @@ pub class Function over Symbol {
     }
 
 
-    pub def getParameters (self)-> [&Parameter] {
+    pub fn getParameters (self)-> [&Parameter] {
         self._params[]
     }
 
-    pub def getThrowers (self)-> [&Type] {
+    pub fn getThrowers (self)-> [&Type] {
         self._throwers[]
     }
 
-    pub def getAttributes (self)-> [[c8]] {
+    pub fn getAttributes (self)-> [[c8]] {
         self._attributes[]
     }
 
-    pub def getRetType (self)-> &Type {
+    pub fn getRetType (self)-> &Type {
         self._retType
     }
 

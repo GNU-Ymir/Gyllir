@@ -33,7 +33,7 @@ pub class Trait over Symbol {
         }
     }
 
-    pub def getChilds (self)-> [&Symbol] {
+    pub fn getChilds (self)-> [&Symbol] {
         self._childs[]
     }
 

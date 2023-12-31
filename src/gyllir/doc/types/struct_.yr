@@ -25,7 +25,7 @@ pub class StructType over Type {
     /**
      * @returns: the module that declared the struct
      */
-    pub def getModule (self)-> &Path {
+    pub fn getModule (self)-> &Path {
         self._module
     }
 

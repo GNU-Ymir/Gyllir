@@ -33,7 +33,7 @@ pub class RangeType over Type {
     /**
      * @returns: the type contained in the range
      */
-    pub def getInnerType (self)-> &Type {
+    pub fn getInnerType (self)-> &Type {
         return self._child
     }
 

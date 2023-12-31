@@ -11,6 +11,6 @@ pub class @abstract HtmlNode {
      * @params:
      *   - stream: the stream to populate
      */
-    pub def dumpHtml (self, dmut stream : &StringStream);
+    pub fn dumpHtml (self, dmut stream : &StringStream);
         
 }

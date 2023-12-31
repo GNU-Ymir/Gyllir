@@ -46,15 +46,15 @@ pub class Template over Symbol {
     }
 
 
-    pub def getChild (self)-> &Symbol {
+    pub fn getChild (self)-> &Symbol {
         self._child
     }
 
-    pub def getParams (self)-> [[c8]] {
+    pub fn getParams (self)-> [[c8]] {
         self._params[]
     }
 
-    pub def getTest (self)-> [c8] {
+    pub fn getTest (self)-> [c8] {
         self._test
     }
     

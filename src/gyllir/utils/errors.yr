@@ -28,7 +28,7 @@ pub class GitError over Exception {
     
 }
 
-pub def to {C of [U], U of c8, T of GitErrorCode} (err : T)-> [c8] {
+pub fn to {C of [U], U of c8, T of GitErrorCode} (err : T)-> [c8] {
     match err {
         GitErrorCode::ALREADY_INIT => { "ALREADY_INIT"s8 }
         GitErrorCode::UNKNOWN      => { "UNKNOWN"s8 }

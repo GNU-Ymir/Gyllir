@@ -54,21 +54,21 @@ pub class @final DocCommand over SubCommand {
     /**
      * @returns: the directory in which json files can be found
      */
-    pub def inDir (self)-> [c8] {
+    pub fn inDir (self)-> [c8] {
         self._args.inDir.to![c8] ()
     }
     
     /**
      * @returns: true iif the option --verbose is set
      */
-    pub def isVerbose (self)-> bool {
+    pub fn isVerbose (self)-> bool {
         self._args.verbose
     }
 
     /**
      * @returns: the number of thread to spawn 
      */
-    pub def getNbThreads (self)-> u32 {
+    pub fn getNbThreads (self)-> u32 {
         cast!u32 (self._args.j)
     }
 

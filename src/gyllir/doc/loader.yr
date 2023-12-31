@@ -9,7 +9,7 @@ import std::io;
 /**
  * Transform a configuration into a symbol
  */
-pub def toSymbol (config : &Config)-> dmut &Symbol {
+pub fn toSymbol (config : &Config)-> dmut &Symbol {
     match (config ["type"]?).toOr (""s8) {
         "module"s8 => { return Module::new (config); }
         "function"s8 => { return Function::new (config); }
@@ -34,7 +34,7 @@ pub def toSymbol (config : &Config)-> dmut &Symbol {
 /**
  * Transform a configuration into a type
  */
-pub def toType (conf : &Config)-> &Type {
+pub fn toType (conf : &Config)-> &Type {
     let isMut = ((conf["mut"]?).toOr ("false"s8) == "true"s8);
     let name = (conf["name"]?).toOr (""s8);
     match (conf["type"]?).toOr (""s8) {
@@ -64,7 +64,7 @@ pub def toType (conf : &Config)-> &Type {
  * Transform a string into protection
  * @info: return private if the string is not a protection 
  */
-pub def to {C of Protection, T of [U], U of c8} (a : T)-> Protection {
+pub fn to {C of Protection, T of [U], U of c8} (a : T)-> Protection {
     match a {
         "pub"s8 => { Protection::PUB } 
         "prot"s8 => { Protection::PROT }

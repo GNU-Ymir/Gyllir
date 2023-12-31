@@ -24,7 +24,7 @@ pub class MetaModule {
     /**
      * Insert a module 
      */
-    pub def insert (mut self, sym : &Module) {
+    pub fn insert (mut self, sym : &Module) {
         let name = Path::new (self.toPath (sym.getName ()));
         self._root:.insert (name, name, sym);
         
@@ -37,7 +37,7 @@ pub class MetaModule {
      * assert (self.toPath ("std::path"s8) == "std/path.yr"s8)
      * ===========
      */
-    prv def toPath (self, module : [c8], sep : [c8] = "::"s8, add : [c8] = "/"s8)-> [c8] {
+    prv fn toPath (self, module : [c8], sep : [c8] = "::"s8, add : [c8] = "/"s8)-> [c8] {
         let dmut res = StringStream::new ();
         let mut i = 0us;
         while i < module.len {
@@ -60,7 +60,7 @@ pub class MetaModule {
     /**
      * @returns: the root of the meta module
      */
-    pub def getRoot (self)-> &MetaNode {
+    pub fn getRoot (self)-> &MetaNode {
         self._root
     }
     
@@ -88,7 +88,7 @@ pub class MetaNode {
     /**
      * Insert a new module in the tree
      */
-    pub def insert (mut self, path : &Path, fullPath : &Path, sym : &Module) {
+    pub fn insert (mut self, path : &Path, fullPath : &Path, sym : &Module) {
         if (path.parts ().len == 0us) {
             self._fullPath = fullPath;
             self._module = sym;
@@ -109,21 +109,21 @@ pub class MetaNode {
     /**
      * @returns: the name of the module
      */
-    pub def getName (self)-> [c8] {
+    pub fn getName (self)-> [c8] {
         self._name
     }
 
     /**
      * @returns: the path of the module
      */
-    pub def getPath (self)-> &Path {
+    pub fn getPath (self)-> &Path {
         self._fullPath
     }
     
     /**
      * @returns: the childs of the meta node
      */
-    pub def getChilds (self)-> &HashMap!{[c8], dmut &MetaNode} {
+    pub fn getChilds (self)-> &HashMap!{[c8], dmut &MetaNode} {
         self._childs
     }
     

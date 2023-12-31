@@ -63,7 +63,7 @@ pub class Url {
      * This constructor can be used by the std for deserialization
      * @example: 
      * ====================
-     * def getConfiguration ()-> &Config; 
+     * fn getConfiguration ()-> &Config;
      *
      * let dmut list = getConfiguration ().to!{&Url} (); 
      * ====================
@@ -100,28 +100,28 @@ pub class Url {
     /**
      * @returns: the type of url
      */
-    pub def getType (self)-> UrlType {
+    pub fn getType (self)-> UrlType {
         self._type
     }
 
     /**
      * @returns: the path of the url
      */
-    pub def getPath (self)-> &Path {
+    pub fn getPath (self)-> &Path {
         self._path
     }
 
     /**
      * @returns: true if the url parsing succeded
      */
-    pub def isValid (self)-> bool {
+    pub fn isValid (self)-> bool {
         self._valid
     }
 
     /**
      * @returns: true if self == o
      */
-    pub def opEquals (self, o : &Url)-> bool {
+    pub fn opEquals (self, o : &Url)-> bool {
         self._path == o._path &&
             self._type == o._type &&
             self._valid == o._valid
@@ -130,7 +130,7 @@ pub class Url {
     /**
      * Parse an url from a string
      */
-    prv def parseStr (mut self, url : [c32]) {
+    prv fn parseStr (mut self, url : [c32]) {
         if url.startWith (UrlStarts::LOCAL) {            
             self._path = Path::new (url [UrlStarts::LOCAL.len .. $]);
             self._type = UrlType::LOCAL;

@@ -101,7 +101,7 @@ pub class GyllirManager {
      * Run the builder
      * @returns: the builder did something
      */
-    pub def run (mut self) {
+    pub fn run (mut self) {
         if !self._valid { return {} }
         
         if (self._args.init.isSet ()) {
@@ -177,7 +177,7 @@ pub class GyllirManager {
      *   - ask: the text to write as a question
      *   - default: the default value to return if the user did write nothing
      */
-    prv def askUserFor (self, ask : [c8], default : [c8] = ""s8) -> [c8] {
+    prv fn askUserFor (self, ask : [c8], default : [c8] = ""s8) -> [c8] {
         let x = read![c8] (ask-> (ask ~ " ["s8 ~ default ~ "]:"s8).(std::conv::to)![c32] ());
         if x == ""s8 {
             default
@@ -196,7 +196,7 @@ pub class GyllirManager {
     /**
      * Initialize a new repo
      */
-    prv def initRepo (self) {
+    prv fn initRepo (self) {
         let path = env::currentDir ().push (self._args.init.getName ().(std::conv::to)![c8] ());
         if isFile (path.push (defaults::__GYLLIR_CONFIG_FILENAME__)) {
             println ("The target directory already contains a 'gyllir.toml' file. Aborting.");
@@ -230,7 +230,7 @@ pub class GyllirManager {
     /**
      * Create a new empty repository
      */
-    prv def createEmptyRepo (self, path : &Path, conf : GyllirConfig)
+    prv fn createEmptyRepo (self, path : &Path, conf : GyllirConfig)
         throws &FsError, &GitError
     {
         fs::sys::createDir (path, recursive-> true)?;
@@ -275,7 +275,7 @@ pub class GyllirManager {
     /**
      * Build a repository 
      */
-    prv def buildRepo (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir (), doLink : bool = true, inDependency : bool = false)-> bool
+    prv fn buildRepo (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir (), doLink : bool = true, inDependency : bool = false)-> bool
         throws &RecursiveDependency
     {
         let dmut builder = RepoBuilder::new (alias self, conf, cwd-> cwd);
@@ -305,7 +305,7 @@ pub class GyllirManager {
     /**
      * Resolve a dependency, and build it
      */
-    pub def resolvePackageDependency (mut self, cwd : &Path, name : [c8], dependency : Dependency) -> ([c8], bool)
+    pub fn resolvePackageDependency (mut self, cwd : &Path, name : [c8], dependency : Dependency) -> ([c8], bool)
         throws &RecursiveDependency
     {
         let depPath = cwd.push (defaults::__DEPENCY_DIR__).push (name);
@@ -379,7 +379,7 @@ pub class GyllirManager {
     /**
      * Transform a list of tags (acquired with git) into a list of version
      */
-    pub def toVersionList (self, list : [c8])-> [&Version] {
+    pub fn toVersionList (self, list : [c8])-> [&Version] {
         let tzer = Tokenizer::new (tokens-> ["\n"]);
         let res = tzer.tokenize (list.(std::conv::to)![c32] ());
         let mut versions : [&Version] = [];
@@ -406,7 +406,7 @@ pub class GyllirManager {
     /**
      * Execute the clean repository command
      */
-    pub def cleanRepo (self, cwd : &Path = env::currentDir (), all : bool = false, doc : bool = false) {
+    pub fn cleanRepo (self, cwd : &Path = env::currentDir (), all : bool = false, doc : bool = false) {
         let conf = {
             self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
         } catch {
@@ -462,7 +462,7 @@ pub class GyllirManager {
     /**
      * Publish the repository 
      */
-    pub def publishRepo (mut self) {
+    pub fn publishRepo (mut self) {
         let cwd = env::currentDir ();
         let conf = {
             self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
@@ -501,7 +501,7 @@ pub class GyllirManager {
     /**
      * Publish a package to a local location
      */
-    pub def publishLocal (mut self, cwd : &Path, conf : GyllirConfig, path : &Path = Path::new ("."), ask : bool = true)-> (bool, &Version)
+    pub fn publishLocal (mut self, cwd : &Path, conf : GyllirConfig, path : &Path = Path::new ("."), ask : bool = true)-> (bool, &Version)
         throws &FsError, &GitError
     {
         let answer =
@@ -554,7 +554,7 @@ pub class GyllirManager {
     /**
      * Publish the repo to a git location
      */
-    pub def publishGit (mut self, conf : GyllirConfig, tmpDir : &Path, version : &Version)
+    pub fn publishGit (mut self, conf : GyllirConfig, tmpDir : &Path, version : &Version)
     {
         git::setRemote (cwd-> tmpDir, conf.registry.getPath ().toStr ());
         git::push (["v"s8 ~ version.toStr (), "master"s8], cwd-> tmpDir);
@@ -577,7 +577,7 @@ pub class GyllirManager {
     /**
      * Run the tests of the repo
      */
-    prv def runTests (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir (), isDry : bool) -> bool
+    prv fn runTests (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir (), isDry : bool) -> bool
         throws &RecursiveDependency
     {
         let dmut builder = RepoBuilder::new (alias self, conf, cwd-> cwd);
@@ -611,7 +611,7 @@ pub class GyllirManager {
     /**
      * Generate the documentation of the repository
      */
-    prv def generateDoc (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir ())
+    prv fn generateDoc (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir ())
         throws &RecursiveDependency
     {
         let d = self.getArguments ().doc;
@@ -679,7 +679,7 @@ pub class GyllirManager {
     /**
      * Save a configation into a file
      */
-    pub def saveToml (self, path : &Path, content : &Config)
+    pub fn saveToml (self, path : &Path, content : &Config)
         throws &FsError
     {
         import std::config::toml;
@@ -691,7 +691,7 @@ pub class GyllirManager {
     /**
      * Read the configuration file
      */
-    pub def loadToml (self, path : &Path)-> GyllirConfig
+    pub fn loadToml (self, path : &Path)-> GyllirConfig
         throws &FsError, &SyntaxError, &ConfigError
     {
         import std::config::toml;
@@ -703,7 +703,7 @@ pub class GyllirManager {
     /**
      * @returns: true if the error was thrown by a sub command that printed the help
      */
-    pub def hasHelpPrinted (self, err : &ArgumentError) -> bool {
+    pub fn hasHelpPrinted (self, err : &ArgumentError) -> bool {
         match err.subError {
             Ok (HelpPrinted ()) => { true }
             Ok (sub : &ArgumentError) => { self.hasHelpPrinted (sub) }
@@ -714,7 +714,7 @@ pub class GyllirManager {
     /**
      * @returns: true if no option is set
      */
-    pub def noneIsSet (self)-> bool {
+    pub fn noneIsSet (self)-> bool {
         !self._args.init.isSet () &&
             !self._args.build.isSet () &&
             !self._args.clean.isSet () &&
@@ -726,7 +726,7 @@ pub class GyllirManager {
     /**
      * @returns: the arguments passed to the command line
      */
-    pub def getArguments (self)-> GyllirArgs {
+    pub fn getArguments (self)-> GyllirArgs {
         self._args
     }
     
@@ -735,7 +735,7 @@ pub class GyllirManager {
      * @params:
      *     - true if succeded, false otherwise
      */
-    pub def runProcess (self, cmd : [c8], params : [[c8]], cwd : &Path = env::currentDir (), printOut : bool = false, printErr : bool = false)-> bool {        
+    pub fn runProcess (self, cmd : [c8], params : [[c8]], cwd : &Path = env::currentDir (), printOut : bool = false, printErr : bool = false)-> bool {
         with dmut subProc = SubProcess::run (cmd, params, cwd-> cwd, redirectStdout-> !printOut, redirectStderr-> !printErr) {
             let code = subProc:.wait ();
             code == 0

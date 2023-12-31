@@ -4,7 +4,7 @@ import std::stream;
 import std::collection::map;
 import std::io;
 
-def main (args : [[c8]]) {
+fn main (args : [[c8]]) {
     GyllirManager::new (args):.run ();
 }
 

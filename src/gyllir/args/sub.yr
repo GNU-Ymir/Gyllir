@@ -26,7 +26,7 @@ pub class @abstract SubCommand {
     /**
      * @returns: true if the sub command has been activated by the argument parser
      */
-    pub def isSet (self)-> bool {
+    pub fn isSet (self)-> bool {
         self._isSet 
     }
     

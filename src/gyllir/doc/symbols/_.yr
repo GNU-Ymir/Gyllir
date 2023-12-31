@@ -48,7 +48,7 @@ pub class Symbol {
     /// The name of the file containing the symbol
     let _locFile : &Path;
 
-    /// THe documentation above the symbol definition
+    /// THe documentation above the symbol fninition
     let _doc : [c8];
 
     /// The protection of the symbol
@@ -78,23 +78,23 @@ pub class Symbol {
     /**
      * @returns: the name of the symbol
      */
-    pub def getName (self)-> [c8] {
+    pub fn getName (self)-> [c8] {
         self._name
     }
 
     /**
      * @returns: the documentation about the symbol
      */
-    pub def getDoc (self)-> [c8] {
+    pub fn getDoc (self)-> [c8] {
         self._doc
     }
 
-    pub def getProtection (self)-> Protection {
+    pub fn getProtection (self)-> Protection {
         self._protection
     }
 
 
-    pub def setProtection (mut self, protection : Protection) {
+    pub fn setProtection (mut self, protection : Protection) {
         self._protection = protection;
     }
     

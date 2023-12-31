@@ -3,33 +3,33 @@ mod gyllir::repo::defaults;
 /** 
  * The filename of the configuration
  */
-pub aka __GYLLIR_CONFIG_FILENAME__ = "gyllir.toml"s8;
+pub def __GYLLIR_CONFIG_FILENAME__ = "gyllir.toml"s8;
 
 /**
  * The filename of the gitignore file
  */
-pub aka __GITIGNORE_FILENAME__ = ".gitignore"s8;
+pub def __GITIGNORE_FILENAME__ = ".gitignore"s8;
 
 /**
  * The name of the initial file
  */
-pub aka __MAIN_FILE__ = "main.yr"s8;
+pub def __MAIN_FILE__ = "main.yr"s8;
 
-pub aka __FST_TEST_FILE__ = "first_test.yr"s8;
+pub def __FST_TEST_FILE__ = "first_test.yr"s8;
 
 /**
  * The content of the initial file
  */
-pub aka __MAIN_CONTENT__ = str8#{mod main;
+pub def __MAIN_CONTENT__ = str8#{mod main;
 import std::io;
     
-def main () {
+fn main () {
     println ("Hello World !");
 }
 };
 
 
-pub aka __FST_TEST_CONTENT__ = str8#{mod first_test;
+pub def __FST_TEST_CONTENT__ = str8#{mod first_test;
 import std::io;
     
 __test {
@@ -43,7 +43,7 @@ __test {
 /**
  * The content of the gitignore file
  */
-pub aka __GITIGNORE_CONTENT__ = str8#{
+pub def __GITIGNORE_CONTENT__ = str8#{
 .build
 __libs
 __doc        
@@ -54,25 +54,23 @@ __doc
 /**
  * The source directory name
  */
-pub aka __SRC_DIR__ = "src"s8;
+pub def __SRC_DIR__ = "src"s8;
 
 
-pub aka __BUILD_DIR__ = ".build"s8;
-pub aka __DEBUG_DIR__ = "debug"s8;
-pub aka __RELEASE_DIR__ = "release"s8;
-pub aka __LIB_DIR__ = "__libs"s8
-pub aka __TEST_DIR__ = "debug"s8;
-pub aka __DOC_DIR__ = "__doc"s8;
-pub aka __BUILD_TEST_DIR__ = ".build/.test"s8;
-pub aka __DEPENCY_DIR__ = ".build/.deps"s8;
-pub aka __CMAKE_FILE__ = "CMakeLists.txt"s8;
+pub def __BUILD_DIR__ = ".build"s8;
+pub def __DEBUG_DIR__ = "debug"s8;
+pub def __RELEASE_DIR__ = "release"s8;
+pub def __LIB_DIR__ = "__libs"s8
+pub def __TEST_DIR__ = "debug"s8;
+pub def __DOC_DIR__ = "__doc"s8;
+pub def __BUILD_TEST_DIR__ = ".build/.test"s8;
+pub def __DEPENCY_DIR__ = ".build/.deps"s8;
+pub def __CMAKE_FILE__ = "CMakeLists.txt"s8;
 
 
-pub aka __YMIR_EXTENSION__ = "yr"s8;
-pub aka __OBJECT_EXTENSION__ = "o"s8;
-pub aka __DEP_EXTENSION__ = "dep.json"s8;
-pub aka __DOC_EXTENSION__ = "doc.json"s8;
-pub aka __MARKDOWN_EXTENSION__ = "md"s8;
-pub aka __LIBRARY_EXTENSION__ = "a"s8;
-
-    
+pub def __YMIR_EXTENSION__ = "yr"s8;
+pub def __OBJECT_EXTENSION__ = "o"s8;
+pub def __DEP_EXTENSION__ = "dep.json"s8;
+pub def __DOC_EXTENSION__ = "doc.json"s8;
+pub def __MARKDOWN_EXTENSION__ = "md"s8;
+pub def __LIBRARY_EXTENSION__ = "a"s8;

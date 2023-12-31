@@ -79,7 +79,7 @@ pub class DependencyList {
     /**
      * Insert the dependencies from a configuration dictionnary
      */
-    prv def insert (mut self, elem : &Dict) throws &ConfigError
+    prv fn insert (mut self, elem : &Dict) throws &ConfigError
     {
         for i, j in elem {                
             {    
@@ -98,14 +98,14 @@ pub class DependencyList {
      * @params:
      *   - elem: the name of dependency to remove
      */
-    pub def remove (mut self, elem : [c32]) {
+    pub fn remove (mut self, elem : [c32]) {
         self._package:.remove(elem);
     }
 
     /**
      * @returns: the list of dependencies
      */
-    pub def getList (self)-> &HashMap!{[c32], Dependency} {
+    pub fn getList (self)-> &HashMap!{[c32], Dependency} {
         self._package
     }
 

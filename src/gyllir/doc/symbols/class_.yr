@@ -147,67 +147,67 @@ pub class Class over Symbol {
     /**
      * @returns: true iif the class is final
      */
-    pub def isFinal (self)-> bool {
+    pub fn isFinal (self)-> bool {
         self._final
     }
 
     /**
      * @returns: true iif the class is abstract
      */
-    pub def isAbstract (self)-> bool {
+    pub fn isAbstract (self)-> bool {
         self._abstract
     }
     
     /**
      * @returns: the ancestor of the class
      */
-    pub def getAncestor (self)-> &Type {
+    pub fn getAncestor (self)-> &Type {
         self._ancestor
     }
 
     /**
      * @returns: the list of constructor of the class
      */
-    pub def getCstrs (self)-> [&Function] {
+    pub fn getCstrs (self)-> [&Function] {
         self._cstrs[]
     }
 
     /**
      * @returns: the list of fields of the class
      */
-    pub def getFields (self)-> [&Parameter] {
+    pub fn getFields (self)-> [&Parameter] {
         self._fields[]
     }
     
     /**
      * @returns: the list of methods of the class
      */
-    pub def getMethods (self)-> [&Method] {
+    pub fn getMethods (self)-> [&Method] {
         self._methods[]
     }
 
     /**
      * @returns: the list of assertion of the class
      */
-    pub def getAsserts (self)-> [&Assert] {
+    pub fn getAsserts (self)-> [&Assert] {
         self._asserts[]
     }
 
     /**
      * @returns: the list of impl of the class
      */
-    pub def getImpls (self)-> [&Impl] {
+    pub fn getImpls (self)-> [&Impl] {
         self._impls[]
     }
 
-    pub def getTemplates (self)-> [&Template] {
+    pub fn getTemplates (self)-> [&Template] {
         self._templates[]
     }
     
     /**
      * @returns: the list of template conditions
      */
-    pub def getTemplateConds (self)-> [&TemplateCond] {
+    pub fn getTemplateConds (self)-> [&TemplateCond] {
         self._templateCond[]
     }
 

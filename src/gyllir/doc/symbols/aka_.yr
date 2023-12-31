@@ -27,7 +27,7 @@ pub class Aka over Symbol {
     /**
      * @returns: the value associated to the aka
      */
-    pub def getValue (self)-> [c8] {
+    pub fn getValue (self)-> [c8] {
         self._value
     }
 

@@ -33,14 +33,14 @@ pub class Assert over Symbol {
     /**
      * @returns: the message of the assertion
      */
-    pub def getMessage (self)-> [c8] {
+    pub fn getMessage (self)-> [c8] {
         self._msg
     }
 
     /**
      * @returns: the test of the assertion
      */
-    pub def getTest (self)-> [c8] {
+    pub fn getTest (self)-> [c8] {
         self._test
     }
 

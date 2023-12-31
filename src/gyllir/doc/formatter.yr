@@ -11,7 +11,7 @@ import std::stream, std::io;
  *   - content: the content to format
  *   - values: the values to use during the formatting
  */
-pub def format (dmut stream : &StringStream, content : [c8], values : &HashMap!{[c8], [c8]}) {
+pub fn format (dmut stream : &StringStream, content : [c8], values : &HashMap!{[c8], [c8]}) {
     let mut rest = content;
     while rest.len != 0us {
         let (beg, form, rest_) = findNext (rest);
@@ -36,7 +36,7 @@ pub def format (dmut stream : &StringStream, content : [c8], values : &HashMap!{
  *    - .1: the format content
  *    - .2: the text after the format 
  */
-prv def findNext (content : [c8]) -> ([c8], [c8], [c8]) {
+prv fn findNext (content : [c8]) -> ([c8], [c8], [c8]) {
     let mut i = 0us;
     while i < content.len - 3us { // format is at least $()
         if content[i .. i + 2us] == "$("s8 {

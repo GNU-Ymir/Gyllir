@@ -30,11 +30,11 @@ pub class CustomCommandList {
     }
 
 
-    pub def getList (self)-> &HashMap!{[c32], Cmd} {
+    pub fn getList (self)-> &HashMap!{[c32], Cmd} {
         self._lst
     }
     
-    prv def insert (mut self, cfg : &Dict)
+    prv fn insert (mut self, cfg : &Dict)
         throws &ConfigError
     {
 

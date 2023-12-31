@@ -51,15 +51,15 @@ pub class BuildType {
         }
     }
 
-    pub def isExecutable (self)-> bool {
+    pub fn isExecutable (self)-> bool {
         self._type == BuildTypeEnum::EXECUTABLE
     }
 
-    pub def isLibrary (self)-> bool {
+    pub fn isLibrary (self)-> bool {
         self._type == BuildTypeEnum::LIBRARY
     }
 
-    pub def isShared (self)-> bool {
+    pub fn isShared (self)-> bool {
         self._type == BuildTypeEnum::SHARED_LIB
     }
 

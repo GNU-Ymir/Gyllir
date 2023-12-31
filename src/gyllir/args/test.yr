@@ -56,28 +56,28 @@ pub class @final TestCommand over SubCommand {
     /**
      * @returns: true iif the option --verbose is set
      */
-    pub def isVerbose (self)-> bool {
+    pub fn isVerbose (self)-> bool {
         self._args.verbose
     }
 
     /**
      * @returns: false iif the option --release is set
      * */
-    pub def isDebug (self)-> bool {
+    pub fn isDebug (self)-> bool {
         !self._args.release
     }
 
     /**
      * @returns: the number of thread to spawn 
      */
-    pub def getNbThreads (self)-> u32 {
+    pub fn getNbThreads (self)-> u32 {
         cast!u32 (self._args.j)
     }
 
     /**
      * @returns: true iif test must not be executed
      */
-    pub def isDry (self)-> bool {
+    pub fn isDry (self)-> bool {
         self._args.dry
     }
     

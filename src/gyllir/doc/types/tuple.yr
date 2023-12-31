@@ -35,7 +35,7 @@ pub class TupleType over Type {
     /**
      * @returns: the inner types of the tuple
      */
-    pub def getInnerTypes (self)-> [&Type] {
+    pub fn getInnerTypes (self)-> [&Type] {
         self._inner []
     }
 

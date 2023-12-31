@@ -72,7 +72,7 @@ pub class HtmlHeader over HtmlNode {
     }
 
 
-    prv def readResource (self)-> [c8] {
+    prv fn readResource (self)-> [c8] {
         let ymir_res = Path::new ("/etc/gyllir/res"s8);
 
         let mut res = ""s8;

@@ -49,7 +49,7 @@ pub class @final InitCommand over SubCommand {
     /**
      * @returns: the name of the repo to create
      */
-    pub def getName (self)-> [c32] {
+    pub fn getName (self)-> [c32] {
         self._args.name
     }
       

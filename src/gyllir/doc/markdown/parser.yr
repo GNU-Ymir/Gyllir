@@ -25,14 +25,14 @@ pub class MarkdownParser {
     /**
      * @returns: the content
      */
-    pub def dumpHtml (self, dmut stream : &StringStream) {
+    pub fn dumpHtml (self, dmut stream : &StringStream) {
         self._node.dumpHtml (alias stream)
     }            
 
     /**
      * Start the parsing of the node
      */
-    prv def parse (mut self) {
+    prv fn parse (mut self) {
         let mut nb_space = 0us, mut line_ret = true;
         let dmut currentStream = StringStream::new ();
         let mut wasWhite = true;
@@ -105,7 +105,7 @@ pub class MarkdownParser {
     /**
      * Parse a sub module element
      */
-    prv def parseInnerDoc (mut self) -> &MarkdownNode {
+    prv fn parseInnerDoc (mut self) -> &MarkdownNode {
         let (name, _, _) = self._lex:.next ();
         self:.skipSpaces ();
         
@@ -190,7 +190,7 @@ pub class MarkdownParser {
      *   - nb_space: the number of space entabing the code block (they are remove from the returned block)
      * @returns: a block of code
      */
-    prv def parseCodeBlock (mut self, type : [c8], nb_space : usize)-> &MarkdownCode {
+    prv fn parseCodeBlock (mut self, type : [c8], nb_space : usize)-> &MarkdownCode {
         self:.skipTo (MarkdownTokens::LINE_RET);
         let dmut stream = StringStream::new ();
         let mut skip_space = 0us, mut do_skip = true;
@@ -227,7 +227,7 @@ pub class MarkdownParser {
      *   - type: the type of item list (- or +)
      *   - item_nb_space: the number of space the item are aligned with
      */
-    prv def parseListBlock (mut self, type : [c8], item_nb_space : usize)-> &MarkdownList {
+    prv fn parseListBlock (mut self, type : [c8], item_nb_space : usize)-> &MarkdownList {
         let mut nb_space = 0us, mut line_ret = false, mut wasWhite = true;
         let dmut list = MarkdownList::new ();
         let dmut node = MarkdownListItem::new ();
@@ -318,7 +318,7 @@ pub class MarkdownParser {
         list 
     }
 
-    prv def parseBoldItalicBlock (mut self, type : [c8])-> &MarkdownStyle {
+    prv fn parseBoldItalicBlock (mut self, type : [c8])-> &MarkdownStyle {
         let dmut stream = StringStream::new ();
         loop {
             let (n, _, _) = self._lex:.next ();
@@ -336,7 +336,7 @@ pub class MarkdownParser {
      * @params: 
      *    - tok: the token to reach
      */
-    prv def skipTo (mut self, tok : [c8]) {
+    prv fn skipTo (mut self, tok : [c8]) {
         loop {
             let (n, _, _) = self._lex:.next ();
             match n {
@@ -348,7 +348,7 @@ pub class MarkdownParser {
     /**
      * Move the cursor until it reaches something that is not a space
      */
-    prv def skipSpaces (mut self) {
+    prv fn skipSpaces (mut self) {
         loop {
             let (n, _, _) = self._lex:.nextNoConsume ();
             match n {
@@ -386,7 +386,7 @@ prv class MarkdownNode {
      * @params: 
      *    - stream: the stream to populate
      */
-    pub def dumpHtml (self, dmut stream : &StringStream) {
+    pub fn dumpHtml (self, dmut stream : &StringStream) {
         if (self._childrens[].len == 0us && self._head == "Description"s8) return {}
         
         stream:.write ("<dt class=\"head\">"s8);
@@ -421,7 +421,7 @@ prv class MarkdownNode {
      * @params: 
      *    - ch: the child to add
      */
-    pub def addChild (mut self, ch : &MarkdownNode) {
+    pub fn addChild (mut self, ch : &MarkdownNode) {
         self._childrens:.push (ch);
     }
 

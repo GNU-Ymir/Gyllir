@@ -41,14 +41,14 @@ pub class ArrayType over Type {
     /**
      * @returns: the type contained in the array
      */
-    pub def getInnerType (self)-> &Type {
+    pub fn getInnerType (self)-> &Type {
         return self._child
     }
 
     /**
      * @returns: the size of the array
      */
-    pub def getSize (self)-> usize {
+    pub fn getSize (self)-> usize {
         self._size
     }
     

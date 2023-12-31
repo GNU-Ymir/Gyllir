@@ -39,11 +39,11 @@ pub class RepoBuilder {
     /**
      * Build the repo
      */
-    pub def construct (mut self, inDependency : bool = false)-> bool
+    pub fn construct (mut self, inDependency : bool = false)-> bool
         throws &FsError, &RecursiveDependency
     {
         self.createBuildDir ();
-        if (!fs::sys::isFile (self._cwd.push (defaults::__BUILD_DIR__).push (defaults::__CMAKE_FILE__))) {            
+        if (!fs::sys::isFile (self._cwd.push (defaults::__BUILD_DIR__).push (defaults::__CMAKE_FILE__))) {
             if (!self:.createCMakeFile (inDependency-> inDependency)) return false;
         } else {
             let cmakeDate = fs::sys::fileDate (self._cwd.push (defaults::__BUILD_DIR__).push (defaults::__CMAKE_FILE__));
@@ -61,7 +61,7 @@ pub class RepoBuilder {
     /**
      * Compile a constructed repository using cmake
      */
-    pub def compile (mut self, forTest : bool = false, forDoc : bool = false)-> bool
+    pub fn compile (mut self, forTest : bool = false, forDoc : bool = false)-> bool
         throws &FsError
     {
         println ("[INFO] Compiling project : ", self._conf.name);
@@ -160,7 +160,7 @@ pub class RepoBuilder {
     /**
      * Execute custom commands of the configuration file
      */
-    prv def executeCustomCommands (mut self, post : bool = false)-> bool {
+    prv fn executeCustomCommands (mut self, post : bool = false)-> bool {
         let tzer = Tokenizer::new (tokens-> [" "s8]);
         for name, cmd in self._conf.commands.getList () {            
             if (cmd.post == post) {
@@ -187,7 +187,7 @@ pub class RepoBuilder {
     /**
      * Create the cmake file used to configure and make the repo
      */
-    prv def createCMakeFile (mut self, inDependency : bool)-> bool
+    prv fn createCMakeFile (mut self, inDependency : bool)-> bool
         throws &FsError, &RecursiveDependency
     {
         println ("[INFO] Checking dependencies : ", self._conf.name);
@@ -367,7 +367,7 @@ pub class RepoBuilder {
      *    - .0: the list of link directories
      *    - .1: the list of libraries to link
      */
-    prv def resolveDependencies (mut self)-> (bool, [([c8], [c8])])
+    prv fn resolveDependencies (mut self)-> (bool, [([c8], [c8])])
         throws &RecursiveDependency
     {
         let mut links : [([c8], [c8])] = [];
@@ -386,7 +386,7 @@ pub class RepoBuilder {
     /**
      * Create the directory in which building will be made    
      */
-    prv def createBuildDir (self) throws &FsError {
+    prv fn createBuildDir (self) throws &FsError {
         {
             fs::sys::createDir (self._cwd.push (defaults::__BUILD_DIR__));
         } catch {
@@ -401,7 +401,7 @@ pub class RepoBuilder {
     /**
      * Create the directory in which cmake building will be made    
      */
-    prv def createCMakeBuildDir (self, path : &Path) throws &FsError {
+    prv fn createCMakeBuildDir (self, path : &Path) throws &FsError {
         {
             fs::sys::createDir (path);
         } catch {
