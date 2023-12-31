@@ -249,10 +249,10 @@ pub class GyllirManager {
         with dmut f = File::create (path.push (defaults::__GITIGNORE_FILENAME__), write-> true) {
             f:.write (defaults::__GITIGNORE_CONTENT__);
             if conf.type.isExecutable () {
-                f:.write ("/"s8 ~ conf.name);
+                f:.write ("/"s8 ~ conf.name ~ "\n"s8);
                 f:.write ("/test_"s8 ~ conf.name);
             } else {
-                f:.write ("/"s8 ~ conf.name ~ ".a"s8);
+                f:.write ("/"s8 ~ conf.name ~ ".a\n"s8);
                 f:.write ("/test_"s8 ~ conf.name);
             }
             f:.write ("\n"s8);
