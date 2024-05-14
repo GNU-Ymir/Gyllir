@@ -332,7 +332,12 @@ pub class RepoBuilder {
                 file:.write ("if (${DOC_TARGET} STREQUAL \"doc_"s8);
                 file:.write (self._conf.name);
                 file:.write ("\")\n"s8);
-                file:.write ("\tadd_executable (doc_"s8);
+                if (self._conf.type.isExecutable ()) {
+                    file:.write ("\tadd_executable (doc_"s8);
+                } else {
+                    file:.write ("\tadd_library (doc_"s8);
+                }
+
                 file:.write (self._conf.name);
                 file:.write (" ${SRC})\n"s8);
                 file:.write ("\ttarget_compile_options (doc_"s8);
