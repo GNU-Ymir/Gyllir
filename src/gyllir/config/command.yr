@@ -1,57 +1,145 @@
-mod gyllir::config::command;
+in command;
 
-import std::config::_;
-import std::collection::map;
-import std::io;
-import std::syntax::tokenizer;
-import std::config::conv;
-import std::conv;
+use std::{config::_, fs::path, config::conv};
+use std::stream;
 
-struct
-| cmd : [c8]
-| post : bool = false
-| cwd : [c8] = "."s8
- -> Cmd;
+/**
+ * A custom command line to run
+ * */
+pub record Command {
+    // The command to run
+    let _cmd : [c8];
 
+    // True iif the command is a post command
+    let _isPost : bool;
+
+    // The path location of the command
+    let _cwd : Path;
+
+    /**
+     * @params:
+     *    - cmd: the command to run
+     *    - post: true iif the command is executed after the generation
+     *    - cwd: the location of the command execution
+     * */
+    pub self (cmd : [c8], post : bool, cwd : Path = Path ("."))
+        with _cmd = cmd
+        , _isPost = post
+        , _cwd = cwd
+    {}
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          GETTERS          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    @field
+    pub fn cmd (self)-> [c8] {
+        self._cmd
+    }
+
+    pub fn isPost (self)-> bool {
+        self._isPost
+    }
+
+    @field
+    pub fn cwd (self)-> Path {
+        self._cwd
+    }
+}
+
+/**
+ * A command list
+ * */
 pub class CustomCommandList {
 
-    let dmut _lst = HashMap!{[c32], Cmd}::new ();
-    
+    // The list of command in the list
+    let dmut _lst : [[c8] => Command] = [];
+
+    /**
+     * Create an empty command list
+     * */
     pub self () {}
 
+    /**
+     * Create a command list from a configuration
+     * */
     pub self (cfg : &Config)
-        throws &AssertError, &ConfigError
+        throws AssertError, ConfigError, std::conv::errors::CastFailure
     {
-        match cfg {
-            x : &Dict =>
-                self:.insert (x);
-            _ => throw AssertError::new ("Expecting a dictionnary"s8);
-        }
+        if let d : &Dict = cfg {
+            self:.insert (d);
+        } else throw copy AssertError ("Execpted a dictionnary");
     }
 
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          GETTERS          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
 
-    pub fn getList (self)-> &HashMap!{[c32], Cmd} {
+    /**
+     * @returns: the list of command
+     * */
+    pub fn opIndex (self)-> [[c8] => Command] {
         self._lst
     }
-    
-    prv fn insert (mut self, cfg : &Dict)
-        throws &ConfigError
-    {
 
-        for i, j in cfg {
-            self._lst:.insert (i, j.to!Cmd ());
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          PRIVATE          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Insert commands a dictionnary configuration
+     * */
+    prv fn insert (mut self, cfg : &Dict)
+        throws ConfigError, std::conv::errors::CastFailure
+    {
+        for k, v in cfg[] {
+            let cmd = to!{[c8]} (v ["cmd"]);
+            let post = if let Ok (p) = v ["post"]? {
+                to!{bool} (p)
+            } else { false };
+
+            let cwd = if let Ok (s) = v ["cwd"]? {
+                Path (to!{[c8]} (s))
+            } else { Path (".") };
+
+            self._lst [k] = Command (cmd, post, cwd-> cwd);
         }        
     }       
 
-    impl Streamable;
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ======================================          MISC          ======================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
 
+    impl Streamable;
     impl Serializable {
         
         pub over serialize (self)-> &Config {
-            let dmut ret = Dict::new ();
-            for i, j in self._lst {
-                ret:.insert (i, j.to!(&Config) ());
+            let dmut ret = copy Dict ();
+            for k, c in self._lst {
+                let dmut cmd = copy Dict ();
+                cmd:["cmd"] = copy Str (c.cmd);
+                cmd:["post"] = copy Bool (c.isPost ());
+                cmd:["cwd"] = copy Str (c.cwd.toStr ());
+
+                ret:[k] = cmd;
             }
+
             ret
         }
     }

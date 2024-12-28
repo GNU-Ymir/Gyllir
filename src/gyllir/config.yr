@@ -1,0 +1,212 @@
+in config;
+
+use std::{config::_, stream};
+use std::conv::errors;
+
+pub mod ::command;
+pub mod ::url;
+pub mod ::version;
+pub mod ::dependency;
+pub mod ::type;
+
+use gyllir::config::_;
+
+/**
+ * Record defining a gyllir configuration
+ * */
+pub record GyllirPackageConfiguration {
+
+    // The name of the package
+    let mut _name : [c8] = "";
+
+    // The license of the package
+    let mut _license : [c8] = "";
+
+    // The short descripion
+    let mut _description : [c8] = "";
+
+    // The type of the target
+    let mut _type : BuildType = BuildType ();
+
+    // The registry in which the publishing has to be made
+    let mut _registry : Url = Url ();
+
+    // The version of the package
+    let mut _version : Version = Version (0, 0, 0);
+
+    // The list of authors
+    let mut _authors : [[c8]] = [];
+
+    // The list of libraries to link (from C language)
+    let mut _libraries : [[c8]] = [];
+
+    // The list of dependencies of the package
+    let mut _dependencies : &DependencyList = copy DependencyList ();
+
+    // The list of custom commands to run when building the project
+    let mut _commands : &CustomCommandList = copy CustomCommandList ();
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * =====================================          CTORS          ======================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    pub self (name : [c8], license : [c8], description : [c8], type : BuildType, registry : Url, version : Version, authors : [[c8]])
+        with _name = name
+        , _license = license
+        , _description = description
+        , _type = type
+        , _registry = registry
+        , _version = version
+        , _authors = authors
+    {}
+
+    /**
+     * Construct a package configuration from a config
+     * */
+    pub self (cfg : &Config)
+        throws std::conv::errors::CastFailure, AssertError
+    {
+        if let d : &Dict = cfg {
+            self:.parsePackage (d);
+        }
+
+        else throw copy AssertError ("Expecting a dictionnary");
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          GETTERS          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+
+    @field
+    pub fn name (self)-> [c8] {
+        self._name
+    }
+
+    @field
+    pub fn license (self)-> [c8] {
+        self._license
+    }
+
+    @field
+    pub fn descripion (self)-> [c8] {
+        self._description
+    }
+
+    @field
+    pub fn type (self)-> BuildType {
+        self._type
+    }
+
+    @field
+    pub fn registry (self)-> Url {
+        self._registry
+    }
+
+    @field
+    pub fn version (self)-> Version {
+        self._version
+    }
+
+    @field
+    pub fn authors (self)-> [[c8]] {
+        self._authors
+    }
+
+    @field
+    pub fn libraries (self)-> [[c8]] {
+        self._libraries
+    }
+
+    @field
+    pub fn dependencies (self)-> &DependencyList {
+        self._dependencies
+    }
+
+    @field
+    pub fn commands (self)-> &CustomCommandList {
+        self._commands
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ======================================          MISC          ======================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    impl Streamable;
+    impl Serializable {
+        pub over serialize (self)-> &Config {
+            let dmut d = copy Dict ();
+            d:["name"] = copy Str (self._name);
+            d:["license"] = copy Str (self._license);
+            d:["description"] = copy Str (self._description);
+            d:["type"] = self._type.serialize ();
+            d:["registry"] = self._registry.serialize ();
+            d:["version"] = self._version.serialize ();
+            d:["dependencies"] = self._dependencies.serialize ();
+            d:["commands"] = self._commands.serialize ();
+
+            d:["authors"] = copy Array (copy [copy Str (i) for i in self._authors]);
+            d:["libraries"] = copy Array (copy [copy Str (i) for i in self._libraries]);
+
+            d
+        }
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          PRIVATE          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Parse a configuration defining a package
+     * */
+    prv fn parsePackage (mut self, d : &Dict)
+        throws CastFailure
+    {
+        self._name = std::config::conv::to!{[c8]} (d ["name"]);
+        self._license = std::config::conv::to!{[c8]} (d ["license"]);
+        self._description = std::config::conv::to!{[c8]} (d ["description"]);
+        self._type = std::config::conv::to!{BuildType} (d ["type"]);
+        self._version = std::config::conv::to!{Version} (d ["version"]);
+        self._registry = std::config::conv::to!{Url} (d ["registry"]);
+        if let Ok (a : &Array) = d ["authors"]? {
+            self._authors = copy [std::config::conv::to!{[c8]} (i) for i in a[]];
+        } else if let Ok (_) = d ["authors"]? {
+            throw copy AssertError ("expecting an array of string for 'authors'");
+        }
+
+        if let Ok (a : &Array) = d ["libraries"]? {
+            self._libraries = copy [std::config::conv::to!{[c8]} (i) for i in a[]];
+        } else if let Ok (_) = d ["libraries"]? {
+            throw copy AssertError ("expecting an array of string for 'libraries'");
+        }
+
+        if let Ok (x) = d ["dependencies"]? {
+            self._dependencies = std::config::conv::to!{&DependencyList} (x);
+        }
+
+        if let Ok (x) = d ["commands"]? {
+            self._commands = std::config::conv::to!{&CustomCommandList} (x);
+        }
+    } catch {
+        inE => {
+            throw copy CastFailure ((&Config)::__typeinfo__, GyllirPackageConfiguration::__typeinfo__, subError-> (inE)?);
+        }
+    }
+    
+}

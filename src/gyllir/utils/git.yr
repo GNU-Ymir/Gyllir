@@ -1,191 +1,299 @@
-mod gyllir::utils::git;
+in git;
 
-import gyllir::utils::errors;
-import std::concurrency::process;
-import std::fs::_;
-import std::io;
+use gyllir::utils::errors;
+use std::concurrency::process;
+use std::{io, fs::_, stream};
 
-pub fn init (cwd : &Path = Path::new ("."))
-    throws &GitError
-{
-    with dmut subproc = SubProcess::run ("git"s8, ["init"s8], cwd-> cwd) {
-        let code = subproc:.wait ();
+/**
+ * Record used to manage a git repository
+ * */
+pub record GitManager {
+
+    // The current working directory
+    let _cwd : Path;
+
+    /**
+     * @params:
+     *    - cwd: the working directory
+     * */
+    pub self (cwd : Path = Path ("."))
+        with _cwd = cwd
+    {}
+
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * =====================================          UTILS          ======================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Initialize a git repository
+     * */
+    pub fn init (self)
+        throws GitError, FsError
+    {
+        let dmut proc = copy SubProcess ("git", copy ["init"], cwd-> self._cwd);
+        proc:.start ();
+
+        let code = proc:.wait ();
         if (code != 0) {
-            throw GitError::new (GitErrorCode::ALREADY_INIT, subproc:.stderr ():.read ());
-        }
-    }
-}
-
-pub fn clone (url : [c8], cwd : &Path = Path::new ("."))
-    throws &GitError
-{
-    let parent = cwd.parent ();
-    fs::sys::createDir (parent)?;
-    with dmut subproc = SubProcess::run ("git"s8, ["clone"s8, url, cwd.file ()], cwd-> parent) {        
-        let code = subproc:.wait ();
-        if (code != 0) {
-            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
-        }
-    }    
-}
-
-
-pub fn setRemote (url : [c8], cwd : &Path = Path::new ("."))
-    throws &GitError
-{
-    with dmut subproc = SubProcess::run ("git"s8, ["remote"s8, "add"s8, "origin"s8, url], cwd-> cwd) {        
-        let code = subproc:.wait ();
-        if (code != 0) {
-            with dmut subproc2 = SubProcess::run ("git"s8, ["remote"s8, "set-url"s8, "origin"s8, url], cwd-> cwd) {
-                let code2 = subproc2:.wait ();
-                if (code2 != 0) {
-                    throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
-                }
-            } 
-        }
-    }    
-}
-
-pub fn push (tags : [[c8]], cwd : &Path = Path::new ("."))
-    throws &GitError
-{
-    with dmut subproc = SubProcess::run ("git"s8, ["push"s8, "origin"s8] ~ tags, cwd-> cwd) {
-        let code = subproc:.wait ();
-        if (code != 0) {
-            throw GitError::new (GitErrorCode::ALREADY_INIT, subproc:.stderr ():.read ());
-        }
-    }
-}
-
-
-pub fn add (path : &Path)
-    throws &GitError
-{
-    let parent = path.parent ();
-    with dmut subproc = SubProcess::run ("git"s8, ["add"s8, path.file ()], cwd-> parent) {
-        let code = subproc:.wait ();
-        if (code != 0) {
-            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
-        }
-    }
-}
-
-pub fn createBranch (name : [c8], cwd : &Path = Path::new ("."))
-    throws &GitError
-{
-    with dmut subproc = SubProcess::run ("git"s8, ["branch"s8, name], cwd-> cwd) {
-        let code = subproc:.wait ();
-        if (code != 0) {
-            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
-        }
-    }    
-}
-
-pub fn deleteBranch (name : [c8], cwd : &Path = Path::new ("."))
-    throws &GitError
-{
-    with dmut subproc = SubProcess::run ("git"s8, ["branch"s8, "-D"s8, name], cwd-> cwd) {
-        let code = subproc:.wait ();
-        if (code != 0) {
-            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
-        }
-    }    
-}
-
-pub fn createTag (name : [c8], cwd : &Path = Path::new ("."))
-    throws &GitError
-{
-    with dmut subproc = SubProcess::run ("git"s8, ["tag"s8, name], cwd-> cwd) {
-        let code = subproc:.wait ();
-        if (code != 0) {
-            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
-        }
-    }    
-}
-
-pub fn deleteTag (name : [c8], cwd : &Path = Path::new ("."))
-    throws &GitError
-{
-    with dmut subproc = SubProcess::run ("git"s8, ["tag"s8, "-D"s8, name], cwd-> cwd) {
-        let code = subproc:.wait ();
-        if (code != 0) {
-            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
-        }
-    }    
-}
-
-pub fn fetchTags (cwd : &Path = Path::new ("."))
-    throws &GitError
-{
-    with dmut subproc = SubProcess::run ("git"s8,  ["fetch"s8, "--tags"s8, "--depth=1"s8], cwd-> cwd) {
-        let code = subproc:.wait ();
-        if (code != 0) {
-            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
-        }
-    }
-}
-
-
-pub fn checkout (name : [c8], cwd : &Path = Path::new ("."))
-    throws &GitError
-{
-    with dmut subproc = SubProcess::run ("git"s8, ["checkout"s8, name], cwd-> cwd) {
-        let code = subproc:.wait ();
-        if (code != 0) {
-            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
-        }
-    }    
-}
-
-
-pub fn getTagList (cwd : &Path = Path::new ("."))-> [c8]
-    throws &GitError
-{
-    with dmut subproc = SubProcess::run ("git"s8, ["tag"s8], cwd-> cwd) {
-        let code = subproc:.wait ();
-        if (code != 0) {
-            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
-        }
-        subproc:.stdout ():.read ()
-    }    
-}
-
-
-pub fn commit (message : [c8], cwd : &Path = Path::new ("."))
-    throws &GitError
-{
-    with dmut subproc = SubProcess::run ("git"s8, ["commit"s8, "-m"s8, message], cwd-> cwd) {
-        let code = subproc:.wait ();
-        if (code != 0) {
-            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
-        }
-    }    
-}
-
-
-pub fn userName (cwd : &Path = Path::new (".")) -> [c8]
-    throws &GitError
-{
-    import std::stream;
-    
-    let dmut stream = StringStream::new ();
-    with dmut subproc = SubProcess::run ("git"s8, ["config"s8,  "--global"s8, "--get"s8,  "user.name"s8], cwd-> cwd) {
-        let code = subproc:.wait ();
-        if (code != 0) {
-            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
-        } else {
-            stream:.write (subproc:.stdout ():.read ()[0us .. $ - 1us]);
+            throw copy GitError (GitErrorCode::ALREADY_INIT, self.readAll (alias proc:.stderr));
         }
     }
 
-    with dmut subproc = SubProcess::run ("git"s8, ["config"s8,  "--global"s8, "--get"s8,  "user.email"s8], cwd-> cwd) {
-        let code = subproc:.wait ();
+    /**
+     * Clone a remote repository
+     * @params:
+     *    - url: the remote repository url
+     * */
+    pub fn clone (self, url : [c8])
+        throws GitError, FsError
+    {
+        let parent = self._cwd.parent ();
+        fs::sys::createDir (parent)?;
+
+        let dmut proc = copy SubProcess ("git", copy ["clone", url, self._cwd.file ()], cwd-> parent);
+        proc:.start ();
+
+        let code = proc:.wait ();
         if (code != 0) {
-            throw GitError::new (GitErrorCode::UNKNOWN, subproc:.stderr ():.read ());
-        } else {
-            stream:.write (" <", subproc:.stdout ():.read ()[0us .. $ - 1us], ">");
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
         }
     }
-    
-    stream []
+
+    /**
+     * Set the remote url for the local git repository
+     * @params:
+     *    - url: the remote repository url
+     * */
+    pub fn setRemote (self, url : [c8])
+        throws GitError, FsError
+    {
+        let dmut proc = copy SubProcess ("git", copy ["remote", "add", "origin", url], cwd-> self._cwd);
+        proc:.start ();
+        let code = proc:.wait ();
+        if (code != 0) {
+            let dmut proc2 = copy SubProcess ("git", copy ["remote", "set-url", "origin", url], cwd-> self._cwd);
+            proc2:.start ();
+            let code2 = proc2:.wait ();
+            if (code2 != 0) {
+                throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+            }
+        }
+    }
+
+    /**
+     * Push to the remote repository
+     * */
+    pub fn push (self, tags : [[c8]])
+        throws GitError, FsError
+    {
+        let dmut proc = copy SubProcess ("git", copy ["push", "origin"] ~ tags, cwd-> self._cwd);
+        proc:.start ();
+
+        let code = proc:.wait ();
+        if (code != 0) {
+            throw copy GitError (GitErrorCode::ALREADY_INIT, self.readAll (alias proc:.stderr));
+        }
+    }
+
+    /**
+     * Add a file to the control of the git repository
+     * @params:
+     *   - path: the path of the files to add
+     * */
+    pub fn add (self, path : Path)
+        throws GitError, FsError
+    {
+        let parent = path.parent ();
+        let dmut proc = copy SubProcess ("git", copy ["add", path.file ()], cwd-> parent);
+        proc:.start ();
+        let code = proc:.wait ();
+        if (code != 0) {
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+        }
+    }
+
+    /**
+     * Create a new branch
+     * @params;
+     *    - name: the name of the branch
+     * */
+    pub fn createBranch (self, name : [c8])
+        throws GitError, FsError
+    {
+        let dmut proc = copy SubProcess ("git", copy ["branch", name], cwd-> self._cwd);
+        proc:.start ();
+        let code = proc:.wait ();
+        if (code != 0) {
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+        }
+    }
+
+    /**
+     * Delete a branch
+     * @params:
+     *    - name: the name of the branch
+     * */
+    pub fn deleteBranch (self, name : [c8])
+        throws GitError, FsError
+    {
+        let dmut proc = copy SubProcess ("git", copy ["branch", "-D", name], cwd-> self._cwd);
+        proc:.start ();
+        let code = proc:.wait ();
+        if (code != 0) {
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+        }
+    }
+
+    /**
+     * Create tag
+     * */
+    pub fn createTag (self, name : [c8])
+        throws GitError, FsError
+    {
+        let dmut proc = copy SubProcess ("git", copy ["tag", name], cwd-> self._cwd);
+        proc:.start ();
+        let code = proc:.wait ();
+        if (code != 0) {
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+        }
+    }
+
+    /**
+     * Delete a tag
+     * */
+    pub fn deleteTag (self, name : [c8])
+        throws GitError, FsError
+    {
+        let dmut proc = copy SubProcess ("git", copy ["tag", "-D", name], cwd-> self._cwd);
+        proc:.start ();
+        let code = proc:.wait ();
+        if (code != 0) {
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+        }
+    }
+
+    /**
+     * Fetch all tags
+     * */
+    pub fn fetchTags (self)
+        throws GitError, FsError
+    {
+        let dmut proc = copy SubProcess ("git", copy ["fetch", "--tags", "--depth=1"], cwd-> self._cwd);
+        proc:.start ();
+        let code = proc:.wait ();
+        if (code != 0) {
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+        }
+    }
+
+    /**
+     * Checkout to a branch
+     * @params:
+     *    - name: the name of the branch to checkout
+     * */
+    pub fn checkout (self, name : [c8])
+        throws GitError, FsError
+    {
+        let dmut proc = copy SubProcess ("git", copy ["checkout", name], cwd-> self._cwd);
+        proc:.start ();
+        let code = proc:.wait ();
+        if (code != 0) {
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+        }
+    }
+
+    /**
+     * Commit
+     * */
+    pub fn commit (self, message : [c8])
+        throws GitError, FsError
+    {
+        let dmut proc = copy SubProcess ("git", copy ["commit", "-m", message], cwd-> self._cwd);
+        proc:.start ();
+        let code = proc:.wait ();
+        if (code != 0) {
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+        }
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          GETTERS          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * @returns: the list of tags
+     * */
+    pub fn getTagList (self)-> [c8]
+        throws GitError, FsError
+    {
+        let dmut proc = copy SubProcess ("git", copy ["tag"], cwd-> self._cwd);
+        proc:.start ();
+        let code = proc:.wait ();
+        if (code != 0) {
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+        }
+
+        return self.readAll (alias proc:.stdout);
+    }
+
+    /**
+     * @returns: the user name and email of the registered git user
+     * */
+    pub fn getUserName (self) -> [c8]
+        throws GitError, FsError
+    {
+        let dmut stream = copy StringStream ();
+        {
+            let dmut proc = copy SubProcess ("git", copy ["config",  "--global", "--get",  "user.name"], cwd-> self._cwd);
+            proc:.start ();
+            let code = proc:.wait ();
+            if (code != 0) {
+                throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+            }
+
+            stream:.write (self.readAll (alias proc:.stdout)[0us .. $ - 1us]);
+        }
+
+        {
+            let dmut proc = copy SubProcess ("git", copy ["config",  "--global", "--get",  "user.email"], cwd-> self._cwd);
+            proc:.start ();
+            let code = proc:.wait ();
+            if (code != 0) {
+                throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+            }
+            stream:.write (" <", self.readAll (alias proc:.stdout)[0us .. $ - 1us], ">");
+        }
+
+        stream []
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ===================================          PIPE READ          ====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Read the content of the pipe
+     * */
+    prv fn readAll (self, dmut pipe : &core::concurrency::pipes::ipipe::IPipe)-> [c8] {
+        let dmut str : [c8] = [];
+        while let Ok (c) = pipe:.read!c8 ()? {
+            str ~= [c];
+        }
+
+        str
+    }
+
 }

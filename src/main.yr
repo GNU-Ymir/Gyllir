@@ -1,10 +1,12 @@
-import gyllir::repo::manager;
-import gyllir::doc::formatter;
-import std::stream;
-import std::collection::map;
-import std::io;
+in main;
+
+mod .gyllir;
+
+use gyllir::repo::_;
+use std::io;
 
 fn main (args : [[c8]]) {
-    GyllirManager::new (args):.run ();
+    let dmut m = copy GyllirManager (args);
+    m:.run ();
 }
 

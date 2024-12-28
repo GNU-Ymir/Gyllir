@@ -1,27 +1,27 @@
-mod gyllir::repo::defaults;
+in defaults;
 
 /** 
  * The filename of the configuration
  */
-pub def __GYLLIR_CONFIG_FILENAME__ = "gyllir.toml"s8;
+pub def __GYLLIR_CONFIG_FILENAME__ = "gyllir.toml";
 
 /**
  * The filename of the gitignore file
  */
-pub def __GITIGNORE_FILENAME__ = ".gitignore"s8;
+pub def __GITIGNORE_FILENAME__ = ".gitignore";
 
 /**
  * The name of the initial file
  */
-pub def __MAIN_FILE__ = "main.yr"s8;
+pub def __MAIN_FILE__ = "main.yr";
 
-pub def __FST_TEST_FILE__ = "first_test.yr"s8;
+pub def __FST_TEST_FILE__ = "first_test.yr";
 
 /**
  * The content of the initial file
  */
-pub def __MAIN_CONTENT__ = str8#{mod main;
-import std::io;
+pub def __MAIN_CONTENT__ = str#{in main;
+use std::io;
     
 fn main () {
     println ("Hello World !");
@@ -29,11 +29,11 @@ fn main () {
 };
 
 
-pub def __FST_TEST_CONTENT__ = str8#{mod first_test;
-import std::io;
+pub def __FST_TEST_CONTENT__ = str#{in first_test;
+use std::io;
     
 __test {
-    println ("Example of first test"s8);
+    println ("Example of first test");
                 
     // To make a test fail, throw an exception
     // for example, assert (false);
@@ -43,7 +43,7 @@ __test {
 /**
  * The content of the gitignore file
  */
-pub def __GITIGNORE_CONTENT__ = str8#{
+pub def __GITIGNORE_CONTENT__ = str#{
 .build
 __libs
 __doc        
@@ -54,23 +54,23 @@ __doc
 /**
  * The source directory name
  */
-pub def __SRC_DIR__ = "src"s8;
+pub def __SRC_DIR__ = "src";
 
 
-pub def __BUILD_DIR__ = ".build"s8;
-pub def __DEBUG_DIR__ = "debug"s8;
-pub def __RELEASE_DIR__ = "release"s8;
-pub def __LIB_DIR__ = "__libs"s8
-pub def __TEST_DIR__ = "debug"s8;
-pub def __DOC_DIR__ = "__doc"s8;
-pub def __BUILD_TEST_DIR__ = ".build/.test"s8;
-pub def __DEPENCY_DIR__ = ".build/.deps"s8;
-pub def __CMAKE_FILE__ = "CMakeLists.txt"s8;
+pub def __BUILD_DIR__ = ".build";
+pub def __DEBUG_DIR__ = "debug";
+pub def __RELEASE_DIR__ = "release";
+pub def __LIB_DIR__ = "__libs"
+pub def __TEST_DIR__ = "test";
+pub def __DOC_DIR__ = "__doc";
+pub def __BUILD_TEST_DIR__ = ".build/.test";
+pub def __DEPENCY_DIR__ = ".build/.deps";
+pub def __CMAKE_FILE__ = "CMakeLists.txt";
 
 
-pub def __YMIR_EXTENSION__ = "yr"s8;
-pub def __OBJECT_EXTENSION__ = "o"s8;
-pub def __DEP_EXTENSION__ = "dep.json"s8;
-pub def __DOC_EXTENSION__ = "doc.json"s8;
-pub def __MARKDOWN_EXTENSION__ = "md"s8;
-pub def __LIBRARY_EXTENSION__ = "a"s8;
+pub def __YMIR_EXTENSION__ = "yr";
+pub def __OBJECT_EXTENSION__ = "o";
+pub def __DEP_EXTENSION__ = "dep.json";
+pub def __DOC_EXTENSION__ = "doc.json";
+pub def __MARKDOWN_EXTENSION__ = "md";
+pub def __LIBRARY_EXTENSION__ = "a";

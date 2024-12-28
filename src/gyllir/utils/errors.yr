@@ -1,19 +1,23 @@
-mod gyllir::utils::errors;
+in errors;
 
-import std::io;
+use std::stream;
 
 pub enum
 | ALREADY_INIT = 1u8
-| UNKNOWN = 2u8
+| UNKNOWN      = 2u8
  -> GitErrorCode;
 
-
+/**
+ * Error thrown when git utils fails
+ * */
 pub class GitError over Exception {
 
     pub let code : GitErrorCode;
     pub let msg  : [c8];
     
-    pub self (code : GitErrorCode, msg : [c8]) with code = code, msg = msg {}
+    pub self (code : GitErrorCode, msg : [c8])
+        with code = code
+        , msg = msg {}
 
     impl Streamable {
         pub over toStream (self, dmut stream : &StringStream) {

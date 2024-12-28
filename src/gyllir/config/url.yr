@@ -1,11 +1,7 @@
-mod gyllir::config::url;
+in url;
 
-import std::config::_;
-import std::io;
-import std::syntax::tokenizer;
-import std::fs::path;
-import std::algorithm::searching;
-import std::hash;
+use std::{config::_, fs::path, stream};
+use std::algorithm::searching;
 
 /**
  * There are two types of url for the moment
@@ -14,26 +10,37 @@ import std::hash;
  */
 pub enum
 | LOCAL = 0u8
-| GIT = 2u8
+| GIT   = 2u8
  -> UrlType;
 
 pub enum
 | LOCAL = "local:"
-| GIT = "git:"
+| GIT   = "git:"
  -> UrlStarts;
 
 /**
  * An url that is used to get refer to package repositories
  * Url seems to be a common object, maybe it has its place in the std, in the use std::net module
  */   
-pub class Url {
+pub record Url {
 
-    let mut _path : &Path = Path::new ("");
+    // The path of the url
+    let mut _path : Path = Path ("");
 
+    // The type of the url
     let mut _type : UrlType = UrlType::LOCAL;
 
+    // True iif the url is valid
     let mut _valid = false;
-    
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ======================================          CTOR          ======================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
     /**
      * Create an empty url
      */
@@ -42,22 +49,11 @@ pub class Url {
     /**
      * Create an url from a string
      */
-    pub self (c : [c8])
-    {
-        import std::conv;
-        self:.parseStr (c.to![c32] ());
-        self._valid = true;
-    }
-
-    /**
-     * Create an url from a string
-     */
-    pub self (c : [c32])
-    {
+    pub self (c : [c8]) {
         self:.parseStr (c);
         self._valid = true;
     }
-    
+
     /**
      * Create an url from a configuration
      * This constructor can be used by the std for deserialization
@@ -69,45 +65,50 @@ pub class Url {
      * ====================
      */
     pub self (cfg : &Config)
-        throws &AssertError
+        throws AssertError
     {
-        match cfg ["local"]? {
-            Ok (Str (str-> url : _)) => {
-                self._path = Path::new (url);
-                self._type = UrlType::LOCAL;
-                self._valid = true;
-            }
-            _ => {                
-                match cfg ["git"]? {
-                    Ok (Str (str-> url : _)) => {
-                        self._path = Path::new (url);
-                        self._type = UrlType::GIT;
-                        self._valid = true;
-                    }
-
-                    _ => match cfg {
-                        Str (str-> url : _) => {
-                            self:.parseStr (url);
-                            self._valid = true;
-                        }
-                        _ => throw AssertError::new ("malformed url"s8);
-                    }
-                }
-            }
+        if let Ok (Str (value-> url)) = cfg ["local"]? {
+            self._path = Path (url);
+            self._type = UrlType::LOCAL;
+            self._valid = true;
         }
+
+        else if let Ok (Str (value-> url)) = cfg ["git"]? {
+            self._path = Path (url);
+            self._type = UrlType::GIT;
+            self._valid = true;
+        }
+
+
+        else if let Str (value-> url)  = cfg {
+            self:.parseStr (url);
+            self._valid = true;
+        }
+
+        else throw copy AssertError ("malformed url");
     }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          GETTERS          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
 
     /**
      * @returns: the type of url
      */
-    pub fn getType (self)-> UrlType {
+    @field
+    pub fn type (self)-> UrlType {
         self._type
     }
 
     /**
      * @returns: the path of the url
      */
-    pub fn getPath (self)-> &Path {
+    @field
+    pub fn path (self)-> Path {
         self._path
     }
 
@@ -118,32 +119,62 @@ pub class Url {
         self._valid
     }
 
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ===================================          COMPARISON          ===================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
     /**
      * @returns: true if self == o
      */
-    pub fn opEquals (self, o : &Url)-> bool {
-        self._path == o._path &&
-            self._type == o._type &&
-            self._valid == o._valid
+    pub fn opEquals (self, ref o : Url)-> bool {
+        if (self._path != o._path) return false;
+        if (self._type != o._type) return false;
+        if (self._valid != o._valid) return false;
+
+        true
     }
-    
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          PARSING          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
     /**
      * Parse an url from a string
+     * @params:
+     *    - url: the url to parse
      */
-    prv fn parseStr (mut self, url : [c32]) {
-        if url.startWith (UrlStarts::LOCAL) {            
-            self._path = Path::new (url [UrlStarts::LOCAL.len .. $]);
+    prv fn parseStr (mut self, url : [c8]) {
+        if startsWith (url, UrlStarts::LOCAL) {
+            self._path = Path (url [UrlStarts::LOCAL.len .. $]);
             self._type = UrlType::LOCAL;
-        } else {
-            if url.startWith (UrlStarts::GIT) {
-                self._path = Path::new (url [UrlStarts::GIT.len - 1us .. $]);
-            } else {
-                self._path = Path::new (url);
-            }
+        }
+
+        else if (startsWith (url, UrlStarts::GIT)) {
+            self._path = Path (url [UrlStarts::GIT.len - 1us .. $]);
+            self._type = UrlType::GIT;
+        }
+
+        else {
+            self._path = Path (url);
             self._type = UrlType::GIT;
         }
     }
-    
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ======================================          MISC          ======================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
 
     impl Hashable;
     impl Streamable;
@@ -153,12 +184,12 @@ pub class Url {
          * Transform the url into a configuration
          */
         pub over serialize (self)-> &Config {
-            import std::conv, std::config::conv;
-            
-            let dmut d = Dict::new (); 
+            let dmut d = copy Dict ();
             match self._type {                
-                UrlType::LOCAL => { d:.insert ("local", Str::new (self._path.toStr ().to![c32] ())); }
-                _ => { d:.insert ("git", Str::new (self._path.toStr ().to![c32] ())); }
+                UrlType::LOCAL => {
+                    d:["local"] = copy Str (self._path.toStr ());
+                }
+                _ => { d:["git"] = copy Str (self._path.toStr ()); }
             }
 
             d

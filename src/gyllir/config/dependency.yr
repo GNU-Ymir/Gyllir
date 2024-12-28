@@ -1,36 +1,43 @@
-mod gyllir::config::dependency;
+in dependency;
 
-import std::config::_;
-import std::collection::map;
-import std::io;
-import std::syntax::tokenizer;
-import std::conv;
-
-import gyllir::config::url;
-import gyllir::config::version;
-
-pub class RecursiveDependency over Exception {
-
-    pub let msg : [c8];
-    
-    pub self (msg: [c8]) with msg = msg {}
-
-    impl Streamable {
-
-        pub over toStream (self, dmut stream : &StringStream) {
-            self::super.toStream (alias stream);
-        }
-    }
-}
-
+use std::{config::_, stream};
+use gyllir::config::{url, version};
 
 /**
- * A dependency is a git repo
- */
-pub struct
-| version: &Version /// The version to use
-| url: &Url // The url of the git repo
- -> Dependency;
+ * A dependency to an external package
+ * */
+pub record Dependency {
+
+    // The version of the dependency package
+    let _version : Version;
+
+    // The url of the dependency
+    let _url : Url;
+
+    pub self (version : Version, url : Url)
+        with _version = version
+        , _url = url
+    {}
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          GETTERS          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    @field
+    pub fn version (self)-> Version {
+        self._version
+    }
+
+    @field
+    pub fn url (self)-> Url {
+        self._url
+    }
+
+}
 
 /**
  * A dependency list is a map of Dependency, that can be serialized into configuration
@@ -40,7 +47,7 @@ pub class DependencyList {
     /**
      * The list of dependencies
      */
-    let dmut _package = HashMap!{[c32], Dependency}::new ();
+    let mut _package : [[c8] => mut Dependency] = [];
 
     /**
      * Create an empty dependency list
@@ -50,7 +57,8 @@ pub class DependencyList {
     /**
      * Create a dependency list from a map of Dependency
      */
-    pub self (dmut elem : &HashMap!{[c32], Dependency}) with _package = alias elem            
+    pub self (mut elem : [[c8] => mut Dependency])
+        with _package = alias elem
     {}
 
     /**
@@ -64,66 +72,93 @@ pub class DependencyList {
      * =================
      */
     pub self (cfg : &Config)
-        throws &AssertError, &ConfigError
+        throws AssertError, std::conv::errors::CastFailure
     {
-        match cfg {
-            x : &Dict => {
-                self:.insert (x);
-            }
-            _ => {
-                throw AssertError::new ("Expecting a dictionnary"s8);
-            }
+        if let d : &Dict = cfg {
+            self:.insert (d);
         }
+
+        else throw copy AssertError ("Expecting a dictionnary"s8);
     }
 
-    /**
-     * Insert the dependencies from a configuration dictionnary
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          GET/SET          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
      */
-    prv fn insert (mut self, elem : &Dict) throws &ConfigError
-    {
-        for i, j in elem {                
-            {    
-                self._package:.insert (i, j.to!Dependency())
-            }
-            catch {
-                x : &ConfigError => {
-                    throw x;
-                }
-            }            
-        }
-    }
 
     /**
      * Remove a dependency from the list
      * @params:
      *   - elem: the name of dependency to remove
      */
-    pub fn remove (mut self, elem : [c32]) {
-        self._package:.remove(elem);
+    pub fn remove (mut self, elem : [c8]) {
+        self._package:.remove (elem);
     }
 
     /**
      * @returns: the list of dependencies
      */
-    pub fn getList (self)-> &HashMap!{[c32], Dependency} {
+    pub fn getList (self)-> [[c8] => Dependency] {
         self._package
     }
 
-    
-    impl std::config::conv::Serializable {
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ======================================          MISC          ======================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
 
-        /**
-         * Transform the list into a Configuration, that can be dumped
-         */
+    impl Streamable;
+    impl Serializable {
         pub over serialize (self)-> &Config {
-            let dmut d = Dict::new ();
-            for i, j in self._package {
-                d:.insert(i,j.to!(&Config)());
+            let dmut res = copy Dict ();
+            for k, d in self._package {
+                let dmut dep = copy Dict ();
+                dep:["version"] = d.version.serialize();
+                dep:["url"] = d.url.serialize ();
+
+                res:[k] = dep;
             }
-            d
+
+            res
         }
     }
 
-    impl Streamable;    
-    impl core::duplication::Copiable;    
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          PRIVATE          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+
+    /**
+     * Insert the dependencies from a configuration dictionnary
+     */
+    prv fn insert (mut self, cfg : &Dict)
+        throws std::conv::errors::CastFailure
+    {
+        {
+            for k, v in cfg[] {
+                let version = Version (v ["version"]);
+                let url = Url (v ["url"]);
+
+                self._package [k] = Dependency (version-> version, url);
+            }
+        } catch {
+            inE => {
+                throw copy std::conv::errors::CastFailure ((&Config)::__typeinfo__, Dependency::__typeinfo__, subError-> (inE)?);
+            }
+        }
+    }
+
+
+    
+
 }

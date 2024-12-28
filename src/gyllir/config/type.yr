@@ -1,82 +1,114 @@
-mod gyllir::config::type;
+in type;
 
-import std::config::_;
-import std::collection::map;
-import std::io;
-import std::syntax::tokenizer;
-import std::config::conv;
-import std::conv;
+use std::{config::_, stream};
 
+/**
+ * Enum defining the type of the target
+ * */
 enum
-| EXECUTABLE = 0u8
-| LIBRARY = 1u8
-| SHARED_LIB = 2u8
+| EXECUTABLE = (0u8, "executable")
+| LIBRARY    = (1u8, "library")
+| SHARED_LIB = (2u8, "shared-library")
  -> BuildTypeEnum;
 
+/**
+ * Record used to transform configuration into a build type
+ * */
+pub record BuildType {
 
-pub class BuildType {
+    // The type of the target to build
+    let mut _type : u8 = BuildTypeEnum::EXECUTABLE.0;
 
-    let mut _type = BuildTypeEnum::EXECUTABLE;
-    
+    /**
+     * executable target
+     * */
     pub self () {}
-    
-    pub self (type : [c8]) throws &AssertError {
-        match type {
-            "executable"s8 => {
-                self._type = BuildTypeEnum::EXECUTABLE;
-            }
-            "library"s8 => {
-                self._type = BuildTypeEnum::LIBRARY;
-            }
-            "shared-library"s8 => {
-                self._type = BuildTypeEnum::SHARED_LIB;
-            }
-            _ => throw AssertError::new ("Unknown type : "s8 ~ type);
+
+    /**
+     * @params:
+     *    - type: a string defining the type of the target
+     * */
+    pub self (type : [c8])
+        throws std::conv::errors::CastFailure
+    {
+        self:.parseType (type);
+    }
+
+    /**
+     * Transform a configuration into a build type
+     * */
+    pub self (cfg : &Config)
+        throws std::conv::errors::CastFailure, AssertError
+    {
+        if let Str (value-> type) = cfg {
+            self:.parseType (type);
         }
 
+        else throw copy AssertError ("Expecting a string");
     }
-    
-    pub self (cfg : &Config) throws &AssertError {
-        match cfg {
-            Str (str->  "executable") => {
-                self._type = BuildTypeEnum::EXECUTABLE;
-            }
-            Str (str->  "library") => {
-                self._type = BuildTypeEnum::LIBRARY;
-            }
-            Str (str-> "shared-library") => {
-                self._type = BuildTypeEnum::SHARED_LIB;
-            }
-            x : _ => throw AssertError::new ("Unknown type : "s8 ~ x.(std::conv::to)![c8] ());
-        }
-    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          GETTERS          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
 
     pub fn isExecutable (self)-> bool {
-        self._type == BuildTypeEnum::EXECUTABLE
+        self._type == BuildTypeEnum::EXECUTABLE.0
     }
 
     pub fn isLibrary (self)-> bool {
-        self._type == BuildTypeEnum::LIBRARY
+        self._type == BuildTypeEnum::LIBRARY.0
     }
 
     pub fn isShared (self)-> bool {
-        self._type == BuildTypeEnum::SHARED_LIB
+        self._type == BuildTypeEnum::SHARED_LIB.0
     }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ======================================          MISC          ======================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
 
     impl Streamable;
-
     impl Serializable {
-
-        /**
-         * Transform the type into a configuration string
-         */
         pub over serialize (self)-> &Config {
-            match self._type {
-                BuildTypeEnum::EXECUTABLE => { Str::new ("executable") }
-                BuildTypeEnum::SHARED_LIB => { Str::new ("shared-library") }
-                _ => { Str::new ("library") }
+            for i in BuildTypeEnum::__members__ {
+                if i.0 == self._type {
+                    return copy Str (i.1);
+                }
             }
+
+            panic;
         }
     }
-    
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          PRIVATE          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Parse the type from a string
+     * */
+    prv fn parseType (mut self, value : [c8])
+        throws std::conv::errors::CastFailure
+    {
+        for i in BuildTypeEnum::__members__ {
+            if i.1 == value {
+                self._type = i.0;
+                return;
+            }
+        }
+
+        throw copy std::conv::errors::CastFailure (([c8])::__typeinfo__, BuildType::__typeinfo__);
+    }
 }

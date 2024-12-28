@@ -1,12 +1,14 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.1)
 PROJECT(Midgard C)
-SET(CMAKE_C_COMPILER "gyc")
+set(CMAKE_YMIR_COMPILER "/home/emile/ymir/bootstrap/gyc/gcc-install/bin/gyc")
+set(CMAKE_YMIR_RELEASE_FLAGS "-fPIC" "-fdoc" "-O3")
+set(CMAKE_YMIR_DEBUG_FLAGS "${CMAKE_YMIR_RELEASE_FLAGS}" "-fversion=DEBUG_LIB" "-g")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
 
 FILE (
   GLOB_RECURSE
   SRC
-  src/*.yr
+  src/main.yr
   )
 
 FILE (
@@ -34,9 +36,12 @@ FILE (
   )
 
 SET_SOURCE_FILES_PROPERTIES(${SRC} PROPERTIES LANGUAGE C)
-add_executable (gyllir ${SRC})
-include_directories(${CMAKE_SOURCE_DIR}/src/)
-install (TARGETS gyllir DESTINATION /usr/bin/)
+add_custom_target (gyllir ALL
+  COMMENT "Building gyllir"
+  COMMAND ${CMAKE_YMIR_COMPILER} ${CMAKE_YMIR_DEBUG_FLAGS} ${CMAKE_CURRENT_SOURCE_DIR}/src/main.yr -o ${CMAKE_CURRENT_BINARY_DIR}/gyllir
+)
+
+install (FILES ${CMAKE_CURRENT_BINARY_DIR}/gyllir DESTINATION /usr/bin/)
 install (FILES ${RES_HTML} DESTINATION /etc/gyllir/res/html/)
 install (FILES ${RES_JS} DESTINATION /etc/gyllir/res/js/)
 install (FILES ${RES_CSS} DESTINATION /etc/gyllir/res/css/)

@@ -1,0 +1,13 @@
+in errors;
+
+
+/**
+ * Error thrown when a recursive dependency is detected between two gyllir packages
+ * */
+@final
+pub class RecursiveDependency over Exception {
+    pub let msg : [c8];
+    pub self (msg : [c8])
+        with msg = msg
+    {}
+}

@@ -1,746 +1,545 @@
-mod gyllir::repo::manager;
+in manager;
 
-import std::io;
-import std::fs::_, std::env, std::args, std::config::_;
-import gyllir::config::_;
-import gyllir::args::_;
-import gyllir::repo::defaults;
-import std::time::_;
-import gyllir::repo::dependency;
-import gyllir::doc::dumper;
-import gyllir::utils::colors, gyllir::utils::path;
-
-import std::collection::vec;
-import std::concurrency::process;
-import gyllir::utils::git, gyllir::utils::errors;
-import std::concurrency::thread, std::concurrency::mailbox;
-import std::algorithm::comparison, std::algorithm::iteration;
-import std::collection::set;
-import std::syntax::_;
-import std::collection::map;
-
-import gyllir::repo::builder;
-
-/**
- * The structure containing all the command line arguments
- */
-pub struct
-| help: YesNo
-| init : &InitCommand = InitCommand::new () 
-| build : &BuildCommand = BuildCommand::new ()
-| clean : &CleanCommand = CleanCommand::new ()
-| publish : &PublishCommand = PublishCommand::new ()
-| test : &TestCommand = TestCommand::new ()
-| doc : &DocCommand = DocCommand::new ()
- -> GyllirArgs;
-
+use std::config::_;
+use gyllir::{config::_, args, args::_};
+use gyllir::repo::_;
 
 /**
  * The gyllir manager if the core of gyllir
  */
 pub class GyllirManager {
 
-    /// True iif the arguments are valid
-    let mut _valid : bool = false;
+    // The list of arguments passed to the program
+    let mut _args : &Config;
 
-    /// The list of arguments passed to the program
-    let mut _args : GyllirArgs = GyllirArgs (help-> YesNo::NO);
-
-    /** The mailbox used to send messages to the threads when compiling files
-     * ._0 = percentage
-     * ._1 = file path
-     * ._2 = cwd path
-     * ._3 = buildDirectory name
-     * ._4 = -ftest ?
-     * ._5 = -verbose
-     * ._6 = list of path to link -Idirectory
-     * ._7 = if true -fdoc else -fdependency
-     */
-    let dmut _mail = MailBox!{(u64, &Path, &Path, [c8], bool, bool, [&Path], bool)}::new ();
-
-    /// Return value of the threads, set to true when one or more of them had failed
-    let mut _failed : bool = false;
-
-    /// The list of dependencies that have already been treated, for recursive dependency checks
-    let dmut _doneDependencies = HashSet!{&Url}::new ();
-    
     /**
      * Create a Gyllir builder from an argument 
      */
-    pub self (args : [[c8]]) {
-        let x = ArgumentParser!(GyllirArgs)::new ()
-            :.info!"help" (short-> "h", comments-> "print this help and exit", isHelp-> true)
-            :.info!"init" (comments-> "initialize a gyllir repository and create the config file.")
-            :.info!"build" (comments-> "build the project in the current directory")
-            :.info!"publish" (comments-> "publish a version to the package registry")
-            :.info!"clean" (comments-> "clean the project (remove generated files)")
-            :.info!"doc" (comments-> "build the documentation")
-            :.info!"test" (comments-> "run the tests")
-            ;
-        {            
-            self._args = x.parse (args);
-            if (self.noneIsSet ()) {
-                println (x.simpleUsage (cmd-> "gyllir"));
-            } else {
-                self._valid = true;
-            }
-        } catch {
-            err : &ArgumentError => {
-                if !self.hasHelpPrinted (err) {
-                    println (x.simpleUsage (cmd-> "gyllir"));
-                    println (x.diagnosis (err));
-                }
-            }
-            _ : &HelpRequired => {
-                println (x.usage (cmd-> "gyllir"));
-            }
-        }
-    }
+    pub self (args : [[c8]])
+        with _args = (copy GyllirArgumentParser ()).parse (args)
+    {}
     
     /**
      * Run the builder
      * @returns: the builder did something
      */
     pub fn run (mut self) {
-        if !self._valid { return {} }
-        
-        if (self._args.init.isSet ()) {
-            self:.initRepo ();
-        } else if (self._args.build.isSet ()) {
-            let cwd = env::currentDir ();
-            let conf = {
-                self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
-            } catch {
-                x : _ => {
-                    println ("Failed to read configuration file (", x, "). Aborting");
-                    return {}
-                }
-            }
-            {
-                self:.buildRepo (conf, cwd-> cwd);
-            } catch {
-                r : &RecursiveDependency => {
-                    println ("Failed to build repository, recursive dependency : ");
-                    println (r.msg);
-                    println ("Aborting");                    
-                }
-            }
-        } else if (self._args.clean.isSet ()) {
-            self:.cleanRepo (doc-> self._args.clean.isDoc (), all-> self._args.clean.isAll ());
-        } else if (self._args.publish.isSet ()) {
-            self:.publishRepo ();
-        } else if (self._args.test.isSet ()) {
-            let cwd = env::currentDir ();
-            let conf = {
-                self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
-            } catch {
-                x : _ => {
-                    println ("Failed to read configuration file (", x, "). Aborting");
-                    return {}
-                }
-            }
-            {
-                self:.runTests (conf, cwd-> cwd, self._args.test.isDry ());
-            } catch {
-                r : &RecursiveDependency => {
-                    println ("Failed to build repository, recursive dependency : ");
-                    println (r.msg);
-                    println ("Aborting");                    
-                }
-            }
-        } else if (self._args.doc.isSet ()) {
-            let cwd = env::currentDir ();
-            let conf = {
-                self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
-            } catch {
-                x : _ => {
-                    println ("Failed to read configuration file (", x, "). Aborting");
-                    return {}
-                }
-            }
-            {
-                self:.generateDoc (conf, cwd-> cwd);
-            } catch {
-                r : &RecursiveDependency => {
-                    println ("Failed to build repository, recursive dependency : ");
-                    println (r.msg);
-                    println ("Aborting");                    
-                }
-            }
-        }
-    }
-
-    
-    /**
-     * Ask the user for a given value (command line read)
-     * @params: 
-     *   - ask: the text to write as a question
-     *   - default: the default value to return if the user did write nothing
-     */
-    prv fn askUserFor (self, ask : [c8], default : [c8] = ""s8) -> [c8] {
-        let x = read![c8] (ask-> (ask ~ " ["s8 ~ default ~ "]:"s8).(std::conv::to)![c32] ());
-        if x == ""s8 {
-            default
-        } else x   
-    }
-
-
-    /**
-     * ================================================================================================================================================================
-     * ================================================================================================================================================================
-     * ==================================================================    INITIALIZATION    ========================================================================
-     * ================================================================================================================================================================
-     * ================================================================================================================================================================
-     */
-    
-    /**
-     * Initialize a new repo
-     */
-    prv fn initRepo (self) {
-        let path = env::currentDir ().push (self._args.init.getName ().(std::conv::to)![c8] ());
-        if isFile (path.push (defaults::__GYLLIR_CONFIG_FILENAME__)) {
-            println ("The target directory already contains a 'gyllir.toml' file. Aborting.");
-        } else {
-            {
-                let name = self.askUserFor ("Name"s8, default-> self._args.init.getName ().(std::conv::to)![c8] ());
-                let author = self.askUserFor ("Author name"s8, default-> git::userName ()); // peut être remplacer ça par (git config --list --global) ["user.name"] ~ ["user.email"]
-                let descr = self.askUserFor ("Description"s8, default-> "A minimal Ymir app"s8);
-                let license = self.askUserFor ("License"s8, default-> "proprietary"s8);
-                let type = self.askUserFor ("Type (executable/library)"s8, default-> "executable"s8);
-
-                let gyllirHome = Path::new (env::getVar ("HOME"s8)).push (".local"s8).push ("gyllir"s8).push (name);
-                let registry = {
-                    let url = self.askUserFor ("Registry"s8, default-> (UrlStarts::LOCAL).(std::conv::to)![c8] () ~ gyllirHome.toStr ());
-                    Url::new (url)
-                }
-                
-
-                let toml = GyllirConfig (name-> name, author-> author, license-> license, description-> descr, type-> BuildType::new (type), registry-> registry);
-            
-                self.createEmptyRepo (path, toml);       
-                println ("Successfully created an empty project in '"s8 ~ path.toStr () ~ "'"s8);
-            } catch {
-                x : _ => {
-                    println (x);
-                }
-            }
-        }
-    }
-
-    /**
-     * Create a new empty repository
-     */
-    prv fn createEmptyRepo (self, path : &Path, conf : GyllirConfig)
-        throws &FsError, &GitError
-    {
-        fs::sys::createDir (path, recursive-> true)?;
-        self.saveToml (path.push (defaults::__GYLLIR_CONFIG_FILENAME__), conf.to!{&Config} ());
-
-        fs::sys::createDir (path.push (defaults::__SRC_DIR__))?;
-        fs::sys::createDir (path.push (defaults::__TEST_DIR__))?;
-        with dmut f = File::create (path.push (defaults::__SRC_DIR__).push (defaults::__MAIN_FILE__), write-> true) {
-            f:.write (defaults::__MAIN_CONTENT__);
+        if "init" in self._args {
+            RepoInitializer (self._args ["init"]).run ()
         }
 
-        with dmut f = File::create (path.push (defaults::__TEST_DIR__).push (defaults::__FST_TEST_FILE__), write-> true) {
-            f:.write (defaults::__FST_TEST_CONTENT__);
-        }
+        // else if "build" in self._args {
+        //     RepoBuilder (self.loadConfig ()).run ();
+        // }
 
-        with dmut f = File::create (path.push (defaults::__GITIGNORE_FILENAME__), write-> true) {
-            f:.write (defaults::__GITIGNORE_CONTENT__);
-            if conf.type.isExecutable () {
-                f:.write ("/"s8 ~ conf.name ~ "\n"s8);
-                f:.write ("/test_"s8 ~ conf.name);
-            } else {
-                f:.write ("/"s8 ~ conf.name ~ ".a\n"s8);
-                f:.write ("/test_"s8 ~ conf.name);
-            }
-            f:.write ("\n"s8);
-        }
+        // else if "run" in self._args {
+        //     let cfg = self.loadConfig ();
+        //     RepoBuilder (cfg).run ();
+        //     RepoRunner (cfg).run ();
+        // }
 
-        git::init (cwd-> path);
-        git::add (path.push ("."s8));
-        git::commit ("Initial commit"s8, cwd-> path);
-    }
+        // else if "clean" in self._args {
+        //     RepoCleaner (self.loadConfig ()).run ();
+        // }
 
+        // else if "publish" in self._args {
+        //     RepoPublisher (self.loadConfig ()).run ();
+        // }
 
-    /**
-     * ================================================================================================================================================================
-     * ================================================================================================================================================================
-     * ======================================================================   BUILDING   ============================================================================
-     * ================================================================================================================================================================
-     * ================================================================================================================================================================
-     */
+        // else if "test" in self._args {
+        //     RepoTestBuilder (self.loadConfig ()).run ();
+        //     RepoTestRunner (self.loadConfig ()).run ();
+        // }
 
-    /**
-     * Build a repository 
-     */
-    prv fn buildRepo (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir (), doLink : bool = true, inDependency : bool = false)-> bool
-        throws &RecursiveDependency
-    {
-        let dmut builder = RepoBuilder::new (alias self, conf, cwd-> cwd);
-        let mut succ = false;
-        {
-            succ = builder:.construct (inDependency-> inDependency);
-            if (succ && doLink) {
-                succ = builder:.compile ();
-            }
-        } catch {
-            _ : &FsError => return false;
-            x : &RecursiveDependency => throw x;
-        }
+        // else if "doc" in self._args {
+        //     RepoDocBuilder (self.loadConfig ()).run ();
+        //     RepoDocRunner (self.loadConfig ()).run ();
+        // }
 
-        return succ;
-    }      
-
-    
-    /**
-     * ================================================================================================================================================================
-     * ================================================================================================================================================================
-     * ======================================================================   DEPENDENCY   ==========================================================================
-     * ================================================================================================================================================================
-     * ================================================================================================================================================================
-     */
-
-    /**
-     * Resolve a dependency, and build it
-     */
-    pub fn resolvePackageDependency (mut self, cwd : &Path, name : [c8], dependency : Dependency) -> ([c8], bool)
-        throws &RecursiveDependency
-    {
-        let depPath = cwd.push (defaults::__DEPENCY_DIR__).push (name);
-        {
-            if (dependency.url in self._doneDependencies) {
-                throw RecursiveDependency::new (name ~ ":"s8 ~ dependency.url.getPath ().toStr ())
-            }
-
-            println ("[INFO] Resolving dependency : ", name, " to ", depPath.toStr ());
-            if !isDir (depPath) {
-                if !isDir (depPath.parent ()) {
-                    fs::sys::createDir (depPath.parent (), recursive-> true);
-                }
-                
-                if (dependency.url.getType () == UrlType::LOCAL) {
-                    self.runProcess ("cp"s8, ["-r"s8, dependency.url.getPath ().toStr (), depPath.parent ().toStr ()]);
-                    self.runProcess ("mv"s8, [dependency.url.getPath ().file (), name], cwd-> depPath.parent ());
-                } else {
-                    git::clone (dependency.url.getPath ().toStr (), cwd-> depPath);
-                }
-            }
-            
-            git::fetchTags (cwd-> depPath);
-            git::checkout ("v"s8 ~ dependency.version.toStr (), cwd-> depPath);
-            
-            let conf = {
-                self.loadToml (depPath.push (defaults::__GYLLIR_CONFIG_FILENAME__))
-            } catch {
-                x : _ => {
-                    eprintln ("Failed to read configuration file (", x, "). Aborting");
-                    return (""s8, false);
-                }
-            }
-
-            if (conf.type.isExecutable ()) {
-                eprintln ("Dependency : ", dependency.url, " is not a library. Aborting.");
-                return (""s8, false);
-            }
-            
-            self._doneDependencies:.insert (dependency.url);
-            let succ = { 
-                self:.buildRepo (conf, cwd-> depPath, doLink-> false, inDependency-> true)
-            } catch {
-                r : &RecursiveDependency => {
-                    throw RecursiveDependency::new (name ~ ":"s8 ~ dependency.url.getPath ().toStr () ~ " => "s8 ~ r.msg);
-                }
-            }
-            self._doneDependencies:.remove (dependency.url);
-            return (conf.name, succ);
-        } catch {
-            g : &GitError => {
-                println (g);
-                let versions = { self.toVersionList (git::getTagList (cwd-> depPath)) } catch { _ => [] }
-                println ("Missing version : ", dependency.version.toStr (), ". Aborting");
-                if (versions.len != 0us) {
-                    println ("Available versions are : ", versions.map!{|x| const x.toStr ()} ());
-                }
-                
-                return (""s8, false);
-            }
-
-            r : &RecursiveDependency => throw r;
-            
-            x : _ => {
-                println ("Failure. Aborting", x);
-                return (""s8, false);
-            } 
-        }
-    }
-
-    /**
-     * Transform a list of tags (acquired with git) into a list of version
-     */
-    pub fn toVersionList (self, list : [c8])-> [&Version] {
-        let tzer = Tokenizer::new (tokens-> ["\n"]);
-        let res = tzer.tokenize (list.(std::conv::to)![c32] ());
-        let mut versions : [&Version] = [];
-        for i in res {
-            {
-                if (i.len > 0us && i [0us] == 'v') {
-                    versions = versions ~ [Version::new (i [1us .. $])];
-                }
-            } catch {
-                _ => {}
-            }
-        }
-        return versions
-    }
-    
-    /**
-     * ================================================================================================================================================================
-     * ================================================================================================================================================================
-     * =======================================================================    CLEANING   ==========================================================================
-     * ================================================================================================================================================================
-     * ================================================================================================================================================================
-     */
-
-    /**
-     * Execute the clean repository command
-     */
-    pub fn cleanRepo (self, cwd : &Path = env::currentDir (), all : bool = false, doc : bool = false) {
-        let conf = {
-            self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
-        } catch {
-            _ => {
-                println ("Failed to read configuration file. Aborting");
-                return {}
-            }
-        }
-
-	if (doc || all) {
-            if (fs::sys::isDir (cwd.push ("__doc"s8))) {
-                self.runProcess ("rm"s8, ["-rf"s8, cwd.push ("__doc"s8).toStr ()]);
-            }            
-        }        
-        
-	if (!doc || all) {
-            if (fs::sys::isDir (cwd.push (defaults::__BUILD_DIR__))) {
-                self.runProcess ("rm"s8, ["-rf"s8, cwd.push (defaults::__BUILD_DIR__).toStr ()]);
-            }
-
-            if (fs::sys::isDir (cwd.push (defaults::__LIB_DIR__))) {
-                self.runProcess ("rm"s8, ["-rf"s8, cwd.push (defaults::__LIB_DIR__).toStr ()]);
-            }
-            
-            let outputname = __version WINDOWS {
-                utils::path::toPath (conf.name ~ ".exe"s8, sep-> "/"s8, add-> "_"s8)
-            } else {
-                utils::path::toPath (conf.name, sep-> "/"s8, add-> "_"s8)
-            }
-            
-            if (fs::sys::isFile (cwd.push (outputname)))
-                self.runProcess ("rm"s8, [cwd.push (outputname).toStr ()]);
-
-            let testoutputname = __version WINDOWS {
-                utils::path::toPath ("test_"s8 ~ conf.name ~ ".exe", sep-> "/"s8, add-> "_"s8)
-            } else {
-                utils::path::toPath ("test_"s8 ~ conf.name, sep-> "/"s8, add-> "_"s8)
-            }
-            
-            if (fs::sys::isFile (cwd.push (testoutputname)))
-                self.runProcess ("rm"s8, [cwd.push (testoutputname).toStr ()]);
-        }        
-    } 
-
-    /**
-     * ================================================================================================================================================================
-     * ================================================================================================================================================================
-     * =======================================================================    PUBLISH    ==========================================================================
-     * ================================================================================================================================================================
-     * ================================================================================================================================================================
-     */
-
-    /**
-     * Publish the repository 
-     */
-    pub fn publishRepo (mut self) {
-        let cwd = env::currentDir ();
-        let conf = {
-            self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
-        } catch {
-            x : _ => {
-                println ("Failed to read configuration file (", x, "). Aborting");                
-                return {}
-            }
-        }
-        
-        if !conf.registry.isValid () {
-            println ("Invalid registry, unable to publish. Aborting");
-            return {}
-        }
-        
-        {            
-            match conf.registry.getType () {
-                UrlType::LOCAL => { self:.publishLocal (cwd, conf, path-> conf.registry.getPath (), ask-> self._args.publish.isYes ()); }
-                _ => {
-                    let tmpDir = tempDirectory ();
-                    let answer =
-                        if (self._args.publish.isYes ()) { "Y"s8 } else { self.askUserFor ("Publish to git : "s8 ~ conf.registry.getPath ().toStr () ~ " (Y/n)"s8, default-> "Y"s8) }
-                    
-                    if answer != "Y"s8 { println ("Aborting"); return {} }                    
-                    let (succ, version) = self:.publishLocal (cwd, conf, path-> tmpDir, ask-> false);
-                    if (succ) {
-                        self:.publishGit (conf, tmpDir.push (conf.name), version);
-                    }
-                }
-            }
-        } catch {
-            x : _ => println (x);
-        }
-    }
-
-    /**
-     * Publish a package to a local location
-     */
-    pub fn publishLocal (mut self, cwd : &Path, conf : GyllirConfig, path : &Path = Path::new ("."), ask : bool = true)-> (bool, &Version)
-        throws &FsError, &GitError
-    {
-        let answer =
-            if (!ask) { "Y"s8 } else { self.askUserFor ("Publish to local : "s8 ~ path.toStr () ~ " (Y/n)"s8, default-> "Y"s8) }
-
-        if answer != "Y"s8 { println ("Aborting"); return (false, conf.version); }
-        
-        self.cleanRepo (cwd-> cwd, all-> true);
-        if (!self._args.publish.isDry ()) {
-            let res = {
-                self:.runTests (conf, cwd-> cwd, false)
-            } catch {
-                r : &RecursiveDependency => {
-                    println ("Failed to build repository, recursive dependency : ");
-                    println (r.msg);
-                    println ("Aborting");
-                    return (false, conf.version);
-                }
-            }
-            
-            self.cleanRepo (cwd-> cwd, all-> true);
-            if !res {
-                println ("Test failed to pass. Aborting");
-                return (false, conf.version);
-            }
-        }
-
-        let version = conf.version.increment (major-> self._args.publish.isMajor (),
-                                              minor-> self._args.publish.isMinor (),
-                                              patch-> self._args.publish.isPatch ());
-        let conf2 = GyllirConfig (conf.name, conf.license, conf.description, type-> conf.type, registry-> conf.registry, conf.author, version-> version, dependencies-> conf.dependencies, libraries-> conf.libraries);
-        self.saveToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__), conf2.to!{&Config} ());
-        
-        git::add (cwd.push ("."s8));
-        git::commit (self._args.publish.getMessage ().(std::conv::to)![c8] (), cwd-> cwd);
-        git::createTag ("v"s8 ~ version.toStr ());
-
-        if isDir (path) {
-            self.runProcess ("rm"s8, ["-rf"s8, path.toStr ()]);
-        }
-        
-        fs::sys::createDir (path.parent (), recursive-> true)?;
-        
-        println ("[INFO] publish to ", path.toStr ());
-        self.runProcess ("cp"s8, ["-r"s8, cwd.toStr (), path.toStr ()]);
-        
-        (true, version)
-    }
-
-    /**
-     * Publish the repo to a git location
-     */
-    pub fn publishGit (mut self, conf : GyllirConfig, tmpDir : &Path, version : &Version)
-    {
-        git::setRemote (cwd-> tmpDir, conf.registry.getPath ().toStr ());
-        git::push (["v"s8 ~ version.toStr (), "master"s8], cwd-> tmpDir);
+        else panic;
     } catch {
-        x : &GitError => {
-            println ("Failed to publish to git repository. Aborting");
-            println (x);
-        }
-    }
-    
-    
-    /**
-     * ================================================================================================================================================================
-     * ================================================================================================================================================================
-     * =======================================================================     TESTS     ==========================================================================
-     * ================================================================================================================================================================
-     * ================================================================================================================================================================
-     */
-
-    /**
-     * Run the tests of the repo
-     */
-    prv fn runTests (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir (), isDry : bool) -> bool
-        throws &RecursiveDependency
-    {
-        let dmut builder = RepoBuilder::new (alias self, conf, cwd-> cwd);
-        let mut succ = false;
-        {
-            succ = builder:.construct ();
-            succ = builder:.compile (forTest-> true);
-            
-            if (succ && !isDry) {
-                succ = self.runProcess ("./test_"s8 ~ conf.name, [], printOut-> true, printErr-> true);
-                if (!succ) println ("[ERROR] Tests failed."s8);
-            }
-        } catch {
-            _ : &FsError => return false;
-            x : &RecursiveDependency => throw x;
-        }
-
-        return succ;
-
-    }
-    
-
-    /**
-     * ================================================================================================================================================================
-     * ================================================================================================================================================================
-     * ======================================================================     DOCUMENTATION     ===================================================================
-     * ================================================================================================================================================================
-     * ================================================================================================================================================================
-     */
-
-    /**
-     * Generate the documentation of the repository
-     */
-    prv fn generateDoc (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir ())
-        throws &RecursiveDependency
-    {
-        let d = self.getArguments ().doc;
-        let dmut jsons = Vec!{&Path}::new ();
-        if (d.inDir () != ""s8) {
-            {
-                for e in fs::sys::readDir (Path::new (d.inDir ())) {
-                    match e {
-                        f : &FileEntry => {
-                            if (f.path.extension () == "json"s8) {
-                                jsons:.push (f.path);
-                            }
-                        }                        
-                    }
-                }
-            } catch {
-                x : &FsError => {
-                    println (x);
-                    println ("[ERROR] Doc compilation failed."s8);
-                    return {};
-                }
-            }
-        } else {
-            let dmut builder = RepoBuilder::new (alias self, conf, cwd-> cwd);        
-            let mut succ = false;
-            {
-                succ = builder:.construct ();
-                succ = builder:.compile (forDoc-> true);
-                if (succ) {
-                    let srcDir = cwd.push (defaults::__BUILD_DIR__).push (defaults::__DOC_DIR__);
-                    for e in fs::sys::readDir (srcDir) {
-                        match e {
-                            f : &FileEntry => {
-                                if (f.path.extension () == "json"s8) {
-                                    jsons:.push (f.path);
-                                }
-                            }                        
-                        }
-                    }
-                } else println ("[ERROR] Doc compilation failed."s8);
-            } catch {
-                _ : &FsError => {
-                    println ("[ERROR] Doc compilation failed."s8);
-                    return {};
-                }
-                x : &RecursiveDependency => throw x;
-            }
-        }
-
-        let outDir = cwd.push (defaults::__DOC_DIR__);
-        let dmut docDumper = DocDumper::new (alias self, conf, jsons[], outDir, verbose-> d.isVerbose ());
-
-        docDumper.generate ();
-    }
-    
-    /**
-     * ================================================================================================================================================================
-     * ================================================================================================================================================================
-     * ======================================================================     COMMON     ==========================================================================
-     * ================================================================================================================================================================
-     * ================================================================================================================================================================
-     */
-
-
-    /**
-     * Save a configation into a file
-     */
-    pub fn saveToml (self, path : &Path, content : &Config)
-        throws &FsError
-    {
-        import std::config::toml;
-        with dmut f = File::create (path, write-> true) {
-            f:.write (content.dump ());
-        }
+        _ => panic;
     }
 
-    /**
-     * Read the configuration file
-     */
-    pub fn loadToml (self, path : &Path)-> GyllirConfig
-        throws &FsError, &SyntaxError, &ConfigError
-    {
-        import std::config::toml;
-        with dmut f = File::open (path) {
-            toml::parse (f:.readAll ()).(config::conv::to)!{GyllirConfig} ()
-        }
-    } 
 
-    /**
-     * @returns: true if the error was thrown by a sub command that printed the help
-     */
-    pub fn hasHelpPrinted (self, err : &ArgumentError) -> bool {
-        match err.subError {
-            Ok (HelpPrinted ()) => { true }
-            Ok (sub : &ArgumentError) => { self.hasHelpPrinted (sub) }
-            _ => false
-        }
-    }
 
-    /**
-     * @returns: true if no option is set
-     */
-    pub fn noneIsSet (self)-> bool {
-        !self._args.init.isSet () &&
-            !self._args.build.isSet () &&
-            !self._args.clean.isSet () &&
-            !self._args.publish.isSet () &&
-            !self._args.test.isSet () &&
-            !self._args.doc.isSet ()
-    }
+    // /**
+    //  * ================================================================================================================================================================
+    //  * ================================================================================================================================================================
+    //  * ======================================================================   BUILDING   ============================================================================
+    //  * ================================================================================================================================================================
+    //  * ================================================================================================================================================================
+    //  */
 
-    /**
-     * @returns: the arguments passed to the command line
-     */
-    pub fn getArguments (self)-> GyllirArgs {
-        self._args
-    }
-    
-    /**
-     * Run a process, and print its stdout / stderr
-     * @params:
-     *     - true if succeded, false otherwise
-     */
-    pub fn runProcess (self, cmd : [c8], params : [[c8]], cwd : &Path = env::currentDir (), printOut : bool = false, printErr : bool = false)-> bool {
-        with dmut subProc = SubProcess::run (cmd, params, cwd-> cwd, redirectStdout-> !printOut, redirectStderr-> !printErr) {
-            let code = subProc:.wait ();
-            code == 0
-        }
-    }
-    
+    // /**
+    //  * Build a repository
+    //  */
+    // prv fn buildRepo (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir (), doLink : bool = true, inDependency : bool = false)-> bool
+    //     throws &RecursiveDependency
+    // {
+    //     let dmut builder = RepoBuilder::new (alias self, conf, cwd-> cwd);
+    //     let mut succ = false;
+    //     {
+    //         succ = builder:.construct (inDependency-> inDependency);
+    //         if (succ && doLink) {
+    //             succ = builder:.compile ();
+    //         }
+    //     } catch {
+    //         _ : &FsError => return false;
+    //         x : &RecursiveDependency => throw x;
+    //     }
+
+    //     return succ;
+    // }
+
+
+    // /**
+    //  * ================================================================================================================================================================
+    //  * ================================================================================================================================================================
+    //  * ======================================================================   DEPENDENCY   ==========================================================================
+    //  * ================================================================================================================================================================
+    //  * ================================================================================================================================================================
+    //  */
+
+    // /**
+    //  * Resolve a dependency, and build it
+    //  */
+    // pub fn resolvePackageDependency (mut self, cwd : &Path, name : [c8], dependency : Dependency) -> ([c8], bool)
+    //     throws &RecursiveDependency
+    // {
+    //     let depPath = cwd.push (defaults::__DEPENCY_DIR__).push (name);
+    //     {
+    //         if (dependency.url in self._doneDependencies) {
+    //             throw RecursiveDependency::new (name ~ ":"s8 ~ dependency.url.getPath ().toStr ())
+    //         }
+
+    //         println ("[INFO] Resolving dependency : ", name, " to ", depPath.toStr ());
+    //         if !isDir (depPath) {
+    //             if !isDir (depPath.parent ()) {
+    //                 fs::sys::createDir (depPath.parent (), recursive-> true);
+    //             }
+
+    //             if (dependency.url.getType () == UrlType::LOCAL) {
+    //                 self.runProcess ("cp"s8, ["-r"s8, dependency.url.getPath ().toStr (), depPath.parent ().toStr ()]);
+    //                 self.runProcess ("mv"s8, [dependency.url.getPath ().file (), name], cwd-> depPath.parent ());
+    //             } else {
+    //                 git::clone (dependency.url.getPath ().toStr (), cwd-> depPath);
+    //             }
+    //         }
+
+    //         git::fetchTags (cwd-> depPath);
+    //         git::checkout ("v"s8 ~ dependency.version.toStr (), cwd-> depPath);
+
+    //         let conf = {
+    //             self.loadToml (depPath.push (defaults::__GYLLIR_CONFIG_FILENAME__))
+    //         } catch {
+    //             x : _ => {
+    //                 eprintln ("Failed to read configuration file (", x, "). Aborting");
+    //                 return (""s8, false);
+    //             }
+    //         }
+
+    //         if (conf.type.isExecutable ()) {
+    //             eprintln ("Dependency : ", dependency.url, " is not a library. Aborting.");
+    //             return (""s8, false);
+    //         }
+
+    //         self._doneDependencies:.insert (dependency.url);
+    //         let succ = {
+    //             self:.buildRepo (conf, cwd-> depPath, doLink-> false, inDependency-> true)
+    //         } catch {
+    //             r : &RecursiveDependency => {
+    //                 throw RecursiveDependency::new (name ~ ":"s8 ~ dependency.url.getPath ().toStr () ~ " => "s8 ~ r.msg);
+    //             }
+    //         }
+    //         self._doneDependencies:.remove (dependency.url);
+    //         return (conf.name, succ);
+    //     } catch {
+    //         g : &GitError => {
+    //             println (g);
+    //             let versions = { self.toVersionList (git::getTagList (cwd-> depPath)) } catch { _ => [] }
+    //             println ("Missing version : ", dependency.version.toStr (), ". Aborting");
+    //             if (versions.len != 0us) {
+    //                 println ("Available versions are : ", versions.map!{|x| const x.toStr ()} ());
+    //             }
+
+    //             return (""s8, false);
+    //         }
+
+    //         r : &RecursiveDependency => throw r;
+
+    //         x : _ => {
+    //             println ("Failure. Aborting", x);
+    //             return (""s8, false);
+    //         }
+    //     }
+    // }
+
+    // /**
+    //  * Transform a list of tags (acquired with git) into a list of version
+    //  */
+    // pub fn toVersionList (self, list : [c8])-> [&Version] {
+    //     let tzer = Tokenizer::new (tokens-> ["\n"]);
+    //     let res = tzer.tokenize (list.(std::conv::to)![c32] ());
+    //     let mut versions : [&Version] = [];
+    //     for i in res {
+    //         {
+    //             if (i.len > 0us && i [0us] == 'v') {
+    //                 versions = versions ~ [Version::new (i [1us .. $])];
+    //             }
+    //         } catch {
+    //             _ => {}
+    //         }
+    //     }
+    //     return versions
+    // }
+
+    // /**
+    //  * ================================================================================================================================================================
+    //  * ================================================================================================================================================================
+    //  * =======================================================================    CLEANING   ==========================================================================
+    //  * ================================================================================================================================================================
+    //  * ================================================================================================================================================================
+    //  */
+
+    // /**
+    //  * Execute the clean repository command
+    //  */
+    // pub fn cleanRepo (self, cwd : &Path = env::currentDir (), all : bool = false, doc : bool = false) {
+    //     let conf = {
+    //         self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
+    //     } catch {
+    //         _ => {
+    //             println ("Failed to read configuration file. Aborting");
+    //             return {}
+    //         }
+    //     }
+
+	// if (doc || all) {
+    //         if (fs::sys::isDir (cwd.push ("__doc"s8))) {
+    //             self.runProcess ("rm"s8, ["-rf"s8, cwd.push ("__doc"s8).toStr ()]);
+    //         }
+    //     }
+
+	// if (!doc || all) {
+    //         if (fs::sys::isDir (cwd.push (defaults::__BUILD_DIR__))) {
+    //             self.runProcess ("rm"s8, ["-rf"s8, cwd.push (defaults::__BUILD_DIR__).toStr ()]);
+    //         }
+
+    //         if (fs::sys::isDir (cwd.push (defaults::__LIB_DIR__))) {
+    //             self.runProcess ("rm"s8, ["-rf"s8, cwd.push (defaults::__LIB_DIR__).toStr ()]);
+    //         }
+
+    //         let outputname = __version WINDOWS {
+    //             utils::path::toPath (conf.name ~ ".exe"s8, sep-> "/"s8, add-> "_"s8)
+    //         } else {
+    //             utils::path::toPath (conf.name, sep-> "/"s8, add-> "_"s8)
+    //         }
+
+    //         if (fs::sys::isFile (cwd.push (outputname)))
+    //             self.runProcess ("rm"s8, [cwd.push (outputname).toStr ()]);
+
+    //         let testoutputname = __version WINDOWS {
+    //             utils::path::toPath ("test_"s8 ~ conf.name ~ ".exe", sep-> "/"s8, add-> "_"s8)
+    //         } else {
+    //             utils::path::toPath ("test_"s8 ~ conf.name, sep-> "/"s8, add-> "_"s8)
+    //         }
+
+    //         if (fs::sys::isFile (cwd.push (testoutputname)))
+    //             self.runProcess ("rm"s8, [cwd.push (testoutputname).toStr ()]);
+    //     }
+    // }
+
+    // /**
+    //  * ================================================================================================================================================================
+    //  * ================================================================================================================================================================
+    //  * =======================================================================    PUBLISH    ==========================================================================
+    //  * ================================================================================================================================================================
+    //  * ================================================================================================================================================================
+    //  */
+
+    // /**
+    //  * Publish the repository
+    //  */
+    // pub fn publishRepo (mut self) {
+    //     let cwd = env::currentDir ();
+    //     let conf = {
+    //         self.loadToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__))
+    //     } catch {
+    //         x : _ => {
+    //             println ("Failed to read configuration file (", x, "). Aborting");
+    //             return {}
+    //         }
+    //     }
+
+    //     if !conf.registry.isValid () {
+    //         println ("Invalid registry, unable to publish. Aborting");
+    //         return {}
+    //     }
+
+    //     {
+    //         match conf.registry.getType () {
+    //             UrlType::LOCAL => { self:.publishLocal (cwd, conf, path-> conf.registry.getPath (), ask-> self._args.publish.isYes ()); }
+    //             _ => {
+    //                 let tmpDir = tempDirectory ();
+    //                 let answer =
+    //                     if (self._args.publish.isYes ()) { "Y"s8 } else { self.askUserFor ("Publish to git : "s8 ~ conf.registry.getPath ().toStr () ~ " (Y/n)"s8, default-> "Y"s8) }
+
+    //                 if answer != "Y"s8 { println ("Aborting"); return {} }
+    //                 let (succ, version) = self:.publishLocal (cwd, conf, path-> tmpDir, ask-> false);
+    //                 if (succ) {
+    //                     self:.publishGit (conf, tmpDir.push (conf.name), version);
+    //                 }
+    //             }
+    //         }
+    //     } catch {
+    //         x : _ => println (x);
+    //     }
+    // }
+
+    // /**
+    //  * Publish a package to a local location
+    //  */
+    // pub fn publishLocal (mut self, cwd : &Path, conf : GyllirConfig, path : &Path = Path::new ("."), ask : bool = true)-> (bool, &Version)
+    //     throws &FsError, &GitError
+    // {
+    //     let answer =
+    //         if (!ask) { "Y"s8 } else { self.askUserFor ("Publish to local : "s8 ~ path.toStr () ~ " (Y/n)"s8, default-> "Y"s8) }
+
+    //     if answer != "Y"s8 { println ("Aborting"); return (false, conf.version); }
+
+    //     self.cleanRepo (cwd-> cwd, all-> true);
+    //     if (!self._args.publish.isDry ()) {
+    //         let res = {
+    //             self:.runTests (conf, cwd-> cwd, false)
+    //         } catch {
+    //             r : &RecursiveDependency => {
+    //                 println ("Failed to build repository, recursive dependency : ");
+    //                 println (r.msg);
+    //                 println ("Aborting");
+    //                 return (false, conf.version);
+    //             }
+    //         }
+
+    //         self.cleanRepo (cwd-> cwd, all-> true);
+    //         if !res {
+    //             println ("Test failed to pass. Aborting");
+    //             return (false, conf.version);
+    //         }
+    //     }
+
+    //     let version = conf.version.increment (major-> self._args.publish.isMajor (),
+    //                                           minor-> self._args.publish.isMinor (),
+    //                                           patch-> self._args.publish.isPatch ());
+    //     let conf2 = GyllirConfig (conf.name, conf.license, conf.description, type-> conf.type, registry-> conf.registry, conf.author, version-> version, dependencies-> conf.dependencies, libraries-> conf.libraries);
+    //     self.saveToml (cwd.push (defaults::__GYLLIR_CONFIG_FILENAME__), conf2.to!{&Config} ());
+
+    //     git::add (cwd.push ("."s8));
+    //     git::commit (self._args.publish.getMessage ().(std::conv::to)![c8] (), cwd-> cwd);
+    //     git::createTag ("v"s8 ~ version.toStr ());
+
+    //     if isDir (path) {
+    //         self.runProcess ("rm"s8, ["-rf"s8, path.toStr ()]);
+    //     }
+
+    //     fs::sys::createDir (path.parent (), recursive-> true)?;
+
+    //     println ("[INFO] publish to ", path.toStr ());
+    //     self.runProcess ("cp"s8, ["-r"s8, cwd.toStr (), path.toStr ()]);
+
+    //     (true, version)
+    // }
+
+    // /**
+    //  * Publish the repo to a git location
+    //  */
+    // pub fn publishGit (mut self, conf : GyllirConfig, tmpDir : &Path, version : &Version)
+    // {
+    //     git::setRemote (cwd-> tmpDir, conf.registry.getPath ().toStr ());
+    //     git::push (["v"s8 ~ version.toStr (), "master"s8], cwd-> tmpDir);
+    // } catch {
+    //     x : &GitError => {
+    //         println ("Failed to publish to git repository. Aborting");
+    //         println (x);
+    //     }
+    // }
+
+
+    // /**
+    //  * ================================================================================================================================================================
+    //  * ================================================================================================================================================================
+    //  * =======================================================================     TESTS     ==========================================================================
+    //  * ================================================================================================================================================================
+    //  * ================================================================================================================================================================
+    //  */
+
+    // /**
+    //  * Run the tests of the repo
+    //  */
+    // prv fn runTests (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir (), isDry : bool) -> bool
+    //     throws &RecursiveDependency
+    // {
+    //     let dmut builder = RepoBuilder::new (alias self, conf, cwd-> cwd);
+    //     let mut succ = false;
+    //     {
+    //         succ = builder:.construct ();
+    //         succ = builder:.compile (forTest-> true);
+
+    //         if (succ && !isDry) {
+    //             succ = self.runProcess ("./test_"s8 ~ conf.name, [], printOut-> true, printErr-> true);
+    //             if (!succ) println ("[ERROR] Tests failed."s8);
+    //         }
+    //     } catch {
+    //         _ : &FsError => return false;
+    //         x : &RecursiveDependency => throw x;
+    //     }
+
+    //     return succ;
+
+    // }
+
+
+    // /**
+    //  * ================================================================================================================================================================
+    //  * ================================================================================================================================================================
+    //  * ======================================================================     DOCUMENTATION     ===================================================================
+    //  * ================================================================================================================================================================
+    //  * ================================================================================================================================================================
+    //  */
+
+    // /**
+    //  * Generate the documentation of the repository
+    //  */
+    // prv fn generateDoc (mut self, conf : GyllirConfig, cwd : &Path = env::currentDir ())
+    //     throws &RecursiveDependency
+    // {
+    //     let d = self.getArguments ().doc;
+    //     let dmut jsons = Vec!{&Path}::new ();
+    //     if (d.inDir () != ""s8) {
+    //         {
+    //             for e in fs::sys::readDir (Path::new (d.inDir ())) {
+    //                 match e {
+    //                     f : &FileEntry => {
+    //                         if (f.path.extension () == "json"s8) {
+    //                             jsons:.push (f.path);
+    //                         }
+    //                     }
+    //                 }
+    //             }
+    //         } catch {
+    //             x : &FsError => {
+    //                 println (x);
+    //                 println ("[ERROR] Doc compilation failed."s8);
+    //                 return {};
+    //             }
+    //         }
+    //     } else {
+    //         let dmut builder = RepoBuilder::new (alias self, conf, cwd-> cwd);
+    //         let mut succ = false;
+    //         {
+    //             succ = builder:.construct ();
+    //             succ = builder:.compile (forDoc-> true);
+    //             if (succ) {
+    //                 let srcDir = cwd.push (defaults::__BUILD_DIR__).push (defaults::__DOC_DIR__);
+    //                 for e in fs::sys::readDir (srcDir) {
+    //                     match e {
+    //                         f : &FileEntry => {
+    //                             if (f.path.extension () == "json"s8) {
+    //                                 jsons:.push (f.path);
+    //                             }
+    //                         }
+    //                     }
+    //                 }
+    //             } else println ("[ERROR] Doc compilation failed."s8);
+    //         } catch {
+    //             _ : &FsError => {
+    //                 println ("[ERROR] Doc compilation failed."s8);
+    //                 return {};
+    //             }
+    //             x : &RecursiveDependency => throw x;
+    //         }
+    //     }
+
+    //     let outDir = cwd.push (defaults::__DOC_DIR__);
+    //     let dmut docDumper = DocDumper::new (alias self, conf, jsons[], outDir, verbose-> d.isVerbose ());
+
+    //     docDumper.generate ();
+    // }
+
+    // /**
+    //  * ================================================================================================================================================================
+    //  * ================================================================================================================================================================
+    //  * ======================================================================     COMMON     ==========================================================================
+    //  * ================================================================================================================================================================
+    //  * ================================================================================================================================================================
+    //  */
+
+
+    // /**
+    //  * Save a configation into a file
+    //  */
+    // pub fn saveToml (self, path : &Path, content : &Config)
+    //     throws &FsError
+    // {
+    //     import std::config::toml;
+    //     with dmut f = File::create (path, write-> true) {
+    //         f:.write (content.dump ());
+    //     }
+    // }
+
+    // /**
+    //  * Read the configuration file
+    //  */
+    // pub fn loadToml (self, path : &Path)-> GyllirConfig
+    //     throws &FsError, &SyntaxError, &ConfigError
+    // {
+    //     import std::config::toml;
+    //     with dmut f = File::open (path) {
+    //         toml::parse (f:.readAll ()).(config::conv::to)!{GyllirConfig} ()
+    //     }
+    // }
+
+    // /**
+    //  * @returns: true if the error was thrown by a sub command that printed the help
+    //  */
+    // pub fn hasHelpPrinted (self, err : &ArgumentError) -> bool {
+    //     match err.subError {
+    //         Ok (HelpPrinted ()) => { true }
+    //         Ok (sub : &ArgumentError) => { self.hasHelpPrinted (sub) }
+    //         _ => false
+    //     }
+    // }
+
+    // /**
+    //  * @returns: true if no option is set
+    //  */
+    // pub fn noneIsSet (self)-> bool {
+    //     !self._args.init.isSet () &&
+    //         !self._args.build.isSet () &&
+    //         !self._args.clean.isSet () &&
+    //         !self._args.publish.isSet () &&
+    //         !self._args.test.isSet () &&
+    //         !self._args.doc.isSet ()
+    // }
+
+    // /**
+    //  * @returns: the arguments passed to the command line
+    //  */
+    // pub fn getArguments (self)-> GyllirArgs {
+    //     self._args
+    // }
+
+    // /**
+    //  * Run a process, and print its stdout / stderr
+    //  * @params:
+    //  *     - true if succeded, false otherwise
+    //  */
+    // pub fn runProcess (self, cmd : [c8], params : [[c8]], cwd : &Path = env::currentDir (), printOut : bool = false, printErr : bool = false)-> bool {
+    //     with dmut subProc = SubProcess::run (cmd, params, cwd-> cwd, redirectStdout-> !printOut, redirectStderr-> !printErr) {
+    //         let code = subProc:.wait ();
+    //         code == 0
+    //     }
+    // }
+
     
 }

@@ -1,128 +1,147 @@
-mod gyllir::config::version;
+in version;
 
-import std::config::_;
-import std::collection::map;
-import std::io;
-import std::syntax::tokenizer;
-import std::config::conv;
-import std::conv;
+use std::{config::_, stream};
+use std::syntax::tokenizer;
 
 
 /**
- * A version is a serializable class containing three elements:
+ * A version is a serializable record containing three elements:
  * Major version, Minor version and Patch version
  */
-pub class Version {    
+pub record Version {
 
+    // The number of the major version
     let mut _major : u32 = 0u32;
+
+    // The number of the minor version
     let mut _minor : u32 = 1u32;
+
+    // The number of the patch
     let mut _patch : u32 = 0u32;
 
+    /**
+     * Version from numbers
+     * */
+    pub self (major : u32, minor : u32, patch : u32)
+        with _major = major
+        , _minor = minor
+        , _patch = patch
+    {}
 
-    pub self (major : u32, minor : u32, patch : u32) with _major = major, _minor = minor, _patch = patch {}
-    
-    pub self () {}
-
-    pub self (version : [c32]) throws &AssertError {
-        let tzer = Tokenizer::new (tokens-> ["."]);
-        let res = tzer.tokenize (version);
-        let major = (res[0].to!u32())? 
-        let minor = (res[2].to!u32())?
-        let patch = (res[4].to!u32())?
-        self._major = match major {
-            Ok (a : u32) => { a }
-            Err (_ : &OutOfArray) => { throw AssertError::new ("need a major version"s8) }
-            Err (_ : &CastFailure) => { throw AssertError::new ("Invalid major number"s8) }
-            _  => { 0u32 }
-        }
-        
-        self._minor = match minor {
-            Ok (b: u32) => { b }
-            Err (_ : &CastFailure) => { throw AssertError::new ("Invalid minor number"s8) }
-            _  => { 0u32 } 
-        }
-        
-        self._patch = match patch {
-            Ok (c : u32) => { c }
-            Err (_ : &CastFailure) => { throw AssertError::new ("Invalid patch number"s8) }
-            _  => { 0u32 } 
-        };        
+    /**
+     * Construct a version from a string
+     * */
+    pub self (version : [c8])
+        throws std::conv::errors::CastFailure
+    {
+        self:.parseVersion (version);
     }
     
     /**
      * Deserialize a version number
      */
-    pub self (cfg : &Config) throws &AssertError
+    pub self (cfg : &Config)
+        throws AssertError, std::conv::errors::CastFailure
     {
-        match cfg {
-            Str (str->  version: _) => {
-                let tzer = Tokenizer::new (tokens-> ["."])
-                let res = tzer.tokenize (version);
-                
-                let major = (res[0].to!u32())? 
-                let minor = (res[2].to!u32())?
-                let patch = (res[4].to!u32())?
-                self._major = match major {
-                    Ok (a : u32) => { a }
-                    Err (_ : &OutOfArray) => { throw AssertError::new ("need a major version"s8) }
-                    Err (_ : &CastFailure) => { throw AssertError::new ("Invalid major number"s8) }
-                    _  => { 0u32 }
-                }
-                
-                self._minor = match minor {
-                    Ok (b: u32) => { b }
-                    Err (_ : &CastFailure) => { throw AssertError::new ("Invalid minor number"s8) }
-                    _  => { 0u32 } 
-                }
-                
-                self._patch = match patch {
-                    Ok (c : u32) => { c }
-                    Err (_ : &CastFailure) => { throw AssertError::new ("Invalid patch number"s8) }
-                    _  => { 0u32 } 
-                };            
-            }
-            _ => {
-                assert (false, "version must be a string");
-            }
-        }            
+        if let Str (value-> version) = cfg {
+            self:.parseVersion (version);
+        }
+
+        else throw copy AssertError ("Version must be a string");
     }
+
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * =====================================          UTILS          ======================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
 
     /**
      * Increment the version 
      */
-    pub fn increment (self, major : bool, minor : bool, patch : bool)-> &Version {
-        if patch {
-            return Version::new (self._major, self._minor, self._patch + 1u32);
-        } else if minor {
-            return Version::new (self._major, self._minor + 1u32, 0u32);
-        } else if major {
-            return Version::new (self._major + 1u32, 0u32, 0u32);
-        } else { // by default it is a patch
-            return Version::new (self._major, self._minor, self._patch + 1u32);
+    pub fn increment (self, major : bool, minor : bool)-> Version {
+        if minor {
+            return Version (self._major, self._minor + 1u32, 0u32);
         }
+
+        else if major {
+            return Version (self._major + 1u32, 0u32, 0u32);
+        }
+
+        // by default it is a patch
+        return Version (self._major, self._minor, self._patch + 1u32);
     }
 
     /**
      * @returns: the version into a string
      */
-    pub fn toStr (self)-> [c8] {
-        import std::stream;
-        let dmut s = StringStream::new ();
-        s:.write (self._major):.write ("."s8):.write (self._minor):.write ("."s8):.write (self._patch);
-        s[]
-    }
-    
-    impl Streamable;
-    impl std::config::conv::Serializable {
+    pub fn opIndex (self)-> [c8] {
+        let dmut str = copy StringStream ();
+        str:.write (self._major)
+            :.write (".")
+            :.write (self._minor)
+            :.write (".")
+            :.write (self._patch);
 
-        /**
-         * Transform the version into a configuration string
-         */
+        str[]
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ======================================          MISC          ======================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    impl Hashable;
+    impl Streamable;
+    impl Serializable {
         pub over serialize (self)-> &Config {
-            import std::stream;
-            let dmut stream = StringStream::new ();
+            let dmut stream = copy StringStream ();
             stream:.write (self._major, ".", self._minor, ".", self._patch);
-            return stream [].to!{&Config} ();
+            return copy Str (stream []);
         }
     }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          PRIVATE          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Parse the version from the string
+     * */
+    prv fn parseVersion (mut self, version : [c8])
+        throws std::conv::errors::CastFailure
+    {
+        let dmut tzer = Tokenizer!{c8} ();
+        tzer:.insert (".", isSkip-> true);
+
+        let components = tzer.tokenizeWithoutSkips (version);
+        if components.len != 2 && components.len != 3 {
+            throw copy std::conv::errors::CastFailure (([c8])::__typeinfo__, Version::__typeinfo__);
+        }
+
+        {
+            self._major = std::conv::to!{u32} (components [0]);
+            self._minor = std::conv::to!{u32} (components [1]);
+
+            if components.len == 3 {
+                self._patch = std::conv::to!{u32} (components [2]);
+            }
+        } catch {
+            inE => {
+                throw copy std::conv::errors::CastFailure (([c8])::__typeinfo__, Version::__typeinfo__, subError-> (inE)?);
+            }
+        }
+    }
+
+
 }

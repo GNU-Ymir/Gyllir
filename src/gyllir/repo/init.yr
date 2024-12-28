@@ -1,0 +1,134 @@
+in init;
+
+use std::{io, env, stream, config::_};
+use gyllir::{repo::defaults, utils::_, config::_};
+use std::fs::_;
+
+pub record RepoInitializer {
+
+    // The argument line
+    let _args : &Config;
+
+    // The git manager util
+    let _git : GitManager;
+
+    /**
+     * @params:
+     *    - args: the command line options
+     * */
+    pub self (args : &Config)
+        with _args = args
+        , _git = GitManager (cwd-> env::currentDir ())
+    {}
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          RUNNING          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     *
+     * */
+    pub fn run (self) {
+        let path = env::currentDir ();
+        if (std::fs::sys::isFile (path.push (defaults::__GYLLIR_CONFIG_FILENAME__))) {
+            throw copy AssertError ("The target directory already contains a 'gyllir.toml' file. Aborting.");
+        }
+
+        let name = self.askUserFor ("Name", default-> "main");
+        let author = self.askUserFor ("Author name", default-> self._git.getUserName ());
+        let descr = self.askUserFor ("Description", default-> "A minimal Ymir app");
+        let license = self.askUserFor ("License", default-> "proprietary");
+        let type = self.askUserFor ("Type (executable/library/shared-library)", default-> "executable");
+
+        let gyllirHome = Path (unsafe { env::getVar ("HOME") }).push (".local").push ("gyllir").push (name);
+        let registry = {
+            let url = self.askUserFor ("Registry", default-> (gyllir::config::url::UrlStarts::LOCAL ~ gyllirHome.toStr ()));
+            Url (url)
+        }
+
+        let cfg = GyllirPackageConfiguration (name-> name,
+                                              license-> license,
+                                              description-> descr,
+                                              authors-> copy [author],
+                                              type-> BuildType (type),
+                                              version-> Version (0, 1, 0),
+                                              registry-> registry);
+
+        self.createEmptyRepo (cfg);
+    } catch {
+        a : &AssertError => {
+            std::io::eprintln (a.msg);
+            etc::c::process::_yrt_exit (-1);
+        }
+        err => {
+            std::io::eprintln (err);
+            etc::c::process::_yrt_exit (-1);
+        }
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          PRIVATE          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Create the new empty repository
+     * */
+    prv fn createEmptyRepo (self, cfg : GyllirPackageConfiguration)
+        throws FsError, GitError
+    {
+        {
+            let dmut f = File::create (Path (defaults::__GYLLIR_CONFIG_FILENAME__), write-> true);
+            f:.write (std::config::toml::dump (cfg.serialize ()));
+            f:.close ();
+        }
+
+        fs::sys::createDir (Path (".").push (defaults::__SRC_DIR__))?;
+        fs::sys::createDir (Path (".").push (defaults::__TEST_DIR__))?;
+        {
+            let dmut f = File::create (Path (defaults::__SRC_DIR__).push (defaults::__MAIN_FILE__), write-> true);
+            f:.write (defaults::__MAIN_CONTENT__);
+            f:.close ();
+        }
+
+        {
+            let dmut f = File::create (Path (defaults::__TEST_DIR__).push (defaults::__FST_TEST_FILE__), write-> true);
+            f:.write (defaults::__FST_TEST_CONTENT__);
+            f:.close ();
+        }
+
+        {
+            let dmut f = File::create (Path (defaults::__GITIGNORE_FILENAME__), write-> true);
+            f:.write (defaults::__GITIGNORE_CONTENT__);
+            f:.write ("./" ~ cfg.name ~ ".a\n");
+            f:.write ("./" ~ cfg.name ~ ".so\n");
+            f:.write ("./" ~ cfg.name ~ "\n");
+            f:.write ("./test_" ~ cfg.name ~ "\n");
+            f:.close ();
+        }
+
+        self._git.init ();
+        self._git.add (Path ("./."));
+        self._git.commit ("Initial commit");
+    }
+
+    /**
+     * Ask the user for a given value (command line read)
+     * @params:
+     *   - ask: the text to write as a question
+     *   - default: the default value to return if the user did write nothing
+     */
+    prv fn askUserFor (self, ask : [c8], default : [c8] = "") -> [c8] {
+        let x = std::io::read![c8] (ask-> (ask ~ " [" ~ default ~ "]:"));
+        if x == "" {
+            default
+        } else x
+    }
+}
