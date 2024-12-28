@@ -8,7 +8,6 @@ use std::{config::_, stream};
 enum
 | EXECUTABLE = (0u8, "executable")
 | LIBRARY    = (1u8, "library")
-| SHARED_LIB = (2u8, "shared-library")
  -> BuildTypeEnum;
 
 /**
@@ -61,10 +60,6 @@ pub record BuildType {
 
     pub fn isLibrary (self)-> bool {
         self._type == BuildTypeEnum::LIBRARY.0
-    }
-
-    pub fn isShared (self)-> bool {
-        self._type == BuildTypeEnum::SHARED_LIB.0
     }
 
     /*!

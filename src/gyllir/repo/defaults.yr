@@ -14,7 +14,7 @@ pub def __GITIGNORE_FILENAME__ = ".gitignore";
  * The name of the initial file
  */
 pub def __MAIN_FILE__ = "main.yr";
-
+pub def __LIB_FILE__ = "__lib__.yr";
 pub def __FST_TEST_FILE__ = "first_test.yr";
 
 /**
@@ -57,14 +57,12 @@ __doc
 pub def __SRC_DIR__ = "src";
 
 
-pub def __BUILD_DIR__ = ".build";
 pub def __DEBUG_DIR__ = "debug";
 pub def __RELEASE_DIR__ = "release";
 pub def __LIB_DIR__ = "__libs"
 pub def __TEST_DIR__ = "test";
 pub def __DOC_DIR__ = "__doc";
-pub def __BUILD_TEST_DIR__ = ".build/.test";
-pub def __DEPENCY_DIR__ = ".build/.deps";
+pub def __DEPENCY_DIR__ = ".deps";
 pub def __CMAKE_FILE__ = "CMakeLists.txt";
 
 

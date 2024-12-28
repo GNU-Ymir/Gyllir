@@ -1,28 +1,213 @@
 in builder;
 
-use gyllir::config::_;
-use gyllir::utils::_;
+
+use std::{io, env, stream, config::_};
+use gyllir::{repo::_, utils::_, config::_};
+use std::{fs::_, syntax::tokenizer};
+
 
 /**
  * Build a repository
  */
 pub record RepoBuilder {
 
-    // The configuration of the repo to build
+    // The current working directory
+    let _cwd : Path;
+
+    // The command line options
+    let _args : &Config;
+
+    // The package configuration
     let _cfg : GyllirPackageConfiguration;
 
     /**
      * @params:
      *    - cfg: the configuration of the repo
      * */
-    pub self (cfg : GyllirPackageConfiguration)
-        with _cfg = cfg
+    pub self (path : Path, args : &Config, cfg : GyllirPackageConfiguration)
+        with _cwd = path
+        , _args = args
+        , _cfg = cfg
     {}
 
     /**
      * Build the repository
      * */
-    pub fn run (self) {
+    pub fn run (self, dmut context : &GyllirManager)
+        throws RecursiveDependency
+    {
+        self.resolveDependencies (alias context);
+        self.runPreCommands (alias context);
+        {
+            let options = self.createCompileOptions ();
+            if let Ok (Bool (value-> true)) = self._args ["verbose"]? {
+                std::io::print ("[INFO] Run command : '", self._cfg.compiler, " ");
+                for i in options {
+                    std::io::print (i, " ");
+                }
+                std::io::println ("'");
+            }
+
+            if (!context.runProcess (self._cfg.compiler, options, cwd-> self._cwd)) {
+                std::io::eprintln ("[ERROR] failed to compile project '", self._cfg.name, "'");
+                etc::c::process::_yrt_exit (-1);
+            }
+        } catch {
+            err : &AssertError => {
+                std::io::eprintln ("[ERROR] failed to compile project '", self._cfg.name, "' : ", err.msg);
+                etc::c::process::_yrt_exit (-1);
+            }
+        }
+
+        if self._cfg.type.isExecutable () {
+            self.finalizeExecutable (alias context);
+        }
+
+        else if self._cfg.type.isLibrary () {
+            self.finalizeLibrary (alias context);
+        }
+
+        self.runPostCommands (alias context);
     }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ==================================          COMMAND LINE          ==================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Create the command line used to
+     * @returns: the options to pass to the compiler
+     * */
+    prv fn createCompileOptions (self)-> [[c8]]
+        throws AssertError
+    {
+        let dmut options : [[c8]] = [];
+        if (fs::sys::isFile (self._cwd.push (defaults::__SRC_DIR__).push (defaults::__LIB_FILE__))) {
+            options ~= [self._cwd.push (defaults::__SRC_DIR__).push (defaults::__LIB_FILE__).toStr ()];
+        } else if (fs::sys::isFile (self._cwd.push (defaults::__SRC_DIR__).push (defaults::__MAIN_FILE__))) {
+            options ~= [self._cwd.push (defaults::__SRC_DIR__).push (defaults::__MAIN_FILE__).toStr ()];
+        } else throw copy AssertError ("No package root file, src/__lib__.yr and src/main.yr not found");
+
+        options ~= ["-c", "-o", ".__tmp_" ~ self._cfg.name ~ ".a"];
+        for k, _ in self._cfg.dependencies [] {
+            options ~= ["-I", self._cwd.push (defaults::__DEPENCY_DIR__).push (k).push (defaults::__SRC_DIR__).toStr ()];
+        }
+
+        options
+    }
+
+    /**
+     * Finalize the executable
+     * */
+    prv fn finalizeExecutable (self, dmut context : &GyllirManager) {
+        let createdTmp = ".__tmp_" ~ self._cfg.name ~ ".a";
+        let mut options = copy [createdTmp, "-o", self._cfg.name];
+        for k, _ in self._cfg.dependencies [] {
+            options ~= [self._cwd.push (defaults::__DEPENCY_DIR__).push (k).push (k ~ ".a").toStr ()];
+        }
+
+        for k in self._cfg.libraries {
+            options ~= ["-l" ~ k];
+        }
+
+        if let Ok (Bool (value-> true)) = self._args ["verbose"]? {
+            std::io::print ("[INFO] Run command : '", self._cfg.compiler, " ");
+            for i in options {
+                std::io::print (i, " ");
+            }
+            std::io::println ("'");
+        }
+
+        if (!context.runProcess (self._cfg.compiler, options, cwd-> self._cwd)) {
+            std::io::eprintln ("[ERROR] failed to compile project '", self._cfg.name, "'");
+            etc::c::process::_yrt_exit (-1);
+        }
+
+        context.runProcess ("rm", copy [createdTmp], cwd-> self._cwd);
+    }
+
+    /**
+     * Finalize the library
+     * */
+    prv fn finalizeLibrary (self, dmut context : &GyllirManager) {
+        let createdTmp = ".__tmp_" ~ self._cfg.name ~ ".a";
+        if (!context.runProcess ("mv", copy [createdTmp, self._cfg.name ~ ".a"], cwd-> self._cwd)) {
+            std::io::eprintln ("[ERROR] failed to compile project '", self._cfg.name, "'");
+            etc::c::process::_yrt_exit (-1);
+        }
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ================================          CUSTOM COMMANDS          =================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Execute the commands to run before the compilation
+     * */
+    prv fn runPreCommands (self, dmut context : &GyllirManager) {
+        let dmut tzer = Tokenizer!c8 ();
+        tzer:.insert (" ", isSkip-> true);
+        for name, c in self._cfg.commands [] {
+            if !c.isPost () {
+                let cmd = tzer.tokenizeWithoutSkips (c.cmd);
+                let succ = if (cmd.len > 0) {
+                    context.runProcess (cmd [0], cmd [1 .. $], cwd-> self._cwd)
+                } else { false };
+
+                if !succ {
+                    std::io::eprintln ("[ERROR] failed to run custom command : ", name, "(", c.cmd, ")");
+                    etc::c::process::_yrt_exit (-1);
+                }
+            }
+        }
+    }
+
+    /**
+     * Execute the commands to run after the compilation
+     * */
+    prv fn runPostCommands (self, dmut context : &GyllirManager) {
+        let dmut tzer = Tokenizer!c8 ();
+        tzer:.insert (" ", isSkip-> true);
+        for name, c in self._cfg.commands [] {
+            if c.isPost () {
+                let cmd = tzer.tokenizeWithoutSkips (c.cmd);
+                let succ = if (cmd.len > 0) {
+                    context.runProcess (cmd [0], cmd [1 .. $], cwd-> self._cwd)
+                } else { false };
+
+                if !succ {
+                    std::io::eprintln ("[ERROR] failed to run custom command : ", name, "(", c.cmd, ")");
+                    etc::c::process::_yrt_exit (-1);
+                }
+            }
+        }
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ==================================          DEPENDENCIES          ==================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Resolve the dependencies of the package and build them
+     * */
+    prv fn resolveDependencies (self, dmut context : &GyllirManager)
+        throws RecursiveDependency
+    {
+        for k, d in self._cfg.dependencies[] {
+            context:.resolveDependency (self._args, self._cwd, k, d);
+        }
+    } 
 
 }

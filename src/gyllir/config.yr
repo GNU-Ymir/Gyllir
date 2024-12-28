@@ -8,6 +8,7 @@ pub mod ::url;
 pub mod ::version;
 pub mod ::dependency;
 pub mod ::type;
+pub mod ::errors;
 
 use gyllir::config::_;
 
@@ -24,6 +25,9 @@ pub record GyllirPackageConfiguration {
 
     // The short descripion
     let mut _description : [c8] = "";
+
+    // The compiler
+    let mut _compiler : [c8] = "gyc";
 
     // The type of the target
     let mut _type : BuildType = BuildType ();
@@ -107,6 +111,11 @@ pub record GyllirPackageConfiguration {
     }
 
     @field
+    pub fn compiler (self)-> [c8] {
+        self._compiler
+    }
+
+    @field
     pub fn registry (self)-> Url {
         self._registry
     }
@@ -156,6 +165,7 @@ pub record GyllirPackageConfiguration {
             d:["version"] = self._version.serialize ();
             d:["dependencies"] = self._dependencies.serialize ();
             d:["commands"] = self._commands.serialize ();
+            d:["compiler"] = copy Str (self._compiler);
 
             d:["authors"] = copy Array (copy [copy Str (i) for i in self._authors]);
             d:["libraries"] = copy Array (copy [copy Str (i) for i in self._libraries]);
@@ -184,6 +194,13 @@ pub record GyllirPackageConfiguration {
         self._type = std::config::conv::to!{BuildType} (d ["type"]);
         self._version = std::config::conv::to!{Version} (d ["version"]);
         self._registry = std::config::conv::to!{Url} (d ["registry"]);
+
+        if let Ok (Str (value-> c)) = d ["compiler"]? {
+            self._compiler = c;
+        } else if let Ok (_) = d ["compiler"]? {
+            throw copy AssertError ("expecting a string for 'compiler'");
+        }
+
         if let Ok (a : &Array) = d ["authors"]? {
             self._authors = copy [std::config::conv::to!{[c8]} (i) for i in a[]];
         } else if let Ok (_) = d ["authors"]? {

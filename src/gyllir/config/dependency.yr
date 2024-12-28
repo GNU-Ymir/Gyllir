@@ -101,7 +101,7 @@ pub class DependencyList {
     /**
      * @returns: the list of dependencies
      */
-    pub fn getList (self)-> [[c8] => Dependency] {
+    pub fn opIndex (self)-> [[c8] => Dependency] {
         self._package
     }
 
