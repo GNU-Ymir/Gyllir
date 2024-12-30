@@ -1,7 +1,7 @@
 in dependency;
 
 use std::{config::_, stream};
-use gyllir::config::{url, version};
+use gyllir::config::{url, version, version::filter};
 
 /**
  * A dependency to an external package
@@ -9,12 +9,12 @@ use gyllir::config::{url, version};
 pub record Dependency {
 
     // The version of the dependency package
-    let _version : Version;
+    let _version : VersionFilter;
 
     // The url of the dependency
     let _url : Url;
 
-    pub self (version : Version, url : Url)
+    pub self (version : VersionFilter, url : Url)
         with _version = version
         , _url = url
     {}
@@ -28,7 +28,7 @@ pub record Dependency {
      */
 
     @field
-    pub fn version (self)-> Version {
+    pub fn version (self)-> VersionFilter {
         self._version
     }
 
@@ -146,7 +146,7 @@ pub class DependencyList {
     {
         {
             for k, v in cfg[] {
-                let version = Version (v ["version"]);
+                let version = VersionFilter (v ["version"]);
                 let url = Url (v ["url"]);
 
                 self._package [k] = Dependency (version-> version, url);

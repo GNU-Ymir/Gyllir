@@ -28,6 +28,13 @@ fn main () {
 }
 };
 
+pub def __LIB_CONTENT__ = str#{use std::io;
+
+pub fn foo () {
+    println ("Hello from lib");
+}
+};
+
 
 pub def __FST_TEST_CONTENT__ = str#{in first_test;
 use std::io;

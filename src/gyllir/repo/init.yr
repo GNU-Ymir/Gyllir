@@ -92,10 +92,18 @@ pub record RepoInitializer {
 
         fs::sys::createDir (Path (".").push (defaults::__SRC_DIR__))?;
         fs::sys::createDir (Path (".").push (defaults::__TEST_DIR__))?;
-        {
-            let dmut f = File::create (Path (defaults::__SRC_DIR__).push (defaults::__MAIN_FILE__), write-> true);
-            f:.write (defaults::__MAIN_CONTENT__);
-            f:.close ();
+        if (cfg.type.isExecutable ()) {
+            {
+                let dmut f = File::create (Path (defaults::__SRC_DIR__).push (defaults::__MAIN_FILE__), write-> true);
+                f:.write (defaults::__MAIN_CONTENT__);
+                f:.close ();
+            }
+        } else {
+            {
+                let dmut f = File::create (Path (defaults::__SRC_DIR__).push (Path (cfg.name).addExtension (defaults::__YMIR_EXTENSION__)), write-> true);
+                f:.write (defaults::__LIB_CONTENT__);
+                f:.close ();
+            }
         }
 
         {

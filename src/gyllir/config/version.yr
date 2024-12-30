@@ -2,7 +2,9 @@ in version;
 
 use std::{config::_, stream};
 use std::syntax::tokenizer;
+use std::conv::errors;
 
+pub mod ::filter;
 
 /**
  * A version is a serializable record containing three elements:
@@ -10,46 +12,42 @@ use std::syntax::tokenizer;
  */
 pub record Version {
 
-    // The number of the major version
-    let mut _major : u32 = 0u32;
+    // True iif this is a numbered version
+    let mut _numbered : bool = false;
 
-    // The number of the minor version
-    let mut _minor : u32 = 1u32;
+    // The numbers of the verseion (applicable iif self._numbered)
+    let dmut _numbers : [u32 ; 3] = [0 ; 3];
 
-    // The number of the patch
-    let mut _patch : u32 = 0u32;
+    // The name of the version (applicable iif !self._numbered)
+    let mut _name : [c8] = [];
 
     /**
      * Version from numbers
      * */
     pub self (major : u32, minor : u32, patch : u32)
-        with _major = major
-        , _minor = minor
-        , _patch = patch
+        with _numbers = [major, minor, patch]
+        , _numbered = true
     {}
 
     /**
      * Construct a version from a string
      * */
-    pub self (version : [c8])
-        throws std::conv::errors::CastFailure
-    {
+    pub self (version : [c8]) {
         self:.parseVersion (version);
     }
-    
+
     /**
-     * Deserialize a version number
-     */
+     * Deserialize a version from config
+     * */
     pub self (cfg : &Config)
-        throws AssertError, std::conv::errors::CastFailure
+        throws AssertError
     {
         if let Str (value-> version) = cfg {
             self:.parseVersion (version);
         }
 
-        else throw copy AssertError ("Version must be a string");
+        else throw copy AssertError ("version must be a string");
     }
-
 
     /*!
      * ====================================================================================================
@@ -60,33 +58,89 @@ pub record Version {
      */
 
     /**
-     * Increment the version 
+     * Increment the version
      */
     pub fn increment (self, major : bool, minor : bool)-> Version {
+        if (!self._numbered) return self;
         if minor {
-            return Version (self._major, self._minor + 1u32, 0u32);
+            return Version (self.major, self.minor + 1u32, 0u32);
         }
 
         else if major {
-            return Version (self._major + 1u32, 0u32, 0u32);
+            return Version (self.major + 1u32, 0u32, 0u32);
         }
 
         // by default it is a patch
-        return Version (self._major, self._minor, self._patch + 1u32);
+        return Version (self.major, self.minor, self.patch + 1u32);
     }
 
     /**
      * @returns: the version into a string
      */
     pub fn opIndex (self)-> [c8] {
+        if (!self._numbered) return self._name;
+
         let dmut str = copy StringStream ();
-        str:.write (self._major)
+        str:.write (self.major)
             :.write (".")
-            :.write (self._minor)
+            :.write (self.minor)
             :.write (".")
-            :.write (self._patch);
+            :.write (self.patch);
 
         str[]
+    }
+
+    /**
+     * @returns: true if this is a numbered version
+     * */
+    pub fn isNumbered (self)-> bool {
+        self._numbered
+    }
+
+    @field
+    pub fn major (self)-> u32 {
+        self._numbers [0]
+    }
+
+    @field
+    pub fn minor (self)-> u32 {
+        self._numbers [1]
+    }
+
+    @field
+    pub fn patch (self)-> u32 {
+        self._numbers [2]
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ===================================          COMPARISON          ===================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+
+    pub fn opEquals (self, o : Version)-> bool {
+        if (self._numbered != o._numbered) return false;
+        if self._numbered {
+            return self._numbers == o._numbers;
+        }
+
+        else return self._name == o._name;
+    }
+
+    pub fn opCmp (self, o : Version)-> i32 {
+        if self.major > o.major return 1;
+        else if self.major < o.major return -1;
+
+        if self.minor > o.minor return 1;
+        else if self.minor < o.minor return -1;
+
+        if self.patch > o.patch return 1;
+        else if self.patch < o.patch return -1;
+
+        return 0;
     }
 
     /*!
@@ -98,11 +152,18 @@ pub record Version {
      */
 
     impl Hashable;
-    impl Streamable;
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write (self[]);
+        }
+    }
+
     impl Serializable {
         pub over serialize (self)-> &Config {
+            if (!self._numbered) return copy Str (self._name);
+
             let dmut stream = copy StringStream ();
-            stream:.write (self._major, ".", self._minor, ".", self._patch);
+            stream:.write (self.major, ".", self.minor, ".", self.patch);
             return copy Str (stream []);
         }
     }
@@ -118,30 +179,34 @@ pub record Version {
     /**
      * Parse the version from the string
      * */
-    prv fn parseVersion (mut self, version : [c8])
-        throws std::conv::errors::CastFailure
-    {
+    prv fn parseVersion (mut self, version : [c8]) {
         let dmut tzer = Tokenizer!{c8} ();
         tzer:.insert (".", isSkip-> true);
 
         let components = tzer.tokenizeWithoutSkips (version);
         if components.len != 2 && components.len != 3 {
-            throw copy std::conv::errors::CastFailure (([c8])::__typeinfo__, Version::__typeinfo__);
+            self._numbered = false;
+            self._name = version;
+            return;
         }
 
         {
-            self._major = std::conv::to!{u32} (components [0]);
-            self._minor = std::conv::to!{u32} (components [1]);
+            self._numbered = true;
+            if (components [0].len > 1 && components [0][0] == 'v') { // numbered version can be written as v1.0.0 (e.g. for git tags)
+                self._numbers [0] = std::conv::to!{u32} (components [0][1 .. $]);
+            } else self._numbers [0] = std::conv::to!{u32} (components [0]);
+
+            self._numbers [1] = std::conv::to!{u32} (components [1]);
 
             if components.len == 3 {
-                self._patch = std::conv::to!{u32} (components [2]);
+                self._numbers [2] = std::conv::to!{u32} (components [2]);
             }
         } catch {
-            inE => {
-                throw copy std::conv::errors::CastFailure (([c8])::__typeinfo__, Version::__typeinfo__, subError-> (inE)?);
+            _ => {
+                self._numbered = false;
+                self._name = version;
             }
+
         }
     }
-
-
 }

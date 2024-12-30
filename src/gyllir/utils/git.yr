@@ -88,10 +88,10 @@ pub record GitManager {
     /**
      * Push to the remote repository
      * */
-    pub fn push (self, tags : [[c8]])
+    pub fn push (self, tag : [c8])
         throws GitError, FsError
     {
-        let dmut proc = copy SubProcess ("git", copy ["push", "origin"] ~ tags, cwd-> self._cwd);
+        let dmut proc = copy SubProcess ("git", copy ["push", "origin", tag], cwd-> self._cwd);
         proc:.start ();
 
         let code = proc:.wait ();
@@ -99,6 +99,22 @@ pub record GitManager {
             throw copy GitError (GitErrorCode::ALREADY_INIT, self.readAll (alias proc:.stderr));
         }
     }
+
+    /**
+     * Pull from the remote repository
+     * */
+    pub fn pull (self, tag : [c8])
+        throws GitError, FsError
+    {
+        let dmut proc = copy SubProcess ("git", copy ["pull", "origin", tag], cwd-> self._cwd);
+        proc:.start ();
+
+        let code = proc:.wait ();
+        if (code != 0) {
+            throw copy GitError (GitErrorCode::ALREADY_INIT, self.readAll (alias proc:.stderr));
+        }
+    }
+
 
     /**
      * Add a file to the control of the git repository
@@ -235,14 +251,28 @@ pub record GitManager {
     pub fn getTagList (self)-> [c8]
         throws GitError, FsError
     {
-        let dmut proc = copy SubProcess ("git", copy ["tag"], cwd-> self._cwd);
-        proc:.start ();
-        let code = proc:.wait ();
-        if (code != 0) {
-            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
-        }
+        let fst = {
+            let dmut proc = copy SubProcess ("git", copy ["tag"], cwd-> self._cwd);
+            proc:.start ();
+            let code = proc:.wait ();
+            if (code != 0) {
+                throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+            }
+            self.readAll (alias proc:.stdout)
+        };
 
-        return self.readAll (alias proc:.stdout);
+        let scd = {
+            let dmut proc = copy SubProcess ("git", copy ["branch", "--format", "%(refname:short)"], cwd-> self._cwd);
+            proc:.start ();
+            let code = proc:.wait ();
+            if (code != 0) {
+                throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+            }
+
+            self.readAll (alias proc:.stdout)
+        };
+
+        fst ~ "\n" ~ scd
     }
 
     /**

@@ -1,5 +1,6 @@
 in errors;
 
+use std::stream;
 
 /**
  * Error thrown when a recursive dependency is detected between two gyllir packages
@@ -7,7 +8,19 @@ in errors;
 @final
 pub class RecursiveDependency over Exception {
     pub let msg : [c8];
-    pub self (msg : [c8])
+    pub let sub : (&Exception)?;
+
+    pub self (msg : [c8], subError : (&Exception)? = none)
         with msg = msg
+        , sub = subError
     {}
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write ("Recursive dependencies : ", self.msg);
+            if let Ok (sub) = self.sub {
+                stream:.writeln (""):.write (" => "s8):.write ("\t"s8):.write (sub);
+            }
+        }
+    }
 }

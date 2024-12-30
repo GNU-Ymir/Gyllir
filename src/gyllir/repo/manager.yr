@@ -105,32 +105,42 @@ pub class GyllirManager {
     /**
      * Resolve a dependency, and build it
      */
-    pub fn resolveDependency (mut self, args : &Config, cwd : Path, name : [c8], dependency : Dependency)
+    pub fn resolveDependency (mut self, args : &Config, cwd : Path, name : [c8], dependency : Dependency)-> ([[c8]], [[c8]])
         throws RecursiveDependency
     {
+        if (dependency.url in self._depPackages) {
+            throw copy RecursiveDependency (name ~ ":"s8 ~ dependency.url.path.toStr ())
+        }
+
         let depPath = cwd.push (defaults::__DEPENCY_DIR__).push (name);
         {
-            if (dependency.url in self._depPackages) {
-                throw copy RecursiveDependency (name ~ ":"s8 ~ dependency.url.path.toStr ())
-            }
-
             std::io::println ("[INFO] Resolving dependency : ", name, " to ", depPath.toStr ());
             let gM = GitManager (cwd-> depPath);
-            if !isDir (depPath) {
-                if !isDir (depPath.parent ()) {
-                    fs::sys::createDir (depPath.parent (), recursive-> true);
-                }
+            if (dependency.url.type == UrlType::LOCAL) {
+                if (!isDir (depPath) || fs::sys::fileDate (depPath) < fs::sys::fileDate (dependency.url.path)) {
+                    if !isDir (depPath.parent ()) {
+                        fs::sys::createDir (depPath.parent (), recursive-> true);
+                    }
 
-                if (dependency.url.type == UrlType::LOCAL) {
-                    self.runProcess ("cp"s8, copy ["-r"s8, dependency.url.path.toStr (), depPath.parent ().toStr ()]);
-                    self.runProcess ("mv"s8, copy [dependency.url.path.file (), name], cwd-> depPath.parent ());
-                } else {
-                    gM.clone (dependency.url.path.toStr ());
+                    self.runProcess ("ln"s8, copy ["-s"s8, dependency.url.path.toStr (), depPath.toStr ()]);
                 }
             }
 
+            else if !isDir (depPath) {
+                gM.clone (dependency.url.path.toStr ());
+            }
+
+            let version = dependency.version.select (self.toVersionList (GitManager (cwd-> depPath).getTagList ()));
             gM.fetchTags ();
-            gM.checkout ("v"s8 ~ dependency.version[]);
+            if (version.isNumbered ()) {
+                gM.checkout ("v" ~ version[]);
+            } else gM.checkout (version[]);
+
+            if (dependency.url.type == UrlType::GIT) {
+                if (version.isNumbered ()) {
+                    gM.pull ("v" ~ version[]);
+                } else gM.pull (version[]);
+            }
 
             let conf = self.loadToml (depPath);
             if (conf.type.isExecutable ()) {
@@ -140,15 +150,10 @@ pub class GyllirManager {
             }
 
             self._depPackages [dependency.url] = ();
-            {
-                RepoBuilder (depPath, args, conf).run (alias self);
-            } catch {
-                r : &RecursiveDependency => {
-                    throw copy RecursiveDependency (name ~ ":"s8 ~ dependency.url.path.toStr () ~ " => "s8 ~ r.msg);
-                }
-            }
+            let (ext, lbs) = RepoBuilder (depPath, args, conf).run (alias self);
 
             self._depPackages:.remove (dependency.url);
+            (ext, lbs)
         } catch {
             GitError () => {
                 let versions = {
@@ -164,7 +169,14 @@ pub class GyllirManager {
                 panic;
             }
 
-            r : &RecursiveDependency => throw r;
+            r : &RecursiveDependency => {
+                throw copy RecursiveDependency (name ~ ":"s8 ~ dependency.url.path.toStr (), subError-> (r)?);
+            }
+            a : &AssertError => {
+                std::io::eprintln (a.msg);
+                etc::c::process::_yrt_exit (-1);
+                panic;
+            }
             x => {
                 std::io::eprintln ("Failure. Aborting", x);
                 etc::c::process::_yrt_exit (-1);
@@ -183,13 +195,7 @@ pub class GyllirManager {
 
         let mut versions : [Version] = [];
         for i in res {
-            {
-                if (i.len > 0us && i [0us] == 'v') {
-                    versions = versions ~ [Version (i [1us .. $])];
-                }
-            } catch {
-                _ => {}
-            }
+            versions = versions ~ [Version (i)];
         }
 
         return versions;
