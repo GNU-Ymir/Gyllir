@@ -42,9 +42,9 @@ pub class GyllirManager {
             RepoRunner (env::currentDir (), c, cfg).run ();
         }
 
-        // else if "clean" in self._args {
-        //     RepoCleaner (self.loadConfig ()).run ();
-        // }
+        else if let Ok (c) = self._args ["clean"]? {
+            RepoCleaner (env::currentDir (), c, self.loadToml (env::currentDir ())).run ();
+        }
 
         // else if "publish" in self._args {
         //     RepoPublisher (self.loadConfig ()).run ();
@@ -63,7 +63,7 @@ pub class GyllirManager {
         else panic;
     } catch {
         err => {
-            std::io::eprintln (err);
+            utils::log::error ("Error", err);
             etc::c::process::_yrt_exit (-1);
         }
     }
@@ -87,8 +87,13 @@ pub class GyllirManager {
 
         GyllirPackageConfiguration (cfg)
     } catch {
+        FsError () => {
+            utils::log::error ("Error", "failed to read configuration file gyllir.toml");
+            etc::c::process::_yrt_exit (-1);
+            panic;
+        }
         err => {
-            std::io::eprintln (err);
+            utils::log::error ("Error", err);
             etc::c::process::_yrt_exit (-1);
             panic;
         }
@@ -114,7 +119,7 @@ pub class GyllirManager {
 
         let depPath = cwd.push (defaults::__DEPENCY_DIR__).push (name);
         {
-            std::io::println ("[INFO] Resolving dependency : ", name, " to ", depPath.toStr ());
+            utils::log::info ("Resolving", "dependency ", name, " to ", depPath.toStr ());
             let gM = GitManager (cwd-> depPath);
             if (dependency.url.type == UrlType::LOCAL) {
                 if (!isDir (depPath) || fs::sys::fileDate (depPath) < fs::sys::fileDate (dependency.url.path)) {
@@ -144,7 +149,7 @@ pub class GyllirManager {
 
             let conf = self.loadToml (depPath);
             if (conf.type.isExecutable ()) {
-                std::io::eprintln ("Dependency : ", dependency.url, " is not a library. Aborting.");
+                utils::log::error ("Resolving", "dependency ", name, " in ", dependency.url, " is not a library.");
                 etc::c::process::_yrt_exit (-1);
                 panic;
             }
@@ -160,9 +165,9 @@ pub class GyllirManager {
                     self.toVersionList (GitManager (cwd-> depPath).getTagList ())
                 } catch { _ => [] };
 
-                std::io::eprintln ("Missing version : ", dependency.version[], ". Aborting");
+                utils::log::error ("Resolving", "dependency ", name, " has no version ", dependency.version);
                 if (versions.len != 0us) {
-                    std::io::eprintln ("Available versions are : ", copy [c[] for c in versions]);
+                    utils::log::info ("", "Available versions are : ", copy [c[] for c in versions]);
                 }
 
                 etc::c::process::_yrt_exit (-1);
@@ -173,12 +178,12 @@ pub class GyllirManager {
                 throw copy RecursiveDependency (name ~ ":"s8 ~ dependency.url.path.toStr (), subError-> (r)?);
             }
             a : &AssertError => {
-                std::io::eprintln (a.msg);
+                utils::log::error ("Resolving", "dependency ", name, " failure : ", a.msg);
                 etc::c::process::_yrt_exit (-1);
                 panic;
             }
             x => {
-                std::io::eprintln ("Failure. Aborting", x);
+                utils::log::error ("Resolving", "dependency ", name, " failure : ", x);
                 etc::c::process::_yrt_exit (-1);
                 panic;
             }
@@ -204,7 +209,17 @@ pub class GyllirManager {
     /**
      * Run a sub process
      * */
-    pub fn runProcess (self, cmd : [c8], params : [[c8]], cwd : Path = env::currentDir ())-> bool {
+    pub fn runProcess (self, cmd : [c8], params : [[c8]], cwd : Path = env::currentDir (), verbose : bool = false)-> bool {
+        if (verbose) {
+            let dmut stream = copy std::stream::StringStream ();
+            stream:.write (cmd);
+            for o in params {
+                stream:.write (" ");
+                stream:.write (o);
+            }
+            utils::log::info ("Run", stream[]);
+        }
+
         let dmut subProc = copy SubProcess (cmd, params, cwd-> cwd);
         subProc:.start (redirect-> false);
         let code = subProc:.wait ();

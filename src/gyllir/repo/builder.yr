@@ -36,20 +36,18 @@ pub record RepoBuilder {
     pub fn run (self, dmut context : &GyllirManager)-> ([[c8]], [[c8]])
         throws RecursiveDependency
     {
+        let verbose = if let Ok (Bool (value-> true)) = self._args ["verbose"]? {
+            true
+        } else { false };
+
         let (lp, ll) = self.resolveDependencies (alias context);
         self.runPreCommands (alias context);
         let srcPath = {
             let options = self.createCompileOptions (lp);
-            if let Ok (Bool (value-> true)) = self._args ["verbose"]? {
-                std::io::print ("[INFO] Run command : '", self._cfg.compiler, " ");
-                for i in options {
-                    std::io::print (i, " ");
-                }
-                std::io::println ("'");
-            }
+            utils::log::info ("Compiling", self._cfg.name, " ", self._cfg.version[]);
 
-            if (!context.runProcess (self._cfg.compiler, options, cwd-> self._cwd)) {
-                std::io::eprintln ("[ERROR] failed to compile project '", self._cfg.name, "'");
+            if (!context.runProcess (self._cfg.compiler, options, cwd-> self._cwd, verbose-> verbose)) {
+                utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
                 etc::c::process::_yrt_exit (-1);
                 panic;
             }
@@ -57,19 +55,19 @@ pub record RepoBuilder {
             options [0]
         } catch {
             err : &AssertError => {
-                std::io::eprintln ("[ERROR] failed to compile project '", self._cfg.name, "' : ", err.msg);
+                utils::log::error ("Error", "failed to compile project ", self._cfg.name, "' : ", err.msg);
                 etc::c::process::_yrt_exit (-1);
                 panic;
             }
         };
 
         let finLl = if self._cfg.type.isExecutable () {
-            self.finalizeExecutable (alias context, ll);
+            self.finalizeExecutable (alias context, ll, verbose);
             ll
         }
 
         else {
-            self.finalizeLibrary (alias context, ll);
+            self.finalizeLibrary (alias context, ll, verbose);
             ll ~ [self._cwd.push ("lib" ~ self._cfg.name ~ ".a").toStr ()]
         };
 
@@ -113,7 +111,7 @@ pub record RepoBuilder {
     /**
      * Finalize the executable
      * */
-    prv fn finalizeExecutable (self, dmut context : &GyllirManager, dependencyLibs : [[c8]]) {
+    prv fn finalizeExecutable (self, dmut context : &GyllirManager, dependencyLibs : [[c8]], verbose : bool) {
         let createdTmp = ".__tmp_" ~ self._cfg.name ~ ".a";
         let mut options = copy ["-fv", createdTmp, "-o", self._cfg.name];
         options ~= dependencyLibs;
@@ -122,16 +120,8 @@ pub record RepoBuilder {
             options ~= ["-l" ~ k];
         }
 
-        if let Ok (Bool (value-> true)) = self._args ["verbose"]? {
-            std::io::print ("[INFO] Run command : '", self._cfg.compiler, " ");
-            for i in options {
-                std::io::print (i, " ");
-            }
-            std::io::println ("'");
-        }
-
-        if (!context.runProcess (self._cfg.compiler, options, cwd-> self._cwd)) {
-            std::io::eprintln ("[ERROR] failed to compile project '", self._cfg.name, "'");
+        if (!context.runProcess (self._cfg.compiler, options, cwd-> self._cwd, verbose-> verbose)) {
+            utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
             etc::c::process::_yrt_exit (-1);
         }
 
@@ -141,10 +131,10 @@ pub record RepoBuilder {
     /**
      * Finalize the library
      * */
-    prv fn finalizeLibrary (self, dmut context : &GyllirManager, _ : [[c8]]) {
+    prv fn finalizeLibrary (self, dmut context : &GyllirManager, _ : [[c8]], verbose : bool) {
         let createdTmp = ".__tmp_" ~ self._cfg.name ~ ".a";
-        if (!context.runProcess ("mv", copy [createdTmp, "lib" ~ self._cfg.name ~ ".a"], cwd-> self._cwd)) {
-            std::io::eprintln ("[ERROR] failed to compile project '", self._cfg.name, "'");
+        if (!context.runProcess ("mv", copy [createdTmp, "lib" ~ self._cfg.name ~ ".a"], cwd-> self._cwd, verbose-> verbose)) {
+            utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
             etc::c::process::_yrt_exit (-1);
         }
     }
@@ -163,7 +153,7 @@ pub record RepoBuilder {
     prv fn runPreCommands (self, dmut context : &GyllirManager) {
         let dmut tzer = Tokenizer!c8 ();
         tzer:.insert (" ", isSkip-> true);
-        for name, c in self._cfg.commands [] {
+        for _, c in self._cfg.commands [] {
             if !c.isPost () {
                 let cmd = tzer.tokenizeWithoutSkips (c.cmd);
                 let succ = if (cmd.len > 0) {
@@ -171,7 +161,7 @@ pub record RepoBuilder {
                 } else { false };
 
                 if !succ {
-                    std::io::eprintln ("[ERROR] failed to run custom command : ", name, "(", c.cmd, ")");
+                    utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
                     etc::c::process::_yrt_exit (-1);
                 }
             }
@@ -184,7 +174,7 @@ pub record RepoBuilder {
     prv fn runPostCommands (self, dmut context : &GyllirManager) {
         let dmut tzer = Tokenizer!c8 ();
         tzer:.insert (" ", isSkip-> true);
-        for name, c in self._cfg.commands [] {
+        for _, c in self._cfg.commands [] {
             if c.isPost () {
                 let cmd = tzer.tokenizeWithoutSkips (c.cmd);
                 let succ = if (cmd.len > 0) {
@@ -192,7 +182,7 @@ pub record RepoBuilder {
                 } else { false };
 
                 if !succ {
-                    std::io::eprintln ("[ERROR] failed to run custom command : ", name, "(", c.cmd, ")");
+                    utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
                     etc::c::process::_yrt_exit (-1);
                 }
             }

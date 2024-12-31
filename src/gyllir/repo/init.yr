@@ -61,11 +61,11 @@ pub record RepoInitializer {
         self.createEmptyRepo (cfg);
     } catch {
         a : &AssertError => {
-            std::io::eprintln (a.msg);
+            utils::log::error ("Error", "in the project creation : ", a.msg);
             etc::c::process::_yrt_exit (-1);
         }
         err => {
-            std::io::eprintln (err);
+            utils::log::error ("Error", "in the project creation : ", err);
             etc::c::process::_yrt_exit (-1);
         }
     }

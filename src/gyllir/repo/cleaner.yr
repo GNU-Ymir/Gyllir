@@ -1,0 +1,86 @@
+in cleaner;
+
+use std::{io, env, stream, config::_, fs::{path, errors}, concurrency::process};
+use gyllir::{repo::_, utils::_, config::_};
+
+
+pub record RepoCleaner {
+
+    // The current working directory
+    let _cwd : Path;
+
+    // The command line options
+    let _args : &Config;
+
+    // The package configuration
+    let _cfg : GyllirPackageConfiguration;
+
+    /**
+     * @params:
+     *    - cfg: the configuration of the repo
+     * */
+    pub self (path : Path, args : &Config, cfg : GyllirPackageConfiguration)
+        with _cwd = path
+        , _args = args
+        , _cfg = cfg
+    {}
+
+    /**
+     * Run the build executable
+     * */
+    pub fn run (self) {
+        if let Ok (Bool (value-> _ = true)) = self._args ["all"]? {
+            self.cleanDoc ();
+            self.cleanDeps ();
+            self.cleanOutputs ();
+        }
+
+        else if let Ok (Bool (value-> _ = true)) = self._args ["doc"]? {
+            self.cleanDoc ();
+        }
+
+        else {
+            self.cleanDeps ();
+            self.cleanOutputs ();
+        }
+    }
+
+    /**
+     * Clean the documentation files
+     * */
+    pub fn cleanDoc (self) {
+        let docDir = self._cwd.push (defaults::__DOC_DIR__);
+        utils::log::info ("Removing", "documentation directory ", docDir.toStr ());
+        {
+            fs::sys::removeDir (docDir, recursive-> true);
+        }?;
+    }
+
+    /**
+     * Clean the dependency directory
+     * */
+    pub fn cleanDeps (self) {
+        let depDir = self._cwd.push (defaults::__DEPENCY_DIR__);
+        utils::log::info ("Removing", "dependency directory ", depDir.toStr ());
+        {
+            fs::sys::removeDir (depDir, recursive-> true);
+        } catch {
+            err => std::io::println (err);
+        };
+    }
+
+
+    pub fn cleanOutputs (self) {
+        let outFile = if self._cfg.type.isExecutable () {
+            self._cwd.push (self._cfg.name)
+        } else {
+            self._cwd.push ("lib" ~ self._cfg.name ~ ".a")
+        };
+
+        utils::log::info ("Removing", "output file ", outFile.toStr ());
+        {
+            fs::sys::removeFile (outFile);
+        }?;
+    }
+
+}
