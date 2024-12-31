@@ -1,0 +1,53 @@
+in runner;
+
+use std::{io, env, stream, config::_, fs::{path, errors}, concurrency::process};
+use gyllir::{repo::_, utils::_, config::_};
+
+
+pub record RepoRunner {
+
+    // The current working directory
+    let _cwd : Path;
+
+    // The command line options
+    let _args : &Config;
+
+    // The package configuration
+    let _cfg : GyllirPackageConfiguration;
+
+    /**
+     * @params:
+     *    - cfg: the configuration of the repo
+     * */
+    pub self (path : Path, args : &Config, cfg : GyllirPackageConfiguration)
+        with _cwd = path
+        , _args = args
+        , _cfg = cfg
+    {}
+
+    /**
+     * Run the build executable
+     * */
+    pub fn run (self)
+        throws AssertError, FsError
+    {
+        if !self._cfg.type.isExecutable () {
+            throw copy AssertError ("Run command only usable with executables");
+        }
+
+        let mut options : [[c8]] = [];
+        if let a : &Array = self._args {
+            for i in a[] if let Str (value-> v) = i {
+                options ~= [v];
+            }
+        }
+
+        std::io::println (std::format::format ("{:=>84}", ""))?;
+        let dmut subProc = copy SubProcess ("./" ~ self._cfg.name, options, cwd-> self._cwd);
+        subProc:.start (redirect-> false);
+        let code = subProc:.wait ();
+
+        etc::c::process::_yrt_exit (code);
+    }
+
+}

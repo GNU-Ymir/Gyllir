@@ -123,7 +123,7 @@ pub class GyllirArgumentParser {
      * */
     prv fn parseRun (self, args : [[c8]])-> (&Config)? {
         let dmut result = copy Array ();
-        for i in args {
+        for i in args [1 .. $] { // first element is 'run'
             result:.push (copy Str (i));
         }
 

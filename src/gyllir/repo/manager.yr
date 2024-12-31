@@ -36,11 +36,11 @@ pub class GyllirManager {
             RepoBuilder (env::currentDir (), c, self.loadToml (env::currentDir ())).run (alias self);
         }
 
-        // else if "run" in self._args {
-        //     let cfg = self.loadConfig ();
-        //     RepoBuilder (cfg).run ();
-        //     RepoRunner (cfg).run ();
-        // }
+        else if let Ok (c) = self._args ["run"]? {
+            let cfg = self.loadToml (env::currentDir ());
+            RepoBuilder (env::currentDir (), copy Dict (), cfg).run (alias self);
+            RepoRunner (env::currentDir (), c, cfg).run ();
+        }
 
         // else if "clean" in self._args {
         //     RepoCleaner (self.loadConfig ()).run ();
