@@ -1,0 +1,140 @@
+in publisher;
+
+use std::{io, env, stream, config::_, fs::{path, errors}, concurrency::process};
+use gyllir::{repo::_, utils::_, config::_};
+use std::fs::_;
+
+pub record RepoPublisher {
+
+    // The current working directory
+    let _cwd : Path;
+
+    // The command line options
+    let _args : &Config;
+
+    // The package configuration
+    let _cfg : GyllirPackageConfiguration;
+
+    // The git manager util
+    let _git : GitManager;
+
+    /**
+     * @params:
+     *    - cfg: the configuration of the repo
+     * */
+    pub self (path : Path, args : &Config, cfg : GyllirPackageConfiguration)
+        with _cwd = path
+        , _args = args
+        , _cfg = cfg
+        , _git = GitManager (cwd-> path)
+    {}
+
+    /**
+     * Run the build executable
+     * */
+    pub fn run (self, dmut context : &GyllirManager)
+        throws GitError, RecursiveDependency, FsError
+    {
+        if (self._cfg.registry.type == UrlType::LOCAL) {
+            self.publishLocal (alias context, path-> self._cfg.registry.path, ask-> true);
+            return;
+        }
+
+        let tmpDir = fs::sys::tempDirectory ();
+        let answer = if let Ok (Bool (value-> _ = true)) = self._args ["yes"]? {
+            true
+        } else {
+            context.askUserYesNo ("Publish to git", default-> "n")
+        };
+
+        if !answer {
+            utils::log::error ("Aborting.", "");
+            etc::c::process::_yrt_exit (-1);
+        }
+
+        let (succ, version) = self.publishLocal (alias context, path-> tmpDir, ask-> false);
+        if (succ) {
+            self.publishGit (alias context, tmpDir.push (self._cfg.name), version);
+        }
+    }
+
+    /**
+     * Local version publishing
+     * */
+    pub fn publishLocal (self, dmut context : &GyllirManager, ask : bool, path : Path)-> (bool, Version)
+        throws GitError, FsError, RecursiveDependency
+    {
+        let answer = if let Ok (Bool (value-> _ = true)) = self._args ["yes"]? {
+            true
+        } else if ask {
+            context.askUserYesNo ("Publish to local", default-> "n")
+        } else { true };
+
+        if (!answer) {
+            utils::log::error ("Aborting.", "");
+            etc::c::process::_yrt_exit (-1);
+        }
+
+        self.compileProject (alias context);
+        let mut npack = self._cfg;
+        npack:.setVersion (self.incrementVersion ());
+
+        {
+            let dmut f = File::create (Path (defaults::__GYLLIR_CONFIG_FILENAME__), write-> true);
+            f:.write (std::config::toml::dump (npack.serialize ()));
+            f:.close ();
+        }
+
+        self._git.add (self._cwd.push ("."));
+        if let Ok (Str (value-> msg)) = self._args ["message"]? {
+            self._git.commit (msg);
+        } else panic;
+
+        self._git.createTag ("v" ~ npack.version[]);
+        path;
+
+        return (true, npack.version);
+    }
+
+    /**
+     * Publish to remote git
+     * */
+    pub fn publishGit (self, dmut context : &GyllirManager, path : Path, version : Version) {
+        path;
+        version;
+        context;
+    }
+
+    /**
+     * Compile the project and run the unittests
+     * */
+    prv fn compileProject (self, dmut context : &GyllirManager)
+        throws RecursiveDependency
+    {
+        let compile = if let Ok (Bool (value-> _ = true)) = self._args  ["dry"]? {
+            false
+        } else { true };
+
+        if (compile) {
+            RepoBuilder (env::currentDir (), copy Dict (), self._cfg).run (alias context);
+            // RepoTestBuilder (env::currentDir (), copy Dict (), cfg).run (alias context);
+        }
+    }
+
+    /**
+     * Increment the version of the project
+     * */
+    fn incrementVersion (self)-> Version {
+        if let Ok (Bool (value-> _ = true)) = self._args ["major"]? {
+            return self._cfg.version.increment (major-> true, minor-> false);
+        }
+
+        else if let Ok (Bool (value-> _ = true)) = self._args ["minor"]? {
+            return self._cfg.version.increment (major-> false, minor-> true);
+        }
+
+        else {
+            return self._cfg.version.increment (major-> false, minor-> false);
+        }
+    }
+}

@@ -1,7 +1,7 @@
 in init;
 
 use std::{io, env, stream, config::_};
-use gyllir::{repo::defaults, utils::_, config::_};
+use gyllir::{repo::_, utils::_, config::_};
 use std::fs::_;
 
 pub record RepoInitializer {
@@ -32,21 +32,21 @@ pub record RepoInitializer {
     /**
      *
      * */
-    pub fn run (self) {
+    pub fn run (self, context : &GyllirManager) {
         let path = env::currentDir ();
         if (std::fs::sys::isFile (path.push (defaults::__GYLLIR_CONFIG_FILENAME__))) {
             throw copy AssertError ("The target directory already contains a 'gyllir.toml' file. Aborting.");
         }
 
-        let name = self.askUserFor ("Name", default-> "main");
-        let author = self.askUserFor ("Author name", default-> self._git.getUserName ());
-        let descr = self.askUserFor ("Description", default-> "A minimal Ymir app");
-        let license = self.askUserFor ("License", default-> "proprietary");
-        let type = self.askUserFor ("Type (executable/library/shared-library)", default-> "executable");
+        let name = context.askUserFor ("Name", default-> "main");
+        let author = context.askUserFor ("Author name", default-> self._git.getUserName ());
+        let descr = context.askUserFor ("Description", default-> "A minimal Ymir app");
+        let license = context.askUserFor ("License", default-> "proprietary");
+        let type = context.askUserFor ("Type (executable/library)", default-> "executable");
 
         let gyllirHome = Path (unsafe { env::getVar ("HOME") }).push (".local").push ("gyllir").push (name);
         let registry = {
-            let url = self.askUserFor ("Registry", default-> (gyllir::config::url::UrlStarts::LOCAL ~ gyllirHome.toStr ()));
+            let url = context.askUserFor ("Registry", default-> (gyllir::config::url::UrlStarts::LOCAL ~ gyllirHome.toStr ()));
             Url (url)
         }
 
@@ -125,18 +125,5 @@ pub record RepoInitializer {
         self._git.init ();
         self._git.add (Path ("./."));
         self._git.commit ("Initial commit");
-    }
-
-    /**
-     * Ask the user for a given value (command line read)
-     * @params:
-     *   - ask: the text to write as a question
-     *   - default: the default value to return if the user did write nothing
-     */
-    prv fn askUserFor (self, ask : [c8], default : [c8] = "") -> [c8] {
-        let x = std::io::read![c8] (ask-> (ask ~ " [" ~ default ~ "]:"));
-        if x == "" {
-            default
-        } else x
     }
 }

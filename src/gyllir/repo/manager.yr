@@ -29,7 +29,7 @@ pub class GyllirManager {
      */
     pub fn run (mut self) {
         if let Ok (c) = self._args ["init"]? {
-            RepoInitializer (c).run ()
+            RepoInitializer (c).run (self)
         }
 
         else if let Ok (c) =  self._args ["build"]? {
@@ -46,9 +46,9 @@ pub class GyllirManager {
             RepoCleaner (env::currentDir (), c, self.loadToml (env::currentDir ())).run ();
         }
 
-        // else if "publish" in self._args {
-        //     RepoPublisher (self.loadConfig ()).run ();
-        // }
+        else if let Ok (c) = self._args ["publish"]? {
+            RepoPublisher (env::currentDir (), c, self.loadToml (env::currentDir ())).run (alias self);
+        }
 
         // else if "test" in self._args {
         //     RepoTestBuilder (self.loadConfig ()).run ();
@@ -226,6 +226,37 @@ pub class GyllirManager {
         code == 0
     } catch {
         _ => false
+    }
+
+    /**
+     * Ask the user for a given value (command line read)
+     * @params:
+     *   - ask: the text to write as a question
+     *   - default: the default value to return if the user did write nothing
+     */
+    pub fn askUserFor (self, ask : [c8], default : [c8] = "") -> [c8] {
+        let x = if (default == "") {
+            std::io::read![c8] (ask-> (ask ~ " :"))
+        } else {
+            std::io::read![c8] (ask-> (ask ~ " [" ~ default ~ "]:"))
+        };
+
+        if x == "" {
+            default
+        } else x
+    }
+
+    /**
+     * Ask the user for a yes no question
+     * @params:
+     *   - ask: the text to write as a question
+     *   - default: the default value to return if the user did write nothing
+     */
+    pub fn askUserYesNo (self, ask : [c8], default : [c8] = "") -> bool {
+        let res = self.askUserFor (ask ~ "(y/n)", default-> default);
+        if (res.len == 1 && std::char::toUpper (res [0]) == 'Y') return true;
+
+        false
     }
 
 }

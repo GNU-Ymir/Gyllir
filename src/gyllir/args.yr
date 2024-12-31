@@ -154,10 +154,9 @@ pub class GyllirArgumentParser {
                 }
             }
 
-            std::io::println (res, " ", nb);
             if nb > 1 {
-                std::io::eprintln ("flags 'major', 'minor' and 'patch' are exclusive");
                 std::io::eprintln (parser.getUsage (usage-> "gyllir publish"));
+                utils::log::error ("Error", "flags 'major', 'minor' and 'patch' are exclusive");
                 etc::c::process::_yrt_exit (-1);
             }
 

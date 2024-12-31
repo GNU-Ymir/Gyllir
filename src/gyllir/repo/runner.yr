@@ -42,7 +42,7 @@ pub record RepoRunner {
             }
         }
 
-        utils::log::info ("Executing", "project ", self._cfg.name, " ", self._cfg.version[]);
+        utils::log::info ("Executing", "project ", self._cfg.name, " v", self._cfg.version[]);
         std::io::println (std::format::format ("{:=>84}", ""))?;
         let dmut subProc = copy SubProcess ("./" ~ self._cfg.name, options, cwd-> self._cwd);
         subProc:.start (redirect-> false);

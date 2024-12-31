@@ -6,3 +6,4 @@ pub mod ::builder;
 pub mod ::defaults;
 pub mod ::runner;
 pub mod ::cleaner;
+pub mod ::publisher;

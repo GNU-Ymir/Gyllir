@@ -44,7 +44,7 @@ pub record RepoBuilder {
         self.runPreCommands (alias context);
         let srcPath = {
             let options = self.createCompileOptions (lp);
-            utils::log::info ("Compiling", self._cfg.name, " ", self._cfg.version[]);
+            utils::log::info ("Compiling", self._cfg.name, " v", self._cfg.version[]);
 
             if (!context.runProcess (self._cfg.compiler, options, cwd-> self._cwd, verbose-> verbose)) {
                 utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
