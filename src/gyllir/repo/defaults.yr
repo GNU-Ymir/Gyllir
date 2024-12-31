@@ -51,9 +51,11 @@ __test {
  * The content of the gitignore file
  */
 pub def __GITIGNORE_CONTENT__ = str#{
-.build
-__libs
-__doc        
+.*
+.deps/
+.__tmp*
+!.gitignore
+__doc/
 };        
 
 

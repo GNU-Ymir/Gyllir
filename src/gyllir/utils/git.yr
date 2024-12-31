@@ -88,10 +88,10 @@ pub record GitManager {
     /**
      * Push to the remote repository
      * */
-    pub fn push (self, tag : [c8])
+    pub fn push (self, tags : [[c8]])
         throws GitError, FsError
     {
-        let dmut proc = copy SubProcess ("git", copy ["push", "origin", tag], cwd-> self._cwd);
+        let dmut proc = copy SubProcess ("git", copy ["push", "origin"] ~ tags, cwd-> self._cwd);
         proc:.start ();
 
         let code = proc:.wait ();

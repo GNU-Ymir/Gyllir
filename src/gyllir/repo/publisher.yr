@@ -54,8 +54,10 @@ pub record RepoPublisher {
 
         let (succ, version) = self.publishLocal (alias context, path-> tmpDir, ask-> false);
         if (succ) {
-            self.publishGit (alias context, tmpDir.push (self._cfg.name), version);
+            self.publishGit (alias context, tmpDir, version);
         }
+
+        utils::log::info ("Published", "project ", self._cfg.name, " v", version[], " to ", self._cfg.registry.path.toStr ());
     }
 
     /**
@@ -91,7 +93,14 @@ pub record RepoPublisher {
         } else panic;
 
         self._git.createTag ("v" ~ npack.version[]);
-        path;
+        if (fs::sys::isDir (path)) {
+            fs::sys::removeDir (path, recursive-> true);
+        }
+
+        fs::sys::createDir (path.parent (), recursive-> true)?;
+        utils::log::info ("Publish", "to ", path.toStr ());
+
+        context.runProcess ("cp", copy ["-r", self._cwd.push (".").toStr (), path.toStr ()]);
 
         return (true, npack.version);
     }
@@ -99,10 +108,12 @@ pub record RepoPublisher {
     /**
      * Publish to remote git
      * */
-    pub fn publishGit (self, dmut context : &GyllirManager, path : Path, version : Version) {
-        path;
-        version;
-        context;
+    pub fn publishGit (self, dmut _ : &GyllirManager, path : Path, version : Version)
+        throws GitError, FsError
+    {
+        let gM = GitManager (cwd-> path);
+        gM.setRemote (self._cfg.registry.path.toStr ());
+        gM.push (copy ["v" ~ version[], "master"]);
     }
 
     /**

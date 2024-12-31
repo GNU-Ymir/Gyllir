@@ -135,8 +135,8 @@ pub class GyllirManager {
                 gM.clone (dependency.url.path.toStr ());
             }
 
-            let version = dependency.version.select (self.toVersionList (GitManager (cwd-> depPath).getTagList ()));
             gM.fetchTags ();
+            let version = dependency.version.select (self.toVersionList (GitManager (cwd-> depPath).getTagList ()));
             if (version.isNumbered ()) {
                 gM.checkout ("v" ~ version[]);
             } else gM.checkout (version[]);
@@ -200,7 +200,9 @@ pub class GyllirManager {
 
         let mut versions : [Version] = [];
         for i in res {
-            versions = versions ~ [Version (i)];
+            if (i.len > 0 && i [0] != '(') { // ignore (HEAD detached...)
+                versions = versions ~ [Version (i)];
+            }
         }
 
         return versions;

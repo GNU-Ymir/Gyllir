@@ -125,7 +125,10 @@ pub record RepoBuilder {
             etc::c::process::_yrt_exit (-1);
         }
 
-        context.runProcess ("rm", copy [createdTmp], cwd-> self._cwd);
+        if (!context.runProcess ("rm", copy [createdTmp], cwd-> self._cwd, verbose-> verbose)) {
+            utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
+            etc::c::process::_yrt_exit (-1);
+        }
     }
 
     /**
