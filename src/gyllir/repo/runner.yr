@@ -28,27 +28,37 @@ pub record RepoRunner {
     /**
      * Run the build executable
      * */
-    pub fn run (self)
+    pub fn run (self, forUnitTest : bool = false)
         throws AssertError, FsError
     {
-        if !self._cfg.type.isExecutable () {
-            throw copy AssertError ("Run command only usable with executables");
-        }
+        if (forUnitTest) {
+            utils::log::info ("Executing", "tests ", self._cfg.name, " v", self._cfg.version[]);
+            std::io::println (std::format::format ("{:=>84}", ""))?;
+            let dmut subProc = copy SubProcess ("./" ~ self._cfg.name ~ ".test", [], cwd-> self._cwd);
+            subProc:.start (redirect-> false);
+            let code = subProc:.wait ();
 
-        let mut options : [[c8]] = [];
-        if let a : &Array = self._args {
-            for i in a[] if let Str (value-> v) = i {
-                options ~= [v];
+            etc::c::process::_yrt_exit (code);
+        } else {
+            if !self._cfg.type.isExecutable () {
+                throw copy AssertError ("Run command only usable with executables");
             }
+
+            let mut options : [[c8]] = [];
+            if let a : &Array = self._args {
+                for i in a[] if let Str (value-> v) = i {
+                    options ~= [v];
+                }
+            }
+
+            utils::log::info ("Executing", "project ", self._cfg.name, " v", self._cfg.version[]);
+            std::io::println (std::format::format ("{:=>84}", ""))?;
+            let dmut subProc = copy SubProcess ("./" ~ self._cfg.name, options, cwd-> self._cwd);
+            subProc:.start (redirect-> false);
+            let code = subProc:.wait ();
+
+            etc::c::process::_yrt_exit (code);
         }
-
-        utils::log::info ("Executing", "project ", self._cfg.name, " v", self._cfg.version[]);
-        std::io::println (std::format::format ("{:=>84}", ""))?;
-        let dmut subProc = copy SubProcess ("./" ~ self._cfg.name, options, cwd-> self._cwd);
-        subProc:.start (redirect-> false);
-        let code = subProc:.wait ();
-
-        etc::c::process::_yrt_exit (code);
     }
 
 }

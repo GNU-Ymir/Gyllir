@@ -33,7 +33,7 @@ pub record RepoBuilder {
     /**
      * Build the repository
      * */
-    pub fn run (self, dmut context : &GyllirManager)-> ([[c8]], [[c8]])
+    pub fn run (self, dmut context : &GyllirManager, forUnitTest : bool = false)-> ([[c8]], [[c8]])
         throws RecursiveDependency
     {
         let verbose = if let Ok (Bool (value-> true)) = self._args ["verbose"]? {
@@ -43,13 +43,24 @@ pub record RepoBuilder {
         let (lp, ll) = self.resolveDependencies (alias context);
         self.runPreCommands (alias context);
         let srcPath = {
-            let options = self.createCompileOptions (lp);
+            let options = self.createCompileOptions (lp, forUnitTest);
             utils::log::info ("Compiling", self._cfg.name, " v", self._cfg.version[]);
 
             if (!context.runProcess (self._cfg.compiler, options, cwd-> self._cwd, verbose-> verbose)) {
                 utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
                 etc::c::process::_yrt_exit (-1);
                 panic;
+            }
+
+            if (forUnitTest) {
+                let unitOptions = self.createUnittestOptions (lp, options [0]);
+                utils::log::info ("Compiling", "unittest for ", self._cfg.name, " v", self._cfg.version[]);
+
+                if (!context.runProcess (self._cfg.compiler, unitOptions, cwd-> self._cwd, verbose-> verbose)) {
+                    utils::log::error ("Error", "failed to compile unittests '", self._cfg.name, "'");
+                    etc::c::process::_yrt_exit (-1);
+                    panic;
+                }
             }
 
             options [0]
@@ -61,7 +72,11 @@ pub record RepoBuilder {
             }
         };
 
-        let finLl = if self._cfg.type.isExecutable () {
+        let finLl = if forUnitTest {
+            self.finalizeUnitTest (alias context, ll, verbose);
+            ll
+
+        } else if self._cfg.type.isExecutable () {
             self.finalizeExecutable (alias context, ll, verbose);
             ll
         }
@@ -88,7 +103,7 @@ pub record RepoBuilder {
      * Create the command line used to
      * @returns: the options to pass to the compiler
      * */
-    prv fn createCompileOptions (self, depPaths : [[c8]])-> [[c8]]
+    prv fn createCompileOptions (self, depPaths : [[c8]], forUnitTest : bool)-> [[c8]]
         throws AssertError
     {
         let dmut options : [[c8]] = [];
@@ -100,12 +115,65 @@ pub record RepoBuilder {
             options ~= [mainPath.toStr ()];
         } else throw copy AssertError ("No package root file, " ~ libPath.toStr () ~ " and " ~ mainPath.toStr () ~ " not found");
 
+        if (forUnitTest) {
+            options ~= ["-funittest"];
+        }
+
         options ~= ["-fv", "-c", "-o", ".__tmp_" ~ self._cfg.name ~ ".a"];
         for p in depPaths {
             options ~= ["-I", p];
         }
 
         options
+    }
+
+    /**
+     * Create the compiler option to build the unittest
+     * */
+    prv fn createUnittestOptions (self, depPaths : [[c8]], srcPath : [c8])-> [[c8]]
+        throws AssertError
+    {
+        let dmut options : [[c8]] = [];
+        let libPath = self._cwd.push (defaults::__TEST_DIR__).push (defaults::__FST_TEST_FILE__);
+        if (fs::sys::isFile (libPath)) {
+            options ~= [libPath.toStr ()];
+        } else throw copy AssertError ("No unittest root file, " ~ libPath.toStr () ~ " not found");
+
+        options ~= ["-funittest", "-fv", "-c", "-o", ".__tmp_test_" ~ self._cfg.name ~ ".a", "-I", srcPath];
+        for p in depPaths {
+            options ~= ["-I", p];
+        }
+
+        options
+    }
+
+    /**
+     * Finalize the unittest executable
+     * */
+    prv fn finalizeUnitTest (self, dmut context : &GyllirManager, dependencyLibs : [[c8]], verbose : bool) {
+        let createdTmp = ".__tmp_" ~ self._cfg.name ~ ".a";
+        let createdUnittests = ".__tmp_test_" ~ self._cfg.name ~ ".a";
+        let mut options = copy ["-fv", "-funittest", createdTmp, createdUnittests, "-o", self._cfg.name ~ ".test"];
+        options ~= dependencyLibs;
+
+        for k in self._cfg.libraries {
+            options ~= ["-l" ~ k];
+        }
+
+        if (!context.runProcess (self._cfg.compiler, options, cwd-> self._cwd, verbose-> verbose)) {
+            utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
+            etc::c::process::_yrt_exit (-1);
+        }
+
+        if (!context.runProcess ("rm", copy [createdTmp], cwd-> self._cwd, verbose-> verbose)) {
+            utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
+            etc::c::process::_yrt_exit (-1);
+        }
+
+        if (!context.runProcess ("rm", copy [createdUnittests], cwd-> self._cwd, verbose-> verbose)) {
+            utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
+            etc::c::process::_yrt_exit (-1);
+        }
     }
 
     /**
@@ -215,6 +283,6 @@ pub record RepoBuilder {
         }
 
         (names, libs)
-    } 
+    }
 
 }

@@ -33,7 +33,7 @@ pub record RepoPublisher {
      * Run the build executable
      * */
     pub fn run (self, dmut context : &GyllirManager)
-        throws GitError, RecursiveDependency, FsError
+        throws GitError, RecursiveDependency, FsError, AssertError
     {
         if (self._cfg.registry.type == UrlType::LOCAL) {
             self.publishLocal (alias context, path-> self._cfg.registry.path, ask-> true);
@@ -64,7 +64,7 @@ pub record RepoPublisher {
      * Local version publishing
      * */
     pub fn publishLocal (self, dmut context : &GyllirManager, ask : bool, path : Path)-> (bool, Version)
-        throws GitError, FsError, RecursiveDependency
+        throws GitError, FsError, RecursiveDependency, AssertError
     {
         let answer = if let Ok (Bool (value-> _ = true)) = self._args ["yes"]? {
             true
@@ -120,15 +120,15 @@ pub record RepoPublisher {
      * Compile the project and run the unittests
      * */
     prv fn compileProject (self, dmut context : &GyllirManager)
-        throws RecursiveDependency
+        throws RecursiveDependency, AssertError, FsError
     {
         let compile = if let Ok (Bool (value-> _ = true)) = self._args  ["dry"]? {
             false
         } else { true };
 
         if (compile) {
-            RepoBuilder (env::currentDir (), copy Dict (), self._cfg).run (alias context);
-            // RepoTestBuilder (env::currentDir (), copy Dict (), cfg).run (alias context);
+            RepoBuilder (self._cwd, copy Dict (), self._cfg).run (alias context, forUnitTest-> true);
+            RepoRunner (self._cwd, copy Dict (), self._cfg).run (forUnitTest-> true);
         }
     }
 

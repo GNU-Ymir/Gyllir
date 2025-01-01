@@ -15,7 +15,7 @@ pub def __GITIGNORE_FILENAME__ = ".gitignore";
  */
 pub def __MAIN_FILE__ = "main.yr";
 pub def __LIB_FILE__ = "__lib__.yr";
-pub def __FST_TEST_FILE__ = "first_test.yr";
+pub def __FST_TEST_FILE__ = "__test__.yr";
 
 /**
  * The content of the initial file

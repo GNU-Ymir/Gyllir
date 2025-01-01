@@ -50,10 +50,11 @@ pub class GyllirManager {
             RepoPublisher (env::currentDir (), c, self.loadToml (env::currentDir ())).run (alias self);
         }
 
-        // else if "test" in self._args {
-        //     RepoTestBuilder (self.loadConfig ()).run ();
-        //     RepoTestRunner (self.loadConfig ()).run ();
-        // }
+        else if let Ok (c) = self._args ["test"]? {
+            let cfg = self.loadToml (env::currentDir ());
+            RepoBuilder (env::currentDir (), c, cfg).run (alias self, forUnitTest-> true);
+            RepoRunner (env::currentDir (), copy Dict (), cfg).run (forUnitTest-> true);
+        }
 
         // else if "doc" in self._args {
         //     RepoDocBuilder (self.loadConfig ()).run ();
