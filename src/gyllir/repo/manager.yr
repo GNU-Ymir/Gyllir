@@ -14,7 +14,7 @@ pub class GyllirManager {
     let mut _args : &Config;
 
     // The list of resolved dependencies
-    let dmut _depPackages : [Url => ()] = [];
+    let dmut _depPackages : [Url => ()] = copy [];
 
     /**
      * Create a Gyllir builder from an argument 
@@ -53,7 +53,9 @@ pub class GyllirManager {
         else if let Ok (c) = self._args ["test"]? {
             let cfg = self.loadToml (env::currentDir ());
             RepoBuilder (env::currentDir (), c, cfg).run (alias self, forUnitTest-> true);
-            RepoRunner (env::currentDir (), copy Dict (), cfg).run (forUnitTest-> true);
+            if let Ok (Bool (value-> _ = false)) = c ["dry"]? {
+                RepoRunner (env::currentDir (), copy Dict (), cfg).run (forUnitTest-> true);
+            }
         }
 
         // else if "doc" in self._args {

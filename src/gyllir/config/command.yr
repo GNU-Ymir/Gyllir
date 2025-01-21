@@ -57,7 +57,7 @@ pub record Command {
 pub class CustomCommandList {
 
     // The list of command in the list
-    let dmut _lst : [[c8] => Command] = [];
+    let dmut _lst : [[c8] => Command] = copy [];
 
     /**
      * Create an empty command list

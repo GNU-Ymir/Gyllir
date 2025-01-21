@@ -47,7 +47,7 @@ pub class DependencyList {
     /**
      * The list of dependencies
      */
-    let mut _package : [[c8] => mut Dependency] = [];
+    let mut _package : [[c8] => mut Dependency] = copy [];
 
     /**
      * Create an empty dependency list
