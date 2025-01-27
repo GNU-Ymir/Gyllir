@@ -51,9 +51,12 @@ __test {
 pub def __GITIGNORE_CONTENT__ = str#{
 .*
 .deps/
-.__tmp*
 !.gitignore
 __doc/
+.ymirc_debug/
+.ymirc_release/
+.ymirc_unit/
+.ymirc_test/
 };        
 
 
