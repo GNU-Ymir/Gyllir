@@ -20,8 +20,7 @@ pub def __FST_TEST_FILE__ = "__test__.yr";
 /**
  * The content of the initial file
  */
-pub def __MAIN_CONTENT__ = str#{in main;
-use std::io;
+pub def __MAIN_CONTENT__ = str#{use std::io;
     
 fn main () {
     println ("Hello World !");
@@ -36,8 +35,7 @@ pub fn foo () {
 };
 
 
-pub def __FST_TEST_CONTENT__ = str#{in first_test;
-use std::io;
+pub def __FST_TEST_CONTENT__ = str#{use std::io;
     
 __test {
     println ("Example of first test");
@@ -72,12 +70,19 @@ pub def __LIB_DIR__ = "__libs"
 pub def __TEST_DIR__ = "test";
 pub def __DOC_DIR__ = "__doc";
 pub def __DEPENCY_DIR__ = ".deps";
-pub def __CMAKE_FILE__ = "CMakeLists.txt";
+
+
+pub def __CACHE_RELEASE_DIR__ = ".ymirc_release"
+pub def __CACHE_DEBUG_DIR__ = ".ymirc_debug"
+pub def __CACHE_UNIT_DIR__ = ".ymirc_unit"
+pub def __CACHE_TEST_DIR__ = ".ymirc_test"
+
 
 
 pub def __YMIR_EXTENSION__ = "yr";
 pub def __OBJECT_EXTENSION__ = "o";
-pub def __DEP_EXTENSION__ = "dep.json";
+pub def __DEPS_EXTENSION__ = "deps";
+pub def __SYM_LIST_EXTENSION__ = "syms";
 pub def __DOC_EXTENSION__ = "doc.json";
 pub def __MARKDOWN_EXTENSION__ = "md";
 pub def __LIBRARY_EXTENSION__ = "a";

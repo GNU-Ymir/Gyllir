@@ -33,7 +33,7 @@ pub record RepoRunner {
     {
         if (forUnitTest) {
             utils::log::info ("Executing", "tests ", self._cfg.name, " v", self._cfg.version[]);
-            std::io::println (std::format::format ("{:=>84}", ""))?;
+            std::io::println ("\n");
             let dmut subProc = copy SubProcess ("./" ~ self._cfg.name ~ ".test", [], cwd-> self._cwd);
             subProc:.start (redirect-> false);
             let code = subProc:.wait ();
@@ -52,7 +52,7 @@ pub record RepoRunner {
             }
 
             utils::log::info ("Executing", "project ", self._cfg.name, " v", self._cfg.version[]);
-            std::io::println (std::format::format ("{:=>84}", ""))?;
+            std::io::println ("\n");
             let dmut subProc = copy SubProcess ("./" ~ self._cfg.name, options, cwd-> self._cwd);
             subProc:.start (redirect-> false);
             let code = subProc:.wait ();

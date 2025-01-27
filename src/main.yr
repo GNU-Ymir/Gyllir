@@ -9,4 +9,3 @@ fn main (args : [[c8]]) {
     let dmut m = copy GyllirManager (args);
     m:.run ();
 }
-
