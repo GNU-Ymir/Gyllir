@@ -15,23 +15,27 @@ pub record RepoRunner {
     // The package configuration
     let _cfg : GyllirPackageConfiguration;
 
+    // True iif the runner is configured to run unittests
+    let _forUnitTest : bool;
+
     /**
      * @params:
      *    - cfg: the configuration of the repo
      * */
-    pub self (path : Path, args : &Config, cfg : GyllirPackageConfiguration)
+    pub self (path : Path, args : &Config, cfg : GyllirPackageConfiguration, forUnitTest : bool)
         with _cwd = path
         , _args = args
         , _cfg = cfg
+        , _forUnitTest = forUnitTest
     {}
 
     /**
      * Run the build executable
      * */
-    pub fn run (self, forUnitTest : bool = false)
+    pub fn run (self)
         throws AssertError, FsError
     {
-        if (forUnitTest) {
+        if (self._forUnitTest) {
             utils::log::info ("Executing", "tests ", self._cfg.name, " v", self._cfg.version[]);
             std::io::println ("\n");
             let dmut subProc = copy SubProcess ("./" ~ self._cfg.name ~ ".test", [], cwd-> self._cwd);

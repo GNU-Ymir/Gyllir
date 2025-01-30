@@ -53,10 +53,7 @@ pub def __GITIGNORE_CONTENT__ = str#{
 .deps/
 !.gitignore
 __doc/
-.ymirc_debug/
-.ymirc_release/
-.ymirc_unit/
-.ymirc_test/
+.target/
 };        
 
 
@@ -75,10 +72,11 @@ pub def __DOC_DIR__ = "__doc";
 pub def __DEPENCY_DIR__ = ".deps";
 
 
-pub def __CACHE_RELEASE_DIR__ = ".ymirc_release"
-pub def __CACHE_DEBUG_DIR__ = ".ymirc_debug"
-pub def __CACHE_UNIT_DIR__ = ".ymirc_unit"
-pub def __CACHE_TEST_DIR__ = ".ymirc_test"
+pub def __CACHE_ALL_DIR__ = ".target/"
+pub def __CACHE_RELEASE_DIR__ = ".target/release"
+pub def __CACHE_DEBUG_DIR__ = ".target/debug"
+pub def __CACHE_UNIT_DIR__ = ".target/unit"
+pub def __CACHE_TEST_DIR__ = ".target/test"
 
 
 

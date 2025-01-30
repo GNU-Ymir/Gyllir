@@ -127,8 +127,8 @@ pub record RepoPublisher {
         } else { true };
 
         if (compile) {
-            RepoBuilder (self._cwd, copy Dict (), self._cfg).run (alias context, forUnitTest-> true);
-            RepoRunner (self._cwd, copy Dict (), self._cfg).run (forUnitTest-> true);
+            RepoBuilder (self._cwd, copy Dict (), self._cfg, forUnitTest-> true).run (alias context);
+            RepoRunner (self._cwd, copy Dict (), self._cfg, forUnitTest-> true).run ();
         }
     }
 

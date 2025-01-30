@@ -29,6 +29,12 @@ pub record GyllirPackageConfiguration {
     // The compiler
     let mut _compiler : [c8] = "gyc";
 
+    // The package root file
+    let mut _packageRoot : [c8] = "";
+
+    // The test root file
+    let mut _testRoot : [c8] = "";
+
     // The type of the target
     let mut _type : BuildType = BuildType ();
 
@@ -113,6 +119,16 @@ pub record GyllirPackageConfiguration {
     @field
     pub fn compiler (self)-> [c8] {
         self._compiler
+    }
+
+    @field
+    pub fn packageRoot (self)-> [c8] {
+        self._packageRoot
+    }
+
+    @field
+    pub fn testRoot (self)-> [c8] {
+        self._testRoot
     }
 
     @field
@@ -214,6 +230,18 @@ pub record GyllirPackageConfiguration {
             self._compiler = c;
         } else if let Ok (_) = d ["compiler"]? {
             throw copy AssertError ("expecting a string for 'compiler'");
+        }
+
+        if let Ok (Str (value-> v)) = d ["package-root"]? {
+            self._packageRoot = v;
+        } else if let Ok (_) = d ["package-root"]? {
+            throw copy AssertError ("expecting a string for 'package-root'");
+        }
+
+        if let Ok (Str (value-> v)) = d ["test-root"]? {
+            self._testRoot = v;
+        } else if let Ok (_) = d ["test-root"]? {
+            throw copy AssertError ("expecting a string for 'test-root'");
         }
 
         if let Ok (a : &Array) = d ["authors"]? {

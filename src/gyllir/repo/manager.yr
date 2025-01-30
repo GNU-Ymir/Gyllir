@@ -33,13 +33,13 @@ pub class GyllirManager {
         }
 
         else if let Ok (c) =  self._args ["build"]? {
-            RepoBuilder (env::currentDir (), c, self.loadToml (env::currentDir ())).run (alias self);
+            RepoBuilder (env::currentDir (), c, self.loadToml (env::currentDir ()), forUnitTest-> false).run (alias self);
         }
 
         else if let Ok (c) = self._args ["run"]? {
             let cfg = self.loadToml (env::currentDir ());
-            RepoBuilder (env::currentDir (), copy Dict (), cfg).run (alias self);
-            RepoRunner (env::currentDir (), c, cfg).run ();
+            RepoBuilder (env::currentDir (), copy Dict (), cfg, forUnitTest-> false).run (alias self);
+            RepoRunner (env::currentDir (), c, cfg, forUnitTest-> false).run ();
         }
 
         else if let Ok (c) = self._args ["clean"]? {
@@ -52,9 +52,9 @@ pub class GyllirManager {
 
         else if let Ok (c) = self._args ["test"]? {
             let cfg = self.loadToml (env::currentDir ());
-            RepoBuilder (env::currentDir (), c, cfg).run (alias self, forUnitTest-> true);
+            RepoBuilder (env::currentDir (), c, cfg, forUnitTest-> true).run (alias self);
             if let Ok (Bool (value-> _ = false)) = c ["dry"]? {
-                RepoRunner (env::currentDir (), copy Dict (), cfg).run (forUnitTest-> true);
+                RepoRunner (env::currentDir (), copy Dict (), cfg, forUnitTest-> true).run ();
             }
         }
 
@@ -112,8 +112,15 @@ pub class GyllirManager {
 
     /**
      * Resolve a dependency, and build it
+     * @params:
+     *    - args: the configuration of the current building
+     *    - name: the name of the dependency to build
+     *    - dependency: the information about the dependency to build
+     * @returns:
+     *    - .0: the list of path to the root files of libraries to include
+     *    - .1: the list of path to the built libraries to link
      */
-    pub fn resolveDependency (mut self, args : &Config, cwd : Path, name : [c8], dependency : Dependency)-> ([[c8]], [[c8]])
+    pub fn resolveDependency (mut self, args : &Config, cwd : Path, name : [c8], dependency : Dependency)-> ([Path], [Path])
         throws RecursiveDependency
     {
         if (dependency.url in self._depPackages) {
@@ -158,7 +165,7 @@ pub class GyllirManager {
             }
 
             self._depPackages [dependency.url] = ();
-            let (ext, lbs) = RepoBuilder (depPath, args, conf).run (alias self);
+            let (ext, lbs) = RepoBuilder (depPath, args, conf, forUnitTest-> false).run (alias self);
 
             self._depPackages:.remove (dependency.url);
             (ext, lbs)

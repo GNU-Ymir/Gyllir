@@ -66,28 +66,10 @@ pub record RepoCleaner {
             fs::sys::removeDir (depDir, recursive-> true);
         }?;
 
-        let cacheDebug = self._cwd.push (defaults::__CACHE_DEBUG_DIR__);
+        let cacheDebug = self._cwd.push (defaults::__CACHE_ALL_DIR__);
         utils::log::info ("Removing", "cache directory ", cacheDebug.toStr ());
         {
             fs::sys::removeDir (cacheDebug, recursive-> true);
-        }?;
-
-        let cacheRelease = self._cwd.push (defaults::__CACHE_RELEASE_DIR__);
-        utils::log::info ("Removing", "cache directory ", cacheRelease.toStr ());
-        {
-            fs::sys::removeDir (cacheRelease, recursive-> true);
-        }?;
-
-        let cacheTest = self._cwd.push (defaults::__CACHE_TEST_DIR__);
-        utils::log::info ("Removing", "cache directory ", cacheTest.toStr ());
-        {
-            fs::sys::removeDir (cacheTest, recursive-> true);
-        }?;
-
-        let cacheUnit = self._cwd.push (defaults::__CACHE_UNIT_DIR__);
-        utils::log::info ("Removing", "cache directory ", cacheUnit.toStr ());
-        {
-            fs::sys::removeDir (cacheUnit, recursive-> true);
         }?;
     }
 

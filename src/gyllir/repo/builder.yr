@@ -20,64 +20,52 @@ pub record RepoBuilder {
     // The package configuration
     let _cfg : GyllirPackageConfiguration;
 
+    // True if the builder has to print verbose messages
+    let _verbose : bool;
+
+    // True if the repobuilder is used to build unittest executable
+    let _forUnitTest : bool;
+
+    // The number of threads to spawn in the task pool
+    let _nbThreads : u32;
+
     /**
      * @params:
      *    - cfg: the configuration of the repo
      * */
-    pub self (path : Path, args : &Config, cfg : GyllirPackageConfiguration)
+    pub self (path : Path, args : &Config, cfg : GyllirPackageConfiguration, forUnitTest : bool)
         with _cwd = path
         , _args = args
         , _cfg = cfg
+        , _forUnitTest = forUnitTest
+        , _verbose = (if let Ok (Bool (value-> true)) = self._args ["verbose"]? {
+            true
+        } else { false })
+        , _nbThreads = if let Ok (Int (value-> n)) = self._args ["j"]? {
+            cast!u32 (n)
+        } else { 0u32 }
     {}
 
     /**
      * Build the repository
+     * @params:
+     *    - context: the context of the compilation
+     * @returns:
+     *    - .0: the list of path to the root files of libraries to include for further dependency building
+     *    - .1: the list of path to the built libraries to link for further dependency building
      * */
-    pub fn run (self, dmut context : &GyllirManager, forUnitTest : bool = false)-> ([[c8]], [[c8]])
+    pub fn run (self, dmut context : &GyllirManager)-> ([Path], [Path])
         throws RecursiveDependency
     {
-        let verbose = if let Ok (Bool (value-> true)) = self._args ["verbose"]? {
-            true
-        } else { false };
-
-        let (lp, ll) = self.resolveDependencies (alias context);
+        let (includes, links) = self.resolveDependencies (alias context);
         self.runPreCommands (alias context);
-        let (all, cacheDir, changed) = self.listChangedFiles (forUnitTest);
-
-        let srcPath = {
-            utils::log::info ("Compiling", self._cfg.name, " v", self._cfg.version[]);
-            let (relink, options) = self.createCompileOptions (lp, all, changed, cacheDir, forUnitTest);
-            if (changed.len != 0) {
-                if (!context.runProcess (self._cfg.compiler, options, cwd-> self._cwd, verbose-> verbose)) {
-                    utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
-                    etc::c::process::_yrt_exit (-1);
-                    panic;
-                }
-
-                if relink {
-                    self.relinkObject (alias context, cacheDir, verbose);
-                }
+        let (srcPath, cacheDir) = {
+            let (srcPath, cacheDir, changedSources) = self.buildSourceDir (alias context, includes);
+            if (self._forUnitTest) {
+                self.buildUnitTest (alias context, srcPath, includes, changedSources);
             }
 
-            if (forUnitTest) {
-                let (unitAll, unitChanged) = self.listUnittestChangedFiles ();
-                if (unitChanged.len != 0) {
-                    let (relinkUnit, unitOptions) = self.createUnittestOptions (lp, unitAll, unitChanged, options [0]);
-                    utils::log::info ("Compiling", "unittest for ", self._cfg.name, " v", self._cfg.version[]);
-
-                    if (!context.runProcess (self._cfg.compiler, unitOptions, cwd-> self._cwd, verbose-> verbose)) {
-                        utils::log::error ("Error", "failed to compile unittests '", self._cfg.name, "'");
-                        etc::c::process::_yrt_exit (-1);
-                        panic;
-                    }
-
-                    if (relinkUnit) {
-                        self.relinkObject (alias context, self._cwd.push (defaults::__CACHE_TEST_DIR__), verbose);
-                    }
-                }
-            }
-
-            options [0]
+            (srcPath, cacheDir)
         } catch {
             err : &AssertError => {
                 utils::log::error ("Error", "failed to compile project ", self._cfg.name, "' : ", err.msg);
@@ -86,23 +74,183 @@ pub record RepoBuilder {
             }
         };
 
-        let finLl = if forUnitTest {
-            self.finalizeUnitTest (alias context, cacheDir, ll, verbose);
-            ll
+        let finalLinks = self.finalizeBuild (alias context, cacheDir, links);
+        self.runPostCommands (alias context);
 
-        } else if self._cfg.type.isExecutable () {
-            self.finalizeExecutable (alias context, cacheDir, ll, verbose);
-            ll
+        return (includes ~ [srcPath], finalLinks);
+    }
+
+
+    /**
+     * Build the source files
+     * @params:
+     *    - context: the context of the compilation
+     *    - depRoots: the list of dependency root source files
+     * @returns:
+     *    - .0: the directory containing the result of the compilation
+     *    - .1: the path to the root file
+     *    - .2: the list of source files that have changed since last compilation
+     * */
+    prv fn buildSourceDir (self, dmut context : &GyllirManager, includes : [Path])-> (Path, Path, [Path])
+        throws AssertError
+    {
+        let srcPath = self.findRootSourceFile ();
+        let (cacheDir, sources, changed) = self.listChangedFiles ();
+
+        // Create the output directory
+        if (!sys::isDir (cacheDir)) {
+            sys::createDir (cacheDir, recursive-> true);
+        } catch {
+            _ => {
+                utils::log::error ("Error", "failed to create output directory '", cacheDir.toStr (), "'");
+                etc::c::process::_yrt_exit (-1);
+                panic;
+            }
+        }
+
+        utils::log::info ("Compiling", self._cfg.name, " v", self._cfg.version[]);
+
+        let objFile = cacheDir.push (self._cfg.name).addExtension (defaults::__LIBRARY_EXTENSION__);
+
+        // if something has to be compiled
+        if (changed.len != 0 || !sys::isFile (objFile)) {
+
+            // Create the compile options according to the current configuration
+            let options = self.createCompileOptions (srcPath, includes, cacheDir);
+
+            let dmut pool = copy std::concurrency::task::TaskPool (nbThreads-> self._nbThreads);
+            let passed = sources.len - changed.len;
+            let dmut success = copy [0us];
+            for i, m in changed {
+                pool:.submit (copy || => {
+                    let padd = {
+                        std::format::format ("[{}/{}] ", i + passed + 1, sources.len)
+                    } catch { _ => { "\t" } };
+
+                    utils::log::info (padd-> padd, "Compiling", "module ", m.toStr ());
+                    let modFile = cacheDir.push (m.stripExtension ().addExtension (defaults::__OBJECT_EXTENSION__).toStr (sep-> "_"));
+                    let modOption = options ~ ["-fmodule", m.toStr (), "-o", modFile.toStr ()];
+
+                    // Execute the compile command
+                    if (!context.runProcess (self._cfg.compiler, modOption, cwd-> self._cwd, verbose-> self._verbose)) {
+                        pool:.clear ();
+                    }
+
+                    atomic {
+                        success [0] += 1;
+                    }
+                });
+            }
+
+            pool:.join ();
+
+            if (success [0] != changed.len) {
+                utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
+                etc::c::process::_yrt_exit (-1);
+                panic;
+            }
+
+            // Create the final object file before finalization using the temporary object files created by the command
+            self.relinkObject (alias context, cacheDir, sources);
+        }
+
+        (srcPath, cacheDir, changed)
+    }
+
+
+    /**
+     * Build the unit test source files
+     * @params:
+     *    - context: the context of the compilation
+     *    - srcPath: the root file of the sources (in src directory)
+     * */
+    prv fn buildUnitTest (self, dmut context : &GyllirManager, srcPath : Path, includes : [Path], changedSources : [Path])
+        throws AssertError
+    {
+        let (unitSources, unitChanged) = self.listUnittestChangedFiles (changedSources);
+
+        // create the output directory if not exist
+        let cacheDir = self._cwd.push (defaults::__CACHE_TEST_DIR__);
+        if (!sys::isDir (cacheDir)) {
+            sys::createDir (cacheDir, recursive-> true);
+        } catch {
+            _ => {
+                utils::log::error ("Error", "failed to create output directory '", cacheDir.toStr (), "'");
+                etc::c::process::_yrt_exit (-1);
+                panic;
+            }
+        }
+
+        let objFile = cacheDir.push (self._cfg.name).addExtension (defaults::__LIBRARY_EXTENSION__);
+
+        // If something has to be compiled
+        if (unitChanged.len != 0 || !sys::isFile (objFile)) {
+            let srcTest = self.findRootTestFile ();
+
+            // Create the compile options according to the current configuration
+            let options = self.createCompileOptions (srcTest, includes ~ [srcPath], cacheDir);
+            utils::log::info ("Compiling", "unittest for ", self._cfg.name, " v", self._cfg.version[]);
+
+            let passed = unitSources.len - unitChanged.len;
+            let dmut pool = copy std::concurrency::task::TaskPool (nbThreads-> self._nbThreads);
+            let dmut success = copy [0us];
+
+            for i, m in unitChanged {
+                pool:.submit (copy || => {
+                    let padd = {
+                        std::format::format ("[{}/{}] ", i + passed + 1, unitSources.len)
+                    } catch { _ => { "\t" } };
+
+                    utils::log::info (padd-> padd, "Compiling", "module ", m.toStr ());
+                    let modFile = cacheDir.push (m.stripExtension ().addExtension (defaults::__OBJECT_EXTENSION__).toStr (sep-> "_"));
+                    let modOption = options ~ ["-fmodule", m.toStr (), "-o", modFile.toStr ()];
+
+                    // Execute the compile command
+                    if (!context.runProcess (self._cfg.compiler, modOption, cwd-> self._cwd, verbose-> self._verbose)) {
+                        pool:.clear ();
+                    }
+
+                    atomic {
+                        success [0] += 1;
+                    }
+                });
+            }
+
+            pool:.join ();
+
+            if (success [0] != unitChanged.len) {
+                utils::log::error ("Error", "failed to compile unittests '", self._cfg.name, "'");
+                etc::c::process::_yrt_exit (-1);
+                panic;
+            }
+
+            self.relinkObject (alias context, self._cwd.push (defaults::__CACHE_TEST_DIR__), unitSources);
+        }
+    }
+
+    /**
+     * Finalize the building of the package
+     * @params:
+     *    - context: the context of the compilation
+     *    - cacheDir: the directory in which the building is done
+     *    - libs: the list of libraries to link
+     * @returns: the list of libraries to link for further dependencies
+     * */
+    prv fn finalizeBuild (self, dmut context : &GyllirManager, cacheDir : Path, links : [Path])-> [Path] {
+        if self._forUnitTest {
+            self.finalizeUnitTest (alias context, cacheDir, links);
+            links
+        }
+
+        else if self._cfg.type.isExecutable () {
+            self.finalizeExecutable (alias context, cacheDir, links);
+            links
         }
 
         else {
-            let res = self.finalizeLibrary (alias context, cacheDir, ll, verbose);
-            ll ~ [res.toStr ()]
-        };
-
-        self.runPostCommands (alias context);
-
-        return (lp ~ [srcPath], finLl);
+            let res = self.finalizeLibrary (alias context, cacheDir, links);
+            links ~ [res]
+        }
     }
 
     /*!
@@ -119,39 +267,18 @@ pub record RepoBuilder {
      *   - .0: relink, or full link
      *   - .1: the options to pass to the compiler
      * */
-    prv fn createCompileOptions (self, depPaths : [[c8]], all : bool, modules : [Path], cacheDir : Path, forUnitTest : bool)-> (bool, [[c8]])
-        throws AssertError
-    {
-        let dmut options : [[c8]] = [];
-        let libPath = self._cwd.push (defaults::__SRC_DIR__).push (self._cfg.name).addExtension (defaults::__YMIR_EXTENSION__);
-        let mainPath = self._cwd.push (defaults::__SRC_DIR__).push (defaults::__MAIN_FILE__);
-        if (fs::sys::isFile (libPath)) {
-            options ~= [libPath.toStr ()];
-        } else if (fs::sys::isFile (mainPath)) {
-            options ~= [mainPath.toStr ()];
-        } else throw copy AssertError ("No package root file, " ~ libPath.toStr () ~ " and " ~ mainPath.toStr () ~ " not found");
-
-        if (forUnitTest) {
+    prv fn createCompileOptions (self, srcPath : Path, depPaths : [Path], cacheDir : Path)-> [[c8]] {
+        let mut options : [[c8]] = copy [srcPath.toStr (), "-fPIC", "-c", "-fdump-deps", cacheDir.toStr ()];
+        if (self._forUnitTest) {
             options ~= ["-funittest"];
         }
 
-        let objFile = cacheDir.push (self._cfg.name).addExtension (defaults::__LIBRARY_EXTENSION__);
-        let relink = if (!sys::isFile (objFile)) || all {
-            options ~= ["-fPIC", "-fv", "-c", "-o", objFile.toStr ()];
-            false
-        } else {
-            options ~= ["-fPIC", "-fv", "-c", "-o", (cacheDir.push ("tmp").addExtension (defaults::__OBJECT_EXTENSION__)).toStr ()];
-            true
-        };
-
-        for p in depPaths {
-            options ~= ["-I", p];
+        if (self._verbose) {
+            options ~= ["-fv"];
         }
 
-        if !all && relink {
-            for m in modules {
-                options ~= ["-fmodule", m.toStr ()];
-            }
+        for p in depPaths {
+            options ~= ["-I", p.toStr ()];
         }
 
         if let Ok (Bool (value-> _ = true)) = self._args ["release"]? {
@@ -160,66 +287,8 @@ pub record RepoBuilder {
             options ~= ["-g"];
         }
 
-        options ~= ["-fdump-deps", cacheDir.toStr ()];
-
-        (relink, options)
+        options
     }
-
-    /**
-     * Create the compiler option to build the unittest
-     * @returns:
-     *    - .0: true if needs a relink
-     *    - .1: the list of command line options
-     * */
-    prv fn createUnittestOptions (self, depPaths : [[c8]], all : bool, modules : [Path], srcPath : [c8])-> (bool, [[c8]])
-        throws AssertError
-    {
-        let dmut options : [[c8]] = [];
-        let libPath = self._cwd.push (defaults::__TEST_DIR__).push (defaults::__FST_TEST_FILE__);
-        if (fs::sys::isFile (libPath)) {
-            options ~= [libPath.toStr ()];
-        } else throw copy AssertError ("No unittest root file, " ~ libPath.toStr () ~ " not found");
-
-        let cacheDir = self._cwd.push (defaults::__CACHE_TEST_DIR__);
-        let objFile = cacheDir.push (self._cfg.name).addExtension (defaults::__LIBRARY_EXTENSION__);
-
-        options ~= ["-fPIC", "-fdump-deps", cacheDir.toStr (), "-funittest", "-fv"];
-
-        let relink = if !sys::isFile (objFile) || all {
-            options ~= ["-c", "-o", objFile.toStr ()];
-            false
-        } else {
-            options ~= ["-c", "-o", cacheDir.push ("tmp").addExtension (defaults::__OBJECT_EXTENSION__).toStr ()];
-            true
-        };
-
-        options ~= ["-I", srcPath];
-        for p in depPaths {
-            options ~= ["-I", p];
-        }
-
-        if !all && relink {
-            for m in modules {
-                options ~= ["-fmodule", m.toStr ()];
-            }
-        }
-
-        if let Ok (Bool (value-> _ = true)) = self._args ["release"]? {
-            options ~= ["-O3"];
-        } else {
-            options ~= ["-g"];
-        }
-
-        (relink, options)
-    }
-
-    /*!
-     * ====================================================================================================
-     * ====================================================================================================
-     * =====================================          RELINK          =====================================
-     * ====================================================================================================
-     * ====================================================================================================
-     */
 
     /**
      * Remove all old symbols from old object file, and relink it with the new one
@@ -227,27 +296,13 @@ pub record RepoBuilder {
      *    - files: the list of source files that have been recompiled
      *    - cacheDir: the directory containing the result objects
      * */
-    fn relinkObject (self, dmut context : &GyllirManager, cacheDir : Path, verbose : bool) {
-        let objFile = (cacheDir.push (self._cfg.name).addExtension (defaults::__LIBRARY_EXTENSION__)).toStr ();
-        let tmpFile = (cacheDir.push ("tmp").addExtension (defaults::__OBJECT_EXTENSION__)).toStr ();
-        let tmp2 = (cacheDir.push ("relink").addExtension (defaults::__OBJECT_EXTENSION__)).toStr ();
+    fn relinkObject (self, dmut context : &GyllirManager, cacheDir : Path, files : [Path]) {
+        let output = (cacheDir.push (self._cfg.name).addExtension (defaults::__LIBRARY_EXTENSION__)).toStr ();
+        let objectFiles = copy [cacheDir.push (f.stripExtension ().addExtension (defaults::__OBJECT_EXTENSION__).toStr (sep-> "_")).toStr ()
+                                for f in files];
 
-        let dmut elf = etc::runtime::elf::createLoader ();
-        elf:.update (tmpFile);
-
-        for sym, _ in elf.getSymbols () {
-            context.runProcess ("objcopy", copy ["-W", sym, objFile], cwd-> self._cwd, verbose-> false);
-        }
-
-        context.runProcess ("objcopy", copy ["-W", "main", objFile], cwd-> self._cwd, verbose-> false);
-        if (!context.runProcess ("ld", copy ["-r", objFile, tmpFile, "-o", tmp2], cwd-> self._cwd, verbose-> verbose)) {
-            utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
-            etc::c::process::_yrt_exit (-1);
-            panic;
-        }
-
-        if (!context.runProcess ("mv", copy [tmp2, objFile], cwd-> self._cwd, verbose-> verbose)) {
-            utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
+        if (!context.runProcess ("ld", copy ["-r", "-o", output] ~ objectFiles, cwd-> self._cwd, verbose-> self._verbose)) {
+            utils::log::error ("Error", "failed to link object files'", self._cfg.name, "'");
             etc::c::process::_yrt_exit (-1);
             panic;
         }
@@ -264,12 +319,12 @@ pub record RepoBuilder {
     /**
      * Finalize the unittest executable
      * */
-    prv fn finalizeUnitTest (self, dmut context : &GyllirManager, cacheDir : Path, dependencyLibs : [[c8]], verbose : bool) {
+    prv fn finalizeUnitTest (self, dmut context : &GyllirManager, cacheDir : Path, dependencyLibs : [Path]) {
         let createdTmp = (cacheDir.push (self._cfg.name).addExtension (defaults::__LIBRARY_EXTENSION__)).toStr ();
         let createdUnittests = (self._cwd.push (defaults::__CACHE_TEST_DIR__).push (self._cfg.name).addExtension (defaults::__LIBRARY_EXTENSION__)).toStr ();
 
         let mut options = copy ["-fv", "-funittest", createdTmp, createdUnittests, "-o", self._cfg.name ~ ".test"];
-        options ~= dependencyLibs;
+        options ~= copy [d.toStr () for d in dependencyLibs];
 
         for k in self._cfg.libraries {
             options ~= ["-l" ~ k];
@@ -281,7 +336,7 @@ pub record RepoBuilder {
             options ~ ["-g"]
         };
 
-        if (!context.runProcess (self._cfg.compiler, options, cwd-> self._cwd, verbose-> verbose)) {
+        if (!context.runProcess (self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose)) {
             utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
             etc::c::process::_yrt_exit (-1);
         }
@@ -292,11 +347,11 @@ pub record RepoBuilder {
     /**
      * Finalize the executable
      * */
-    prv fn finalizeExecutable (self, dmut context : &GyllirManager, cacheDir : Path, dependencyLibs : [[c8]], verbose : bool) {
+    prv fn finalizeExecutable (self, dmut context : &GyllirManager, cacheDir : Path, dependencyLibs : [Path]) {
         let createdTmp = (cacheDir.push (self._cfg.name).addExtension (defaults::__LIBRARY_EXTENSION__)).toStr ();
 
         let mut options = copy ["-fv", createdTmp, "-o", self._cfg.name];
-        options ~= dependencyLibs;
+        options ~= copy [d.toStr () for d in dependencyLibs];
 
         for k in self._cfg.libraries {
             options ~= ["-l" ~ k];
@@ -308,7 +363,7 @@ pub record RepoBuilder {
             options ~ ["-g"]
         };
 
-        if (!context.runProcess (self._cfg.compiler, options, cwd-> self._cwd, verbose-> verbose)) {
+        if (!context.runProcess (self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose)) {
             utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
             etc::c::process::_yrt_exit (-1);
         }
@@ -320,11 +375,11 @@ pub record RepoBuilder {
      * Finalize the library
      * @returns: the result file
      * */
-    prv fn finalizeLibrary (self, dmut context : &GyllirManager, cacheDir : Path, _ : [[c8]], verbose : bool)-> Path {
+    prv fn finalizeLibrary (self, dmut context : &GyllirManager, cacheDir : Path, _ : [Path])-> Path {
         let createdTmp = (cacheDir.push (self._cfg.name).addExtension (defaults::__LIBRARY_EXTENSION__)).toStr ();
         let resultFile = self._cwd.push ("lib" ~ self._cfg.name).addExtension (defaults::__LIBRARY_EXTENSION__);
 
-        if (!context.runProcess ("cp", copy [createdTmp, resultFile.toStr ()], cwd-> self._cwd, verbose-> verbose)) {
+        if (!context.runProcess ("cp", copy [createdTmp, resultFile.toStr ()], cwd-> self._cwd, verbose-> self._verbose)) {
             utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
             etc::c::process::_yrt_exit (-1);
         }
@@ -341,67 +396,55 @@ pub record RepoBuilder {
      * ====================================================================================================
      */
 
-    prv fn listUnittestChangedFiles (self)-> (bool, [Path]) {
-        let sources = self.listFilesInDir (self._cwd.push (defaults::__TEST_DIR__));
+    /**
+     * List the unittest source files that have been changed since the last built
+     * @returns:
+     *    - .0: true iif all source files have changed (or are new)
+     *    - .1: the list of path to modules files that have to be recompiled
+     * */
+    prv fn listUnittestChangedFiles (self, changedSources : [Path])-> ([Path], [Path]) {
+        let rootDir = self._cwd.push (defaults::__TEST_DIR__);
         let cacheDir = self._cwd.push (defaults::__CACHE_TEST_DIR__);
+        let sources = self.listFilesInDir (rootDir, rootDir);
+        let results = self.lookupDependencies (rootDir, cacheDir, sources, true, changedSources);
 
-        let mut results : [Path] = [];
-        let mut deps : [Path => mut [Path]] = copy [];
-        for src in sources {
-            let p = src.removePrefix (self._cwd.push (defaults::__TEST_DIR__));
-            if let Ok (Instant (sec-> d)) = sys::fileDate (src)? {
-                let (exits, srcDeps) = self.readCacheDependencies (cacheDir, p, d);
-                if (exits) {
-                    deps [p] = srcDeps;
-                } else { results ~= [p]; }
-            } else { results ~= [p]; }
-        }
-
-        for p, srcDeps in deps {
-            let mut found = true;
-            for z in srcDeps {
-                if z !in deps {
-                    found = false;
-                    break;
-                }
-            }
-
-            if !found {
-                results ~= [p];
-            }
-        }
-
-        let all = (results.len == sources.len);
-        (all, results)
+        (sources, results)
     }
 
     /**
-     * List the source files to compile
+     * List the source files that have been changed since the last built
      * @returns:
      *   - .0: true iif all found source files have to be recompiled
-     *   - .1: the list of source file to compile (relative path from source dir)
+     *   - .1: the output directory
+     *   - .2: the list of source file to compile (relative path from source dir)
      * */
-    prv fn listChangedFiles (self, forUnitTest : bool)-> (bool, Path, [Path]) {
-        let cacheDir = if let Ok (Bool (value-> _ = true)) = self._args ["release"]? {
-            self._cwd.push (defaults::__CACHE_RELEASE_DIR__)
-        } else if forUnitTest {
-            self._cwd.push (defaults::__CACHE_UNIT_DIR__)
-        } else {
-            self._cwd.push (defaults::__CACHE_DEBUG_DIR__)
-        };
+    prv fn listChangedFiles (self)-> (Path, [Path], [Path]) {
+        let cacheDir = self.defineOutputDirectory ();
+        let rootDir = self._cwd.push (defaults::__SRC_DIR__);
+        let sources = self.listFilesInDir (rootDir, rootDir);
+        let results = self.lookupDependencies (rootDir, cacheDir, sources, false, []);
 
-        let sources = self.listFilesInDir (self._cwd.push (defaults::__SRC_DIR__));
+        (cacheDir, sources, results)
+    }
 
+    /**
+     * Check for changed files in the list of sources, and check for changed file dependencies
+     * @params:
+     *    - prefix: the directory containing the source files
+     *    - cacheDir: the output directory containing the dependency files
+     *    - sources: the list of source files
+     * @returns: the list of files that have changed since last compilation
+     * */
+    prv fn lookupDependencies (self, prefix : Path, cacheDir : Path, sources : [Path], forUnitTest : bool, changedSources : [Path])-> [Path] {
         let mut results : [Path] = [];
         let mut deps : [Path => mut [Path]] = copy [];
         for src in sources {
-            let p = src.removePrefix (self._cwd.push (defaults::__SRC_DIR__));
-            if let Ok (Instant (sec-> d)) = sys::fileDate (src)? {
-                let (exits, srcDeps) = self.readCacheDependencies (cacheDir, p, d);
+            if let Ok (Instant (sec-> d)) = sys::fileDate (prefix.push (src))? {
+                let (exits, srcDeps) = self.readCacheDependencies (prefix, cacheDir, src, d, forUnitTest, changedSources);
                 if (exits) {
-                    deps [p] = srcDeps;
-                } else { results ~= [p]; }
-            } else { results ~= [p]; }
+                    deps [src] = srcDeps;
+                } else { results ~= [src]; }
+            } else { results ~= [src]; }
         }
 
         for p, srcDeps in deps {
@@ -418,8 +461,7 @@ pub record RepoBuilder {
             }
         }
 
-        let all = (results.len == sources.len);
-        (all, cacheDir, results)
+        results
     }
 
     /**
@@ -431,10 +473,23 @@ pub record RepoBuilder {
      *    - .0: true iif the source file is older than the dep file
      *    - .1: the list of dependencies read in the dep file
      * */
-    prv fn readCacheDependencies (self, cacheDir : Path, source : Path, date : u64)-> (bool, [Path]) {
+    prv fn readCacheDependencies (self, sourceDir : Path, cacheDir : Path, source : Path, date : u64, forUnitTest : bool, changedSources : [Path])-> (bool, [Path]) {
         let depFile = cacheDir.push (source.stripExtension ().toStr (sep-> "_")).addExtension (defaults::__DEPS_EXTENSION__);
+        let objFile = cacheDir.push (source.stripExtension ().toStr (sep-> "_")).addExtension (defaults::__OBJECT_EXTENSION__);
+        let packageDir = self._cwd.push (defaults::__SRC_DIR__);
+        let hasObject = if let Ok (Instant (sec-> d)) = sys::fileDate (objFile)? {
+            d >= date
+        } else { false };
+
+        if !hasObject {
+            sys::removeFile (depFile)?;
+            return (false, []);
+        }
+
         if let Ok (Instant (sec-> d)) = sys::fileDate (depFile)? {
             if d < date {
+                sys::removeFile (objFile)?;
+                sys::removeFile (depFile)?;
                 return (false, []);
             }
 
@@ -442,10 +497,22 @@ pub record RepoBuilder {
                 let dmut results : [Path] = [];
                 let dmut f = File::open (depFile, read-> true);
                 while let line = f:.readUntil ("\n") && line.len > 0 {
-                    if line [$ - 1] == '\n' {
-                        results ~= [Path (line [0 .. $ - 1])];
+                    let currPath = if line [$ - 1] == '\n' {
+                        Path (line [0 .. $ - 1])
                     } else {
-                        results ~= [Path (line)];
+                        Path (line)
+                    };
+
+                    if sourceDir.isPrefix (currPath) {
+                        results ~= [currPath.removePrefix (sourceDir)];
+                    }
+
+                    else if forUnitTest && packageDir.isPrefix (currPath) {
+                        for z in changedSources if packageDir.push (z) == currPath {
+                            sys::removeFile (objFile)?;
+                            sys::removeFile (depFile)?;
+                            return (false, []);
+                        }
                     }
                 }
 
@@ -461,18 +528,21 @@ pub record RepoBuilder {
 
 
     /**
-     * List the source files that can be found in the directory 'root'
+     * List the source files that can be found in the directory 'root' (recursively)
+     * @params:
+     *    - root: the root directory to read
+     * @returns: the list of source files
      * */
-    prv fn listFilesInDir (self, root : Path)-> [Path] {
+    prv fn listFilesInDir (self, root : Path, curr : Path)-> [Path] {
         let dmut result : [Path] = [];
         {
-            for entry in sys::readDir (root) {
+            for entry in sys::readDir (curr) {
                 match entry {
                     FsEntry (path-> p, kind-> FsEntryKind::DIR) => {
-                        result ~= self.listFilesInDir (p);
+                        result ~= self.listFilesInDir (root, p);
                     }
                     FsEntry (path-> p, kind-> FsEntryKind::FILE) if (p.extension () == defaults::__YMIR_EXTENSION__) => {
-                        result ~= [p];
+                        result ~= [p.removePrefix (root)];
                     }
                 }
             }
@@ -481,6 +551,81 @@ pub record RepoBuilder {
         }
 
         result
+    }
+
+    /**
+     * Find the root file of the package
+     * @returns: the path to the root file of the package
+     * */
+    prv fn findRootSourceFile (self)-> Path
+        throws AssertError
+    {
+        // Overriden by configuration file
+        if let name = self._cfg.packageRoot && name != "" {
+            let mainPath = self._cwd.push (defaults::__SRC_DIR__).push (name).addExtension (defaults::__YMIR_EXTENSION__);
+            if (!fs::sys::isFile (mainPath)) {
+                throw copy AssertError ("No package root file found at " ~ mainPath.toStr ());
+            }
+
+            return mainPath;
+        }
+
+        // Otherwise searching for default root files __lib__.yr, or package name
+        let libPath = self._cwd.push (defaults::__SRC_DIR__).push (self._cfg.name).addExtension (defaults::__YMIR_EXTENSION__);
+        if (fs::sys::isFile (libPath)) {
+            return libPath;
+        }
+
+        let mainPath = self._cwd.push (defaults::__SRC_DIR__).push (defaults::__MAIN_FILE__);
+        if (fs::sys::isFile (mainPath)) {
+            return mainPath;
+        }
+
+        throw copy AssertError ("No package root file, " ~ libPath.toStr () ~ " and " ~ mainPath.toStr () ~ " not found");
+    }
+
+    /**
+     * Find the root file of the test directory
+     * @returns: the path to the root file of unittests
+     * */
+    prv fn findRootTestFile (self)-> Path
+        throws AssertError
+    {
+        // Overriden by configuration file
+        if let name = self._cfg.testRoot && name != "" {
+            let mainPath = self._cwd.push (defaults::__TEST_DIR__).push (name).addExtension (defaults::__YMIR_EXTENSION__);
+            if (!fs::sys::isFile (mainPath)) {
+                throw copy AssertError ("No unittest root file found at " ~ mainPath.toStr ());
+            }
+
+            return mainPath;
+        }
+
+
+        // Searching for default root file __test__.yr
+        let libPath = self._cwd.push (defaults::__TEST_DIR__).push (defaults::__FST_TEST_FILE__);
+        if (fs::sys::isFile (libPath)) {
+            return libPath;
+        }
+
+        throw copy AssertError ("No unittest root file found at " ~ libPath.toStr ());
+    }
+
+    /**
+     * Define the output directory of the build
+     * */
+    prv fn defineOutputDirectory (self)-> Path {
+        if let Ok (Bool (value-> _ = true)) = self._args ["release"]? {
+            self._cwd.push (defaults::__CACHE_RELEASE_DIR__)
+        }
+
+        else if self._forUnitTest {
+            self._cwd.push (defaults::__CACHE_UNIT_DIR__)
+        }
+
+        else {
+            self._cwd.push (defaults::__CACHE_DEBUG_DIR__)
+        }
     }
 
     /*!
@@ -543,12 +688,17 @@ pub record RepoBuilder {
 
     /**
      * Resolve the dependencies of the package and build them
+     * @params:
+     *    - context: the context of the compilation
+     * @returns:
+     *    - .0: the list of root files to include in the compilation
+     *    - .1: the list of path to the built libraries to link
      * */
-    prv fn resolveDependencies (self, dmut context : &GyllirManager)-> ([[c8]], [[c8]])
+    prv fn resolveDependencies (self, dmut context : &GyllirManager)-> ([Path], [Path])
         throws RecursiveDependency
     {
-        let dmut libs : [[c8]] = [];
-        let dmut names : [[c8]] = [];
+        let dmut libs : [Path] = [];
+        let dmut names : [Path] = [];
         for k, d in self._cfg.dependencies[] {
             let (n, l) = context:.resolveDependency (self._args, self._cwd, k, d);
             libs ~= l;
