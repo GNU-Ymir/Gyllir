@@ -43,7 +43,7 @@ pub record RepoBuilder {
         } else { false })
         , _nbThreads = if let Ok (Int (value-> n)) = self._args ["j"]? {
             cast!u32 (n)
-        } else { 0u32 }
+        } else { etc::runtime::threads::_yrt_get_nprocs () }
     {}
 
     /**
@@ -97,16 +97,7 @@ pub record RepoBuilder {
         let srcPath = self.findRootSourceFile ();
         let (cacheDir, sources, changed) = self.listChangedFiles ();
 
-        // Create the output directory
-        if (!sys::isDir (cacheDir)) {
-            sys::createDir (cacheDir, recursive-> true);
-        } catch {
-            _ => {
-                utils::log::error ("Error", "failed to create output directory '", cacheDir.toStr (), "'");
-                etc::c::process::_yrt_exit (-1);
-                panic;
-            }
-        }
+        self.createCacheDirs (cacheDir);
 
         utils::log::info ("Compiling", self._cfg.name, " v", self._cfg.version[]);
 
@@ -116,20 +107,26 @@ pub record RepoBuilder {
         if (changed.len != 0 || !sys::isFile (objFile)) {
 
             // Create the compile options according to the current configuration
-            let options = self.createCompileOptions (srcPath, includes, cacheDir);
+            let options = self.createCompileOptions (srcPath, includes);
 
             let dmut pool = copy std::concurrency::task::TaskPool (nbThreads-> self._nbThreads);
-            let passed = sources.len - changed.len;
-            let dmut success = copy [0us];
-            for i, m in changed {
-                pool:.submit (copy || => {
-                    let padd = {
-                        std::format::format ("[{}/{}] ", i + passed + 1, sources.len)
-                    } catch { _ => { "\t" } };
+            let dmut success = copy [0us], mut modFiles : [mut [Path]] = copy [[]];
+            let parallel_changed = self.cutModuleList (changed, self._nbThreads);
+            let mut submitted = 0u32;
 
-                    utils::log::info (padd-> padd, "Compiling", "module ", m.toStr ());
-                    let modFile = cacheDir.push (m.stripExtension ().addExtension (defaults::__OBJECT_EXTENSION__).toStr (sep-> "_"));
-                    let modOption = options ~ ["-fmodule", m.toStr (), "-o", modFile.toStr ()];
+            for i, m in parallel_changed if m.len > 0 {
+                let msg = {
+                    std::format::format ("{} modules in thread {} (among {} changed files of {}) ", m.len, i + 1, changed.len, sources.len)
+                } catch { _ => { "\t" } };
+                utils::log::info ("Compiling", msg);
+
+                submitted += 1;
+                pool:.submit (copy || => {
+                    let modFile = cacheDir.push (Path ("obj_" ~ std::conv::to!{[c8]} (i))).addExtension (defaults::__OBJECT_EXTENSION__);
+                    let mut modOption = options ~ ["-o", modFile.toStr ()];
+                    for m_ in m {
+                        modOption ~= ["-fmodule", m_.toStr ()];
+                    }
 
                     // Execute the compile command
                     if (!context.runProcess (self._cfg.compiler, modOption, cwd-> self._cwd, verbose-> self._verbose)) {
@@ -137,6 +134,7 @@ pub record RepoBuilder {
                     }
 
                     atomic {
+                        modFiles [0] ~= [modFile];
                         success [0] += 1;
                     }
                 });
@@ -144,14 +142,15 @@ pub record RepoBuilder {
 
             pool:.join ();
 
-            if (success [0] != changed.len) {
+            if (success [0] != submitted) {
                 utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
                 etc::c::process::_yrt_exit (-1);
                 panic;
             }
 
             // Create the final object file before finalization using the temporary object files created by the command
-            self.relinkObject (alias context, cacheDir, sources);
+            self.relinkObject (alias context, cacheDir, modFiles [0], all-> changed.len == sources.len);
+            self.exportDepsFiles (cacheDir);
         }
 
         (srcPath, cacheDir, changed)
@@ -171,15 +170,7 @@ pub record RepoBuilder {
 
         // create the output directory if not exist
         let cacheDir = self._cwd.push (defaults::__CACHE_TEST_DIR__);
-        if (!sys::isDir (cacheDir)) {
-            sys::createDir (cacheDir, recursive-> true);
-        } catch {
-            _ => {
-                utils::log::error ("Error", "failed to create output directory '", cacheDir.toStr (), "'");
-                etc::c::process::_yrt_exit (-1);
-                panic;
-            }
-        }
+        self.createCacheDirs (cacheDir);
 
         let objFile = cacheDir.push (self._cfg.name).addExtension (defaults::__LIBRARY_EXTENSION__);
 
@@ -188,22 +179,26 @@ pub record RepoBuilder {
             let srcTest = self.findRootTestFile ();
 
             // Create the compile options according to the current configuration
-            let options = self.createCompileOptions (srcTest, includes ~ [srcPath], cacheDir);
+            let options = self.createCompileOptions (srcTest, includes ~ [srcPath]);
             utils::log::info ("Compiling", "unittest for ", self._cfg.name, " v", self._cfg.version[]);
-
-            let passed = unitSources.len - unitChanged.len;
             let dmut pool = copy std::concurrency::task::TaskPool (nbThreads-> self._nbThreads);
-            let dmut success = copy [0us];
+            let dmut success = copy [0us], mut modFiles : [mut [Path]] = copy [[]];
+            let parallel_changed = self.cutModuleList (unitChanged, self._nbThreads);
+            let mut submitted = 0u32;
 
-            for i, m in unitChanged {
+            for i, m in parallel_changed if m.len > 0 {
+                let msg = {
+                    std::format::format ("{} modules in thread {} (among {} changed files of {}) ", m.len, i + 1, unitChanged.len, unitSources.len)
+                } catch { _ => { "\t" } };
+                utils::log::info ("Compiling", msg);
+                submitted += 1;
+
                 pool:.submit (copy || => {
-                    let padd = {
-                        std::format::format ("[{}/{}] ", i + passed + 1, unitSources.len)
-                    } catch { _ => { "\t" } };
-
-                    utils::log::info (padd-> padd, "Compiling", "module ", m.toStr ());
-                    let modFile = cacheDir.push (m.stripExtension ().addExtension (defaults::__OBJECT_EXTENSION__).toStr (sep-> "_"));
-                    let modOption = options ~ ["-fmodule", m.toStr (), "-o", modFile.toStr ()];
+                    let modFile = cacheDir.push (Path ("obj_" ~ std::conv::to!{[c8]} (i))).addExtension (defaults::__OBJECT_EXTENSION__);
+                    let mut modOption = options ~ ["-o", modFile.toStr ()];
+                    for m_ in m {
+                        modOption ~= ["-fmodule", m_.toStr ()];
+                    }
 
                     // Execute the compile command
                     if (!context.runProcess (self._cfg.compiler, modOption, cwd-> self._cwd, verbose-> self._verbose)) {
@@ -211,6 +206,7 @@ pub record RepoBuilder {
                     }
 
                     atomic {
+                        modFiles [0] ~= [modFile];
                         success [0] += 1;
                     }
                 });
@@ -218,13 +214,14 @@ pub record RepoBuilder {
 
             pool:.join ();
 
-            if (success [0] != unitChanged.len) {
+            if (success [0] != submitted) {
                 utils::log::error ("Error", "failed to compile unittests '", self._cfg.name, "'");
                 etc::c::process::_yrt_exit (-1);
                 panic;
             }
 
-            self.relinkObject (alias context, self._cwd.push (defaults::__CACHE_TEST_DIR__), unitSources);
+            self.relinkObject (alias context, cacheDir, modFiles [0], all-> unitChanged.len == unitSources.len);
+            self.exportDepsFiles (cacheDir);
         }
     }
 
@@ -267,8 +264,8 @@ pub record RepoBuilder {
      *   - .0: relink, or full link
      *   - .1: the options to pass to the compiler
      * */
-    prv fn createCompileOptions (self, srcPath : Path, depPaths : [Path], cacheDir : Path)-> [[c8]] {
-        let mut options : [[c8]] = copy [srcPath.toStr (), "-fPIC", "-c", "-fdump-deps", cacheDir.toStr ()];
+    prv fn createCompileOptions (self, srcPath : Path, depPaths : [Path])-> [[c8]] {
+        let mut options : [[c8]] = copy [srcPath.toStr (), "-fPIC", "-c", "-fdump-deps", self._cwd.push (defaults::__CACHE_TMP_DIR__).toStr ()];
         if (self._forUnitTest) {
             options ~= ["-funittest"];
         }
@@ -291,18 +288,131 @@ pub record RepoBuilder {
     }
 
     /**
+     * Cut the module list to be compiled by multiple threads
+     * */
+    fn cutModuleList (self, modules : [Path], nbThreads : u32)-> [[Path]] {
+        let mut result : [mut [Path]] = copy [[] for _ in 0 .. nbThreads];
+        if modules.len == 0 {
+            return result;
+        }
+
+        let nbPerTh = modules.len / cast!usize (nbThreads);
+        if nbPerTh == 0 {
+            result [0] = modules;
+            return result;
+        }
+
+        let mut j = 0;
+        for i in (0 .. modules.len).stepBy (cast!isize (nbPerTh)) {
+            if (i + nbPerTh) <= modules.len {
+                result [j] = modules [i .. i + nbPerTh];
+            } else {
+                result [$ - 1] ~= modules [i .. $];
+            }
+
+            j += 1;
+        }
+
+        result
+    }
+
+    /**
      * Remove all old symbols from old object file, and relink it with the new one
      * @params:
      *    - files: the list of source files that have been recompiled
      *    - cacheDir: the directory containing the result objects
      * */
-    fn relinkObject (self, dmut context : &GyllirManager, cacheDir : Path, files : [Path]) {
-        let output = (cacheDir.push (self._cfg.name).addExtension (defaults::__LIBRARY_EXTENSION__)).toStr ();
-        let objectFiles = copy [cacheDir.push (f.stripExtension ().addExtension (defaults::__OBJECT_EXTENSION__).toStr (sep-> "_")).toStr ()
-                                for f in files];
+    fn relinkObject (self, dmut context : &GyllirManager, cacheDir : Path, objectFiles : [Path], all : bool) {
+        let output = cacheDir.push (self._cfg.name).addExtension (defaults::__LIBRARY_EXTENSION__);
+        let intermediate = cacheDir.push ("relink").addExtension (defaults::__OBJECT_EXTENSION__);
+        fs::sys::removeFile (intermediate)?;
 
-        if (!context.runProcess ("ld", copy ["-r", "-o", output] ~ objectFiles, cwd-> self._cwd, verbose-> self._verbose)) {
+        if (!context.runProcess ("ld", copy ["-r", "-o", intermediate.toStr ()] ~ copy [o.toStr () for o in objectFiles], cwd-> self._cwd, verbose-> self._verbose)) {
             utils::log::error ("Error", "failed to link object files'", self._cfg.name, "'");
+            etc::c::process::_yrt_exit (-1);
+            panic;
+        }
+
+        if !all && fs::sys::isFile (output) {
+            self.removeOldSymbols (alias context, output, intermediate);
+            let tmp = cacheDir.push ("tmp").addExtension (defaults::__OBJECT_EXTENSION__);
+            if (!context.runProcess ("ld", copy ["-r", "-o", tmp.toStr (), output.toStr (), intermediate.toStr ()], cwd-> self._cwd, verbose-> self._verbose)) {
+                utils::log::error ("Error", "failed to link object files'", self._cfg.name, "'");
+                etc::c::process::_yrt_exit (-1);
+                panic;
+            }
+
+            if (!context.runProcess ("mv", copy [tmp.toStr (), output.toStr ()], cwd-> self._cwd, verbose-> self._verbose)) {
+                utils::log::error ("Error", "failed to link object files'", self._cfg.name, "'");
+                etc::c::process::_yrt_exit (-1);
+                panic;
+            }
+        } else {
+            if (!context.runProcess ("mv", copy [intermediate.toStr (), output.toStr ()], cwd-> self._cwd, verbose-> self._verbose)) {
+                utils::log::error ("Error", "failed to link object files'", self._cfg.name, "'");
+                etc::c::process::_yrt_exit (-1);
+                panic;
+            }
+        }
+
+        for o in objectFiles {
+            fs::sys::removeFile (o)?;
+        }
+    }
+
+    /**
+     * Remove the symbols that were rebuilt in the new object files
+     * */
+    fn removeOldSymbols (self, dmut context : &GyllirManager, output : Path, objFile : Path) {
+        let old = output.toStr ();
+        let new = objFile.toStr ();
+        let dmut elfLoader = etc::runtime::elf::createLoader ();
+        elfLoader:.update (new);
+
+        let mut weakens : [[c8]] = [], mut globalize : [[c8]] = [];
+        for sym in elfLoader.getSymbols () {
+            weakens ~= ["--weaken-symbol=" ~ sym];
+            globalize ~= ["--globalize-symbol=" ~ sym];
+        }
+
+        context.runProcess ("objcopy", weakens ~ [old], cwd-> self._cwd, verbose-> self._verbose);
+        context.runProcess ("objcopy", globalize ~ [new], cwd-> self._cwd, verbose-> self._verbose);
+    }
+
+    /**
+     * Save the created dependency files
+     * */
+    fn exportDepsFiles (self, cacheDir : Path) {
+        let src = self._cwd.push (defaults::__CACHE_TMP_DIR__);
+        for i in fs::sys::readDir (src) match i {
+            FsEntry (kind-> FsEntryKind::FILE, path-> p) if (p.extension () == defaults::__DEPS_EXTENSION__) => {
+                fs::sys::copyFile (p, cacheDir.push (p.removePrefix (src)))?;
+            }
+        }
+
+        fs::sys::removeDir (src, recursive-> true)?;
+    } catch {
+        _ => {
+            utils::log::error ("Error", "failed to create output directory '", cacheDir.toStr (), "'");
+            etc::c::process::_yrt_exit (-1);
+            panic;
+        }
+    }
+
+    /**
+     * Create the directory in which cache will be stored
+     * */
+    fn createCacheDirs (self, cacheDir : Path) {
+        if (!sys::isDir (self._cwd.push (defaults::__CACHE_TMP_DIR__))) {
+            sys::createDir (self._cwd.push (defaults::__CACHE_TMP_DIR__), recursive-> true);
+        }
+        // Create the output directory
+        if (!sys::isDir (cacheDir)) {
+            sys::createDir (cacheDir, recursive-> true);
+        }
+    } catch {
+        _ => {
+            utils::log::error ("Error", "failed to create output directory '", cacheDir.toStr (), "'");
             etc::c::process::_yrt_exit (-1);
             panic;
         }
@@ -477,14 +587,6 @@ pub record RepoBuilder {
         let depFile = cacheDir.push (source.stripExtension ().toStr (sep-> "_")).addExtension (defaults::__DEPS_EXTENSION__);
         let objFile = cacheDir.push (source.stripExtension ().toStr (sep-> "_")).addExtension (defaults::__OBJECT_EXTENSION__);
         let packageDir = self._cwd.push (defaults::__SRC_DIR__);
-        let hasObject = if let Ok (Instant (sec-> d)) = sys::fileDate (objFile)? {
-            d >= date
-        } else { false };
-
-        if !hasObject {
-            sys::removeFile (depFile)?;
-            return (false, []);
-        }
 
         if let Ok (Instant (sec-> d)) = sys::fileDate (depFile)? {
             if d < date {
@@ -616,15 +718,19 @@ pub record RepoBuilder {
      * */
     prv fn defineOutputDirectory (self)-> Path {
         if let Ok (Bool (value-> _ = true)) = self._args ["release"]? {
-            self._cwd.push (defaults::__CACHE_RELEASE_DIR__)
-        }
-
-        else if self._forUnitTest {
-            self._cwd.push (defaults::__CACHE_UNIT_DIR__)
+            if self._forUnitTest {
+                self._cwd.push (defaults::__CACHE_UNIT_RELEASE_DIR__)
+            } else {
+                self._cwd.push (defaults::__CACHE_RELEASE_DIR__)
+            }
         }
 
         else {
-            self._cwd.push (defaults::__CACHE_DEBUG_DIR__)
+            if self._forUnitTest {
+                self._cwd.push (defaults::__CACHE_UNIT_DEBUG_DIR__)
+            } else {
+                self._cwd.push (defaults::__CACHE_DEBUG_DIR__)
+            }
         }
     }
 
