@@ -451,7 +451,7 @@ pub record RepoBuilder {
             etc::c::process::_yrt_exit (-1);
         }
 
-        utils::log::info ("Produced", "executable file ", self._cfg.name ~ ".test");
+        utils::log::info ("Produced", "executable file ", self._cfg.name, ".test");
     }
 
     /**
@@ -494,7 +494,7 @@ pub record RepoBuilder {
             etc::c::process::_yrt_exit (-1);
         }
 
-        utils::log::info ("Produced", "library file ", resultFile);
+        utils::log::info ("Produced", "library file ", "lib", self._cfg.name, defaults::__LIBRARY_EXTENSION__);
         resultFile
     }
 
