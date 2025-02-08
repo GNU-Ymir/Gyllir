@@ -131,9 +131,7 @@ pub record RepoBuilder {
                     // Execute the compile command
                     if (!context.runProcess (self._cfg.compiler, modOption, cwd-> self._cwd, verbose-> self._verbose)) {
                         pool:.clear ();
-                    }
-
-                    atomic {
+                    } else atomic {
                         modFiles [0] ~= [modFile];
                         success [0] += 1;
                     }
@@ -203,9 +201,7 @@ pub record RepoBuilder {
                     // Execute the compile command
                     if (!context.runProcess (self._cfg.compiler, modOption, cwd-> self._cwd, verbose-> self._verbose)) {
                         pool:.clear ();
-                    }
-
-                    atomic {
+                    } else atomic {
                         modFiles [0] ~= [modFile];
                         success [0] += 1;
                     }
