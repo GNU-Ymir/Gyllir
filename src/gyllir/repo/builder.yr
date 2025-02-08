@@ -298,15 +298,15 @@ pub record RepoBuilder {
             return result;
         }
 
-        let mut j = 0;
-        for i in (0 .. modules.len).stepBy (cast!isize (nbPerTh)) {
-            if (i + nbPerTh) <= modules.len {
-                result [j] = modules [i .. i + nbPerTh];
-            } else {
-                result [$ - 1] ~= modules [i .. $];
-            }
+        for i in 0us .. cast!usize (nbThreads) {
+            result [i] = modules [i * nbPerTh .. (i + 1) * nbPerTh];
+        }
 
-            j += 1;
+        if cast!usize (nbThreads) * nbPerTh  != modules.len {
+            let end = cast!usize (nbThreads) * nbPerTh;
+            for i in end .. modules.len {
+                result [i - end] ~= [modules [i]];
+            }
         }
 
         result
