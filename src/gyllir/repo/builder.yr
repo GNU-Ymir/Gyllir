@@ -293,19 +293,18 @@ pub record RepoBuilder {
         }
 
         let nbPerTh = modules.len / cast!usize (nbThreads);
-        if nbPerTh == 0 {
-            result [0] = modules;
-            return result;
+        let rest = modules.len % cast!usize (nbThreads);
+
+        if nbPerTh > 0 {
+            for i in 0us .. cast!usize (nbThreads) {
+                result [i] = modules [i * nbPerTh .. (i + 1) * nbPerTh];
+            }
         }
 
-        for i in 0us .. cast!usize (nbThreads) {
-            result [i] = modules [i * nbPerTh .. (i + 1) * nbPerTh];
-        }
-
-        if cast!usize (nbThreads) * nbPerTh  != modules.len {
-            let end = cast!usize (nbThreads) * nbPerTh;
-            for i in end .. modules.len {
-                result [i - end] ~= [modules [i]];
+        if rest != 0 {
+            let end = modules.len - rest;
+            for i in 0 .. rest {
+                result [i] ~= [modules [end + i]];
             }
         }
 
