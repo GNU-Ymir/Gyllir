@@ -1,0 +1,18 @@
+in tokens;
+
+pub enum 
+| HEAD_LEVEL_AT    = "@"
+| CODE_BLOCK       = "==="
+| CODE_BLOCK_SEVEN = "```"
+| DCOLON           = ":"
+| BOLD_UNDER       = "__"
+| BOLD_STAR        = "**"
+| ITALIC_UNDER     = "_"
+| ITALIC_STAR      = "*"
+| CODE_SEVEN       = "`"
+| CODE_QUOTE       = "'"
+| LIST_ITEM_SUB    = "-"
+| LIST_ITEM_PLUS   = "+"
+| LINE_RET         = "\n"
+| SPACE            = " "
+ -> CommentTokens;

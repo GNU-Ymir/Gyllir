@@ -1,33 +1,16 @@
-mod gyllir::doc::types::range;
+in range;
 
-import gyllir::doc::types::base;
-import std::config::_, std::io, std::conv;
-import gyllir::utils::options;
-import gyllir::doc::loader;
+use std::stream;
 
-
-/**
- * A fixed size range
- */
+@final
 pub class RangeType over Type {
 
     // The inner type of the range
     let _child : &Type;
     
-    /**
-     * @params: 
-     *    - name: the name of the type ("range")
-     *    - isMut: true if the type is mutable
-     *    - conf: the configuration of the range type (json content)
-     */
-    pub self (name : [c8], isMut : bool, conf : &Config)
-        with super (name-> name, isMut-> isMut), _child = {
-            {
-                loader::toType (conf["childs"][0])
-            } catch {
-                _ => Type::none ()
-            }
-        }
+    pub self (isMut : bool, inner : &Type)
+        with super (isMut-> isMut)
+        , _child = inner
     {}
 
     /**
@@ -37,6 +20,9 @@ pub class RangeType over Type {
         return self._child
     }
 
-    impl Streamable;
-    
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write ("Range (", self._child, ")");
+        }
+    }
 }

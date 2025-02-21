@@ -1,33 +1,16 @@
-mod gyllir::doc::types::slice;
+in slice;
 
-import gyllir::doc::types::base;
-import std::config::_, std::io, std::conv;
-import gyllir::utils::options;
-import gyllir::doc::loader;
+use std::stream;
 
-
-/**
- * A fixed size slice
- */
+@final
 pub class SliceType over Type {
 
     // The inner type of the slice
     let _child : &Type;
     
-    /**
-     * @params: 
-     *    - name: the name of the type ("slice")
-     *    - isMut: true if the type is mutable
-     *    - conf: the configuration of the slice type (json content)
-     */
-    pub self (name : [c8], isMut : bool, conf : &Config)
-        with super (name-> name, isMut-> isMut), _child = {
-            {
-                loader::toType (conf["childs"][0])
-            } catch {
-                _ => Type::none ()
-            }
-        }
+    pub self (isMut : bool, inner : &Type)
+        with super (isMut-> isMut)
+        , _child = inner
     {}
 
     /**
@@ -37,6 +20,11 @@ pub class SliceType over Type {
         return self._child
     }
 
-    impl Streamable;
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write ("Slice (", self._child, ")");
+        }
+    }
+
     
 }

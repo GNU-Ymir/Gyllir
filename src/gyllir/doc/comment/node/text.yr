@@ -1,0 +1,18 @@
+in text;
+
+use std::stream;
+
+@final
+pub class CommentText over CommentNode {
+    let _content : [c8];
+
+    pub self (content : [c8])
+        with  _content = content
+    {}
+
+    pub over dumpHtml (self, dmut stream : &StringStream) {
+        stream:.write (self._content);
+    }
+
+    impl Streamable;
+}

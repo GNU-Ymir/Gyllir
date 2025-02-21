@@ -1,28 +1,37 @@
-mod gyllir::doc::types::base;
+in types;
 
-import std::io;
+use std::stream;
+
+pub mod ::any;
+pub mod ::array;
+pub mod ::class_;
+pub mod ::enum_;
+pub mod ::fptr;
+pub mod ::map;
+pub mod ::option;
+pub mod ::pointer;
+pub mod ::range;
+pub mod ::scalar;
+pub mod ::slice;
+pub mod ::tuple;
 
 /**
  * Ancestor of all kind of types
  */
+@abstract
 pub class Type {
 
     // True if the type is mutable
     let _isMut : bool;
 
-    // The name of the type
-    let _name : [c8];
-    
     /**
-     * Create a none type
-     * @params: 
+     * @params:
      *     - name: the name of the type
      *     - isMut: true if the type is mutable
      */
-    pub self none (name : [c8] = ""s8, isMut : bool = false)
-        with _name = name, _isMut = isMut
+    pub self (isMut : bool = false)
+        with _isMut = isMut
     {}
-
 
     /**
      * @returns: true if the type is mutable
@@ -31,14 +40,5 @@ pub class Type {
         self._isMut
     }
 
-    /**
-     * @returns: the name of the type
-     */
-    pub fn getName (self)-> [c8] {
-        self._name
-    }
-
     impl Streamable;
-    
 }
-

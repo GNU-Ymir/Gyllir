@@ -1,0 +1,25 @@
+in scalar;
+
+use std::{stream, fs::path};
+
+@final
+pub class ScalarType over Type {
+
+    let _name : [c8];
+
+    pub self (name : [c8], isMut : bool)
+        with super (isMut-> isMut)
+        , _name = name
+    {}
+
+    pub fn getName (self)-> [c8] {
+        self._name
+    }
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write ("Scalar (", self._name, ")");
+        }
+    }
+
+}

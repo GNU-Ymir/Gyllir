@@ -1,0 +1,14 @@
+in none_;
+
+use std::stream;
+
+/**
+ * Empty symbol
+ * */
+pub class None over Symbol {
+    pub self ()
+        with super ("", "", INTERNAL_LOCATION, Protection::PRV)
+    {}
+
+    impl Streamable;
+}

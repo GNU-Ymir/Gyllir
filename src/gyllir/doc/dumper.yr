@@ -1,17 +1,10 @@
-mod gyllir::doc::dumper;
+in dumper;
 
-import std::fs::path;
-import std::fs::file;
-import std::config::_;
-import std::io, std::conv;
-import std::collection::vec;
+use std::{config::_, fs, fs::_};
+use std::{conv, io}
 
-import gyllir::doc::symbols::_;
-import gyllir::doc::types::_;
-import gyllir::doc::loader;
-import gyllir::config::_;
-import gyllir::doc::html::_;
-import gyllir::repo::manager;
+use gyllir::doc::{_, symbols::_, loader};
+use gyllir::doc::html::_;
 
 /**
  * This class is used to generate html files
@@ -50,18 +43,6 @@ pub class DocDumper {
     pub fn generate (self) {
         let dmut tree = MetaModule::new ();
         let dmut modules = Vec!{&Module}::new ();
-        
-        for j, i in self._files {
-            with dmut f = File::open (i) {
-                let perc = j.to!f32 () / (self._files.len).to!f32 () * 100.0f; 
-                println (std::format::format ("[{0:.2}%] Loading {1:}"s8, perc, i.toStr ()))?;
-                let module = Module::new (json::parse (f:.readAll ()));
-                tree:.insert (module);
-                modules:.push (module);
-            } catch {
-                _ => println ("Failed to read : ", i);
-            }
-        }
 
         fs::sys::removeDir (self._outDir, recursive-> true)?;
         fs::sys::createDir (self._outDir, recursive-> true)?;

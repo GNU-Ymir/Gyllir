@@ -1,35 +1,67 @@
-mod gyllir::doc::types::class_;
+in class_;
 
-import gyllir::doc::types::base;
-import std::fs::path;
-import gyllir::utils::path;
-import std::io, std::config::_;
+use std::{stream, fs::path};
 
 /**
  * A classure type
  */
 pub class ClassType over Type {
 
-    let _module : &Path;
+    let _name : [c8];
+
+    // True iif this is an entity
+    let _isEntity : bool;
+
+    // True iif this is a record
+    let _isRecord : bool;
+
+    // The path to the module declaration
+    let _module : Path;
     
     /**
      * @params: 
      *   - name: the name of the class
      *   - isMut: bool is the class is mutable
      */
-    pub self (name : [c8], isMut : bool)
-        with super (name-> Path::new (utils::path::toPath (name, sep-> "::"s8)).file (), isMut-> isMut),
-             _module = Path::new (utils::path::toPath (name, sep-> "::"s8)).parent ()
+    pub self (name : [c8], isMut : bool, isEntity : bool = false, isRecord : bool = false)
+        with super (isMut-> isMut)
+        , _name = Path (name, sep-> "::"s8).file ()
+        , _module = Path (name, sep-> "::"s8).parent ()
+        , _isEntity = isEntity
+        , _isRecord = isRecord
     {}
+
+    pub fn getName (self)-> [c8] {
+        self._name
+    }
 
     /**
      * @returns: the module that declared the class
      */
-    pub fn getModule (self)-> &Path {
+    pub fn getModule (self)-> Path {
         self._module
     }
 
-    
-    impl Streamable;
-    
+    pub fn isEntity (self)-> bool {
+        self._isEntity
+    }
+
+    pub fn isRecord (self)-> bool {
+        self._isRecord
+    }
+
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            if self._isEntity {
+                stream:.write ("Entity");
+            } else if self._isRecord {
+                stream:.write ("Record");
+            } else {
+                stream:.write ("Class");
+            }
+
+            stream:.write (" (", self._module.push (self._name).toStr (sep-> "::"), ")");
+        }
+    }
 }

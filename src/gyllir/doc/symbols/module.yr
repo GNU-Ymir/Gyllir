@@ -1,53 +1,38 @@
-mod gyllir::doc::symbols::module;
+in module;
 
-import gyllir::utils::options;
-import gyllir::doc::symbols::_;
-import gyllir::doc::loader;
+use std::stream;
 
-import std::io;
-import std::collection::vec;
-import std::config::_;
 
-/**
- * A module documentation symbol
- */
+@final
 pub class Module over Symbol {
 
-    /// The of symbols declared in the module
-    let dmut _childs = Vec!{&Symbol}::new ();
+    let _childs : [&Symbol] = [];
 
     /**
-     * Create an empty module
-     */
-    pub self empty () {}
-    
-    /**
-     * Create a module from a configuration
-     */
-    pub self (config : &Config)
-        with super (config)
-    {
-        match config ["childs"]? {
-            Ok (arr : &Array) => {
-                for i in 0us .. arr.len () {
-                    __pragma!trusted ({
-                        self._childs:.push (loader::toSymbol (arr [i]));
-                    });
-                }
-            }
-        }
+     * @params:
+     *    - name: the name of the module
+     *    - loc: the location of the module declaration
+     *    - childs: the symbols found in the module
+     * */
+    pub self (name : [c8], doc : [c8], loc : Location, protection : Protection, childs : [&Symbol])
+        with super (name, doc, loc, protection)
+        , _childs = childs
+    {}
+
+    @field
+    pub fn childs (self)-> [&Symbol] {
+        self._childs
     }
-    
-    /**
-     * @returns: the list of children of the module
-     */
-    pub fn getChilds (self)-> [&Symbol] {
-        self._childs[]
-    }        
+
 
     impl Streamable {
         pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Module (", self._name, ")");
+            stream:.write ("Module : ", self._name, " => ", self._loc, "\n");
+            stream:.entabing ();
+            for d in self._childs {
+                stream:.write (d);
+            }
+            stream:.detabing ();
         }
     }
 }

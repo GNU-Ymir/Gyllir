@@ -1,0 +1,31 @@
+in map;
+
+use std::stream;
+
+@final
+pub class MapType over Type {
+
+    let _key : &Type;
+    let _value : &Type;
+
+    pub self (isMut : bool, key : &Type, value : &Type)
+        with super (isMut-> isMut)
+        , _key = key
+        , _value = value
+    {}
+
+    pub fn getKey (self)-> &Type {
+        self._key
+    }
+
+    pub fn getValue (self)-> &Type {
+        self._value
+    }
+
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write ("Map (", self._key, " => ", self._value, ")");
+        }
+    }
+}

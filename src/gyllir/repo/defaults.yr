@@ -78,6 +78,7 @@ pub def __CACHE_RELEASE_DIR__ = ".target/release"
 pub def __CACHE_DEBUG_DIR__ = ".target/debug"
 pub def __CACHE_UNIT_DEBUG_DIR__ = ".target/unit_debug"
 pub def __CACHE_UNIT_RELEASE_DIR__ = ".target/unit_release"
+pub def __CACHE_DOC_DIR__ = ".target/doc"
 pub def __CACHE_TEST_DIR__ = ".target/test"
 
 

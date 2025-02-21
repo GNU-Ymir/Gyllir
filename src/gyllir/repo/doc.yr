@@ -1,0 +1,104 @@
+in doc;
+
+use std::{io, env, stream, config::_, fs::{path, errors}, concurrency::process};
+use gyllir::{repo::_, utils::_, config::_, doc::_};
+use std::{fs::_, syntax::_};
+
+pub record RepoDocBuilder {
+
+    // The current working directory
+    let _cwd : Path;
+
+    // The command line options
+    let _args : &Config;
+
+    // The package configuration
+    let _cfg : GyllirPackageConfiguration;
+
+    // the input file to parse
+    let _input : [c8];
+
+    // True iif input file is given instead of gyllir repo
+    let _fromFile : bool;
+
+    /**
+     * @params:
+     *    - input: the input file to parse
+     * */
+    pub self (path : Path, args : &Config, input : [c8])
+        with _cwd = path
+        , _args = args
+        , _cfg = GyllirPackageConfiguration::empty ()
+        , _fromFile = true
+        , _input = input
+    {}
+
+    /**
+     * @params:
+     *    - cfg: the configuration of the repo
+     * */
+    pub self (path : Path, args : &Config, cfg : GyllirPackageConfiguration)
+        with _cwd = path
+        , _args = args
+        , _cfg = cfg
+        , _fromFile = false
+        , _input = ""
+    {}
+
+    /**
+     * Run the build executable
+     * */
+    pub fn run (self, dmut context : &GyllirManager)
+        throws RecursiveDependency
+    {
+        let inputFile = if (!self._fromFile) {
+            RepoBuilder (self._cwd, copy Dict (), self._cfg, forUnitTest-> false, forDoc-> true).run (alias context);
+            self._cwd.push (defaults::__CACHE_DOC_DIR__).push (self._cfg.name).addExtension (defaults::__DOC_EXTENSION__)
+        } else {
+            Path (self._input)
+        };
+
+        let outputDir = if let Ok (Str (value-> dir)) = self._args ["output"]? {
+            Path (dir)
+        } else {
+            self._cwd.push (defaults::__DOC_DIR__)
+        };
+
+        let docConfig = {
+            let dmut file = File::open (inputFile, read-> true);
+            json::parse (file:.readAll ())
+        } catch {
+            FsError () => {
+                utils::log::error ("Error", "failed to read documentation file '", inputFile.toStr (), "'");
+                etc::c::process::_yrt_exit (-1);
+                panic;
+            }
+            err : &SyntaxError => {
+                utils::log::error ("Error", "failed to parse documentation file '", inputFile.toStr (), "' : ", err);
+                etc::c::process::_yrt_exit (-1);
+                panic;
+            }
+        };
+
+        let symbol = {
+            (SymbolLoader ()).load (docConfig)
+        } catch {
+            err => {
+                utils::log::error ("Error", "failed to read documentation file ", inputFile.toStr (), "' : ", err.msg);
+                etc::c::process::_yrt_exit (-1);
+                panic;
+            }
+        }
+
+        self.generate (outputDir, symbol);
+    }
+
+    /**
+     * Generate the documentation directory
+     * */
+    fn generate (self, outDir : Path, symbol : &Symbol) {
+        utils::log::info ("Generate", "documentation pages in '", outDir.toStr (), "'");
+        println (symbol);
+    }
+
+}

@@ -1,0 +1,377 @@
+in parser;
+
+use std::{io, stream, syntax::lexer};
+use gyllir::doc::comment::tokens;
+
+use gyllir::doc::comment::{node, node::_};
+
+pub mod .node;
+
+/**
+ * This class parse Comment in order to transform documentation blocks into html elements
+ */
+pub class CommentParser {
+
+    // The lexec of the parser
+    let dmut _lex : &Lexer!{c8};
+
+    // The content created by the parser
+    let dmut _root = copy CommentNode ("");
+
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ======================================          CTOR          ======================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    pub self (content : [c8]) with 
+        _lex = copy Lexer!{c8} (content-> content,
+                                tokens-> copy CommentTokens::__members__,
+                                comments-> [],
+                                skips-> [])
+    {
+        self:.parse ()            
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          DUMPING          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * @returns: the content
+     */
+    pub fn dumpHtml (self, dmut stream : &StringStream) {
+        self._root.dumpHtml (alias stream)
+    }            
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          PARSING          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Start the parsing of the node
+     */
+    prv fn parse (mut self) {
+        let mut nb_space = 0us, mut line_ret = true;
+        let dmut currentStream = copy StringStream ();
+        let mut wasWhite = true;
+        
+        loop {
+            let (n, _, _) = self._lex:.next ();
+            if (n == "") break;
+
+            match n {
+                CommentTokens::HEAD_LEVEL_AT => {
+                    if (currentStream[].len != 0us) {
+                        self._root:.addChild (copy CommentText (currentStream[]));
+                        currentStream:.clear ();
+                    }
+                    
+                    self._root:.addChild (self:.parseInnerDoc ());
+                }
+                CommentTokens::CODE_BLOCK | CommentTokens::CODE_BLOCK_SEVEN => {
+                    if (currentStream[].len != 0us) {
+                        self._root:.addChild (copy CommentText (currentStream[]));
+                        currentStream:.clear ();
+                    }
+
+                    self._root:.addChild (self:.parseCodeBlock (n, nb_space));
+                }
+                CommentTokens::LIST_ITEM_SUB | CommentTokens::LIST_ITEM_PLUS => {
+                    if (currentStream[].len != 0us) {
+                        self._root:.addChild (copy CommentText (currentStream[]));
+                        currentStream:.clear ();
+                    }
+
+                    if (line_ret) {
+                        self._root:.addChild (self:.parseListBlock (n, nb_space));
+                    } else {
+                        self._root:.addChild (copy CommentText (n));
+                    }
+                }
+                CommentTokens::BOLD_UNDER | CommentTokens::BOLD_STAR |
+                CommentTokens::ITALIC_UNDER | CommentTokens::ITALIC_STAR |
+                CommentTokens::CODE_SEVEN => {
+                    if (wasWhite) {
+                        if (currentStream[].len != 0us) {
+                            self._root:.addChild (copy CommentText (currentStream[]));
+                            currentStream:.clear ();
+                        }
+
+                        self._root:.addChild (self:.parseBoldItalicBlock (n));
+                    } else currentStream:.write (n);  
+                }
+                _ => {
+                    currentStream:.write (n);
+                }
+            }
+
+            if (n == CommentTokens::LINE_RET) line_ret = true;
+            else if (n == CommentTokens::SPACE && line_ret) nb_space += 1us;
+            else { nb_space = 0us; line_ret = false; }
+
+            if (n == CommentTokens::SPACE || n == CommentTokens::LINE_RET) wasWhite = true;
+            else wasWhite = false;
+        }
+
+        if (currentStream[].len != 0us) {
+            self._root:.addChild (copy CommentText (currentStream[]));
+            currentStream:.clear ();
+        }
+    }
+
+    /**
+     * Parse a sub module element
+     */
+    prv fn parseInnerDoc (mut self) -> &CommentNode {
+        let (name, _, _) = self._lex:.next ();
+        self:.skipSpaces ();
+
+        let mut cursor = self._lex.getCursor ();
+        let (ig, _, _) = self._lex:.next ();
+        if (ig != CommentTokens::DCOLON) { self._lex:.rewind (expand cursor); }
+
+        let dmut node = copy CommentNode (name);
+        let dmut currentStream = copy StringStream ();
+        let mut nb_space = 0us, mut line_ret = true, mut wasWhite = true;
+        
+        loop {
+            cursor = self._lex.getCursor ();
+            let (n, _, _) = self._lex:.next ();
+            if n == "" || n == CommentTokens::HEAD_LEVEL_AT { self._lex:.rewind (expand cursor); break; }
+            else match n {
+                CommentTokens::CODE_BLOCK | CommentTokens::CODE_BLOCK_SEVEN => {
+                    if (currentStream[].len != 0us) {
+                        node:.addChild (copy CommentText (currentStream[]));
+                        currentStream:.clear ();
+                    }
+
+                    node:.addChild (self:.parseCodeBlock (n, nb_space));
+                }
+                CommentTokens::LIST_ITEM_SUB | CommentTokens::LIST_ITEM_PLUS => {
+                    if (currentStream[].len != 0us) {
+                        node:.addChild (copy CommentText (currentStream[]));
+                        currentStream:.clear ();
+                    }
+
+                    if (line_ret) {
+                        node:.addChild (self:.parseListBlock (n, nb_space));
+                    } else {
+                        node:.addChild (copy CommentText (n));
+                    }
+                }
+                CommentTokens::BOLD_UNDER | CommentTokens::BOLD_STAR |
+                CommentTokens::ITALIC_UNDER | CommentTokens::ITALIC_STAR |
+                CommentTokens::CODE_SEVEN => {
+                    if (wasWhite) {
+                        if (currentStream[].len != 0us) {
+                            node:.addChild (copy CommentText (currentStream[]));
+                            currentStream:.clear ();
+                        }
+
+                        node:.addChild (self:.parseBoldItalicBlock (n));
+                    } else {
+                        currentStream:.write (n);
+                    }
+                }
+                _ => {
+                    currentStream:.write (n);
+                }
+            }
+
+            if (n == CommentTokens::LINE_RET) line_ret = true;
+            else if (n == CommentTokens::SPACE && line_ret) nb_space += 1us;
+            else { nb_space = 0us; line_ret = false; }
+
+            if (n == CommentTokens::SPACE) wasWhite = true;
+            else wasWhite = false;
+        }
+
+
+        if (currentStream[].len != 0us) {
+            node:.addChild (copy CommentText (currentStream[]));
+            currentStream:.clear ();
+        }
+        
+        node
+    }
+
+    /**
+     * Parse a block of code
+     * @params: 
+     *   - type: the start token of the code block
+     *   - nb_space: the number of space entabing the code block (they are remove from the returned block)
+     * @returns: a block of code
+     */
+    prv fn parseCodeBlock (mut self, type : [c8], nb_space : usize)-> &CommentCode {
+        self:.skipTo (CommentTokens::LINE_RET);
+        let dmut stream = copy StringStream ();
+        let mut skip_space = 0us, mut do_skip = true;
+        loop {
+            let (n, _, _) = self._lex:.next ();
+            if n == type || n == "" { break; }
+            else match n {
+                CommentTokens::LINE_RET => {
+                    skip_space = 0us;
+                    do_skip = true;
+                    stream:.write (n);
+                }
+                CommentTokens::SPACE => {
+                    if skip_space >= nb_space || !do_skip {
+                        stream:.write (n);
+                        do_skip = false;
+                    } else skip_space += 1us;                     
+                }
+                _ => {                    
+                    stream:.write (n);
+                    do_skip = false;
+                }
+            }
+        }
+
+        self:.skipTo (CommentTokens::LINE_RET);
+
+        copy CommentCode (stream[])
+    }
+
+    /**
+     * Parse an item list
+     * @params: 
+     *   - type: the type of item list (- or +)
+     *   - item_nb_space: the number of space the item are aligned with
+     */
+    prv fn parseListBlock (mut self, type : [c8], item_nb_space : usize)-> &CommentList {
+        let mut nb_space = 0us, mut line_ret = false, mut wasWhite = true;
+        let dmut list = copy CommentList ();
+        let dmut node = copy CommentListItem ();
+        let dmut currentStream = copy StringStream ();
+        
+        loop {
+            let mut add_sub_list = false;
+
+            let cursor = self._lex.getCursor ();
+            let (n, _, _) = self._lex:.next ();
+            if (n == "") { self._lex:.rewind (expand cursor); break; }
+            
+            else match n {
+                CommentTokens::CODE_BLOCK | CommentTokens::CODE_BLOCK_SEVEN => {
+                    if (currentStream[].len != 0us) {
+                        node:.addChild (copy CommentText (currentStream[]));
+                        currentStream:.clear ();
+                    }
+
+                    node:.addChild (self:.parseCodeBlock (n, nb_space));
+                }
+                v if v == type => {
+                    if (currentStream[].len != 0us) {
+                        node:.addChild (copy CommentText (currentStream[]));
+                        currentStream:.clear ();
+                    }
+
+                    list:.addChild (node);
+                    node = copy CommentListItem ();
+                }
+                CommentTokens::LIST_ITEM_PLUS | CommentTokens::LIST_ITEM_SUB => {
+                    if (currentStream[].len != 0us) {
+                        node:.addChild (copy CommentText (currentStream[]));
+                        currentStream:.clear ();
+                    }
+
+                    if (line_ret && nb_space > item_nb_space) {
+                        node:.addChild (self:.parseListBlock (n, nb_space));
+                        add_sub_list = true;
+                        line_ret = true;
+                        nb_space = 0us;
+                    } else { self._lex:.rewind (expand cursor); break; }
+                }
+                CommentTokens::BOLD_UNDER | CommentTokens::BOLD_STAR |
+                CommentTokens::ITALIC_UNDER | CommentTokens::ITALIC_STAR |
+                CommentTokens::CODE_SEVEN => {
+                    if (wasWhite) {
+                        if (currentStream[].len != 0us) {
+                            node:.addChild (copy CommentText (currentStream[]));
+                            currentStream:.clear ();
+                        }
+                        
+                        node:.addChild (self:.parseBoldItalicBlock (n));
+                    } else {
+                        currentStream:.write (n);
+                    }
+                }
+                _ => {                                      
+                    if (line_ret && nb_space < item_nb_space && n != CommentTokens::SPACE) {
+                        self._lex:.rewind (expand cursor);
+                        break;
+                    }
+
+                    currentStream:.write (n);                
+                }
+            }
+
+            if (!add_sub_list) {
+                if (n == CommentTokens::LINE_RET) line_ret = true;
+                else if (n == CommentTokens::SPACE && line_ret) nb_space += 1us;
+                else { nb_space = 0us; line_ret = false; }
+            }
+            
+            if (n == CommentTokens::SPACE) wasWhite = true;
+            else wasWhite = false;
+        }
+
+        if (currentStream[].len != 0us) {
+            node:.addChild (copy CommentText (currentStream[]));
+            currentStream:.clear ();
+        }
+
+        list:.addChild (node);
+        list 
+    }
+
+    prv fn parseBoldItalicBlock (mut self, type : [c8])-> &CommentStyle {
+        let dmut stream = copy StringStream ();
+        loop {
+            let (n, _, _) = self._lex:.next ();
+            if n == type || n == "" { break; }
+            stream:.write (n);
+        }
+
+        copy CommentStyle (type, stream[])
+    }
+
+    /**
+     * Move the cursor of the lexer until it reach the token `tok` or the end of the content
+     * @params: 
+     *    - tok: the token to reach
+     */
+    prv fn skipTo (mut self, tok : [c8]) {
+        loop {
+            let (n, _, _) = self._lex:.next ();
+            if n == "" || n == tok { break; }
+        }
+    }
+
+    /**
+     * Move the cursor until it reaches something that is not a space
+     */
+    prv fn skipSpaces (mut self) {
+        loop {
+            let cursor = self._lex.getCursor ();
+            let (n, _, _) = self._lex:.next ();
+            if (n != CommentTokens::SPACE) {
+                self._lex:.rewind (expand cursor);
+                break;
+            }
+        }
+    }
+}

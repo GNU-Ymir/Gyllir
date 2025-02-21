@@ -1,0 +1,74 @@
+in symbols;
+
+use std::{stream, fs::path};
+
+pub mod ::module;
+pub mod ::none_;
+pub mod ::function;
+
+pub lazy INTERNAL_LOCATION = Location ("", 0, 0);
+
+pub enum
+| PUB  = 0
+| PROT = 1
+| PRV  = 2
+ -> Protection;
+
+pub record Location {
+    pub let filename : Path;
+    pub let line : u64;
+    pub let col : u64;
+
+    pub self (filename : [c8], line : u64, col : u64)
+        with filename = Path (filename)
+        , line = line
+        , col = col
+    {}
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write (self.filename.toStr (), ":(", self.line, ",", self.col, ")");
+        }
+    }
+}
+
+/**
+ * Base class of all symbols that can be found in a doc dumping file
+ * */
+@abstract
+pub class Symbol {
+    let _name : [c8];
+    let _loc : Location;
+    let _doc : [c8];
+    let _prot : Protection;
+
+    pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
+        with _name = name
+        , _loc = loc
+        , _doc = doc
+        , _prot = protection
+    {}
+
+    @field
+    pub fn name (self)-> [c8] {
+        self._name
+    }
+
+    @field
+    pub fn doc (self)-> [c8] {
+        self._doc
+    }
+
+    @field
+    pub fn loc (self)-> Location {
+        self._loc
+    }
+
+    @field
+    pub fn protection (self)-> Protection {
+        self._prot
+    }
+
+    impl Streamable;
+
+}

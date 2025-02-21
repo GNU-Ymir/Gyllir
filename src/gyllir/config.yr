@@ -64,6 +64,11 @@ pub record GyllirPackageConfiguration {
      * ====================================================================================================
      */
 
+    /**
+     * Empty gyllir configuration
+     * */
+    pub self empty () {}
+
     pub self (name : [c8], license : [c8], description : [c8], type : BuildType, registry : Url, version : Version, authors : [[c8]])
         with _name = name
         , _license = license

@@ -1,73 +1,403 @@
-mod gyllir::doc::loader;
+in loader;
 
-import std::config::_;
-import gyllir::doc::symbols::_;
-import gyllir::doc::types::_;
-import gyllir::utils::options;
-import std::io;
+use std::{io, config::_, format};
+use gyllir::doc::{symbols::_, types::_};
 
-/**
- * Transform a configuration into a symbol
- */
-pub fn toSymbol (config : &Config)-> dmut &Symbol {
-    match (config ["type"]?).toOr (""s8) {
-        "module"s8 => { return Module::new (config); }
-        "function"s8 => { return Function::new (config); }
-        "var"s8 => { return Variable::new (config); }
-        "aka"s8 => { return Aka::new (config); }
-        "struct"s8 => { return Struct::new (config); }
-        "enum"s8 => { return Enum::new (config); }
-        "trait"s8 => { return Trait::new (config); }
-        "template"s8 => { return Template::new (config); }
-        "macro"s8 => { return Macro::new (config); }
-        "class"s8 => { return Class::new (config); }
-        "template_class"s8 => { return Class::new (config); }
-        "template_condition"s8 => { return TemplateCond::new (config); }
-        "impl"s8 => { return Impl::new (config); }
-        "block"s8 | "extern"s8 => { return Block::new (config); }
-        _ => {
-            return Symbol::new (config);
+
+pub record SymbolLoader {
+
+    /**
+     * Create an empty symbol loader
+     * */
+    pub self () {}
+
+    /**
+     * Load a configuration and return the symbol found in it
+     * */
+    pub fn load (self, config : &Config)-> &Symbol
+        throws AssertError
+    {
+        if let d : &Dict = config && "kind" in d {
+            if let Ok (x) = d ["kind"]? match x {
+                Str (value-> "module") => { return self.loadModule (d); }
+                Str (value-> "function") => { return self.loadFunction (d); }
+            }
         }
-    }    
-}
 
-/**
- * Transform a configuration into a type
- */
-pub fn toType (conf : &Config)-> &Type {
-    let isMut = ((conf["mut"]?).toOr ("false"s8) == "true"s8);
-    let name = (conf["name"]?).toOr (""s8);
-    match (conf["type"]?).toOr (""s8) {
-        "void"s8 => { VoidType::new () }
-        "int"s8 => { IntType::new (name, isMut-> isMut) }
-        "bool"s8 => { BoolType::new (isMut-> isMut) }
-        "float"s8 => { FloatType::new (name, isMut) }
-        "char"s8 => { CharType::new (name, isMut) }
-        "array"s8 => { ArrayType::new (name, isMut, conf) }
-        "slice"s8 => { SliceType::new (name, isMut, conf) }
-        "tuple"s8 => { TupleType::new (name, isMut, conf) }
-        "struct"s8 => { StructType::new (name, isMut) }
-        "enum"s8 => { EnumType::new (name, isMut) }
-        "pointer"s8 => { PointerType::new (name, isMut, conf) }
-        "class_pointer"s8 => { ClassPointerType::new (name, isMut, conf) }
-        "class"s8 => { ClassType::new (name, isMut) }
-        "range"s8 => { RangeType::new (name, isMut, conf) }
-        "fn_pointer"s8 => { FnPointerType::new (name, isMut, conf) }
-        "dg_pointer"s8 => { DgPointerType::new (name, isMut, conf) }
-        "closure"s8 => { ClosureType::new (name, isMut, conf) }
-        "option"s8 => { OptionType::new (name, isMut, conf) }
-        _ => { Type::none (name-> name, isMut-> isMut) }        
+        copy symbols::none_::None ()
     }
-}
 
-/**
- * Transform a string into protection
- * @info: return private if the string is not a protection 
- */
-pub fn to {C of Protection, T of [U], U of c8} (a : T)-> Protection {
-    match a {
-        "pub"s8 => { Protection::PUB } 
-        "prot"s8 => { Protection::PROT }
-        _ => { Protection::PRV }
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * =====================================          MODULE          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Load the configuration of a module documentation
+     * */
+    fn loadModule (self, module : &Dict)-> &Module
+        throws AssertError
+    {
+        if let Ok (ch) = module ["childs"]? match ch {
+            a : &Array => {
+                let mut inner : [mut &Symbol] = [];
+                for x in a[] {
+                    let i = self.load (x);
+                    if (i !of none_::None) {
+                        inner ~= [i];
+                    }
+                }
+
+                let (name, doc, loc, protection) = self.loadStandard (module);
+                return copy Module (name, doc, loc, protection, inner);
+            }
+        }
+
+        throw copy AssertError ("Malformed configuration of module " ~ format ("{}", module));
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          FUNCTION          ====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+
+    /**
+     * Load a configuration of a function documentation
+     * */
+    fn loadFunction (self, func : &Dict)-> &Function
+        throws AssertError
+    {
+        let (name, doc, loc, protection) = self.loadStandard (func);
+        let params = self.loadParams (func);
+
+        if let Ok (d : &Dict) = func ["ret_type"]? {
+            return copy Function (name, doc, loc, protection, params, self.loadType (d));
+        }
+
+        throw copy AssertError ("Malformed configuration of function " ~ format ("{}", func));
+    }
+
+    /**
+     * Load parameters from configuration
+     * */
+    fn loadParams (self, func : &Dict)-> [Variable]
+        throws AssertError
+    {
+        if let Ok (params : &Array) = func ["params"]? {
+            let mut vars : [mut Variable] = [];
+            for a in params[] {
+                let name = if let Ok (Str (value-> name)) = a ["name"]? {
+                    name
+                } else throw copy AssertError ("Malformed parameter name " ~ format ("{}", a));
+
+                let type = if let Ok (type : &Dict) =  a ["type"]? {
+                    self.loadType (type)
+                } else throw copy AssertError ("Malformed parameter type " ~ format ("{}", a));
+
+                let mutability = if let Ok (Str (value-> m)) =  a ["mutability"]? {
+                    if (m == "dmut" || m == "mut") { true }
+                    else { false }
+                } else throw copy AssertError ("Malformed parameter mutability " ~ format ("{}", a));
+
+                let isRef = if let Ok (Str (value-> isRef)) = a ["ref"]? {
+                    isRef == "true"
+                } else throw copy AssertError ("Malformed parameter reference " ~ format ("{}", a));
+
+                let isLazy = if let Ok (Str (value-> isLazy)) = a ["lazy"]? {
+                    isLazy == "true"
+                } else throw copy AssertError ("Malformed parameter lazyness " ~ format ("{}", a));
+
+                let value = if let Ok (val) = a ["value"]? match val {
+                    s : &Str => { s.value }
+                    _ => throw copy AssertError ("Malformed parameter value " ~ format ("{}", a));
+                } else { "" };
+
+                vars ~= [Variable (name, type, mutability, isRef, isLazy, value)];
+            }
+
+            return vars;
+        }
+
+        throw copy AssertError ("Malformed configuration of parameters " ~ format ("{}", func));
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * =====================================          TYPES          ======================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Load a type from documentation configuration
+     * */
+    fn loadType (self, ty : &Dict)-> &Type
+        throws AssertError
+    {
+        let isMut = if let Ok (Str (value-> m)) =  ty ["mutability"]? {
+            if (m == "dmut" || m == "mut") { true }
+            else { false }
+        } else { false };
+
+        if let Ok (x) = ty ["kind"]? match x {
+            Str (value-> "fptr") => { return self.loadFuncPtrType (ty, isMut, isDelegate-> false); }
+            Str (value-> "delegate") => { return self.loadFuncPtrType (ty, isMut, isDelegate-> true); }
+            Str (value-> "array") => { return self.loadArrayType (ty, isMut); }
+            Str (value-> "class") => { return self.loadClassType (ty, isMut); }
+            Str (value-> "record") => { return self.loadClassType (ty, isMut, isRecord-> true); }
+            Str (value-> "entity") => { return self.loadClassType (ty, isMut, isEntity-> true); }
+            Str (value-> "enum") => { return self.loadEnumType (ty, isMut); }
+            Str (value-> "option") => { return self.loadOptionType (ty, isMut); }
+            Str (value-> "pointer") => { return self.loadPointerType (ty, isMut); }
+            Str (value-> "range") => { return self.loadRangeType (ty, isMut); }
+            Str (value-> "slice") => { return self.loadSliceType (ty, isMut); }
+            Str (value-> "tuple") => { return self.loadTupleType (ty, isMut); }
+            Str (value-> "map") => { return self.loadMapType (ty, isMut); }
+            Str (value-> "scalar") => {
+                let name = if let Ok (Str (value-> name)) = ty ["name"]? {
+                    name
+                } else throw copy AssertError ("Malformed scalar type name " ~ format ("{}", ty));
+
+                return copy ScalarType (name, isMut);
+            }
+            _ => {
+                let name = if let Ok (Str (value-> name)) = ty ["name"]? {
+                    name
+                } else throw copy AssertError ("Malformed type name " ~ format ("{}", ty));
+
+                return copy AnyType (name, isMut);
+            }
+        }
+
+        throw copy AssertError ("Malformed type kind " ~ format ("{}", ty));
+    }
+
+    /**
+     * Load a function pointer from a config
+     * */
+    fn loadFuncPtrType (self, d : &Dict, isMut : bool, isDelegate : bool)-> &Type
+        throws AssertError
+    {
+        let mut params : [mut &Type] = [];
+        let mut refs : [mut bool] = [];
+        let mut lazys : [mut bool] = [];
+        if let Ok (a : &Array) = d ["params"]? {
+            for i in a[] if let inner : &Dict = i {
+                params ~= [self.loadType (inner)];
+            } else throw copy AssertError ("Malformed function pointer configuration " ~ format ("{}", d));
+        }
+
+        if let Ok (a : &Array) = d ["refs"]? {
+            for i in a[] if let Str (value-> b) = i {
+                refs ~= [b == "true"];
+            } else throw copy AssertError ("Malformed function pointer configuration " ~ format ("{}", d));
+        }
+
+        if let Ok (a : &Array) = d ["lazys"]? {
+            for i in a[] if let Str (value-> b) = i {
+                refs ~= [b == "true"];
+            } else throw copy AssertError ("Malformed function pointer configuration " ~ format ("{}", d));
+        }
+
+        if (params.len != refs.len || params.len != lazys.len) {
+             throw copy AssertError ("Malformed function pointer configuration " ~ format ("{}", d));
+        }
+
+        if let Ok (ret : &Dict) = d ["return"]? {
+            return copy FuncPtrType (isMut, isDelegate, params, refs, lazys, self.loadType (ret))
+        } else throw copy AssertError ("Malformed function pointer configuration " ~ format ("{}", d));
+    }
+
+    /**
+     * Load the configuration of an array type
+     * */
+    fn loadArrayType (self, d : &Dict, isMut : bool)-> &Type
+        throws AssertError
+    {
+        let len = if let Ok (Int (value-> len)) = d ["len"]? {
+            cast!usize (len)
+        } else throw copy AssertError ("Malformed array type len " ~ format ("{}", d));
+
+        if let Ok (inner : &Dict) = d ["inner"]? {
+            return copy ArrayType (isMut, self.loadType (inner), len)
+        }
+
+        throw copy AssertError ("Malformed array type " ~ format ("{}", d));
+    }
+
+    /**
+     * Load the configuration of a slice type
+     * */
+    fn loadSliceType (self, d : &Dict, isMut : bool)-> &Type
+        throws AssertError
+    {
+        if let Ok (inner : &Dict) = d ["inner"]? {
+            return copy SliceType (isMut, self.loadType (inner))
+        }
+
+        throw copy AssertError ("Malformed slice type " ~ format ("{}", d));
+    }
+
+    /**
+     * Load the configuration of an option type
+     * */
+    fn loadOptionType (self, d : &Dict, isMut : bool)-> &Type
+        throws AssertError
+    {
+        if let Ok (inner : &Dict) = d ["inner"]? {
+            return copy OptionType (isMut, self.loadType (inner))
+        }
+
+        throw copy AssertError ("Malformed option type " ~ format ("{}", d));
+    }
+
+    /**
+     * Load the configuration of a pointer type
+     * */
+    fn loadPointerType (self, d : &Dict, isMut : bool)-> &Type
+        throws AssertError
+    {
+        if let Ok (inner : &Dict) = d ["inner"]? {
+            return copy PointerType (isMut, self.loadType (inner))
+        }
+
+        throw copy AssertError ("Malformed pointer type " ~ format ("{}", d));
+    }
+
+    /**
+     * Load the configuration of a range type
+     * */
+    fn loadRangeType (self, d : &Dict, isMut : bool)-> &Type
+        throws AssertError
+    {
+        if let Ok (inner : &Dict) = d ["inner"]? {
+            return copy RangeType (isMut, self.loadType (inner))
+        }
+
+        throw copy AssertError ("Malformed range type " ~ format ("{}", d));
+    }
+
+    /**
+     * Load the configuration of a tuple type
+     * */
+    fn loadTupleType (self, d : &Dict, isMut : bool)-> &Type
+        throws AssertError
+    {
+        let mut inners : [mut &Type] = [];
+        if let Ok (inner : &Array) = d ["inners"]? {
+            for a in inner[] if let i : &Dict = a {
+                inners ~= [self.loadType (i)];
+            } else throw copy AssertError ("Malformed tuple inner type " ~ format ("{}", d));
+
+            return copy TupleType (isMut, inners);
+        }
+
+        throw copy AssertError ("Malformed range type " ~ format ("{}", d));
+    }
+
+    /**
+     * Load the configuration of a class/struct/record type
+     * */
+    fn loadClassType (self, d : &Dict, isMut : bool, isEntity : bool = false, isRecord : bool = false)-> &Type
+        throws AssertError
+    {
+        if let Ok (Str (value-> name)) = d ["name"]? {
+            return copy ClassType (name, isMut, isEntity-> isEntity, isRecord-> isRecord);
+        }
+
+        throw copy AssertError ("Malformed class type " ~ format ("{}", d));
+    }
+
+    /**
+     * Load the configuration of an enumeration type
+     * */
+    fn loadEnumType (self, d : &Dict, isMut : bool)-> &Type
+        throws AssertError
+    {
+        let name = if let Ok (Str (value-> name)) = d ["name"]? {
+            name
+        } else throw copy AssertError ("Malformed enum type name " ~ format ("{}", d));
+
+        if let Ok (inner : &Dict) = d ["proxy"]? {
+            return copy EnumType (name, isMut, self.loadType (inner))
+        }
+
+        throw copy AssertError ("Malformed enum type " ~ format ("{}", d));
+    }
+
+    /**
+     * Load the configuration of a map type
+     * */
+    fn loadMapType (self, d : &Dict, isMut : bool)-> &Type
+        throws AssertError
+    {
+        let key = if let Ok (inner : &Dict) = d ["key"]? {
+            self.loadType (inner)
+        } else throw copy AssertError ("Malformed map key type " ~ format ("{}", d));
+
+        let value = if let Ok (inner : &Dict) = d ["value"]? {
+            self.loadType (inner)
+        } else throw copy AssertError ("Malformed map value type " ~ format ("{}", d));
+
+        copy MapType (isMut, key, value)
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          STANDARD          ====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Load the standard information of a symbol
+     * */
+    fn loadStandard (self, doc : &Dict)-> ([c8], [c8], Location, Protection)
+        throws AssertError
+    {
+        let name = if let Ok (x) = doc ["name"]? match x {
+            s : &Str => { s.value }
+            _ => throw copy AssertError ("Malformed standard configuration of " ~ format ("{}", doc));
+        } else { "" };
+
+        let filename = if let Ok (x) = doc ["loc_file"]? match x {
+            s : &Str => { s.value }
+            _ => throw copy AssertError ("Malformed standard configuration of " ~ format ("{}", doc));
+        } else { "" };
+
+        let line = if let Ok (x) = doc ["loc_line"]? match x {
+            i : &Int => { cast!u64 (i.value) }
+            _ => throw copy AssertError ("Malformed standard configuration of " ~ format ("{}", doc));
+        } else { 0u64 };
+
+        let col = if let Ok (x) = doc ["loc_col"]? match x {
+            i : &Int => { cast!u64 (i.value) }
+            _ => throw copy AssertError ("Malformed standard configuration of " ~ format ("{}", doc));
+        } else { 0u64 };
+
+        let comm = if let Ok (x) = doc ["doc"]? match x {
+            s : &Str => { s.value }
+            _ => throw copy AssertError ("Malformed standard configuration of " ~ format ("{}", doc));
+        } else { "" };
+
+        let protect = if let Ok (x) = doc ["protect"]? match x {
+            s : &Str => {
+                if (s.value == "pub") { Protection::PUB }
+                else if (s.value == "prot") { Protection::PROT }
+                else { Protection::PRV }
+            }
+            _ => throw copy AssertError ("Malformed standard configuration of " ~ format ("{}", doc));
+        } else { Protection::PRV };
+
+        (name, comm, Location (filename, line, col), protect)
     }
 }

@@ -26,6 +26,12 @@ pub record RepoBuilder {
     // True if the repobuilder is used to build unittest executable
     let _forUnitTest : bool;
 
+    // True iif the repobuilder is used to build the documentation file
+    let _forDoc : bool;
+
+    // True if does not really compile
+    let _dry : bool;
+
     // The number of threads to spawn in the task pool
     let _nbThreads : u32;
 
@@ -33,11 +39,13 @@ pub record RepoBuilder {
      * @params:
      *    - cfg: the configuration of the repo
      * */
-    pub self (path : Path, args : &Config, cfg : GyllirPackageConfiguration, forUnitTest : bool)
+    pub self (path : Path, args : &Config, cfg : GyllirPackageConfiguration, forUnitTest : bool, forDoc : bool = false, dry : bool = false)
         with _cwd = path
         , _args = args
         , _cfg = cfg
         , _forUnitTest = forUnitTest
+        , _forDoc = forDoc
+        , _dry = dry
         , _verbose = (if let Ok (Bool (value-> true)) = self._args ["verbose"]? {
             true
         } else { false })
@@ -60,12 +68,16 @@ pub record RepoBuilder {
         let (includes, links) = self.resolveDependencies (alias context);
         self.runPreCommands (alias context);
         let (srcPath, cacheDir) = {
-            let (srcPath, cacheDir, changedSources) = self.buildSourceDir (alias context, includes);
-            if (self._forUnitTest) {
-                self.buildUnitTest (alias context, srcPath, includes, changedSources);
-            }
+            if (self._forDoc) {
+                self.buildSourceDoc (alias context, includes)
+            } else {
+                let (srcPath, cacheDir, changedSources) = self.buildSourceDir (alias context, includes);
+                if (self._forUnitTest && !self._dry) {
+                    self.buildUnitTest (alias context, srcPath, includes, changedSources);
+                }
 
-            (srcPath, cacheDir)
+                (srcPath, cacheDir)
+            }
         } catch {
             err : &AssertError => {
                 utils::log::error ("Error", "failed to compile project ", self._cfg.name, "' : ", err.msg);
@@ -96,6 +108,8 @@ pub record RepoBuilder {
     {
         let srcPath = self.findRootSourceFile ();
         let (cacheDir, sources, changed) = self.listChangedFiles ();
+
+        if (self._dry) { return (srcPath, cacheDir, changed); }
 
         self.createCacheDirs (cacheDir);
 
@@ -222,6 +236,27 @@ pub record RepoBuilder {
     }
 
     /**
+     * Build the documentation file from sources
+     * */
+    prv fn buildSourceDoc (self, dmut context : &GyllirManager, includes : [Path])-> (Path, Path)
+        throws AssertError
+    {
+        let srcPath = self.findRootTestFile ();
+        let cacheDir = self._cwd.push (defaults::__CACHE_DOC_DIR__);
+        self.createCacheDirs (cacheDir);
+
+        let options = self.createDocCompileOptions (srcPath, includes);
+        utils::log::info ("Compiling", "documentation for ", self._cfg.name, " v", self._cfg.version[]);
+        if !context.runProcess (self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose) {
+            utils::log::error ("Error", "failed to compile documentation '", self._cfg.name, "'");
+            etc::c::process::_yrt_exit (-1);
+            panic;
+        }
+
+        (srcPath, cacheDir)
+    }
+
+    /**
      * Finalize the building of the package
      * @params:
      *    - context: the context of the compilation
@@ -278,6 +313,22 @@ pub record RepoBuilder {
             options ~= ["-O3"];
         } else {
             options ~= ["-g"];
+        }
+
+        options
+    }
+
+    /**
+     * Build the compile command line option to build documentation file
+     * */
+    prv fn createDocCompileOptions (self, srcPath : Path, depPaths : [Path])-> [[c8]] {
+        let mut options : [[c8]] = copy [srcPath.toStr (), "-c", "-fdoc", self._cwd.push (defaults::__CACHE_DOC_DIR__).push (self._cfg.name).addExtension (defaults::__DOC_EXTENSION__).toStr ()];
+        if (self._verbose) {
+            options ~= ["-fv"];
+        }
+
+        for p in depPaths {
+            options ~= ["-I", p.toStr ()];
         }
 
         options
@@ -801,7 +852,7 @@ pub record RepoBuilder {
         let dmut libs : [Path] = [];
         let dmut names : [Path] = [];
         for k, d in self._cfg.dependencies[] {
-            let (n, l) = context:.resolveDependency (self._args, self._cwd, k, d);
+            let (n, l) = context:.resolveDependency (self._args, self._cwd, k, d, dry-> (self._forDoc || self._dry));
             libs ~= l;
             names ~= n;
         }

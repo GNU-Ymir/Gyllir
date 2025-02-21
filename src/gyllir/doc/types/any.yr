@@ -1,26 +1,17 @@
-in enum_;
+in any;
 
 use std::{stream, fs::path};
 
 @final
-pub class EnumType over Type {
+pub class AnyType over Type {
 
     let _name : [c8];
-
     let _module : Path;
 
-    let _proxy : &Type;
-    
-    /**
-     * @params: 
-     *   - name: the name of the enum
-     *   - isMut: bool is the enum is mutable
-     */
-    pub self (name : [c8], isMut : bool, proxy : &Type)
+    pub self (name : [c8], isMut : bool)
         with super (isMut-> isMut)
         , _name = Path (name, sep-> "::"s8).file ()
         , _module = Path (name, sep-> "::"s8).parent ()
-        , _proxy = proxy
     {}
 
     pub fn getName (self)-> [c8] {
@@ -31,14 +22,10 @@ pub class EnumType over Type {
         self._module
     }
 
-    pub fn getProxy (self)-> &Type {
-        self._proxy
-    }
-
-
     impl Streamable {
         pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Enum (", self._module.push (self._name).toStr (sep-> "::"), ")");
+            stream:.write ("Any (", self._module.push (self._name).toStr (sep-> "::"), ")");
         }
     }
+
 }

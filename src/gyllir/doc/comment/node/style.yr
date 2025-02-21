@@ -1,0 +1,31 @@
+in style;
+
+use std::stream;
+use gyllir::doc::comment::tokens;
+
+@final
+pub class CommentStyle over CommentNode {
+    let _style : [c8];
+    let _content : [c8];
+
+    pub self (style : [c8], content : [c8])
+        with  _style = style
+        , _content = content
+    {}
+
+    pub over dumpHtml (self, dmut stream : &StringStream) {
+        match self._style {
+            CommentTokens::BOLD_STAR | CommentTokens::BOLD_UNDER => {
+                stream:.write ("<strong>", self._content, "</strong>");
+            }
+            CommentTokens::ITALIC_STAR | CommentTokens::ITALIC_UNDER => {
+                stream:.write ("<em>", self._content, "</em>");
+            }
+            CommentTokens::CODE_SEVEN => {
+                stream:.write ("<code class=\"language-ymir hljs\">", self._content, "</code>");
+            }
+        }
+    }
+
+    impl Streamable;
+}

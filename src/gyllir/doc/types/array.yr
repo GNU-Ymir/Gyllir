@@ -1,22 +1,15 @@
-mod gyllir::doc::types::array;
+in array;
 
-import gyllir::doc::types::base;
-import std::config::_, std::io, std::conv;
-import gyllir::utils::options;
-import gyllir::doc::loader;
+use std::stream;
 
-
-/**
- * A fixed size array
- */
+@final
 pub class ArrayType over Type {
 
     // The inner type of the array
     let _child : &Type;
 
-    // The size of the array
-    let _size : usize;
-    
+    // The len of the array
+    let _len : usize;
 
     /**
      * @params: 
@@ -24,18 +17,10 @@ pub class ArrayType over Type {
      *    - isMut: true if the type is mutable
      *    - conf: the configuration of the array type (json content)
      */
-    pub self (name : [c8], isMut : bool, conf : &Config)
-        with super (name-> name, isMut-> isMut), _child = {
-            {
-                loader::toType (conf["childs"][0])
-            } catch {
-                _ => Type::none ()
-            }
-        }, _size = {
-            (conf["size"]?).toOr ("0"s8).to!usize ()
-        } catch {
-            _ => { 0us }
-        }
+    pub self (isMut : bool, inner : &Type, len : usize)
+        with super (isMut-> isMut)
+        , _child = inner
+        , _len = len
     {}
 
     /**
@@ -46,12 +31,16 @@ pub class ArrayType over Type {
     }
 
     /**
-     * @returns: the size of the array
+     * @returns: the len of the array
      */
-    pub fn getSize (self)-> usize {
-        self._size
+    pub fn getLen (self)-> usize {
+        self._len
     }
-    
-    impl Streamable;
-    
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write ("Array (", self._child, ";", self._len, ")");
+        }
+    }
+
 }

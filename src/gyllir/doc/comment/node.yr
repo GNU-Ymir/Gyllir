@@ -1,0 +1,127 @@
+in node;
+
+pub mod ::code;
+pub mod ::list;
+pub mod ::style;
+pub mod ::text;
+
+use std::{syntax::tokenizer};
+use std::{stream, io, char};
+
+/**
+ * A comment node used to format the comments of a symbol
+ * */
+pub class CommentNode {
+
+    // The head of the Comment node
+    let _head : [c8];
+
+    // The children of the node
+    let mut _childrens : [mut &CommentNode] = [];
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * =====================================          CTORS          ======================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    prot self ()
+        with _head = ""
+    {}
+
+    /**
+     * Create a new Comment node
+     * @params:
+     *    - head: the html head of the node
+     */
+    pub self (head : [c8])
+        with _head = copy [toLower (c) for c in head]
+    {}
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          SETTERS          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Add a child in the node
+     * @params:
+     *    - ch: the child to add
+     */
+    pub fn addChild (mut self, ch : &CommentNode) {
+        self._childrens ~= [ch];
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          GETTERS          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * The capitalized version of the head
+     * */
+    pub fn capitalizedHead (self)-> [c8] {
+        let tzer = Tokenizer!{c8} ([" ", "\n", "\r", "\t"]);
+        let tokens = tzer.tokenize (self._head);
+        let dmut stream = copy StringStream ();
+        for s in tokens if s.len > 0 {
+            stream:.write (copy [toUpper (s[0])] ~ s [1 .. $]);
+        }
+
+        stream[]
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          DUMPING          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Transform the node into html
+     * @params:
+     *    - stream: the stream to populate
+     */
+    pub fn dumpHtml (self, dmut stream : &StringStream) {
+        if (self._childrens.len == 0 && self._head == "description") return;
+
+        stream:.write ("<dt class=\"head\">");
+        let dmut innerStream = copy StringStream ();
+        for i in self._childrens {
+            i.dumpHtml (alias innerStream);
+        }
+
+        if (self._head != "" && innerStream[].len > 256) {
+            stream:.write ("<span class=\"desc-closing\">[−]</span> ");
+        }
+
+        match self._head {
+            "param" | "params" => { stream:.write ("Parameters"); }
+            "return" | "returns" => { stream:.write ("Returns"); }
+            "throw" | "throws" => { stream:.write ("Throws"); }
+            "complexity" => { stream:.write ("Complexity"); }
+            "assume" | "assumes" => { stream:.write ("Assumes"); }
+            "assert" | "asserts" => { stream:.write ("Assertions"); }
+            "example" => { stream:.write ("Example"); }
+            "warning" => { stream:.write ("Warning"); }
+            "info" | "infos" => { stream:.write ("Information"); }
+            "authors" | "author" => { stream:.write ("Authors"); }
+            "license" => { stream:.write ("License"); }
+            _ => { stream:.write (self.capitalizedHead ()); }
+        }
+
+        stream:.write ("</dt><dd>", innerStream[], "</dd>");
+    }
+
+    impl Streamable;
+}

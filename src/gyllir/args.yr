@@ -202,9 +202,9 @@ pub class GyllirArgumentParser {
     prv fn parseDoc (self, args : [[c8]])-> (&Config)? {
         let dmut parser = (copy ArgumentParser)
             :.help ("help", short-> "h", comments-> "print this help and exit")
-            :.flag ("verbose", short-> "v", comments-> "clean the documentation")
-            :.option!{[c8]} ("inDir", short-> "i", comments-> "input directory in which json documentation files are already dumped")
-            :.option!{i32} ("j", comments-> "number of parallel threads to spawn");
+            :.flag ("verbose", short-> "v", comments-> "verbose mode")
+            :.option!{[c8]} ("input", short-> "i", comments-> "input json file already produced by a previous compilation")
+            :.option!{[c8]} ("output", short-> "o", comments-> "output directory");
 
         return {
             parser.parse (args)

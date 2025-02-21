@@ -1,44 +1,34 @@
-mod gyllir::doc::types::tuple;
+in tuple;
 
-import gyllir::doc::types::base;
-import std::collection::vec;
-import std::io, std::config::_;
-import gyllir::doc::loader;
+use std::stream;
 
-
-/**
- * A tuple type
- */
+@final
 pub class TupleType over Type {
 
     // The inner types of the tuple
-    let dmut _inner = Vec!{&Type}::new ();
+    let _childs : [&Type];
 
-    /**
-     * @params: 
-     *   - name: the name of the type
-     *   - isMut: true if the type is mutable
-     *   - conf: the json configuration of the tuple
-     */
-    pub self (name : [c8], isMut : bool, conf : &Config)
-        with super (name-> name, isMut-> isMut)
-    {
-        match conf["childs"]? {
-            Ok (arr : &Array) => {
-                for i in 0us .. arr.len ()  {
-                    self._inner:.push (loader::toType (arr[i]))?;
-                }
-            }
-        }
-    }
+    pub self (isMut : bool, childs : [&Type])
+        with super (isMut-> isMut)
+        , _childs = childs
+    {}
 
     /**
      * @returns: the inner types of the tuple
      */
     pub fn getInnerTypes (self)-> [&Type] {
-        self._inner []
+        self._childs
     }
 
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write ("Tuple (");
+            for i, j in self._childs {
+                if i != 0 stream:.write (", ");
+                stream:.write (j);
+            }
 
-    impl Streamable;
+            stream:.write (")");
+        }
+    }
 }

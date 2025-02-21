@@ -1,0 +1,30 @@
+in list;
+
+use std::stream;
+
+pub class CommentList over CommentNode {
+    pub self () {}
+
+    pub over dumpHtml (self, dmut stream : &StringStream) {
+        stream:.write ("<ul>");
+        for i in self._childrens  {
+            i.dumpHtml (alias stream);
+        }
+        stream:.write ("</ul>");
+    }
+
+    impl Streamable;
+}
+
+pub class CommentListItem over CommentNode {
+    pub self () {}
+    pub over dumpHtml (self, dmut stream : &StringStream) {
+        stream:.write ("<li>");
+        for i in self._childrens {
+            i.dumpHtml (alias stream);
+        }
+        stream:.write ("</li>");
+    }
+
+    impl std::stream::Streamable;
+}
