@@ -2,9 +2,13 @@ in symbols;
 
 use std::{stream, fs::path};
 
+pub mod ::class_;
+pub mod ::ctor;
+pub mod ::function;
+pub mod ::method;
 pub mod ::module;
 pub mod ::none_;
-pub mod ::function;
+pub mod ::variable;
 
 pub lazy INTERNAL_LOCATION = Location ("", 0, 0);
 
@@ -37,37 +41,17 @@ pub record Location {
  * */
 @abstract
 pub class Symbol {
-    let _name : [c8];
-    let _loc : Location;
-    let _doc : [c8];
-    let _prot : Protection;
+    pub let name : [c8];
+    pub let loc : Location;
+    pub let doc : [c8];
+    pub let protect : Protection;
 
     pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
-        with _name = name
-        , _loc = loc
-        , _doc = doc
-        , _prot = protection
+        with name = name
+        , loc = loc
+        , doc = doc
+        , protect = protection
     {}
-
-    @field
-    pub fn name (self)-> [c8] {
-        self._name
-    }
-
-    @field
-    pub fn doc (self)-> [c8] {
-        self._doc
-    }
-
-    @field
-    pub fn loc (self)-> Location {
-        self._loc
-    }
-
-    @field
-    pub fn protection (self)-> Protection {
-        self._prot
-    }
 
     impl Streamable;
 

@@ -2,6 +2,8 @@ in any;
 
 use std::{stream, fs::path};
 
+pub lazy EMPTY_ANY = copy AnyType ("", false);
+
 @final
 pub class AnyType over Type {
 

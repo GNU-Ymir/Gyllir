@@ -1,16 +1,20 @@
-in function;
+in method;
 
 use std::stream;
 use gyllir::doc::{symbols::variable, types, types::any};
 
 @final
-pub class Function over Symbol {
+pub class Method over Symbol {
 
     pub let mut parameters : [&Variable] = [];
-    pub let mut retType : &Type = EMPTY_ANY;
     pub let mut throwers : [&Type] = [];
+    pub let mut retType : &Type = EMPTY_ANY;
 
-    pub let mut isInline : bool = false;
+    pub let mut isMutable : bool =  false;
+
+    pub let mut isFinal : bool = false;
+    pub let mut isEmpty : bool = false;
+    pub let mut isField : bool = false;
     pub let mut isUnsafe : bool = false;
 
     /**
@@ -25,15 +29,30 @@ pub class Function over Symbol {
 
     impl Streamable {
         pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Function ", self.name, " => ", self.loc, "\n");
+            stream:.write ("Method ", self.name, " => ", self.loc, "\n");
             stream:.entabing ();
-            if (self.isUnsafe && self.isInline) { stream:.write ("@{unsafe, inline}\n"); }
-            else if self.isUnsafe { stream:.write ("@unsafe\n"); }
-            else if self.isInline { stream:.write ("@inline\n"); }
+            let mut attrs : [[c8]] = [];
+            if self.isField { attrs ~= ["field"]; }
+            if self.isFinal { attrs ~= ["final"]; }
+            if self.isUnsafe { attrs ~= ["unsafe"]; }
+
+            if attrs.len == 1 {
+                stream:.write ("@", attrs [0], "\n");
+            } else if attrs.len > 1 {
+                stream:.write ("@{");
+                for i, j in attrs {
+                    if i != 0 { stream:.write (", "); }
+                    stream:.write (j);
+                }
+                stream:.write ("}\n");
+            }
 
             stream:.write ("fn (");
-            for i, j in self.parameters {
-                if i != 0 stream:.write (", ");
+            if (self.isMutable) { stream:.write ("mut self"); }
+            else { stream:.write ("self"); }
+
+            for j in self.parameters {
+                stream:.write (", ");
                 stream:.write (j);
             }
             stream:.write (")-> ", self.retType, "\n");

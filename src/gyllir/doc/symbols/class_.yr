@@ -1,0 +1,73 @@
+in class_;
+
+use std::stream;
+use gyllir::doc::{symbols::{variable, method, ctor},
+                  types,
+                  types::any};
+
+@final
+pub class ClassSymbol over Symbol {
+
+    pub let mut hasDtor = false;
+    pub let mut isAbstract = false;
+    pub let mut isFinal = false;
+    pub let mut isEntity = false;
+    pub let mut isRecord = false;
+
+    pub let mut ancestor : &Type = EMPTY_ANY;
+    pub let mut fields : [&Variable] = [];
+
+    pub let mut methods : [&Method] = [];
+    pub let mut ctors : [&Ctor] = [];
+
+    pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
+        with super (name, doc, loc, protection)
+    {}
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write ("Type ", self.name, " => ", self.loc, "\n");
+            stream:.entabing ();
+            if self.isRecord { stream:.write ("record {\n"); }
+            else if self.isEntity { stream:.write ("entity {\n"); }
+            else { stream:.write ("class {\n"); }
+            stream:.entabing ();
+            stream:.write ("(");
+            for i, f in self.fields {
+                if i != 0 stream:.write (", ");
+                if f.protect == Protection::PUB {
+                    stream:.write ("pub ");
+                } else if f.protect == Protection::PROT {
+                    stream:.write ("prot ");
+                } else stream:.write ("prv ");
+
+                stream:.write (f);
+            }
+            stream:.detabing ();
+            stream:.write (")\n");
+
+            stream:.entabing ();
+            for i in self.ctors {
+                if i.protect == Protection::PUB {
+                    stream:.write ("pub ");
+                } else if i.protect == Protection::PROT {
+                    stream:.write ("prot ");
+                } else stream:.write ("prv ");
+                stream:.write (i, "\n");
+            }
+            for i in self.methods {
+                if i.protect == Protection::PUB {
+                    stream:.write ("pub ");
+                } else if i.protect == Protection::PROT {
+                    stream:.write ("prot ");
+                } else stream:.write ("prv ");
+                stream:.write (i, "\n");
+            }
+            stream:.detabing ();
+
+            stream:.write ("}\n");
+
+            stream:.detabing ();
+        }
+    }
+}

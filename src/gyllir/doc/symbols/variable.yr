@@ -1,0 +1,29 @@
+in variable;
+
+use std::stream;
+use gyllir::doc::{types, types::any};
+
+@final
+pub class Variable over Symbol {
+
+    pub let mut type : &Type = EMPTY_ANY;
+    pub let mut isMut : bool = false;
+    pub let mut isRef : bool = false;
+    pub let mut isLazy : bool = false;
+    pub let mut defaultValue : [c8] = [];
+
+    pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
+        with super (name, doc, loc, protection)
+    {}
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            if self.isMut stream:.write ("mut ");
+            if self.isRef stream:.write ("ref ");
+            if self.isLazy stream:.write ("lazy ");
+
+            stream:.write (self.name, " : ", self.type);
+            if (self.defaultValue != "") stream:.write (" = ", self.defaultValue);
+        }
+    }
+}

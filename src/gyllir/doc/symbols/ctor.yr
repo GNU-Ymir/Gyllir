@@ -1,16 +1,13 @@
-in function;
+in ctor;
 
 use std::stream;
-use gyllir::doc::{symbols::variable, types, types::any};
+use gyllir::doc::{symbols::variable, types};
 
 @final
-pub class Function over Symbol {
+pub class Ctor over Symbol {
 
     pub let mut parameters : [&Variable] = [];
-    pub let mut retType : &Type = EMPTY_ANY;
     pub let mut throwers : [&Type] = [];
-
-    pub let mut isInline : bool = false;
     pub let mut isUnsafe : bool = false;
 
     /**
@@ -25,18 +22,16 @@ pub class Function over Symbol {
 
     impl Streamable {
         pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Function ", self.name, " => ", self.loc, "\n");
+            stream:.write ("Ctor ", self.name, " => ", self.loc, "\n");
             stream:.entabing ();
-            if (self.isUnsafe && self.isInline) { stream:.write ("@{unsafe, inline}\n"); }
-            else if self.isUnsafe { stream:.write ("@unsafe\n"); }
-            else if self.isInline { stream:.write ("@inline\n"); }
+            if self.isUnsafe { stream:.write ("@unsafe\n"); }
 
             stream:.write ("fn (");
             for i, j in self.parameters {
                 if i != 0 stream:.write (", ");
                 stream:.write (j);
             }
-            stream:.write (")-> ", self.retType, "\n");
+            stream:.write (")\n");
             if (self.throwers.len != 0) {
                 stream:.entabing ();
                 stream:.write ("throws ");

@@ -6,7 +6,7 @@ use std::stream;
 @final
 pub class Module over Symbol {
 
-    let _childs : [&Symbol] = [];
+    pub let mut childs : [&Symbol] = [];
 
     /**
      * @params:
@@ -14,22 +14,15 @@ pub class Module over Symbol {
      *    - loc: the location of the module declaration
      *    - childs: the symbols found in the module
      * */
-    pub self (name : [c8], doc : [c8], loc : Location, protection : Protection, childs : [&Symbol])
+    pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
         with super (name, doc, loc, protection)
-        , _childs = childs
     {}
-
-    @field
-    pub fn childs (self)-> [&Symbol] {
-        self._childs
-    }
-
 
     impl Streamable {
         pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Module : ", self._name, " => ", self._loc, "\n");
+            stream:.write ("Module : ", self.name, " => ", self.loc, "\n");
             stream:.entabing ();
-            for d in self._childs {
+            for d in self.childs {
                 stream:.write (d);
             }
             stream:.detabing ();

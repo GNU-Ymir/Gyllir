@@ -80,15 +80,7 @@ pub record RepoDocBuilder {
             }
         };
 
-        let symbol = {
-            (SymbolLoader ()).load (docConfig)
-        } catch {
-            err => {
-                utils::log::error ("Error", "failed to read documentation file ", inputFile.toStr (), "' : ", err.msg);
-                etc::c::process::_yrt_exit (-1);
-                panic;
-            }
-        }
+        let symbol = (SymbolLoader ()).load (docConfig);
 
         self.generate (outputDir, symbol);
     }
@@ -98,6 +90,7 @@ pub record RepoDocBuilder {
      * */
     fn generate (self, outDir : Path, symbol : &Symbol) {
         utils::log::info ("Generate", "documentation pages in '", outDir.toStr (), "'");
+        symbol;
         println (symbol);
     }
 
