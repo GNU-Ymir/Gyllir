@@ -1,7 +1,0 @@
-mod gyllir::doc::html::_;
-
-pub import gyllir::doc::html::node;
-pub import gyllir::doc::html::head;
-pub import gyllir::doc::html::body;
-pub import gyllir::doc::html::table;
-pub import gyllir::doc::html::foot;

@@ -189,7 +189,7 @@ function reapModuleList() {
     var modules = new Array();
 
     $('#module-list-source').find('li > a').each(function() {
-	modules.push($(this).text());
+	    modules.push($(this).text());
     });
 
     return modules;

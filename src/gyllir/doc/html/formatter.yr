@@ -1,6 +1,6 @@
 in formatter;
 
-use std::{io, stream};
+use std::{io, stream, algorithm::searching};
 
 /**
  * Format a text and write it in 'stream'
@@ -22,6 +22,20 @@ pub fn format (dmut stream : &StringStream, content : [c8], values : [[c8] => [c
 
         rest = rest_;
     }        
+}
+
+/**
+ * Format git url that can be in ssh format to http format
+ * */
+pub fn formatGitUrl (url : [c8], version : [c8] = "master")-> [c8] {
+    if url.len > 4 && url [0 .. 4] == "git@" {
+        if let Ok (n) = find (url, ':') {
+            let rootUrl = url [4 .. n];
+            return "https://" ~ rootUrl ~ "/" ~ url [n .. $] ~ "/tree/" ~ version;
+        }
+    }
+
+    url
 }
 
 /**

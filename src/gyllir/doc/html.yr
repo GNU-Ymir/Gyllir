@@ -1,8 +1,15 @@
-mod gyllir::doc::html::node;
+in html;
 
-import std::stream;
+pub mod ::ressources;
+pub mod ::formatter;
+pub mod ::body;
+pub mod ::head;
+pub mod ::foot;
 
-pub class @abstract HtmlNode {
+use std::stream;
+
+@abstract
+pub class HtmlNode {
 
     pub self () {}
 
@@ -12,5 +19,5 @@ pub class @abstract HtmlNode {
      *   - stream: the stream to populate
      */
     pub fn dumpHtml (self, dmut stream : &StringStream);
-        
+
 }

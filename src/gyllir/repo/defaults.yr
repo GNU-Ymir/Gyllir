@@ -63,7 +63,6 @@ __doc/
  */
 pub def __SRC_DIR__ = "src";
 
-
 pub def __DEBUG_DIR__ = "debug";
 pub def __RELEASE_DIR__ = "release";
 pub def __LIB_DIR__ = "__libs"
@@ -82,7 +81,6 @@ pub def __CACHE_DOC_DIR__ = ".target/doc"
 pub def __CACHE_TEST_DIR__ = ".target/test"
 
 
-
 pub def __YMIR_EXTENSION__ = "yr";
 pub def __OBJECT_EXTENSION__ = "o";
 pub def __DEPS_EXTENSION__ = "deps";
@@ -90,3 +88,4 @@ pub def __SYM_LIST_EXTENSION__ = "syms";
 pub def __DOC_EXTENSION__ = "doc.json";
 pub def __MARKDOWN_EXTENSION__ = "md";
 pub def __LIBRARY_EXTENSION__ = "a";
+pub def __HTML_EXTENSION__ = "html";

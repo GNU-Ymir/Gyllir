@@ -1,19 +1,12 @@
-mod gyllir::doc::html::head;
+in head;
 
-import std::stream, std::fs::_, std::env;
-import std::io;
-import std::collection::map;
-
-import gyllir::doc::symbols::_;
-import gyllir::doc::html::node;
-import gyllir::doc::html::table;
-import gyllir::doc::html::body;
-import gyllir::doc::formatter;
-
+use std::{stream};
+use gyllir::doc::{_, symbols::_, types::_, html::_};
 
 /**
  * Html header of a page 
  */
+@final
 pub class HtmlHeader over HtmlNode {
 
     // The name of the project
@@ -26,7 +19,7 @@ pub class HtmlHeader over HtmlNode {
     let _name : [c8];
 
     // The toc of the page
-    let _table : &HtmlTable;
+    let _table : [c8];
 
     // The body of the page
     let _body : &HtmlBody;
@@ -36,8 +29,12 @@ pub class HtmlHeader over HtmlNode {
      * @params: 
      *   - name: the name of the page
      */
-    pub self (project : [c8], git : [c8], name : [c8], table : &HtmlTable, body : &HtmlBody)
-        with _project = project, _git = git, _name = name, _table = table, _body = body
+    pub self (project : [c8], git : [c8], name : [c8], table : [c8], body : &HtmlBody)
+        with _project = project
+        , _git = git
+        , _name = name
+        , _table = table
+        , _body = body
     {}
 
     /**
@@ -46,43 +43,15 @@ pub class HtmlHeader over HtmlNode {
      *   - stream: the stream to populate
      */
     pub over dumpHtml (self, dmut stream : &StringStream) {
-        let html_head = self.readResource ();
-
-        let dmut streamToc = StringStream::new ();
-        self._table.dumpHtml (alias streamToc);
-
-        let dmut streamBody = StringStream::new ();
+        let dmut streamBody = copy StringStream ();
         self._body.dumpHtml (alias streamBody);
 
-        let mut gitUrl = self._git;
-        let githubStart = "git@github.com:"s8;
-        if (gitUrl.len > githubStart.len && gitUrl[0us..githubStart.len] == githubStart) {
-            gitUrl = "https://github.com/"s8 ~ gitUrl[githubStart.len .. $ - 4us];            
-        }
+        let mp = copy ["Title"  => (self._project ~ " " ~ self._name),
+                       "GitURL" => formatter::formatGitUrl (self._git),
+                       "Modules" => self._table,
+                       "Body" => streamBody[]];
 
-        let prj = self._project;
-        let map = hmap#{
-            "Title"s8 => prj,
-            "GitURL"s8 => gitUrl,
-            "Modules"s8 => streamToc[],
-            "Body"s8 => streamBody[]
-        };
-
-        formatter::format (alias stream, html_head, map);
+        formatter::format (alias stream, ressources::HEADER, mp);
     }
 
-
-    prv fn readResource (self)-> [c8] {
-        let ymir_res = Path::new ("/etc/gyllir/res"s8);
-
-        let mut res = ""s8;
-        with dmut f = File::open (ymir_res.push ("html"s8).push ("header.html"s8)) {
-            res = f:.readAll ();
-        } catch {
-            _ => {}
-        }
-
-        return res;
-    }
-    
 }
