@@ -1,0 +1,47 @@
+in template;
+
+use std::stream;
+use gyllir::doc::symbols::none_;
+
+pub mod ::any;
+pub mod ::and;
+pub mod ::ofv;
+pub mod ::var;
+pub mod ::variadic;
+
+@abstract
+pub class TemplateParam {
+    pub self () {}
+    impl Streamable;
+}
+
+@final
+pub class Template over Symbol {
+
+    pub let mut test : [c8] = [];
+    pub let mut params : [&TemplateParam] = [];
+    pub let mut inners : [&Symbol] = [];
+
+    pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
+        with super (name, doc, loc, protection)
+    {}
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write ("Template ", self.name, " => ", self.loc, "\n");
+            stream:.entabing ();
+            if (self.test != "") stream:.write ("if ", self.test, " ");
+            stream:.write ("{");
+            for i, j in self.params {
+                if i != 0 stream:.write (", ");
+                stream:.write (j);
+            }
+            stream:.write ("}\n");
+
+            for i in self.inners {
+                stream:.write (i, "\n");
+            }
+            stream:.detabing ();
+        }
+    }
+}

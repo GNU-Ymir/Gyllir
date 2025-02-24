@@ -9,6 +9,8 @@ pub class ClassType over Type {
 
     let _name : [c8];
 
+    let _innerMut : bool;
+
     // True iif this is an entity
     let _isEntity : bool;
 
@@ -23,16 +25,21 @@ pub class ClassType over Type {
      *   - name: the name of the class
      *   - isMut: bool is the class is mutable
      */
-    pub self (name : [c8], isMut : bool, isEntity : bool = false, isRecord : bool = false)
+    pub self (name : [c8], isMut : bool, innerMut : bool, isEntity : bool = false, isRecord : bool = false)
         with super (isMut-> isMut)
         , _name = Path (name, sep-> "::"s8).file ()
         , _module = Path (name, sep-> "::"s8).parent ()
         , _isEntity = isEntity
         , _isRecord = isRecord
+        , _innerMut = innerMut
     {}
 
     pub fn getName (self)-> [c8] {
         self._name
+    }
+
+    pub fn isInnerMutable (self)-> bool {
+        self._innerMut
     }
 
     /**
@@ -40,6 +47,10 @@ pub class ClassType over Type {
      */
     pub fn getModule (self)-> Path {
         self._module
+    }
+
+    pub fn isClass (self)-> bool {
+        !self._isEntity && !self._isRecord
     }
 
     pub fn isEntity (self)-> bool {

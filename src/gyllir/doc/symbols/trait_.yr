@@ -1,0 +1,34 @@
+in trait_;
+
+
+use std::stream;
+use gyllir::doc::{symbols::{variable, method, ctor},
+                  types,
+                  types::any};
+
+@final
+pub class TraitSymbol over Symbol {
+    pub let mut methods : [&Method] = [];
+    pub let mut asserts : [([c8], [c8], [c8])] = [];
+
+    pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
+        with super (name, doc, loc, protection)
+    {}
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write ("Trait ", self.name, " => ", self.loc, "\n");
+            stream:.entabing ();
+            for i in self.asserts {
+                stream:.write ("cte assert (", i.0, ", ", i.1, ")\n");
+            }
+
+            for i in self.methods {
+                streamProtection (i.protect, alias stream);
+                stream:.write (i, "\n");
+            }
+            stream:.detabing ();
+        }
+    }
+
+}

@@ -17,8 +17,12 @@ pub class ClassSymbol over Symbol {
     pub let mut ancestor : &Type = EMPTY_ANY;
     pub let mut fields : [&Variable] = [];
 
+    pub let mut asserts : [([c8], [c8], [c8])] = [];
+    pub let mut implements : [[c8]] = [];
     pub let mut methods : [&Method] = [];
     pub let mut ctors : [&Ctor] = [];
+    pub let mut templateMethods : [&template::Template] = [];
+    pub let mut templateCtors : [&template::Template] = [];
 
     pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
         with super (name, doc, loc, protection)
@@ -32,41 +36,46 @@ pub class ClassSymbol over Symbol {
             else if self.isEntity { stream:.write ("entity {\n"); }
             else { stream:.write ("class {\n"); }
             stream:.entabing ();
+            for i in self.implements {
+                stream:.write ("impl ", i, "\n");
+            }
+
+            if (self.implements.len != 0) stream:.write ("\n");
+            for i in self.asserts {
+                stream:.write ("cte assert (", i.0, ", ", i.1, ")\n");
+            }
+
             stream:.write ("(");
             for i, f in self.fields {
                 if i != 0 stream:.write (", ");
-                if f.protect == Protection::PUB {
-                    stream:.write ("pub ");
-                } else if f.protect == Protection::PROT {
-                    stream:.write ("prot ");
-                } else stream:.write ("prv ");
-
+                streamProtection (f.protect, alias stream);
                 stream:.write (f);
             }
             stream:.detabing ();
             stream:.write (")\n");
 
             stream:.entabing ();
+
             for i in self.ctors {
-                if i.protect == Protection::PUB {
-                    stream:.write ("pub ");
-                } else if i.protect == Protection::PROT {
-                    stream:.write ("prot ");
-                } else stream:.write ("prv ");
+                streamProtection (i.protect, alias stream);
+                stream:.write (i, "\n");
+            }
+            for i in self.templateCtors {
+                streamProtection (i.protect, alias stream);
                 stream:.write (i, "\n");
             }
             for i in self.methods {
-                if i.protect == Protection::PUB {
-                    stream:.write ("pub ");
-                } else if i.protect == Protection::PROT {
-                    stream:.write ("prot ");
-                } else stream:.write ("prv ");
+                streamProtection (i.protect, alias stream);
                 stream:.write (i, "\n");
             }
+            for i in self.templateMethods {
+                streamProtection (i.protect, alias stream);
+                stream:.write (i, "\n");
+            }
+
             stream:.detabing ();
 
             stream:.write ("}\n");
-
             stream:.detabing ();
         }
     }

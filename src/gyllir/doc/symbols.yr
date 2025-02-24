@@ -9,6 +9,12 @@ pub mod ::method;
 pub mod ::module;
 pub mod ::none_;
 pub mod ::variable;
+pub mod ::template;
+pub mod ::trait_;
+pub mod ::enum_;
+pub mod ::global;
+pub mod ::aka;
+pub mod ::macro_;
 
 pub lazy INTERNAL_LOCATION = Location ("", 0, 0);
 
@@ -17,6 +23,14 @@ pub enum
 | PROT = 1
 | PRV  = 2
  -> Protection;
+
+pub fn streamProtection (protect : Protection, dmut stream : &StringStream) {
+    if protect == Protection::PUB {
+        stream:.write ("pub ");
+    } else if protect == Protection::PROT {
+        stream:.write ("prot ");
+    } else stream:.write ("prv ");
+}
 
 pub record Location {
     pub let filename : Path;

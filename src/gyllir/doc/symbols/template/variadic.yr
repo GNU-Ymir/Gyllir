@@ -1,0 +1,23 @@
+in variadic;
+
+use std::stream;
+
+@final
+pub class TemplateVariadicParam over TemplateParam {
+    pub let name : [c8] = [];
+    pub let isValue : bool;
+
+    pub self (name : [c8], isValue : bool)
+        with name = name
+        , isValue = isValue
+    {}
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write (self.name);
+            if (self.isValue) stream:.write (" : ");
+            stream:.write ("...");
+        }
+    }
+
+}

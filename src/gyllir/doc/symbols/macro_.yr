@@ -1,0 +1,64 @@
+in macro_;
+
+
+use std::stream;
+use gyllir::doc::{symbols::{variable, method, ctor},
+                  types,
+                  types::any};
+
+
+@final
+pub class MacroRule over Symbol {
+
+    pub let mut isCtor : bool = false;
+    pub let mut rule : [c8] = [];
+    pub let mut skips : [[c8]] = [];
+
+    pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
+        with super (name, doc, loc, protection)
+    {}
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            if (self.isCtor) {
+                stream:.write ("Ctor ", self.name, " => ", self.loc, "\n");
+            } else {
+                stream:.write ("Rule ", self.name, " => ", self.loc, "\n");
+            }
+
+            stream:.entabing ();
+            stream:.write (self.rule, " (");
+            for i, j in self.skips {
+                if i != 0 stream:.write (" | ");
+                stream:.write (j);
+            }
+            stream:.write (")\n");
+            stream:.detabing ();
+        }
+    }
+}
+
+@final
+pub class Macro over Symbol {
+    pub let mut rules : [&MacroRule] = [];
+    pub let mut ctors : [&MacroRule] = [];
+
+    pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
+        with super (name, doc, loc, protection)
+    {}
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write ("Macro ", self.name, " => ", self.loc, "\n");
+            stream:.entabing ();
+            for c in self.ctors {
+                stream:.write (c, "\n");
+            }
+            for c in self.rules {
+                stream:.write (c, "\n");
+            }
+            stream:.detabing ();
+        }
+    }
+
+}

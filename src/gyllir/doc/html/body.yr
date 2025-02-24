@@ -2,7 +2,7 @@ in body;
 
 use std::{stream,
           format,
-          conv};
+          conv, fs::path};
 
 use gyllir::doc::{_, symbols::_, types::_, comment::parser};
 use gyllir::repo::defaults;
@@ -47,11 +47,7 @@ pub class HtmlBody over HtmlNode {
      * @params:
      *     - s: the symbol to dump
      */
-    prv fn dumpCommonSymbol (self, s : &Symbol, tempDoc : [c8] = ""s8)-> [c8] {
-        if s.doc.len == 0 {
-            return tempDoc;
-        }
-
+    fn dumpCommonSymbol (self, s : &Symbol)-> [c8] {
         let dmut stream = copy StringStream ();
         let p = copy CommentParser (s.doc);
         stream:.write ("<div class=\"doc\">");
@@ -67,79 +63,64 @@ pub class HtmlBody over HtmlNode {
      *    - stream: the stream to populate
      *    - sym: the symbol to dump
      */
-    prv fn dumpContent (self, dmut stream : &StringStream, sym : &Symbol) {
+    fn dumpContent (self, dmut stream : &StringStream, sym : &Symbol, templates : [&TemplateParam] = [], templateTest : [c8] = []) {
         stream;
         sym;
+        templates;
+        templateTest;
 
-        // match sym {
-        //     a : &Aka => self.dumpAka (alias stream, a);
-        //     a : &Assert => self.dumpAssert (alias stream, a);
-        //     c : &Class => self.dumpClass (alias stream, c);
-        //     e : &Enum => self.dumpEnum (alias stream, e);
-        //     f : &Function => self.dumpFunctionGlob (alias stream, f);
-        //     m : &Module => self.dumpInnerModule (alias stream, m);
-        //     s : &Struct => self.dumpStruct (alias stream, s);
-        //     v : &Variable => self.dumpVariable (alias stream, v);
-        //     t : &Template => {
-        //         let (tempTest, tempParams, tempDoc) = self.dumpTemplate (t);
-        //         match t.getChild () {
-        //             a : &Aka => self.dumpAka (alias stream, a, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
-        //             c : &Class => self.dumpClass (alias stream, c, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
-        //             e : &Enum => self.dumpEnum (alias stream, e, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
-        //             f : &Function => self.dumpFunctionGlob (alias stream, f, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
-        //             m : &Module => self.dumpInnerModule (alias stream, m, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
-        //             s : &Struct => self.dumpStruct (alias stream, s, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
-        //             v : &Variable => self.dumpVariable (alias stream, v, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
-        //             tr : &Trait => self.dumpTrait (alias stream, tr, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
-        //             // x : _ => {
-        //             //     println (x); __pragma!panic ();
-        //             // }
-        //         }
-        //     }
-        //     t : &Trait => self.dumpTrait (alias stream, t);
-        //     m : &Macro => self.dumpMacro (alias stream, m);
-        //     b : &Block => self.dumpBlock (alias stream, b);
-        //     x : _ => {
-        //         println (x) ; __pragma!panic ();
-        //     }
-        // }
+        match sym {
+            a : &Aka        => self.dumpAka (alias stream, a, templates-> templates, templateTest-> templateTest);
+            // c : &Class      => self.dumpClass (alias stream, c, templates-> templates, templateTest-> templateTest);
+            // c : &Ctor       => self.dumpCtor (alias stream, c, templates-> templates, templateTest-> templateTest);
+            // e : &EnumSymbol => self.dumpEnum (alias stream, e, templates-> templates, templateTest-> templateTest);
+            f : &Function   => self.dumpFunction (alias stream, f, templates-> templates, templateTest-> templateTest);
+            // g : &Global     => self.dumpGlobal (alias stream, v, templates-> templates, templateTest-> templateTest);
+            // m : &Macro      => self.dumpMacro (alias stream, m, templates-> templates, templateTest-> templateTest);
+            // m : &Method     => self.dumpMethod (alias stream, m, templates-> templates, templateTest-> templateTest);
+            // v : &Variable   => self.dumpVariable (alias stream, m, templates-> templates, templateTest-> templateTest);
+            // t : &Trait      => self.dumpTrait (alias stream, t, templates-> templates, templateTest-> templateTest);
+            t : &Template => {
+                for c in t.inners {
+                    self.dumpContent (alias stream, c, templates-> t.params, templateTest-> t.test);
+                }
+            }
+        }
     }
 
-    // /**
-    //  * Dump an aka to html
-    //  * @params:
-    //  *    - stream: the stream to populate
-    //  *    - a: the aka to dump
-    //  */
-    // prv fn dumpAka (self, dmut stream : &StringStream, a : &Aka, tempTest : [c8] = ""s8, tempParams : [c8] = ""s8, tempDoc : [c8] = ""s8) {
-    //     if (a.getProtection () != Protection::PUB) return {}
+    /**
+     * Dump an aka to html
+     * @params:
+     *    - stream: the stream to populate
+     *    - a: the aka to dump
+     */
+    fn dumpAka (self, dmut stream : &StringStream, a : &Aka, templateTest : [c8] = "", templates : [&TemplateParam] = []) {
+        let p = Path (a.name, sep-> "::");
+        let dmut innerStream = copy StringStream ();
 
-    //     let p = Path::new (utils::path::toPath (a.getName ()));
-    //     let dmut innerStream = StringStream::new ();
+        let (token, end) = if a.isValue { ("=", a.value) } else { (":", self.dumpType (a.type)) };
 
-    //     let tempTestCode = if (tempTest != ""s8) {
-    //         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTest)
-    //     } else { ""s8 };
 
-    //     let code = std::format::format ("{} aka {}{}{} = {}"s8,
-    //                                     self.convertProtection (a.getProtection ()),
-    //                                     tempTest,
-    //                                     p.file (),
-    //                                     tempParams,
-    //                                     a.getValue ());
+        let tempFormat = self.dumpTemplates (templates);
+        let tempTest = self.dumpTemplateTest (templateTest);
 
-    //     innerStream:.write (std::format::format (self._inlineCode, code));
+        let code = std::format::format ("{} def {}{}{} {} {}",
+                                        self.dumpProtection (a.protect),
+                                        tempTest,
+                                        p.file (),
+                                        tempFormat,
+                                        token, end);
 
-    //     self.dumpCommonSymbol (alias innerStream, a, tempDoc-> tempDoc);
+        formatter::format (alias innerStream, ressources::INLINE_CODE, copy ["Code" => code]);
+        innerStream:.write (self.dumpCommonSymbol (a));
 
-    //     stream:.write (std::format::format (self._declHead,
-    //                                         "aka"s8,
-    //                                         p.file (),
-    //                                         tempParams ~ tempTestCode,
-    //                                         innerStream[]));
-    // } catch {
-    //     err : _ => println (err);
-    // }
+        formatter::format (alias stream, ressources::DECLARATION, copy ["Kind" => "def",
+                                                                        "Name" => p.file (),
+                                                                        "Templates" => (tempFormat ~ tempTest),
+                                                                        "Content" => innerStream[]]);
+    } catch {
+        _ => {}
+    }
 
     // /**
     //  * Dump an assertion
@@ -147,17 +128,17 @@ pub class HtmlBody over HtmlNode {
     //  *    - stream: the stream to populate
     //  *    - a: the assertion to dump
     //  */
-    // prv fn dumpAssert (self, dmut stream : &StringStream, a : &Assert) {
-    //     let code = if (a.getMessage () != ""s8) {
-    //         std::format::format ("assert ({}, {})"s8, a.getTest (), a.getMessage ())
+    // fn dumpAssert (self, dmut stream : &StringStream, a : &Assert) {
+    //     let code = if (a.getMessage () != "") {
+    //         std::format::format ("assert ({}, {})", a.getTest (), a.getMessage ())
     //     } else {
-    //         std::format::format ("assert ({})"s8, a.getTest ())
+    //         std::format::format ("assert ({})", a.getTest ())
     //     };
 
     //     stream:.write (std::format::format (self._inlineCode, code));
     //     self.dumpCommonSymbol (alias stream, a);
     // } catch {
-    //     err : _ => println (err);
+    //     err : _ => {}
     // }
 
 
@@ -167,13 +148,11 @@ pub class HtmlBody over HtmlNode {
     //  *    - stream: the stream to populate
     //  *    - e: the enum to dump
     //  */
-    // prv fn dumpEnum (self, dmut stream : &StringStream, e : &Enum, tempTest : [c8] = ""s8, tempParams : [c8] = ""s8, tempDoc : [c8] = ""s8) {
-    //     if (e.getProtection () != Protection::PUB) return {}
-
+    // fn dumpEnum (self, dmut stream : &StringStream, e : &Enum, tempTest : [c8] = "", tempParams : [c8] = "", tempDoc : [c8] = "") {
     //     let p = Path::new (utils::path::toPath (e.getName ()));
 
     //     let dmut innerStream = StringStream::new ();
-    //     let code = std::format::format ("{} enum {}: {} \n| /** full declaration omitted \n-> {}{};"s8,
+    //     let code = std::format::format ("{} enum {}: {} \n| /** full declaration omitted \n-> {}{};",
     //                                     self.convertProtection (e.getProtection ()),
     //                                     tempParams,
     //                                     self.dumpType (e.getType ()),
@@ -186,19 +165,19 @@ pub class HtmlBody over HtmlNode {
     //     self.dumpFields (alias contentStream, e.getFields ());
     //     innerStream:.write (std::format::format (self._declMembers, contentStream[]));
 
-    //     let tempTestCode = if (tempTest != ""s8) {
-    //         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTest)
-    //     } else { ""s8 };
+    //     let tempTestCode = if (tempTest != "") {
+    //         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>", tempTest)
+    //     } else { "" };
 
 
     //     stream:.write (std::format::format (self._declHead,
-    //                                         "enum"s8,
+    //                                         "enum",
     //                                         p.file (),
     //                                         tempParams ~ tempTestCode,
     //                                         innerStream[]));
 
     // } catch {
-    //     err : _ => println (err);
+    //     _ => {}
     // }
 
 
@@ -208,14 +187,14 @@ pub class HtmlBody over HtmlNode {
     //  *    - stream: the stream to populate
     //  *    - s: the struct to dump
     //  */
-    // prv fn dumpStruct (self, dmut stream : &StringStream, s : &Struct, tempTest : [c8] = ""s8, tempParams : [c8] = ""s8, tempDoc : [c8] = ""s8) {
+    // fn dumpStruct (self, dmut stream : &StringStream, s : &Struct, tempTest : [c8] = "", tempParams : [c8] = "", tempDoc : [c8] = "") {
     //     if (s.getProtection () != Protection::PUB) return {}
 
     //     let p = Path::new (utils::path::toPath (s.getName ()));
 
     //     let attrs = self.dumpAttrsStruct (s);
     //     let dmut innerStream = StringStream::new ();
-    //     let code = std::format::format ("{}{} struct {}\n| /** full declaration omitted */ \n-> {}{};"s8,
+    //     let code = std::format::format ("{}{} struct {}\n| /** full declaration omitted */ \n-> {}{};",
     //                                     self.convertProtection (s.getProtection ()),
     //                                     attrs,
     //                                     tempParams,
@@ -228,18 +207,18 @@ pub class HtmlBody over HtmlNode {
     //     self.dumpFields (alias contentStream, s.getFields ());
     //     innerStream:.write (std::format::format (self._declMembers, contentStream[]));
 
-    //     let tempTestCode = if (tempTest != ""s8) {
-    //         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTest)
-    //     } else { ""s8 };
+    //     let tempTestCode = if (tempTest != "") {
+    //         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>", tempTest)
+    //     } else { "" };
 
     //     stream:.write (std::format::format (self._declHead,
-    //                                         "struct"s8,
+    //                                         "struct",
     //                                         p.file (),
     //                                         tempParams ~ tempTestCode,
     //                                         innerStream[]));
 
     // } catch {
-    //     err : _ => println (err);
+    //     _ => {}
     // }
 
 
@@ -249,27 +228,27 @@ pub class HtmlBody over HtmlNode {
     //  *    - s: the struct which has attributes to dump
     //  * @returns: the string containing the attributes
     //  */
-    // prv fn dumpAttrsStruct (self, s : &Struct)-> [c8] {
+    // fn dumpAttrsStruct (self, s : &Struct)-> [c8] {
     //     let dmut attrs = StringStream::new ();
     //     let mut nb = 0us;
     //     for _, i in s.getAttrs () {
     //         let write = match i {
-    //             "union"s8 | "packed"s8 => { true }
+    //             "union" | "packed" => { true }
     //             _ => { false }
     //         }
     //         if (write) {
-    //             if (nb != 0us) attrs:.write (", "s8);
+    //             if (nb != 0us) attrs:.write (", ");
     //             attrs:.write (i);
     //             nb += 1us;
     //         }
     //     }
 
     //     if (nb > 1us) {
-    //         "@{"s8 ~ attrs[] ~ "}"s8
+    //         "@{" ~ attrs[] ~ "}"
     //     } else if nb == 1us {
-    //         "@"s8 ~ attrs[]
+    //         "@" ~ attrs[]
     //     } else {
-    //         ""s8
+    //         ""
     //     }
     // }
 
@@ -279,14 +258,12 @@ pub class HtmlBody over HtmlNode {
     //  *   - stream: the stream to populate
     //  *   - t: the trait to dump
     //  */
-    // prv fn dumpTrait (self, dmut stream : &StringStream, t : &Trait, tempTest : [c8] = ""s8, tempParams : [c8] = ""s8, tempDoc : [c8] = ""s8) {
-    //     if (t.getProtection () != Protection::PUB) return {}
-
+    // fn dumpTrait (self, dmut stream : &StringStream, t : &Trait, tempTest : [c8] = "", tempParams : [c8] = "", tempDoc : [c8] = "") {
     //     let p = Path::new (utils::path::toPath (t.getName ()));
 
     //     let dmut innerStream = StringStream::new ();
 
-    //     let code = std::format::format ("{} trait {}{} {} {{ \n\t/** full declaration omitted */ \n}"s8,
+    //     let code = std::format::format ("{} trait {}{} {} {{ \n\t/** full declaration omitted */ \n}",
     //                                     self.convertProtection (t.getProtection ()),
     //                                     tempTest,
     //                                     p.file (),
@@ -303,18 +280,18 @@ pub class HtmlBody over HtmlNode {
     //     innerStream:.write (std::format::format (self._declMembers, contentStream[]));
 
 
-    //     let tempTestCode = if (tempTest != ""s8) {
-    //         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTest)
-    //     } else { ""s8 };
+    //     let tempTestCode = if (tempTest != "") {
+    //         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>", tempTest)
+    //     } else { "" };
 
     //     stream:.write (std::format::format (self._declHead,
-    //                                         "trait"s8,
+    //                                         "trait",
     //                                         p.file (),
     //                                         tempParams ~ tempTestCode,
     //                                         innerStream[]));
 
     // } catch {
-    //     err : _ => println (err);
+    //     _ => {}
     // }
 
 
@@ -331,7 +308,7 @@ pub class HtmlBody over HtmlNode {
 
     //     let dmut innerStream = StringStream::new ();
 
-    //     let code = std::format::format ("{} macro {} {{ \n\t/** full declaration omitted */ \n}"s8,
+    //     let code = std::format::format ("{} macro {} {{ \n\t/** full declaration omitted */ \n}",
     //                                     self.convertProtection (m.getProtection ()),
     //                                     p.file ());
 
@@ -346,12 +323,12 @@ pub class HtmlBody over HtmlNode {
     //     // innerStream:.write (std::format::format (self._declMembers, contentStream[]));
 
     //     stream:.write (std::format::format (self._declHead,
-    //                                         "macro"s8,
+    //                                         "macro",
     //                                         p.file (),
-    //                                         ""s8,
+    //                                         "",
     //                                         innerStream[]));
     // } catch {
-    //     err : _ => println (err);
+    //     _ => {}
     // }
 
     // /**
@@ -360,7 +337,7 @@ pub class HtmlBody over HtmlNode {
     //  *    - stream: the stream to populate
     //  *    - c: the class to dump
     //  */
-    // prv fn dumpClass (self, dmut stream : &StringStream, c : &Class, tempTest : [c8] = ""s8, tempParams : [c8] = ""s8, tempDoc : [c8] = ""s8) {
+    // fn dumpClass (self, dmut stream : &StringStream, c : &Class, tempTest : [c8] = "", tempParams : [c8] = "", tempDoc : [c8] = "") {
     //     if (c.getProtection () != Protection::PUB) return {}
 
     //     let p = Path::new (utils::path::toPath (c.getName ()));
@@ -368,33 +345,33 @@ pub class HtmlBody over HtmlNode {
     //     let dmut innerStream = StringStream::new ();
 
 
-    //     let ancestor = if (c.getAncestor ().getName () != ""s8) {
-    //         std::format::format ("over {}"s8, c.getAncestor ().getName ())
+    //     let ancestor = if (c.getAncestor ().getName () != "") {
+    //         std::format::format ("over {}", c.getAncestor ().getName ())
     //     } else {
-    //         ""s8
+    //         ""
     //     };
 
     //     let dmut impls = StringStream::new ();
     //     for i in c.getImpls () {
     //         let ip = Path::new (utils::path::toPath (i.getTrait ()));
-    //         impls:.write (std::format::format ("\timpl <a href=\"{}.html#{}\">{}</a>;\n"s8, ip.parent ().toStr (sep-> "_"s8), ip.file (), ip.toStr (sep-> "::"s8)));
+    //         impls:.write (std::format::format ("\timpl <a href=\"{}.html#{}\">{}</a>;\n", ip.parent ().toStr (sep-> "_"), ip.file (), ip.toStr (sep-> "::")));
     //     }
 
     //     for tc in c.getTemplateConds () {
     //         for i in tc.getImpls () {
     //             let ip = Path::new (utils::path::toPath (i.getTrait ()));
-    //             impls:.write (std::format::format ("\tcte if {} {{\n\t\timpl <a href=\"{}.html#{}\">{}</a>;\n\t}\n"s8, tc.getCondition (), ip.parent ().toStr (sep-> "_"s8), ip.file (), ip.toStr (sep-> "::"s8)));
+    //             impls:.write (std::format::format ("\tcte if {} {{\n\t\timpl <a href=\"{}.html#{}\">{}</a>;\n\t}\n", tc.getCondition (), ip.parent ().toStr (sep-> "_"), ip.file (), ip.toStr (sep-> "::")));
     //         }
     //     }
 
     //     let attrs =
-    //         if (c.isFinal ()) { " @final"s8
-    //         } else if (c.isAbstract ()) { " @abstract"s8
-    //         } else { ""s8 };
+    //         if (c.isFinal ()) { " @final"
+    //         } else if (c.isAbstract ()) { " @abstract"
+    //         } else { "" };
 
 
 
-    //     let code = std::format::format ("{}{} class{} {}{} {} {{ \n\t/** full declaration omitted */ \n\n{}}"s8,
+    //     let code = std::format::format ("{}{} class{} {}{} {} {{ \n\t/** full declaration omitted */ \n\n{}}",
     //                                     self.convertProtection (c.getProtection ()),
     //                                     attrs,
     //                                     tempTest,
@@ -410,23 +387,23 @@ pub class HtmlBody over HtmlNode {
     //     self.dumpClassAsserts (alias contentStream, c);
     //     self.dumpClassFields (alias contentStream, c.getFields ());
     //     self.dumpClassCstrs (alias contentStream, c);
-    //     self.dumpClassMethods (alias contentStream, c, fromTemplate-> tempParams != ""s8);
+    //     self.dumpClassMethods (alias contentStream, c, fromTemplate-> tempParams != "");
 
     //     innerStream:.write (std::format::format (self._declMembers, contentStream[]));
 
-    //     let tempTestCode = if (tempTest != ""s8) {
-    //         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTest)
-    //     } else { ""s8 };
+    //     let tempTestCode = if (tempTest != "") {
+    //         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>", tempTest)
+    //     } else { "" };
 
 
     //     stream:.write (std::format::format (self._declHead,
-    //                                         "class"s8,
+    //                                         "class",
     //                                         p.file (),
     //                                         tempParams ~ tempTestCode,
     //                                         innerStream[]));
 
     // } catch {
-    //     err : _ => println (err);
+    //     _ => {}
     // }
 
     // /**
@@ -435,7 +412,7 @@ pub class HtmlBody over HtmlNode {
     //  *     - stream: the stream to populate
     //  *     - c: the class containing cstrs to dump
     //  */
-    // prv fn dumpClassCstrs (self, dmut stream : &StringStream, c : &Class) {
+    // fn dumpClassCstrs (self, dmut stream : &StringStream, c : &Class) {
     //     if (c.getCstrs ().len == 0us) return {}
     //     let dmut innerStream = StringStream::new ();
 
@@ -446,7 +423,7 @@ pub class HtmlBody over HtmlNode {
     //             self.dumpFunction (alias innerStream2, p, isConstruct-> true);
 
     //             innerStream:.write (std::format::format (self._declHead,
-    //                                                      "ctor"s8, name, ""s8,
+    //                                                      "ctor", name, "",
     //                                                      innerStream2[]));
     //         }
     //     }
@@ -458,15 +435,15 @@ pub class HtmlBody over HtmlNode {
 
     //     if (innerStream[].len != 0us)
     //         stream:.write (std::format::format (self._memberHead,
-    //                                             "Constructors"s8,
+    //                                             "Constructors",
     //                                             innerStream[]));
     // } catch {
-    //     err : _ => println (err);
+    //     _ => {}
     // }
 
 
 
-    // prv fn dumpClassTemplateCondCstrs (self, dmut stream : &StringStream, tc : &TemplateCond) {
+    // fn dumpClassTemplateCondCstrs (self, dmut stream : &StringStream, tc : &TemplateCond) {
     //     for p in tc.getCstrs () {
     //         if (p.getProtection () != Protection::PRV) {
     //             let name = Path::new (utils::path::toPath (p.getName ())).file ();
@@ -474,7 +451,7 @@ pub class HtmlBody over HtmlNode {
     //             self.dumpFunction (alias innerStream2, p, tempTest-> tc.getCondition (), isConstruct-> true);
 
     //             stream:.write (std::format::format (self._declHead,
-    //                                                      "self"s8, name, ""s8,
+    //                                                      "self", name, "",
     //                                                      innerStream2[]));
     //         }
     //     }
@@ -483,7 +460,7 @@ pub class HtmlBody over HtmlNode {
     //         self.dumpClassTemplateCondCstrs (alias stream, tc2);
     //     }
     // } catch {
-    //     err : _ => println (err);
+    //     _ => {}
     // }
 
 
@@ -494,13 +471,13 @@ pub class HtmlBody over HtmlNode {
     //  *   - stream: the stream to populate
     //  *   - m: the module to dump
     //  */
-    // prv fn dumpInnerModule (self, dmut stream : &StringStream, m : &Module, tempTest : [c8] = ""s8, tempParams : [c8] = ""s8, tempDoc : [c8] = ""s8) {
+    // fn dumpInnerModule (self, dmut stream : &StringStream, m : &Module, tempTest : [c8] = "", tempParams : [c8] = "", tempDoc : [c8] = "") {
     //     if (m.getProtection () == Protection::PRV) return {}
 
     //     let p = Path::new (utils::path::toPath (m.getName ()));
     //     let dmut innerStream = StringStream::new ();
 
-    //     let code = std::format::format ("{} mod {}{}{}"s8,
+    //     let code = std::format::format ("{} mod {}{}{}",
     //                                     self.convertProtection (m.getProtection ()),
     //                                     tempTest,
     //                                     p.file (),
@@ -516,19 +493,19 @@ pub class HtmlBody over HtmlNode {
 
     //     innerStream:.write (std::format::format (self._declMembers, contentStream[]));
 
-    //     let tempTestCode = if (tempTest != ""s8) {
-    //         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTest)
-    //     } else { ""s8 };
+    //     let tempTestCode = if (tempTest != "") {
+    //         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>", tempTest)
+    //     } else { "" };
 
 
     //     stream:.write (std::format::format (self._declHead,
-    //                                         "mod"s8,
+    //                                         "mod",
     //                                         p.file (),
     //                                         tempParams ~ tempTestCode,
     //                                         innerStream[]));
 
     // } catch {
-    //     err : _ => println (err);
+    //     _ => {}
     // }
 
     // /**
@@ -537,7 +514,7 @@ pub class HtmlBody over HtmlNode {
     //  *   - stream: the stream to populate
     //  *   - m: the module to dump
     //  */
-    // prv fn dumpBlock (self, dmut stream : &StringStream, b : &Block) {
+    // fn dumpBlock (self, dmut stream : &StringStream, b : &Block) {
     //     //if (b.getProtection () != Protection::PUB) return {}
 
     //     for j in b.getChilds () {
@@ -546,30 +523,53 @@ pub class HtmlBody over HtmlNode {
     // }
 
 
-    // /**
-    //  * Dump a function that was not declared in a class, trait or something like that
-    //  * @params:
-    //  *    - stream: the stream to populate
-    //  *    - func: the function to dump
-    //  */
-    // prv fn dumpFunctionGlob (self, dmut stream : &StringStream, func : &Function, tempTest : [c8] = ""s8, tempParams : [c8] = ""s8, tempDoc : [c8] = ""s8) {
-    //     if (func.getProtection () != Protection::PUB) return {}
+    /**
+     * Dump a function that was not declared in a class, trait or something like that
+     * @params:
+     *    - stream: the stream to populate
+     *    - func: the function to dump
+     */
+    fn dumpFunction (self, dmut stream : &StringStream, func : &Function, templateTest : [c8] = "", templates : [&TemplateParam] = []) {
+        let name = Path (func.name, sep-> "::");
 
-    //     let name = Path::new (utils::path::toPath (func.getName ())).file ();
+        let dmut innerStream = copy StringStream ();
+        let tempFormat = self.dumpTemplates (templates);
+        let tempTest = self.dumpTemplateTest (templateTest);
 
-    //     let dmut innerStream = StringStream::new ();
-    //     self.dumpFunction (alias innerStream, func, tempTest-> tempTest, tempParams-> tempParams, tempDoc-> tempDoc);
+        let mut attrs : [[c8]] = [];
+        let dmut codeStream = copy StringStream ();
+        if (func.isInline) attrs ~= ["inline"];
+        if (func.isUnsafe) attrs ~= ["unsafe"];
 
-    //     let tempTestCode = if (tempTest != ""s8) {
-    //         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTest)
-    //     } else { ""s8 };
+        if (attrs.len > 1) { codeStream:.write ("@{", attrs [0], ",", attrs [1], "}\n"); }
+        else if (attrs.len == 1) { codeStream:.write ("@", attrs [0], "\n"); }
 
-    //     stream:.write (std::format::format (self._declHead,
-    //                                         "fn"s8, name, tempParams ~ tempTestCode,
-    //                                         innerStream[]));
-    // } catch {
-    //     err : _ => println (err);
-    // }
+        codeStream:.write (std::format::format ("{} {}fn {}{}{} (",
+                                                self.dumpProtection (func.protect),
+                                                tempTest,
+                                                name.file (), tempFormat));
+
+        for i, f in func.parameters {
+            if (i != 0) codeStream:.write (", ");
+            if f.isRef codeStream:.write ("ref ");
+            if f.isLazy codeStream:.write ("lazy ");
+            if f.isMut codeStream:.write ("mut ");
+            codeStream:.write (f.name, " : ", self.dumpType (f.type));
+            if (f.defaultValue != "") codeStream:.write (" = ", f.defaultValue);
+        }
+
+        codeStream:.write (")-> ", self.dumpType (func.retType));
+
+        formatter::format (alias innerStream, ressources::INLINE_CODE, copy ["Code" => codeStream[]]);
+        innerStream:.write (self.dumpCommonSymbol (func));
+
+        formatter::format (alias stream, ressources::DECLARATION, copy ["Kind" => "fn",
+                                                                        "Name" => name.file (),
+                                                                        "Templates" => (tempFormat ~ tempTest),
+                                                                        "Content" => innerStream[]]);
+    } catch {
+        _ => {}
+    }
 
 
     // /**
@@ -579,28 +579,28 @@ pub class HtmlBody over HtmlNode {
     //  *   - func: the function to dump
     //  *   - isOver: true iif the function is an overriden method
     //  */
-    // prv fn dumpFunction (self, dmut stream : &StringStream, func : &Function, isOver : bool = false,  tempTest : [c8] = ""s8, tempParams : [c8] = ""s8, tempDoc : [c8] = ""s8, fromTemplate : bool = false, isConstruct : bool = false) {
+    // fn dumpFunction (self, dmut stream : &StringStream, func : &Function, isOver : bool = false,  tempTest : [c8] = "", tempParams : [c8] = "", tempDoc : [c8] = "", fromTemplate : bool = false, isConstruct : bool = false) {
     //     let dmut codeStream = StringStream::new ();
 
     //     let name = Path::new (utils::path::toPath (func.getName ())).file ();
-    //     let df = if isOver { "over"s8 } else if name != "self"s8 { if (isConstruct) { "self"s8 } else { "fn"s8 } } else { ""s8 };
+    //     let df = if isOver { "over" } else if name != "self" { if (isConstruct) { "self" } else { "fn" } } else { "" };
 
-    //     let mut fstParam = ""s8;
+    //     let mut fstParam = "";
     //     let (attributes, funcIsMut) = self.dumpAttrsFunction (func);
     //     match func {
     //         m : &Method => {
     //             if (!fromTemplate) {
     //                 if (m.isMut () || funcIsMut) {
-    //                     fstParam = "\n\tmut self"s8;
-    //                 } else fstParam = "\n\tself"s8;
-    //                 if (m.getParameters ().len != 0us) fstParam = fstParam ~ ", "s8;
+    //                     fstParam = "\n\tmut self";
+    //                 } else fstParam = "\n\tself";
+    //                 if (m.getParameters ().len != 0us) fstParam = fstParam ~ ", ";
     //             }
     //         }
     //     }
 
-    //     let tempTestIf = if (tempTest != ""s8) { " if ("s8 ~ tempTest ~ ")"s8 } else { ""s8 };
+    //     let tempTestIf = if (tempTest != "") { " if (" ~ tempTest ~ ")" } else { "" };
 
-    //     codeStream:.write (std::format::format ("{} {}{}{}{}{} ({}"s8,
+    //     codeStream:.write (std::format::format ("{} {}{}{}{}{} ({}",
     //                                             self.convertProtection (func.getProtection ()),
     //                                             df,
     //                                             tempTestIf, attributes,
@@ -611,20 +611,20 @@ pub class HtmlBody over HtmlNode {
     //         codeStream:.write ("\n");
     //         for i, p in func.getParameters () {
     //             let value = if (p.getValue ().len != 0us) {
-    //                 std::format::format (" = {}"s8, p.getValue ())
-    //             } else { ""s8 };
+    //                 std::format::format (" = {}", p.getValue ())
+    //             } else { "" };
 
     //             let mut type = self.dumpType (p.getType ());
     //             type = if (type.len != 0us) {
-    //                 std::format::format (" : {}"s8, type)
-    //             } else { ""s8 };
+    //                 std::format::format (" : {}", type)
+    //             } else { "" };
 
-    //             let isMut = if (p.isDeeplyMutable ()) { "dmut "s8 } else if (p.isMutable ()) { "mut "s8 } else { ""s8 };
-    //             let isRef = if (p.isRef ()) { "ref "s8 } else { ""s8 };
+    //             let isMut = if (p.isDeeplyMutable ()) { "dmut " } else if (p.isMutable ()) { "mut " } else { "" };
+    //             let isRef = if (p.isRef ()) { "ref " } else { "" };
 
 
     //             if (i != 0us) codeStream:.write (",\n");
-    //             codeStream:.write (std::format::format ("\t{}{}{}{}{}"s8,
+    //             codeStream:.write (std::format::format ("\t{}{}{}{}{}",
     //                                                     isRef,
     //                                                     isMut,
     //                                                     p.getName (),
@@ -632,29 +632,29 @@ pub class HtmlBody over HtmlNode {
     //                                                     value));
     //         }
 
-    //         codeStream:.write ("\n)"s8);
-    //     } else if (fstParam != ""s8) { codeStream:.write ("\n)"s8);
-    //     } else codeStream:.write (")"s8);
+    //         codeStream:.write ("\n)");
+    //     } else if (fstParam != "") { codeStream:.write ("\n)");
+    //     } else codeStream:.write (")");
 
     //     if (func.getThrowers ().len != 0us) {
     //         codeStream:.write (" throws ");
     //         for i, p in func.getThrowers () {
-    //             if (i != 0us) codeStream:.write (", "s8);
+    //             if (i != 0us) codeStream:.write (", ");
     //             codeStream:.write (self.dumpType (p));
     //         }
     //     }
 
 
     //     let type = self.dumpType (func.getRetType ());
-    //     if (name != "self"s8) {
-    //         codeStream:.write ("\n-> "s8):.write (if (type != ""s8) type else "void"s8);
+    //     if (name != "self") {
+    //         codeStream:.write ("\n-> "):.write (if (type != "") type else "void");
     //     }
 
     //     stream:.write (std::format::format (self._inlineCode, codeStream[]));
     //     self.dumpCommonSymbol (alias stream, func, tempDoc-> tempDoc);
 
     // } catch {
-    //     err : _ => println (err);
+    //     _ => {}
     // }
 
     // /**
@@ -665,28 +665,28 @@ pub class HtmlBody over HtmlNode {
     //  *    - .0: the list of attributes in a string, (some of them are ignored)
     //  *    - .1: true if the function has the attribute `mut`
     //  */
-    // prv fn dumpAttrsFunction (self, func : &Function)-> ([c8], bool) {
+    // fn dumpAttrsFunction (self, func : &Function)-> ([c8], bool) {
     //     let dmut attrs = StringStream::new ();
     //     let mut nb = 0us, mut isMut = false;
     //     for _, i in func.getAttributes () {
     //         let write = match i {
-    //             "final"s8 | "virtual"s8 => { true }
-    //             "mut"s8 => { isMut = true; false }
+    //             "final" | "virtual" => { true }
+    //             "mut" => { isMut = true; false }
     //             _ => { false }
     //         }
     //         if (write) {
-    //             if (nb != 0us) attrs:.write (", "s8);
+    //             if (nb != 0us) attrs:.write (", ");
     //             attrs:.write (i);
     //             nb += 1us;
     //         }
     //     }
 
     //     if (nb > 1us) {
-    //         (" @{"s8 ~ attrs[] ~ "} "s8, isMut)
+    //         (" @{" ~ attrs[] ~ "} ", isMut)
     //     } else if nb == 1us {
-    //         (" @"s8 ~ attrs[] ~ " "s8, isMut)
+    //         (" @" ~ attrs[] ~ " ", isMut)
     //     } else {
-    //         (" "s8, isMut)
+    //         (" ", isMut)
     //     }
     // }
 
@@ -697,7 +697,7 @@ pub class HtmlBody over HtmlNode {
     //  *     - stream: the stream to populate
     //  *     - c: the class containing methods to dump
     //  */
-    // prv fn dumpClassMethods (self, dmut stream : &StringStream, c : &Class, tempTest : [c8] = ""s8, tempParams : [c8] = ""s8, fromTemplate : bool = false) {
+    // fn dumpClassMethods (self, dmut stream : &StringStream, c : &Class, tempTest : [c8] = "", tempParams : [c8] = "", fromTemplate : bool = false) {
     //     if (c.getMethods ().len == 0us) return {}
     //     let dmut innerStream = StringStream::new ();
 
@@ -707,13 +707,13 @@ pub class HtmlBody over HtmlNode {
     //             let dmut innerStream2 = StringStream::new ();
     //             self.dumpFunction (alias innerStream2, p, isOver-> p.isOver (), tempTest-> tempTest, tempParams-> tempParams, fromTemplate-> fromTemplate);
 
-    //             let tempTestCode = if (tempTest != ""s8) {
-    //                 std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTest)
-    //             } else { ""s8 };
+    //             let tempTestCode = if (tempTest != "") {
+    //                 std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>", tempTest)
+    //             } else { "" };
 
     //             let name = Path::new (utils::path::toPath (p.getName ())).file ();
     //             innerStream:.write (std::format::format (self._declHead,
-    //                                                      "fn"s8, name, tempParams ~ tempTestCode,
+    //                                                      "fn", name, tempParams ~ tempTestCode,
     //                                                      innerStream2[]));
     //         }
     //     }
@@ -731,13 +731,13 @@ pub class HtmlBody over HtmlNode {
     //                     let dmut innerStream2 = StringStream::new ();
     //                     self.dumpFunction (alias innerStream2, p, tempTest-> tempTestIn, tempParams-> tempParamsIn, tempDoc-> tempDocIn, fromTemplate-> true);
 
-    //                     let tempTestCode = if (tempTestIn != ""s8) {
-    //                         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTestIn)
-    //                     } else { ""s8 };
+    //                     let tempTestCode = if (tempTestIn != "") {
+    //                         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>", tempTestIn)
+    //                     } else { "" };
 
     //                     let name = Path::new (utils::path::toPath (p.getName ())).file ();
     //                     innerStream:.write (std::format::format (self._declHead,
-    //                                                              "fn"s8, name, tempParamsIn ~ tempTestCode,
+    //                                                              "fn", name, tempParamsIn ~ tempTestCode,
     //                                                              innerStream2[]));
     //                 }
     //             }
@@ -746,21 +746,21 @@ pub class HtmlBody over HtmlNode {
 
     //     if (innerStream[].len != 0us)
     //         stream:.write (std::format::format (self._memberHead,
-    //                                             "Methods"s8,
+    //                                             "Methods",
     //                                             innerStream[]));
     // } catch {
-    //     err : _ => println (err);
+    //     _ => {}
     // }
 
 
-    // prv fn dumpClassTemplateCondMethods (self, dmut stream : &StringStream, tc : &TemplateCond, tempTest : [c8] = ""s8, tempParams : [c8] = ""s8) {
-    //     let tmpTest = if (tempTest != ""s8) {
-    //         tempTest ~ " && "s8 ~ tc.getCondition ()
+    // fn dumpClassTemplateCondMethods (self, dmut stream : &StringStream, tc : &TemplateCond, tempTest : [c8] = "", tempParams : [c8] = "") {
+    //     let tmpTest = if (tempTest != "") {
+    //         tempTest ~ " && " ~ tc.getCondition ()
     //     } else { tc.getCondition () };
 
-    //     let tmpTestCode = if (tmpTest != ""s8) {
-    //         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tmpTest)
-    //     } else { ""s8 };
+    //     let tmpTestCode = if (tmpTest != "") {
+    //         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>", tmpTest)
+    //     } else { "" };
 
     //     for p in tc.getMethods () {
     //         let dmut innerStream2 = StringStream::new ();
@@ -769,7 +769,7 @@ pub class HtmlBody over HtmlNode {
     //         let name = Path::new (utils::path::toPath (p.getName ())).file ();
 
     //         stream:.write (std::format::format (self._declHead,
-    //                                             "fn"s8, name, tempParams ~ tmpTestCode,
+    //                                             "fn", name, tempParams ~ tmpTestCode,
     //                                             innerStream2[]));
     //     }
 
@@ -779,18 +779,18 @@ pub class HtmlBody over HtmlNode {
     //                 if (p.getProtection () != Protection::PRV) {
     //                     let (tempTestIn, tempParamsIn, tempDocIn) = self.dumpTemplate (tmp);
 
-    //                     let tempTestInAnd = if (tempTestIn != ""s8) { tempTestIn ~ " && "s8 ~ tmpTest } else { tmpTest };
+    //                     let tempTestInAnd = if (tempTestIn != "") { tempTestIn ~ " && " ~ tmpTest } else { tmpTest };
 
     //                     let dmut innerStream2 = StringStream::new ();
     //                     self.dumpFunction (alias innerStream2, p, tempTest-> tempTestInAnd, tempParams-> tempParamsIn, tempDoc-> tempDocIn, fromTemplate-> true);
 
-    //                     let tmpTestCodeAnd = if (tempTestInAnd != ""s8) {
-    //                         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTestInAnd)
-    //                     } else { ""s8 };
+    //                     let tmpTestCodeAnd = if (tempTestInAnd != "") {
+    //                         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>", tempTestInAnd)
+    //                     } else { "" };
 
     //                     let name = Path::new (utils::path::toPath (p.getName ())).file ();
     //                     stream:.write (std::format::format (self._declHead,
-    //                                                              "fn"s8, name, tempParamsIn ~ tmpTestCodeAnd,
+    //                                                              "fn", name, tempParamsIn ~ tmpTestCodeAnd,
     //                                                              innerStream2[]));
     //                 }
     //             }
@@ -802,7 +802,7 @@ pub class HtmlBody over HtmlNode {
     //     }
 
     // } catch {
-    //     err : _ => println (err);
+    //     _ => {}
     // }
 
 
@@ -812,7 +812,7 @@ pub class HtmlBody over HtmlNode {
     //  *     - stream: the stream to populate
     //  *     - c: the fields to dump
     //  */
-    // prv fn dumpClassFields (self, dmut stream : &StringStream, fields : [&Parameter]) {
+    // fn dumpClassFields (self, dmut stream : &StringStream, fields : [&Parameter]) {
     //     if (fields.len == 0us) return {}
 
     //     let dmut innerStream = StringStream::new ();
@@ -821,17 +821,17 @@ pub class HtmlBody over HtmlNode {
     //             let dmut innerStream2 = StringStream::new ();
 
     //             let value = if (p.getValue ().len != 0us) {
-    //                 std::format::format (" = {}"s8, p.getValue ())
-    //             } else { ""s8 };
+    //                 std::format::format (" = {}", p.getValue ())
+    //             } else { "" };
 
     //             let mut type = self.dumpType (p.getType ());
     //             type = if (type.len != 0us) {
-    //                 std::format::format (" : {}"s8, type)
-    //             } else { ""s8 };
+    //                 std::format::format (" : {}", type)
+    //             } else { "" };
 
-    //             let isMut = if (p.isMutable ()) { " mut"s8 } else { ""s8 };
+    //             let isMut = if (p.isMutable ()) { " mut" } else { "" };
 
-    //             let code = std::format::format ("{} let{} {}{}{};"s8,
+    //             let code = std::format::format ("{} let{} {}{}{};",
     //                                             self.convertProtection (p.getProtection ()),
     //                                             isMut,
     //                                             p.getName (),
@@ -842,40 +842,40 @@ pub class HtmlBody over HtmlNode {
     //             self.dumpCommonSymbol (alias innerStream2, p);
 
     //             innerStream:.write (std::format::format (self._declHead,
-    //                                                      "let"s8,
-    //                                                      p.getName (), ""s8,
+    //                                                      "let",
+    //                                                      p.getName (), "",
     //                                                      innerStream2[]));
     //         }
     //     }
 
     //     if (innerStream[].len != 0us)
     //         stream:.write (std::format::format (self._memberHead,
-    //                                             "Fields"s8,
+    //                                             "Fields",
     //                                             innerStream[]));
 
     // } catch {
-    //     err : _ => println (err);
+    //     _ => {}
     // }
 
 
-    // prv fn dumpVariable (self, dmut stream : &StringStream, v : &Variable, tempTest : [c8] = ""s8, tempParams : [c8] = ""s8, tempDoc : [c8] = ""s8) {
+    // fn dumpVariable (self, dmut stream : &StringStream, v : &Variable, tempTest : [c8] = "", tempParams : [c8] = "", tempDoc : [c8] = "") {
     //     if (v.getProtection () != Protection::PUB) return {}
 
     //     let p = Path::new (utils::path::toPath (v.getName ()));
 
     //     let dmut innerStream = StringStream::new ();
     //     let value = if (v.getValue ().len != 0us) {
-    //         std::format::format (" = {}"s8, v.getValue ())
-    //     } else { ""s8 };
+    //         std::format::format (" = {}", v.getValue ())
+    //     } else { "" };
 
     //     let mut type = self.dumpType (v.getType ());
     //     type = if (type.len != 0us) {
-    //         std::format::format (" : {}"s8, type)
-    //     } else { ""s8 };
+    //         std::format::format (" : {}", type)
+    //     } else { "" };
 
-    //     let isMut = if (v.isMutable ()) { " mut"s8 } else { ""s8 };
+    //     let isMut = if (v.isMutable ()) { " mut" } else { "" };
 
-    //     let code = std::format::format ("{} static{}{} {}{} {} {};"s8,
+    //     let code = std::format::format ("{} static{}{} {}{} {} {};",
     //                                     self.convertProtection (v.getProtection ()),
     //                                     tempTest,
     //                                     isMut,
@@ -887,16 +887,16 @@ pub class HtmlBody over HtmlNode {
     //     innerStream:.write (std::format::format (self._inlineCode, code));
     //     self.dumpCommonSymbol (alias innerStream, v, tempDoc-> tempDoc);
 
-    //     let tempTestCode = if (tempTest != ""s8) {
-    //         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>"s8, tempTest)
-    //     } else { ""s8 };
+    //     let tempTestCode = if (tempTest != "") {
+    //         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>", tempTest)
+    //     } else { "" };
 
     //     stream:.write (std::format::format (self._declHead,
-    //                                         "static"s8,
+    //                                         "static",
     //                                         p.file (), tempParams ~ tempTestCode,
     //                                         innerStream[]));
     // } catch {
-    //     err : _ => println (err);
+    //     _ => {}
     // }
 
     // /**
@@ -905,7 +905,7 @@ pub class HtmlBody over HtmlNode {
     //  *     - stream: the stream to populate
     //  *     - c: the fields to dump
     //  */
-    // prv fn dumpFields (self, dmut stream : &StringStream, fields : [&Parameter]) {
+    // fn dumpFields (self, dmut stream : &StringStream, fields : [&Parameter]) {
     //     if (fields.len == 0us) return {}
 
     //     let dmut innerStream = StringStream::new ();
@@ -913,17 +913,17 @@ pub class HtmlBody over HtmlNode {
     //         let dmut innerStream2 = StringStream::new ();
 
     //         let value = if (p.getValue ().len != 0us) {
-    //             std::format::format (" = {}"s8, p.getValue ())
-    //         } else { ""s8 };
+    //             std::format::format (" = {}", p.getValue ())
+    //         } else { "" };
 
     //         let mut type = self.dumpType (p.getType ());
     //         type = if (type.len != 0us) {
-    //             std::format::format (" : {}"s8, type)
-    //         } else { ""s8 };
+    //             std::format::format (" : {}", type)
+    //         } else { "" };
 
-    //         let isMut = if (p.isMutable ()) { " mut"s8 } else { ""s8 };
+    //         let isMut = if (p.isMutable ()) { " mut" } else { "" };
 
-    //         let code = std::format::format ("{} {} {} {};"s8,
+    //         let code = std::format::format ("{} {} {} {};",
     //                                         isMut,
     //                                         p.getName (),
     //                                         type,
@@ -933,17 +933,17 @@ pub class HtmlBody over HtmlNode {
     //         self.dumpCommonSymbol (alias innerStream2, p);
 
     //         innerStream:.write (std::format::format (self._declHead,
-    //                                                  "let"s8,
-    //                                                  p.getName (), ""s8,
+    //                                                  "let",
+    //                                                  p.getName (), "",
     //                                                  innerStream2[]));
     //     }
 
     //     stream:.write (std::format::format (self._memberHead,
-    //                                         "Fields"s8,
+    //                                         "Fields",
     //                                         innerStream[]));
 
     // } catch {
-    //     err : _ => println (err);
+    //     _ => {}
     // }
 
     // /**
@@ -952,7 +952,7 @@ pub class HtmlBody over HtmlNode {
     //  *     - stream: the stream to populate
     //  *     - c: the class containing methods to dump
     //  */
-    // prv fn dumpClassAsserts (self, dmut stream : &StringStream, c : &Class) {
+    // fn dumpClassAsserts (self, dmut stream : &StringStream, c : &Class) {
     //     if (c.getAsserts ().len == 0us) return {}
     //     let dmut innerStream = StringStream::new ();
 
@@ -961,15 +961,15 @@ pub class HtmlBody over HtmlNode {
     //         self.dumpAssert (alias innerStream2, a);
 
     //         innerStream:.write (std::format::format (self._declHead,
-    //                                                  ""s8, ""s8, ""s8,
+    //                                                  "", "", "",
     //                                                  innerStream2[]));
     //     }
 
     //     stream:.write (std::format::format (self._memberHead,
-    //                                         "Assertions"s8,
+    //                                         "Assertions",
     //                                         innerStream[]));
     // } catch {
-    //     err : _ => println (err);
+    //     _ => {}
     // }
 
 
@@ -981,9 +981,9 @@ pub class HtmlBody over HtmlNode {
     //  *   - .0: the template test
     //  *   - .1: the template params
     //  */
-    // prv fn dumpTemplate (self, t : &Template)-> ([c8], [c8], [c8]) {
+    // fn dumpTemplate (self, t : &Template)-> ([c8], [c8], [c8]) {
     //     let dmut paramStream = StringStream::new ();
-    //     paramStream:.write (" {"s8);
+    //     paramStream:.write (" {");
     //     for i, j in t.getParams () {
     //         if (i != 0us) paramStream:.write (", ");
     //         paramStream:.write (j);
@@ -993,99 +993,111 @@ pub class HtmlBody over HtmlNode {
     //     let dmut docStream = StringStream::new ();
     //     self.dumpCommonSymbol (alias docStream, t);
 
-    //     if (t.getTest () != ""s8) {
+    //     if (t.getTest () != "") {
     //         (t.getTest (), paramStream[], docStream[])
     //     } else {
-    //         (""s8, paramStream[], docStream[])
+    //         ("", paramStream[], docStream[])
     //     }
     // }
 
 
-    // prv fn dumpType (self, type : &Type) -> [c8] {
-    //     let inner = match type {
-    //         a : &ArrayType => {
-    //             std::format::format ("[{} ; {}]"s8, self.dumpType (a.getInnerType ()), a.getSize ())
-    //         }
-    //         _ : &BoolType => { "bool"s8 }
-    //         c : &CharType => { c.getName () }
-    //         c : &ClassPointerType => {
-    //             std::format::format ("&({})"s8, self.dumpType (c.getInnerType ()))
-    //         }
-    //         c : &ClassType => { "<a href=\""s8 ~ c.getModule ().toStr (sep-> "_"s8) ~ ".html#"s8 ~ c.getName () ~ "\">"s8 ~ c.getName () ~ "</a>"s8 }
-    //         c : &ClosureType => {
-    //             let dmut stream = StringStream::new ();
-    //             stream:.write ("#closure{");
-    //             for i, j in c.getInnerTypes () {
-    //                 if (i != 0us) stream:.write (", ");
-    //                 stream:.write (self.dumpType (j));
-    //             }
-    //             stream:.write ("}");
-    //             stream[]
-    //         }
-    //         dgp : &DgPointerType => {
-    //             let dmut stream = StringStream::new ();
-    //             stream:.write ("dg(");
-    //             for i, j in dgp.getParamTypes () {
-    //                 if (i != 0us) stream:.write (",");
-    //                 stream:.write (self.dumpType (j));
-    //             }
-    //             stream:.write (")->"s8);
-    //             stream:.write (self.dumpType (dgp.getRetType ()));
-    //             stream[]
-    //         }
-    //         e : &EnumType => { "<a href=\""s8 ~ e.getModule ().toStr (sep-> "_"s8) ~ ".html#"s8 ~ e.getName () ~ "\">"s8 ~ e.getName () ~ "</a>"s8 }
-    //         f : &FloatType => { f.getName () }
-    //         f : &FnPointerType => {
-    //             let dmut stream = StringStream::new ();
-    //             stream:.write ("fn(");
-    //             for i, j in f.getParamTypes () {
-    //                 if (i != 0us) stream:.write (",");
-    //                 stream:.write (self.dumpType (j));
-    //             }
-    //             stream:.write (")->"s8);
-    //             stream:.write (self.dumpType (f.getRetType ()));
-    //             stream[]
-    //         }
-    //         i : &IntType => { i.getName () }
-    //         o : &OptionType => { std::format::format ("({})?"s8, self.dumpType (o.getInnerType ())) }
-    //         p : &PointerType => { std::format::format ("&({})"s8, self.dumpType (p.getInnerType ())) }
-    //         r : &RangeType => { std::format::format ("..{}"s8, self.dumpType (r.getInnerType ())) }
-    //         s : &SliceType => { std::format::format ("[{}]"s8, self.dumpType (s.getInnerType ())) }
-    //         s : &StructType => { "<a href=\""s8 ~ s.getModule ().toStr (sep-> "_"s8) ~ ".html"s8 ~ s.getName () ~ "\">"s8 ~ s.getName () ~ "</a>"s8 }
-    //         t : &TupleType => {
-    //             let dmut stream = StringStream::new ();
-    //             stream:.write ("(");
-    //             for i, j in t.getInnerTypes () {
-    //                 if (i != 0us) stream:.write (",");
-    //                 stream:.write (self.dumpType (j));
-    //             }
-    //             stream:.write (")"s8);
-    //             stream[]
-    //         }
-    //         _ : &VoidType => { "void"s8 }
-    //         z : _ => { z.getName () }
-    //     }
+    fn dumpType (self, type : &Type) -> [c8] {
+        let inner = match type {
+            a : &ArrayType => {
+                std::format::format ("[{} ; {}]", self.dumpType (a.getInnerType ()), a.getLen ())
+            }
+            s : &ScalarType => { s.getName () }
+            c : &ClassType => {
+                let beg = "<a href=\"" ~ c.getModule ().toStr (sep-> "_") ~ ".html#" ~ c.getName () ~ "\">";
+                if (c.isClass ()) {
+                    if c.isInnerMutable () {
+                        "&(mut " ~ beg ~ c.getName () ~ "</a>)"
+                    } else {
+                        "&(" ~ beg ~ c.getName () ~ "</a>)"
+                    }
+                }
+                else { beg ~ c.getName () ~ "</a>" }
+            }
+            e : &EnumType => { "<a href=\"" ~ e.getModule ().toStr (sep-> "_") ~ ".html#" ~ e.getName () ~ "\">" ~ e.getName () ~ "</a>" }
+            o : &OptionType => { std::format::format ("({})?", self.dumpType (o.getInnerType ())) }
+            p : &PointerType => { std::format::format ("*({})", self.dumpType (p.getInnerType ())) }
+            m : &MapType => { std::format::format ("[{} => {}]", self.dumpType (m.getKey ()), self.dumpType (m.getValue ())) }
+            r : &RangeType => { std::format::format ("..{}", self.dumpType (r.getInnerType ())) }
+            s : &SliceType => { std::format::format ("[{}]", self.dumpType (s.getInnerType ())) }
+            t : &TupleType => {
+                let dmut stream = copy StringStream ();
+                stream:.write ("(");
+                for i, j in t.getInnerTypes () {
+                    if (i != 0us) stream:.write (",");
+                    stream:.write (self.dumpType (j));
+                }
+                stream:.write (")");
+                stream[]
+            }
+            fptr : &FuncPtrType => {
+                let dmut stream = copy StringStream ();
+                if (fptr.isDelegate ()) stream:.write ("dg (");
+                else stream:.write ("fn (");
+                for i, j in fptr.getParameters () {
+                    if (i != 0) stream:.write (", ");
+                    if (fptr.getReferences ()[i]) stream:.write ("ref ");
+                    if (fptr.getLazys ()[i]) stream:.write ("lazy ");
+                    stream:.write (self.dumpType (j));
+                }
+                stream:.write (")-> ", self.dumpType (fptr.getRetType ()));
+                stream[]
+            }
+            a : &AnyType => {
+                if a.getName () == "<empty>" {
+                    return "void";
+                }
 
-    //     if (type.isMutable () && inner.len != 0us) {
-    //         "mut "s8 ~ inner
-    //     } else inner
-    // } catch {
-    //     err : _ => {
-    //         println (err);
-    //         ""s8
-    //     }
-    // }
+                if (a.getModule ().toStr () == "") { a.getName () }
+                else {
+                    "<a href=\"" ~ a.getModule ().toStr (sep-> "_") ~ ".html#" ~ a.getName () ~ "\">" ~ a.getName () ~ "</a>"
+                }
+            }
+            _ => { "" }
+        }
 
-    // /**
-    //  * Convert a protection into string
-    //  */
-    // prv fn convertProtection (self, protection : Protection)-> [c8] {
-    //     match protection {
-    //         Protection::PUB => { "pub"s8 }
-    //         Protection::PROT => { "prot"s8 }
-    //         _ => { "prv"s8 }
+        if (type.isMutable () && inner.len != 0us) {
+            "mut " ~ inner
+        } else inner
+    } catch {
+        _ => {
+            ""
+        }
+    }
 
-    //     }
-    // }
+    /**
+     * Convert a protection into string
+     */
+    fn dumpProtection (self, protection : Protection)-> [c8] {
+        match protection {
+            Protection::PUB => { "pub" }
+            Protection::PROT => { "prot" }
+            _ => { "prv" }
+
+        }
+    }
+
+    fn dumpTemplates (self, params : [&TemplateParam])-> [c8] {
+        if (params.len == 0) return "";
+
+        let dmut stream = copy StringStream ();
+        stream:.write ("{");
+        for i, j in params {
+            if i != 0 stream:.write (", ");
+            stream:.write (j);
+        }
+        stream:.write ("}");
+        stream[]
+    }
+
+    fn dumpTemplateTest (self, test : [c8])-> [c8] {
+        if (test == []) return "";
+
+        " if (" ~ test ~ ") "
+    }
 
 }

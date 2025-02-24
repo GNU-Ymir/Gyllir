@@ -1,0 +1,30 @@
+in global;
+
+
+use std::stream;
+use gyllir::doc::{symbols::{variable, method, ctor},
+                  types,
+                  types::any};
+
+@final
+pub class Global over Symbol {
+    pub let mut isThreadLocal : bool = false;
+    pub let mut isStatic : bool = false;
+    pub let mut type : &Type = EMPTY_ANY;
+    pub let mut isMutable : bool = false;
+    pub let mut value : [c8] = [];
+
+    pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
+        with super (name, doc, loc, protection)
+    {}
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write ("Global ", self.name, " => ", self.loc, "\n");
+            stream:.entabing ();
+            if (self.value != "") stream:.write (self.value);
+            stream:.detabing ();
+        }
+    }
+
+}

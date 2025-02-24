@@ -1,0 +1,28 @@
+in enum_;
+
+
+use std::stream;
+use gyllir::doc::{symbols::{variable, method, ctor},
+                  types,
+                  types::any};
+
+@final
+pub class EnumSymbol over Symbol {
+    pub let mut fields : [([c8], [c8], [c8])] = [];
+
+    pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
+        with super (name, doc, loc, protection)
+    {}
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write ("Enum ", self.name, " => ", self.loc, "\n");
+            stream:.entabing ();
+            for i in self.fields {
+                stream:.write (i.0, " = ", i.1, "\n");
+            }
+            stream:.detabing ();
+        }
+    }
+
+}

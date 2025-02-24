@@ -1,0 +1,21 @@
+in var;
+
+use std::stream;
+
+@final
+pub class TemplateVarParam over TemplateParam {
+    pub let name : [c8] = [];
+    pub let kind : [c8];
+
+    pub self (name : [c8], kind : [c8])
+        with name = name
+        , kind = kind
+    {}
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write (self.kind, " ", self.name);
+        }
+    }
+
+}

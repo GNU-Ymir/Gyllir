@@ -12,3 +12,6 @@ pub class None over Symbol {
 
     impl Streamable;
 }
+
+
+pub lazy NONE_SYMBOL = copy None ();

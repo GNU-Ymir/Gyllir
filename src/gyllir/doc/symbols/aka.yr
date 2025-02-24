@@ -1,0 +1,32 @@
+in aka;
+
+
+use std::stream;
+use gyllir::doc::{symbols::{variable, method, ctor},
+                  types,
+                  types::any};
+
+@final
+pub class Aka over Symbol {
+    pub let mut isValue : bool = false;
+    pub let mut type : &Type = EMPTY_ANY;
+    pub let mut value : [c8] = [];
+
+    pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
+        with super (name, doc, loc, protection)
+    {}
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write ("Aka ", self.name, " => ", self.loc, "\n");
+            stream:.entabing ();
+            if self.isValue {
+                stream:.write (" = ", self.value);
+            } else {
+                stream:.write (" : ", self.type);
+            }
+            stream:.detabing ();
+        }
+    }
+
+}

@@ -1,0 +1,23 @@
+in ofv;
+
+use std::stream;
+
+@final
+pub class TemplateOfVarParam over TemplateParam {
+    pub let var : [c8] = [];
+    pub let kind : [c8] = [];
+    pub let content : [c8] = [];
+
+    pub self (var : [c8], kind : [c8], content : [c8])
+        with var = var
+        , kind = kind
+        , content = content
+    {}
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write (self.var, " ", self.kind, " ", self.content);
+        }
+    }
+
+}

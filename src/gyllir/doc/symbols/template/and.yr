@@ -1,0 +1,21 @@
+in and;
+
+use std::stream;
+
+@final
+pub class TemplateAndParam over TemplateParam {
+    pub let content : [&TemplateParam] = [];
+
+    pub self (content : [&TemplateParam])
+        with content = content
+    {}
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            for i, j in self.content {
+                if i != 0 stream:.write (" && ");
+                stream:.write (j);
+            }
+        }
+    }
+}
