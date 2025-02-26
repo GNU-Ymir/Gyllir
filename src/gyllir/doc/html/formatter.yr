@@ -49,8 +49,10 @@ pub fn formatGitUrl (url : [c8], version : [c8] = "master")-> [c8] {
  */
 prv fn findNext (content : [c8]) -> ([c8], [c8], [c8]) {
     let mut i = 0us;
-    while i < content.len - 3us { // format is at least $()
-        if content[i .. i + 2us] == "$(" {
+    if (content.len <= 3) return (content, "", "");
+
+    while i < content.len - 3 { // format is at least $()
+        if content [i .. i + 2] == "$(" {
             let mut j = i + 1us, mut nb_close = 0;
             while j < content.len - 1us {
                 if (content[j] == ')'c8) nb_close -= 1;

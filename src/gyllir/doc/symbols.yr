@@ -15,6 +15,7 @@ pub mod ::enum_;
 pub mod ::global;
 pub mod ::aka;
 pub mod ::macro_;
+pub mod ::assertion;
 
 pub lazy INTERNAL_LOCATION = Location ("", 0, 0);
 

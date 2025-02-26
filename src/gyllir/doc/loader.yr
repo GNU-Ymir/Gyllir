@@ -150,9 +150,9 @@ pub record SymbolLoader {
     /**
      * Load parameters from configuration
      * */
-    fn loadParams (self, func : &Dict, key : [c8] = "params")-> [&Variable] {
+    fn loadParams (self, func : &Dict)-> [&Variable] {
         let mut vars : [mut &Variable] = [];
-        if let Ok (params : &Array) = func [key]? {
+        if let Ok (params : &Array) = func ["params"]? {
             for a in params[] {
                 let (name, doc, loc, protection) = self.loadStandard (a);
                 let dmut var = copy Variable (name, doc, loc, protection);
@@ -210,16 +210,36 @@ pub record SymbolLoader {
         if let Ok (Str (value-> "true")) = cl ["final"]? { result.isFinal = true; }
         if let Ok (anc : &Dict) = cl ["ancestor"]? { result.ancestor = self.loadType (anc); }
 
-        result.fields = self.loadParams (cl, key-> "fields");
+        if let Ok (arr : &Array) = cl ["fields"]? {
+            for a in arr[] if let fi : &Dict = a {
+                let field = self.loadField (fi);
+                if let Ok (Str (value-> cond)) = a ["condition"]? && cond != "" {
+                    result.cond_fields ~= [(field, cond)];
+                } else {
+                    result.fields ~= [field];
+                }
+            }
+        }
+
         if let Ok (arr : &Array) = cl ["ctors"]? {
             for c in arr[] if let d : &Dict = c {
-                result.ctors ~= [self.loadCtor (d)];
+                let ctor = self.loadCtor (d);
+                if let Ok (Str (value-> cond)) = d ["condition"]? && cond != "" {
+                    result.cond_ctors ~= [(ctor, cond)];
+                } else {
+                    result.ctors ~= [ctor];
+                }
             }
         }
 
         if let Ok (arr : &Array) = cl ["methods"]? {
             for c in arr[] if let d : &Dict = c {
-                result.methods ~= [self.loadMethod (d)];
+                let m = self.loadMethod (d);
+                if let Ok (Str (value-> cond)) = d ["condition"]? && cond != "" {
+                    result.cond_methods ~= [(m, cond)];
+                } else {
+                    result.methods ~= [m];
+                }
             }
         }
 
@@ -241,9 +261,9 @@ pub record SymbolLoader {
             }
         }
 
-        if let Ok (arr : &Array) = cl ["impl"]? {
-            for i in arr[] if let s : &Str = i {
-                result.implements ~= [s.value];
+        if let Ok (arr : &Array) = cl ["implements"]? {
+            for i in arr[] if let d : &Dict = i {
+                result.implements ~= [self.loadImpl (d)];
             }
         }
 
@@ -251,22 +271,62 @@ pub record SymbolLoader {
     }
 
     /**
+     * Load a field from configuration
+     * */
+    fn loadField (self, fi : &Dict)-> &Variable {
+        let (name, doc, loc, protection) = self.loadStandard (fi);
+        let dmut var = copy Variable (name, doc, loc, protection);
+
+        if let Ok (type : &Dict) =  fi ["type"]? { var.type = self.loadType (type); }
+        if let Ok (Str (value-> "true")) = fi ["ref"]? { var.isRef = true; }
+        if let Ok (Str (value-> "true")) = fi ["lazy"]? { var.isLazy = true; }
+        if let Ok (Str (value-> default)) = fi ["value"]? { var.defaultValue = default; }
+
+        if let Ok (Str (value-> m)) =  fi ["mutability"]? {
+            var.isMut = (if (m == "dmut" || m == "mut") { true }
+                         else { false });
+        }
+
+        var
+    }
+
+    /**
      * Load an assertion in a trait of a class
      * */
-    fn loadAssertion (self, a : &Dict)-> ([c8], [c8], [c8]) {
-        let test = if let Ok (Str (value-> test)) = a ["test"]? {
-            test
+    fn loadAssertion (self, a : &Dict)-> Assertion {
+        let mut res = Assertion ();
+        if let Ok (Str (value-> test)) = a ["test"]? {
+            res.test = test;
+        }
+
+        if let Ok (Str (value-> msg)) = a ["msg"]? {
+            res.msg = msg;
+        }
+
+        if let Ok (Str (value-> doc)) = a ["doc"]? {
+            res.doc = doc;
+        }
+
+        if let Ok (Str (value-> condition)) = a ["condition"]? {
+            res.condition = condition;
+        }
+
+        res
+    }
+
+    /**
+     * Load an implementation in a class
+     * */
+    fn loadImpl (self, i : &Dict)-> (&Type, [c8]) {
+        let type = if let Ok (t : &Dict) = i ["trait"]? {
+            self.loadType (t)
+        } else { EMPTY_ANY };
+
+        let condition = if let Ok (Str (value-> cond)) = i ["condition"]? {
+            cond
         } else { "" };
 
-        let msg = if let Ok (Str (value-> msg)) = a ["msg"]? {
-            msg
-        } else { "" };
-
-        let doc = if let Ok (Str (value-> doc)) = a ["doc"]? {
-            doc
-        } else { "" };
-
-        (test, msg, doc)
+        (type, condition)
     }
 
 
@@ -287,7 +347,12 @@ pub record SymbolLoader {
 
         if let Ok (arr : &Array) = tr ["methods"]? {
             for a in arr[] if let d : &Dict = a {
-                result.methods ~= [self.loadMethod (d)];
+                let m = self.loadMethod (d);
+                if let Ok (Str (value-> cond)) = d ["condition"]? && cond != "" {
+                    result.cond_methods ~= [(m, cond)];
+                } else {
+                    result.methods ~= [m];
+                }
             }
         }
 
@@ -476,10 +541,9 @@ pub record SymbolLoader {
             result.test = test;
         }
 
-        let mut inners : [&Symbol] = [];
         if let Ok (a : &Array) = tmpl ["content"]? {
             for x in a[] {
-                inners ~= [self.load (x)];
+                result.inners ~= [self.load (x)];
             }
         }
 

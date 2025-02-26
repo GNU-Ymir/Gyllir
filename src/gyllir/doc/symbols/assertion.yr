@@ -1,0 +1,22 @@
+in assertion;
+
+use std::stream;
+
+pub record Assertion {
+
+    pub let mut test : [c8] = "";
+    pub let mut msg : [c8] = "";
+    pub let mut doc : [c8] = "";
+    pub let mut condition : [c8] = "";
+
+    pub self () {}
+
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            if (self.condition != "") {
+                stream:.write ("if ", self.condition, " ");
+            }
+            stream:.write ("Assert (", self.test, ", ", self.msg, ")\n");
+        }
+    }
+}

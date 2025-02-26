@@ -1,7 +1,7 @@
 in class_;
 
 use std::stream;
-use gyllir::doc::{symbols::{variable, method, ctor},
+use gyllir::doc::{symbols::{variable, method, ctor, assertion},
                   types,
                   types::any};
 
@@ -15,12 +15,16 @@ pub class ClassSymbol over Symbol {
     pub let mut isRecord = false;
 
     pub let mut ancestor : &Type = EMPTY_ANY;
+    pub let mut cond_fields : [(&Variable, [c8])] = [];
     pub let mut fields : [&Variable] = [];
 
-    pub let mut asserts : [([c8], [c8], [c8])] = [];
-    pub let mut implements : [[c8]] = [];
+    pub let mut asserts : [Assertion] = [];
+    pub let mut implements : [(&Type, [c8])] = [];
     pub let mut methods : [&Method] = [];
     pub let mut ctors : [&Ctor] = [];
+    pub let mut cond_methods : [(&Method, [c8])] = [];
+    pub let mut cond_ctors : [(&Ctor, [c8])] = [];
+
     pub let mut templateMethods : [&template::Template] = [];
     pub let mut templateCtors : [&template::Template] = [];
 
@@ -42,7 +46,7 @@ pub class ClassSymbol over Symbol {
 
             if (self.implements.len != 0) stream:.write ("\n");
             for i in self.asserts {
-                stream:.write ("cte assert (", i.0, ", ", i.1, ")\n");
+                stream:.write ("cte assert (", i.test, ", ", i.msg, ")\n");
             }
 
             stream:.write ("(");
