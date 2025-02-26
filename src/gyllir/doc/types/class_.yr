@@ -7,18 +7,18 @@ use std::{stream, fs::path};
  */
 pub class ClassType over Type {
 
-    let _name : [c8];
+    pub let name : [c8];
 
-    let _innerMut : bool;
+    pub let innerMut : bool;
 
     // True iif this is an entity
-    let _isEntity : bool;
+    pub let isEntity : bool;
 
     // True iif this is a record
-    let _isRecord : bool;
+    pub let isRecord : bool;
 
     // The path to the module declaration
-    let _module : Path;
+    pub let module : Path;
     
     /**
      * @params: 
@@ -27,52 +27,29 @@ pub class ClassType over Type {
      */
     pub self (name : [c8], isMut : bool, innerMut : bool, isEntity : bool = false, isRecord : bool = false)
         with super (isMut-> isMut)
-        , _name = Path (name, sep-> "::"s8).file ()
-        , _module = Path (name, sep-> "::"s8).parent ()
-        , _isEntity = isEntity
-        , _isRecord = isRecord
-        , _innerMut = innerMut
+        , name = Path (name, sep-> "::"s8).file ()
+        , module = Path (name, sep-> "::"s8).parent ()
+        , isEntity = isEntity
+        , isRecord = isRecord
+        , innerMut = innerMut
     {}
 
-    pub fn getName (self)-> [c8] {
-        self._name
-    }
-
-    pub fn isInnerMutable (self)-> bool {
-        self._innerMut
-    }
-
-    /**
-     * @returns: the module that declared the class
-     */
-    pub fn getModule (self)-> Path {
-        self._module
-    }
-
+    @field
     pub fn isClass (self)-> bool {
-        !self._isEntity && !self._isRecord
+        !self.isEntity && !self.isRecord
     }
-
-    pub fn isEntity (self)-> bool {
-        self._isEntity
-    }
-
-    pub fn isRecord (self)-> bool {
-        self._isRecord
-    }
-
 
     impl Streamable {
         pub over toStream (self, dmut stream : &StringStream) {
-            if self._isEntity {
+            if self.isEntity {
                 stream:.write ("Entity");
-            } else if self._isRecord {
+            } else if self.isRecord {
                 stream:.write ("Record");
             } else {
                 stream:.write ("Class");
             }
 
-            stream:.write (" (", self._module.push (self._name).toStr (sep-> "::"), ")");
+            stream:.write (" (", self.module.push (self.name).toStr (sep-> "::"), ")");
         }
     }
 }

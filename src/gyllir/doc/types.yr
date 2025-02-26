@@ -22,7 +22,7 @@ pub mod ::tuple;
 pub class Type {
 
     // True if the type is mutable
-    let _isMut : bool;
+    pub let isMut : bool;
 
     /**
      * @params:
@@ -30,15 +30,8 @@ pub class Type {
      *     - isMut: true if the type is mutable
      */
     pub self (isMut : bool = false)
-        with _isMut = isMut
+        with isMut = isMut
     {}
-
-    /**
-     * @returns: true if the type is mutable
-     */
-    pub fn isMutable (self)-> bool {
-        self._isMut
-    }
 
     impl Streamable;
 }

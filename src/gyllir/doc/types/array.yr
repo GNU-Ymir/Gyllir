@@ -6,10 +6,10 @@ use std::stream;
 pub class ArrayType over Type {
 
     // The inner type of the array
-    let _child : &Type;
+    pub let child : &Type;
 
     // The len of the array
-    let _len : usize;
+    pub let len : usize;
 
     /**
      * @params: 
@@ -19,27 +19,13 @@ pub class ArrayType over Type {
      */
     pub self (isMut : bool, inner : &Type, len : usize)
         with super (isMut-> isMut)
-        , _child = inner
-        , _len = len
+        , child = inner
+        , len = len
     {}
-
-    /**
-     * @returns: the type contained in the array
-     */
-    pub fn getInnerType (self)-> &Type {
-        return self._child
-    }
-
-    /**
-     * @returns: the len of the array
-     */
-    pub fn getLen (self)-> usize {
-        self._len
-    }
 
     impl Streamable {
         pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Array (", self._child, ";", self._len, ")");
+            stream:.write ("Array (", self.child, ";", self.len, ")");
         }
     }
 

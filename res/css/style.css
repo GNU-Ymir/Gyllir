@@ -72,6 +72,14 @@
     background-image: url('../ico/struct.png');
 }
 
+.ddoc-icon-record {
+    background-image: url('../ico/record.png');
+}
+
+.ddoc-icon-entity {
+    background-image: url('../ico/entity.png');
+}
+
 .ddoc-icon-var {
     background-image: url('../ico/var.png');
 }

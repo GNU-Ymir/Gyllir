@@ -71,7 +71,7 @@ pub class HtmlBody over HtmlNode {
 
         match sym {
             a : &Aka        => self.dumpAka (alias stream, a, templates-> templates, templateTest-> templateTest);
-            // c : &Class      => self.dumpClass (alias stream, c, templates-> templates, templateTest-> templateTest);
+            c : &ClassSymbol      => self.dumpClass (alias stream, c, templates-> templates, templateTest-> templateTest);
             // c : &Ctor       => self.dumpCtor (alias stream, c, templates-> templates, templateTest-> templateTest);
             // e : &EnumSymbol => self.dumpEnum (alias stream, e, templates-> templates, templateTest-> templateTest);
             f : &Function   => self.dumpFunction (alias stream, f, templates-> templates, templateTest-> templateTest);
@@ -121,26 +121,6 @@ pub class HtmlBody over HtmlNode {
     } catch {
         _ => {}
     }
-
-    // /**
-    //  * Dump an assertion
-    //  * @params:
-    //  *    - stream: the stream to populate
-    //  *    - a: the assertion to dump
-    //  */
-    // fn dumpAssert (self, dmut stream : &StringStream, a : &Assert) {
-    //     let code = if (a.getMessage () != "") {
-    //         std::format::format ("assert ({}, {})", a.getTest (), a.getMessage ())
-    //     } else {
-    //         std::format::format ("assert ({})", a.getTest ())
-    //     };
-
-    //     stream:.write (std::format::format (self._inlineCode, code));
-    //     self.dumpCommonSymbol (alias stream, a);
-    // } catch {
-    //     err : _ => {}
-    // }
-
 
     // /**
     //  * Dump an enumeration
@@ -331,80 +311,74 @@ pub class HtmlBody over HtmlNode {
     //     _ => {}
     // }
 
-    // /**
-    //  * Dump a class to html
-    //  * @params:
-    //  *    - stream: the stream to populate
-    //  *    - c: the class to dump
-    //  */
-    // fn dumpClass (self, dmut stream : &StringStream, c : &Class, tempTest : [c8] = "", tempParams : [c8] = "", tempDoc : [c8] = "") {
-    //     if (c.getProtection () != Protection::PUB) return {}
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * =====================================          CLASS          ======================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
 
-    //     let p = Path::new (utils::path::toPath (c.getName ()));
+    /**
+     * Dump a class to html
+     * @params:
+     *    - stream: the stream to populate
+     *    - c: the class to dump
+     */
+    fn dumpClass (self, dmut stream : &StringStream, c : &ClassSymbol, templateTest : [c8] = "", templates : [&TemplateParam] = []) {
+        let p = Path (c.name, sep-> "::");
+        let dmut innerStream = copy StringStream ();
 
-    //     let dmut innerStream = StringStream::new ();
+        let tempFormat = self.dumpTemplates (templates);
+        let tempTest = self.dumpTemplateTest (templateTest);
 
+        let kind = if c.isRecord { "record" } else if c.isEntity { "entity" } else { "class" };
 
-    //     let ancestor = if (c.getAncestor ().getName () != "") {
-    //         std::format::format ("over {}", c.getAncestor ().getName ())
-    //     } else {
-    //         ""
-    //     };
+        let ancestor = if (c.ancestor of ClassType) {
+            std::format::format ("over {}", self.dumpType (c.ancestor))
+        } else {
+            ""
+        };
 
-    //     let dmut impls = StringStream::new ();
-    //     for i in c.getImpls () {
-    //         let ip = Path::new (utils::path::toPath (i.getTrait ()));
-    //         impls:.write (std::format::format ("\timpl <a href=\"{}.html#{}\">{}</a>;\n", ip.parent ().toStr (sep-> "_"), ip.file (), ip.toStr (sep-> "::")));
-    //     }
+        let dmut impls = copy StringStream ();
+        for im in c.implements {
+            let ip = Path (im, sep-> "::");
+            impls:.write (std::format::format ("\timpl <a href=\"{}.html#{}\">{}</a>;\n", ip.parent ().toStr (sep-> "_"), ip.file (), ip.toStr (sep-> "::")));
+        }
 
-    //     for tc in c.getTemplateConds () {
-    //         for i in tc.getImpls () {
-    //             let ip = Path::new (utils::path::toPath (i.getTrait ()));
-    //             impls:.write (std::format::format ("\tcte if {} {{\n\t\timpl <a href=\"{}.html#{}\">{}</a>;\n\t}\n", tc.getCondition (), ip.parent ().toStr (sep-> "_"), ip.file (), ip.toStr (sep-> "::")));
-    //         }
-    //     }
+        let attrs =
+            if (c.isFinal) { "@final\n"
+            } else if (c.isAbstract) { "@abstract\n"
+            } else { "" };
 
-    //     let attrs =
-    //         if (c.isFinal ()) { " @final"
-    //         } else if (c.isAbstract ()) { " @abstract"
-    //         } else { "" };
+        let code = std::format::format ("{}{} {}{} {}{} {} {{ \n\t/** full declaration omitted */ \n\n{}}",
+                                        attrs,
+                                        self.dumpProtection (c.protect),
+                                        kind,
+                                        tempTest,
+                                        p.file (),
+                                        tempFormat,
+                                        ancestor,
+                                        impls[]);
 
+        formatter::format (alias innerStream, ressources::INLINE_CODE, copy ["Code" => code]);
+        innerStream:.write (self.dumpCommonSymbol (c));
 
+        // let dmut contentStream = copy StringStream ();
+        // self.dumpClassAsserts (alias contentStream, c);
+        // self.dumpClassFields (alias contentStream, c.getFields ());
+        // self.dumpClassCstrs (alias contentStream, c);
+        // self.dumpClassMethods (alias contentStream, c, fromTemplate-> tempParams != "");
 
-    //     let code = std::format::format ("{}{} class{} {}{} {} {{ \n\t/** full declaration omitted */ \n\n{}}",
-    //                                     self.convertProtection (c.getProtection ()),
-    //                                     attrs,
-    //                                     tempTest,
-    //                                     p.file (),
-    //                                     tempParams,
-    //                                     ancestor,
-    //                                     impls[]);
+        // innerStream:.write (std::format::format (self._declMembers, contentStream[]));
 
-    //     innerStream:.write (std::format::format (self._inlineCode, code));
-    //     self.dumpCommonSymbol (alias innerStream, c, tempDoc-> tempDoc);
-
-    //     let dmut contentStream = StringStream::new ();
-    //     self.dumpClassAsserts (alias contentStream, c);
-    //     self.dumpClassFields (alias contentStream, c.getFields ());
-    //     self.dumpClassCstrs (alias contentStream, c);
-    //     self.dumpClassMethods (alias contentStream, c, fromTemplate-> tempParams != "");
-
-    //     innerStream:.write (std::format::format (self._declMembers, contentStream[]));
-
-    //     let tempTestCode = if (tempTest != "") {
-    //         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>", tempTest)
-    //     } else { "" };
-
-
-    //     stream:.write (std::format::format (self._declHead,
-    //                                         "class",
-    //                                         p.file (),
-    //                                         tempParams ~ tempTestCode,
-    //                                         innerStream[]));
-
-    // } catch {
-    //     _ => {}
-    // }
+        formatter::format (alias stream, ressources::DECLARATION, copy ["Kind" => kind,
+                                                                        "Name" => p.file (),
+                                                                        "Templates" => (tempFormat ~ tempTest),
+                                                                        "Content" => innerStream[]]);
+    } catch {
+        _ => {}
+    }
 
     // /**
     //  * Dump the cstrs of the class into the stream
@@ -464,64 +438,13 @@ pub class HtmlBody over HtmlNode {
     // }
 
 
-
-    // /**
-    //  * Dump an inner module
-    //  * @params:
-    //  *   - stream: the stream to populate
-    //  *   - m: the module to dump
-    //  */
-    // fn dumpInnerModule (self, dmut stream : &StringStream, m : &Module, tempTest : [c8] = "", tempParams : [c8] = "", tempDoc : [c8] = "") {
-    //     if (m.getProtection () == Protection::PRV) return {}
-
-    //     let p = Path::new (utils::path::toPath (m.getName ()));
-    //     let dmut innerStream = StringStream::new ();
-
-    //     let code = std::format::format ("{} mod {}{}{}",
-    //                                     self.convertProtection (m.getProtection ()),
-    //                                     tempTest,
-    //                                     p.file (),
-    //                                     tempParams);
-
-    //     innerStream:.write (std::format::format (self._inlineCode, code));
-    //     self.dumpCommonSymbol (alias innerStream, m, tempDoc-> tempDoc);
-
-    //     let dmut contentStream = StringStream::new ();
-    //     for j in m.getChilds () {
-    //         self.dumpContent (alias contentStream, j);
-    //     }
-
-    //     innerStream:.write (std::format::format (self._declMembers, contentStream[]));
-
-    //     let tempTestCode = if (tempTest != "") {
-    //         std::format::format (" <code class=\"language-ymir hljs\"> if ({}) </code>", tempTest)
-    //     } else { "" };
-
-
-    //     stream:.write (std::format::format (self._declHead,
-    //                                         "mod",
-    //                                         p.file (),
-    //                                         tempParams ~ tempTestCode,
-    //                                         innerStream[]));
-
-    // } catch {
-    //     _ => {}
-    // }
-
-    // /**
-    //  * Dump an inner module
-    //  * @params:
-    //  *   - stream: the stream to populate
-    //  *   - m: the module to dump
-    //  */
-    // fn dumpBlock (self, dmut stream : &StringStream, b : &Block) {
-    //     //if (b.getProtection () != Protection::PUB) return {}
-
-    //     for j in b.getChilds () {
-    //         self.dumpContent (alias stream, j);
-    //     }
-    // }
-
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ===================================          FUNCTIONS          ====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
 
     /**
      * Dump a function that was not declared in a class, trait or something like that
@@ -1004,30 +927,30 @@ pub class HtmlBody over HtmlNode {
     fn dumpType (self, type : &Type) -> [c8] {
         let inner = match type {
             a : &ArrayType => {
-                std::format::format ("[{} ; {}]", self.dumpType (a.getInnerType ()), a.getLen ())
+                std::format::format ("[{} ; {}]", self.dumpType (a.child), a.len)
             }
-            s : &ScalarType => { s.getName () }
+            s : &ScalarType => { s.name }
             c : &ClassType => {
-                let beg = "<a href=\"" ~ c.getModule ().toStr (sep-> "_") ~ ".html#" ~ c.getName () ~ "\">";
-                if (c.isClass ()) {
-                    if c.isInnerMutable () {
-                        "&(mut " ~ beg ~ c.getName () ~ "</a>)"
+                let beg = "<a href=\"" ~ c.module.toStr (sep-> "_") ~ ".html#" ~ c.name ~ "\">";
+                if (c.isClass) {
+                    if c.innerMut {
+                        "&(mut " ~ beg ~ c.name ~ "</a>)"
                     } else {
-                        "&(" ~ beg ~ c.getName () ~ "</a>)"
+                        "&(" ~ beg ~ c.name ~ "</a>)"
                     }
                 }
-                else { beg ~ c.getName () ~ "</a>" }
+                else { beg ~ c.name ~ "</a>" }
             }
-            e : &EnumType => { "<a href=\"" ~ e.getModule ().toStr (sep-> "_") ~ ".html#" ~ e.getName () ~ "\">" ~ e.getName () ~ "</a>" }
-            o : &OptionType => { std::format::format ("({})?", self.dumpType (o.getInnerType ())) }
-            p : &PointerType => { std::format::format ("*({})", self.dumpType (p.getInnerType ())) }
-            m : &MapType => { std::format::format ("[{} => {}]", self.dumpType (m.getKey ()), self.dumpType (m.getValue ())) }
-            r : &RangeType => { std::format::format ("..{}", self.dumpType (r.getInnerType ())) }
-            s : &SliceType => { std::format::format ("[{}]", self.dumpType (s.getInnerType ())) }
+            e : &EnumType => { "<a href=\"" ~ e.module.toStr (sep-> "_") ~ ".html#" ~ e.name ~ "\">" ~ e.name ~ "</a>" }
+            o : &OptionType => { std::format::format ("({})?", self.dumpType (o.child)) }
+            p : &PointerType => { std::format::format ("*({})", self.dumpType (p.child)) }
+            m : &MapType => { std::format::format ("[{} => {}]", self.dumpType (m.key), self.dumpType (m.value)) }
+            r : &RangeType => { std::format::format ("..{}", self.dumpType (r.child)) }
+            s : &SliceType => { std::format::format ("[{}]", self.dumpType (s.child)) }
             t : &TupleType => {
                 let dmut stream = copy StringStream ();
                 stream:.write ("(");
-                for i, j in t.getInnerTypes () {
+                for i, j in t.childs {
                     if (i != 0us) stream:.write (",");
                     stream:.write (self.dumpType (j));
                 }
@@ -1036,31 +959,31 @@ pub class HtmlBody over HtmlNode {
             }
             fptr : &FuncPtrType => {
                 let dmut stream = copy StringStream ();
-                if (fptr.isDelegate ()) stream:.write ("dg (");
+                if (fptr.isDelegate) stream:.write ("dg (");
                 else stream:.write ("fn (");
-                for i, j in fptr.getParameters () {
+                for i, j in fptr.parameters {
                     if (i != 0) stream:.write (", ");
-                    if (fptr.getReferences ()[i]) stream:.write ("ref ");
-                    if (fptr.getLazys ()[i]) stream:.write ("lazy ");
+                    if (fptr.refs [i]) stream:.write ("ref ");
+                    if (fptr.lazys [i]) stream:.write ("lazy ");
                     stream:.write (self.dumpType (j));
                 }
-                stream:.write (")-> ", self.dumpType (fptr.getRetType ()));
+                stream:.write (")-> ", self.dumpType (fptr.retType));
                 stream[]
             }
             a : &AnyType => {
-                if a.getName () == "<empty>" {
+                if a.name == "<empty>" {
                     return "void";
                 }
 
-                if (a.getModule ().toStr () == "") { a.getName () }
+                if (a.module.toStr () == "") { a.name }
                 else {
-                    "<a href=\"" ~ a.getModule ().toStr (sep-> "_") ~ ".html#" ~ a.getName () ~ "\">" ~ a.getName () ~ "</a>"
+                    "<a href=\"" ~ a.module.toStr (sep-> "_") ~ ".html#" ~ a.name ~ "\">" ~ a.name ~ "</a>"
                 }
             }
             _ => { "" }
         }
 
-        if (type.isMutable () && inner.len != 0us) {
+        if (type.isMut && inner.len != 0us) {
             "mut " ~ inner
         } else inner
     } catch {

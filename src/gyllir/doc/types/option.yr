@@ -6,23 +6,16 @@ use std::stream;
 pub class OptionType over Type {
 
     // The inner type of the option
-    let _child : &Type;
+    pub let child : &Type;
 
     pub self (isMut : bool, inner : &Type)
         with super (isMut-> isMut)
-        , _child = inner
+        , child = inner
     {}
-
-    /**
-     * @returns: the type contained in the option
-     */
-    pub fn getInnerType (self)-> &Type {
-        return self._child
-    }
 
     impl Streamable {
         pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Option (", self._child, ")");
+            stream:.write ("Option (", self.child, ")");
         }
     }
     

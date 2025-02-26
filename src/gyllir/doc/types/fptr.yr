@@ -9,85 +9,49 @@ use std::stream;
 pub class FuncPtrType over Type {
 
     // True iif this is a delegate
-    let _isDelegate : bool;
+    pub let isDelegate : bool;
 
     // The return type of the dg pointer
-    let _ret : &Type;
+    pub let retType : &Type;
 
     // The parameters of the function
-    let _params : [&Type];
+    pub let parameters : [&Type];
 
-    // True for reference params (_refs.len == _params.len)
-    let _refs : [bool];
+    // True for reference parameters (_refs.len == _parameters.len)
+    pub let refs : [bool];
 
-    // True for lazy params (_lazys.len == _params.len)
-    let _lazys : [bool];
+    // True for lazy parameters (_lazys.len == _parameters.len)
+    pub let lazys : [bool];
     
     /**
-     * @params: 
+     * @parameters:
      *    - name: the name of the type ("dg_pointer")
      *    - isMut: true if the type is mutable
      */
-    pub self (isMut : bool, isDelegate : bool, params : [&Type], refs : [bool], lazys : [bool], retType : &Type)
+    pub self (isMut : bool, isDelegate : bool, parameters : [&Type], refs : [bool], lazys : [bool], retType : &Type)
         with super (isMut-> isMut)
-        , _isDelegate = isDelegate
-        , _ret = retType
-        , _params = params
-        , _refs = refs
-        , _lazys = lazys
+        , isDelegate = isDelegate
+        , retType = retType
+        , parameters = parameters
+        , refs = refs
+        , lazys = lazys
     {}
-
-    /**
-     * @returns: the parameter types
-     */
-    pub fn getParameters (self)-> [&Type] {
-        self._params
-    }
-
-    /**
-     * @returns: the list of reference parameters
-     */
-    pub fn getReferences (self)-> [bool] {
-        self._refs
-    }
-
-    /**
-     * @returns: the list of lazy parameters
-     */
-    pub fn getLazys (self)-> [bool] {
-        self._lazys
-    }
-
-    /**
-     * @returns: the return type of the dg pointer
-     */
-    pub fn getRetType (self)-> &Type {
-        self._ret
-    }
-
-    /**
-     * @returns: true iif the function pointer is a delegate
-     * */
-    pub fn isDelegate (self)-> bool {
-        self._isDelegate
-    }
-
 
     impl Streamable {
         pub over toStream (self, dmut stream : &StringStream) {
-            if self._isDelegate {
+            if self.isDelegate {
                 stream:.write ("Delegate (");
             } else {
                 stream:.write ("Fptr (");
             }
-            for i, j in self._params {
+            for i, j in self.parameters {
                 if i != 0 stream:.write (", ");
-                if self._refs [i] stream:.write ("ref ");
-                if self._lazys [i] stream:.write ("lazy ");
+                if self.refs [i] stream:.write ("ref ");
+                if self.lazys [i] stream:.write ("lazy ");
                 stream:.write (j);
             }
 
-            stream:.write (")-> ", self._ret);
+            stream:.write (")-> ", self.retType);
         }
     }
     

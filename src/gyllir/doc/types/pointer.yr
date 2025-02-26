@@ -6,23 +6,16 @@ use std::stream;
 pub class PointerType over Type {
 
     // The inner type of the pointer
-    let _child : &Type;
+    pub let child : &Type;
 
     pub self (isMut : bool, inner : &Type)
         with super (isMut-> isMut)
-        , _child = inner
+        , child = inner
     {}
-
-    /**
-     * @returns: the type contained in the pointer
-     */
-    pub fn getInnerType (self)-> &Type {
-        return self._child
-    }
 
     impl Streamable {
         pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Pointer (", self._child, ")");
+            stream:.write ("Pointer (", self.child, ")");
         }
     }
 }

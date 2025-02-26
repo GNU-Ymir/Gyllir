@@ -174,7 +174,8 @@ function updateBreadcrumb(qualifiedName, sourceRepoUrl) {
 }
 
 var enumRegex = /^enum /;
-var structRegex = /^struct /;
+var recordRegex = /^record /;
+var entityRegex = /^entity /;
 var classRegex = /^class /;
 var modRegex = /^mod /;
 var traitRegex = /^trait /;
@@ -243,21 +244,23 @@ function buildSymbolTree() {
 	    // 	addLeaf('constructor');
 	    // } else
 	    if(enumRegex.test(text)) {
-		fillSubTree('enum');
-	    } else if(structRegex.test(text)) {
-		fillSubTree('struct');
+		    fillSubTree('enum');
+	    } else if(recordRegex.test(text)) {
+		    fillSubTree('record');
+	    } else if(entityRegex.test(text)) {
+		    fillSubTree('entity');
 	    } else if(classRegex.test(text)) {
-		fillSubTree('class');
+		    fillSubTree('class');
 	    } else if(templateRegex.test(text)) {
-		fillSubTree('template');
+		    fillSubTree('template');
 	    } else if (modRegex.test (text)) {
-		fillSubTree ('mod');
+		    fillSubTree ('mod');
 	    } else if (traitRegex.test (text)) {
-		fillSubTree ('trait');
+		    fillSubTree ('trait');
 	    } else if(functionRegex.test(text)) {
-		addLeaf('function');		
+		    addLeaf('function');		
 	    } else {
-		addLeaf('variable');
+		    addLeaf('variable');
 	    }
 	});
     }

@@ -7,26 +7,18 @@ pub lazy EMPTY_ANY = copy AnyType ("", false);
 @final
 pub class AnyType over Type {
 
-    let _name : [c8];
-    let _module : Path;
+    pub let name : [c8];
+    pub let module : Path;
 
     pub self (name : [c8], isMut : bool)
         with super (isMut-> isMut)
-        , _name = Path (name, sep-> "::"s8).file ()
-        , _module = Path (name, sep-> "::"s8).parent ()
+        , name = Path (name, sep-> "::"s8).file ()
+        , module = Path (name, sep-> "::"s8).parent ()
     {}
-
-    pub fn getName (self)-> [c8] {
-        self._name
-    }
-
-    pub fn getModule (self)-> Path {
-        self._module
-    }
 
     impl Streamable {
         pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Any (", self._module.push (self._name).toStr (sep-> "::"), ")");
+            stream:.write ("Any (", self.module.push (self.name).toStr (sep-> "::"), ")");
         }
     }
 

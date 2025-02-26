@@ -7,53 +7,53 @@ var hljs=function(){"use strict";function e(n){Object.freeze(n);var t="function"
 
 
 hljs.registerLanguage("ymir",
-		      function(){"use strict";
-				 return function(e){
-				     var n="([ui](8|16|32|64|128|size)|f(32|64))?",
-					 t="drop i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize f32 f64 str char bool mut dmut const pure true false";
-				     return{name:"Ymir",
-					    aliases:["yr"],
-					    keywords:{$pattern:e.IDENT_RE+"!?",
-						      keyword:"break else enum extern fn for if in let match mod return sizeof static self struct super def dg typeof while with import assert macro move copy dcopy class throws over aka trait throw mut dmut pub prv prot ref with new alias is impl catch error success failure cte of loop",
-						      literal:"true false",
-						      built_in:t},
-					    illegal:"</",
-					    contains:[e.C_LINE_COMMENT_MODE,e.COMMENT("/\\*","\\*/",{contains:["self"]}),
-						      e.inherit(e.QUOTE_STRING_MODE,{begin:/b?"/,illegal:null}),
-						      {className:"string",variants:[{begin:/r(#*)"(.|\n)*?"\1(?!#)/},
-										    {begin:/b?'\\?(x\w{2}|u\w{4}|U\w{8}|.)'/}]},
-						      {className:"symbol",begin:/'[a-zA-Z_][a-zA-Z0-9_]*/},
-						      {className:"number",variants:[{begin:"\\b0b([01_]+)"+n},{begin:"\\b0o([0-7_]+)"+n},{begin:"\\b0x([A-Fa-f0-9_]+)"+n},{begin:"\\b(\\d[\\d_]*(\\.[0-9_]+)?([eE][+-]?[0-9_]+)?)"+n}],relevance:0},
-						      {className:"function",beginKeywords:"def",end:"(\\(|<)",excludeEnd:!0,contains:[e.UNDERSCORE_TITLE_MODE]},{className:"meta",begin:"#\\!?\\[",end:"\\]",contains:[{className:"meta-string",begin:/"/,end:/"/}]},{className:"class",beginKeywords:"type",end:";",contains:[e.inherit(e.UNDERSCORE_TITLE_MODE,{endsParent:!0})],illegal:"\\S"},
-						      {className:"class",beginKeywords:"trait enum struct union class",end:"{",contains:[e.inherit(e.UNDERSCORE_TITLE_MODE,{endsParent:!0})],illegal:"[\\w\\d]"},{begin:e.IDENT_RE+"::",keywords:{built_in:t}},{begin:"->"}]}}}());
+		              function(){"use strict";
+				                 return function(e){
+				                     var n="([ui](8|16|32|64|128|size)|f(32|64))?",
+					                     t="drop i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize f32 f64 str char bool mut dmut const pure true false";
+				                     return{name:"Ymir",
+					                        aliases:["yr"],
+					                        keywords:{$pattern:e.IDENT_RE+"!?",
+						                              keyword:"break else enum extern fn for if in let match mod return sizeof static self super def dg typeof while with import assert macro move copy dcopy class throws over trait throw mut dmut pub prv prot ref alias is impl catch error success failure cte of loop record entity",
+						                              literal:"true false",
+						                              built_in:t},
+					                        illegal:"</",
+					                        contains:[e.C_LINE_COMMENT_MODE,e.COMMENT("/\\*","\\*/",{contains:["self"]}),
+						                              e.inherit(e.QUOTE_STRING_MODE,{begin:/b?"/,illegal:null}),
+						                              {className:"string",variants:[{begin:/r(#*)"(.|\n)*?"\1(?!#)/},
+										                                            {begin:/b?'\\?(x\w{2}|u\w{4}|U\w{8}|.)'/}]},
+						                              {className:"symbol",begin:/'[a-zA-Z_][a-zA-Z0-9_]*/},
+						                              {className:"number",variants:[{begin:"\\b0b([01_]+)"+n},{begin:"\\b0o([0-7_]+)"+n},{begin:"\\b0x([A-Fa-f0-9_]+)"+n},{begin:"\\b(\\d[\\d_]*(\\.[0-9_]+)?([eE][+-]?[0-9_]+)?)"+n}],relevance:0},
+						                              {className:"function",beginKeywords:"fn",end:"(\\(|<)",excludeEnd:!0,contains:[e.UNDERSCORE_TITLE_MODE]},{className:"meta",begin:"#\\!?\\[",end:"\\]",contains:[{className:"meta-string",begin:/"/,end:/"/}]},
+						                              {className:"class",beginKeywords:"def trait enum record entity class",end:"{",contains:[e.inherit(e.UNDERSCORE_TITLE_MODE,{endsParent:!0})],illegal:"[\\w\\d]"},{begin:e.IDENT_RE+"::",keywords:{built_in:t}},{begin:"->"}]}}}());
 
 hljs.registerLanguage("error",
-		      function(){"use strict";
-				 return function(e){
-				     var n="",
-					 t="";
-				     return{name:"Error",
-					    aliases:["error"],
-					    keywords:{$pattern:e.IDENT_RE+"!?",
-						      keyword:"Error fatal error",
-						      literal:"Note Warning",
-						      built_in:t},
-					    illegal:"</",
-					    contains:[]}}}());
+		              function(){"use strict";
+				                 return function(e){
+				                     var n="",
+					                     t="";
+				                     return{name:"Error",
+					                        aliases:["error"],
+					                        keywords:{$pattern:e.IDENT_RE+"!?",
+						                              keyword:"Error fatal error",
+						                              literal:"Note Warning",
+						                              built_in:t},
+					                        illegal:"</",
+					                        contains:[]}}}());
 
 hljs.registerLanguage("grammar",
-		      function(){"use strict";
-				 return function(e){
-				     var n="",
-					 t="";
-				     return{name:"grammar",
-					    aliases:["grammar"],
-					    keywords:{$pattern:e.IDENT_RE+"!?",
-						      keyword:"break else enum extern fn for if in let match mod return sizeof static self struct super def dg typeof while with import assert macro move copy dcopy class throws over",
-						      literal:"mut dmut false true pub prv prot ref with new alias i8 i16 i32 i64 u8 u16 u32 u64 bool c8 c32",
-						      built_in:t},
-					    illegal:"</",
-					    contains:[]}}}());
+		              function(){"use strict";
+				                 return function(e){
+				                     var n="",
+					                     t="";
+				                     return{name:"grammar",
+					                        aliases:["grammar"],
+					                        keywords:{$pattern:e.IDENT_RE+"!?",
+						                              keyword:"break else enum extern fn for if in let match mod return sizeof static self struct super def dg typeof while with import assert macro move copy dcopy class throws over",
+						                              literal:"mut dmut false true pub prv prot ref with new alias i8 i16 i32 i64 u8 u16 u32 u64 bool c8 c32",
+						                              built_in:t},
+					                        illegal:"</",
+					                        contains:[]}}}());
 
 
 

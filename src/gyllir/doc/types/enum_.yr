@@ -5,11 +5,11 @@ use std::{stream, fs::path};
 @final
 pub class EnumType over Type {
 
-    let _name : [c8];
+    pub let name : [c8];
 
-    let _module : Path;
+    pub let module : Path;
 
-    let _proxy : &Type;
+    pub let proxy : &Type;
     
     /**
      * @params: 
@@ -18,27 +18,14 @@ pub class EnumType over Type {
      */
     pub self (name : [c8], isMut : bool, proxy : &Type)
         with super (isMut-> isMut)
-        , _name = Path (name, sep-> "::"s8).file ()
-        , _module = Path (name, sep-> "::"s8).parent ()
-        , _proxy = proxy
+        , name = Path (name, sep-> "::"s8).file ()
+        , module = Path (name, sep-> "::"s8).parent ()
+        , proxy = proxy
     {}
-
-    pub fn getName (self)-> [c8] {
-        self._name
-    }
-
-    pub fn getModule (self)-> Path {
-        self._module
-    }
-
-    pub fn getProxy (self)-> &Type {
-        self._proxy
-    }
-
 
     impl Streamable {
         pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Enum (", self._module.push (self._name).toStr (sep-> "::"), ")");
+            stream:.write ("Enum (", self.module.push (self.name).toStr (sep-> "::"), ")");
         }
     }
 }
