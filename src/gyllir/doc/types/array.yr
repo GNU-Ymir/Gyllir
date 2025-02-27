@@ -17,8 +17,8 @@ pub class ArrayType over Type {
      *    - isMut: true if the type is mutable
      *    - conf: the configuration of the array type (json content)
      */
-    pub self (isMut : bool, inner : &Type, len : usize)
-        with super (isMut-> isMut)
+    pub self (mutability : [c8], inner : &Type, len : usize)
+        with super (mutability-> mutability)
         , child = inner
         , len = len
     {}

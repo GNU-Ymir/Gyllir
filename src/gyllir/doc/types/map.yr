@@ -8,8 +8,8 @@ pub class MapType over Type {
     pub let key : &Type;
     pub let value : &Type;
 
-    pub self (isMut : bool, key : &Type, value : &Type)
-        with super (isMut-> isMut)
+    pub self (mutability : [c8], key : &Type, value : &Type)
+        with super (mutability-> mutability)
         , key = key
         , value = value
     {}

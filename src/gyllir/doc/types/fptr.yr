@@ -28,8 +28,8 @@ pub class FuncPtrType over Type {
      *    - name: the name of the type ("dg_pointer")
      *    - isMut: true if the type is mutable
      */
-    pub self (isMut : bool, isDelegate : bool, parameters : [&Type], refs : [bool], lazys : [bool], retType : &Type)
-        with super (isMut-> isMut)
+    pub self (mutability : [c8], isDelegate : bool, parameters : [&Type], refs : [bool], lazys : [bool], retType : &Type)
+        with super (mutability-> mutability)
         , isDelegate = isDelegate
         , retType = retType
         , parameters = parameters

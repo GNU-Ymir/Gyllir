@@ -101,8 +101,6 @@ pub record RepoDocBuilder {
         self.createBaseDirectory (alias context, outDir);
         let (htmlTable, modules) = self.createHtmlTable (symbol);
 
-        println (htmlTable);
-
         for m in modules {
             self.generatePage (self._cfg.name, self._cfg.registry.path.toStr (), htmlTable, m, outDir);
         }
@@ -146,21 +144,23 @@ pub record RepoDocBuilder {
      * Generate the page for a module
      * */
     fn generatePage (self, project : [c8], git : [c8], table : [c8], module : &Module, outDir : Path) {
+        let name = if module.name == "" { "index" } else { module.name };
+
         let body = copy HtmlBody (project, module);
-        let head = copy HtmlHeader (project, git, module.name, table, body);
-        let foot = copy HtmlFooter (module.name, git);
+        let head = copy HtmlHeader (project, git, name, table, body);
+        let foot = copy HtmlFooter (name, git);
 
         let dmut stream = copy StringStream ();
         head.dumpHtml (alias stream);
         foot.dumpHtml (alias stream);
 
-        let path = Path (module.name, sep-> "::").addExtension (defaults::__HTML_EXTENSION__).toStr (sep-> "_");
+        let path = Path (name, sep-> "::").addExtension (defaults::__HTML_EXTENSION__).toStr (sep-> "_");
         {
             let dmut f = File::create (outDir.push (path), write-> true);
             f:.write (stream[]);
         } catch {
             _ => {
-                utils::log::warn ("Error", "failed to write documentation file for module '", module.name, "'");
+                utils::log::warn ("Error", "failed to write documentation file for module '", name, "'");
             }
         }
     }

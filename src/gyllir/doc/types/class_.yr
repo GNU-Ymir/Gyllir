@@ -7,7 +7,7 @@ use std::{stream, fs::path};
  */
 pub class ClassType over Type {
 
-    pub let name : [c8];
+    pub let mut name : [c8];
 
     pub let innerMut : bool;
 
@@ -18,25 +18,35 @@ pub class ClassType over Type {
     pub let isRecord : bool;
 
     // The path to the module declaration
-    pub let module : Path;
-    
+    pub let mut module : Path;
+
     /**
      * @params: 
      *   - name: the name of the class
      *   - isMut: bool is the class is mutable
      */
-    pub self (name : [c8], isMut : bool, innerMut : bool, isEntity : bool = false, isRecord : bool = false)
-        with super (isMut-> isMut)
+    pub self (name : [c8], mutability : [c8], innerMut : bool, isEntity : bool = false, isRecord : bool = false)
+        with super (mutability-> mutability)
         , name = Path (name, sep-> "::"s8).file ()
         , module = Path (name, sep-> "::"s8).parent ()
         , isEntity = isEntity
         , isRecord = isRecord
         , innerMut = innerMut
-    {}
+    {
+        if let Ok (_) = std::algorithm::searching::find (self.module.file (), '!') {
+            self.name = self.module.file ();
+            self.module = self.module.parent (); // template
+        }
+    }
 
     @field
     pub fn isClass (self)-> bool {
         !self.isEntity && !self.isRecord
+    }
+
+    @field
+    pub fn fullName (self)-> [c8] {
+        self.module.push (self.name).toStr (sep-> "::")
     }
 
     impl Streamable {

@@ -9,6 +9,7 @@ use gyllir::doc::{symbols::{variable, method, ctor},
 @final
 pub class EnumSymbol over Symbol {
     pub let mut fields : [([c8], [c8], [c8])] = [];
+    pub let mut type : &Type = EMPTY_ANY;
 
     pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
         with super (name, doc, loc, protection)

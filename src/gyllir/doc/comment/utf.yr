@@ -1,0 +1,47 @@
+in utf;
+
+
+lazy ESCAPE_CHARS = copy ['a' => 7u8,
+                          'b' => 8u8,
+                          'f' => 12u8,
+                          'n' => 10u8,
+                          'r' => 13u8,
+                          't' => 9u8,
+                          'v' => 11u8,
+                          '\\' => 92u8,
+                          '\'' => 39u8,
+                          '\"' => 34u8];
+
+
+pub fn escapeChars (content : [c8])-> [c8] {
+    let dmut stream : [c8] = [];
+    let mut it = 0us;
+    let mut cutStars = true;
+    while it < content.len {
+        if (content [it] == '\\') {
+            if (it + 1us < content.len) {
+                if let Ok (x) = ESCAPE_CHARS [content [it + 1us]] {
+                    stream ~= [cast!c8 (x)];
+                } else {
+                    stream ~= [content [it], content [it + 1us]];
+                }
+                it += 1us;
+            } else stream ~= [content [it]];
+        } else {
+            if (cutStars && content [it] == '*') {
+                cutStars = false;
+            } else {
+                stream ~= [content [it]];
+            }
+        }
+
+        it += 1us;
+
+        if (stream.len > 0) {
+            if (stream [$ - 1] == '\n') { cutStars = true; }
+            else if (stream [$ - 1] != ' ') { cutStars = false; }
+        }
+    }
+
+    stream
+}

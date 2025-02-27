@@ -3,7 +3,7 @@ in parser;
 use std::{io, stream, syntax::lexer};
 use gyllir::doc::comment::tokens;
 
-use gyllir::doc::comment::{node, node::_};
+use gyllir::doc::comment::{node, node::_, utf};
 
 pub mod .node;
 
@@ -28,7 +28,7 @@ pub class CommentParser {
      */
 
     pub self (content : [c8]) with 
-        _lex = copy Lexer!{c8} (content-> content,
+        _lex = copy Lexer!{c8} (content-> escapeChars (content),
                                 tokens-> copy CommentTokens::__members__,
                                 comments-> [],
                                 skips-> [])
@@ -80,7 +80,7 @@ pub class CommentParser {
                     
                     self._root:.addChild (self:.parseInnerDoc ());
                 }
-                CommentTokens::CODE_BLOCK | CommentTokens::CODE_BLOCK_SEVEN => {
+                CommentTokens::CODE_BLOCK_SEVEN => {
                     if (currentStream[].len != 0us) {
                         self._root:.addChild (copy CommentText (currentStream[]));
                         currentStream:.clear ();
@@ -151,7 +151,7 @@ pub class CommentParser {
             let (n, _, _) = self._lex:.next ();
             if n == "" || n == CommentTokens::HEAD_LEVEL_AT { self._lex:.rewind (expand cursor); break; }
             else match n {
-                CommentTokens::CODE_BLOCK | CommentTokens::CODE_BLOCK_SEVEN => {
+                CommentTokens::CODE_BLOCK_SEVEN => {
                     if (currentStream[].len != 0us) {
                         node:.addChild (copy CommentText (currentStream[]));
                         currentStream:.clear ();
@@ -265,7 +265,7 @@ pub class CommentParser {
             if (n == "") { self._lex:.rewind (expand cursor); break; }
             
             else match n {
-                CommentTokens::CODE_BLOCK | CommentTokens::CODE_BLOCK_SEVEN => {
+                CommentTokens::CODE_BLOCK_SEVEN => {
                     if (currentStream[].len != 0us) {
                         node:.addChild (copy CommentText (currentStream[]));
                         currentStream:.clear ();
@@ -374,4 +374,5 @@ pub class CommentParser {
             }
         }
     }
+
 }

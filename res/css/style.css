@@ -79,6 +79,10 @@
     background-image: url('../ico/class.png');
 }
 
+.ddoc-icon-macro {
+    background-image: url('../ico/macro.png');
+}
+
 .ddoc-icon-aka {
     background-image: url('../ico/alias.png');
 }

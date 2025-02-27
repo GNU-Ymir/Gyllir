@@ -163,8 +163,11 @@ pub record SymbolLoader {
                 if let Ok (Str (value-> default)) = a ["value"]? { var.defaultValue = default; }
 
                 if let Ok (Str (value-> m)) =  a ["mutability"]? {
-                    var.isMut = (if (m == "dmut" || m == "mut") { true }
+                    var.isMut = (if (m == "mut") { true }
                                  else { false });
+
+                    var.isDMut = (if (m == "dmut") { true }
+                                  else { false });
                 }
 
                 vars ~= [var];
@@ -214,7 +217,7 @@ pub record SymbolLoader {
             for a in arr[] if let fi : &Dict = a {
                 let field = self.loadField (fi);
                 if let Ok (Str (value-> cond)) = a ["condition"]? && cond != "" {
-                    result.cond_fields ~= [(field, cond)];
+                    result.condFields ~= [(field, cond)];
                 } else {
                     result.fields ~= [field];
                 }
@@ -225,7 +228,7 @@ pub record SymbolLoader {
             for c in arr[] if let d : &Dict = c {
                 let ctor = self.loadCtor (d);
                 if let Ok (Str (value-> cond)) = d ["condition"]? && cond != "" {
-                    result.cond_ctors ~= [(ctor, cond)];
+                    result.condCtors ~= [(ctor, cond)];
                 } else {
                     result.ctors ~= [ctor];
                 }
@@ -236,7 +239,7 @@ pub record SymbolLoader {
             for c in arr[] if let d : &Dict = c {
                 let m = self.loadMethod (d);
                 if let Ok (Str (value-> cond)) = d ["condition"]? && cond != "" {
-                    result.cond_methods ~= [(m, cond)];
+                    result.condMethods ~= [(m, cond)];
                 } else {
                     result.methods ~= [m];
                 }
@@ -283,8 +286,10 @@ pub record SymbolLoader {
         if let Ok (Str (value-> default)) = fi ["value"]? { var.defaultValue = default; }
 
         if let Ok (Str (value-> m)) =  fi ["mutability"]? {
-            var.isMut = (if (m == "dmut" || m == "mut") { true }
+            var.isMut = (if (m == "mut") { true }
                          else { false });
+            var.isDMut = (if (m == "dmut") { true }
+                          else { false });
         }
 
         var
@@ -349,7 +354,7 @@ pub record SymbolLoader {
             for a in arr[] if let d : &Dict = a {
                 let m = self.loadMethod (d);
                 if let Ok (Str (value-> cond)) = d ["condition"]? && cond != "" {
-                    result.cond_methods ~= [(m, cond)];
+                    result.condMethods ~= [(m, cond)];
                 } else {
                     result.methods ~= [m];
                 }
@@ -379,6 +384,10 @@ pub record SymbolLoader {
     fn loadEnum (self, en : &Dict)-> &EnumSymbol {
         let (name, doc, loc, protect) = self.loadStandard (en);
         let dmut result = copy EnumSymbol (name, doc, loc, protect);
+
+        if let Ok (et : &Dict) = en ["type"]? {
+            result.type = self.loadType (et);
+        }
 
         if let Ok (arr : &Array) = en ["fields"]? {
             for a in arr[] if let d : &Dict = a {
@@ -558,7 +567,7 @@ pub record SymbolLoader {
         if let Ok (a : &Array) = tmpl ["templates"]? {
             for x in a [] match x {
                 d : &Dict => {
-                    self.loadTemplateParam (d);
+                    params ~= [self.loadTemplateParam (d)];
                 }
             }
         }
@@ -603,7 +612,7 @@ pub record SymbolLoader {
      * Load a template parameter
      * */
     fn loadTemplateOfVarParam (self, param : &Dict)-> &TemplateOfVarParam {
-        let var = if let Ok (Str (value-> content)) = param ["var"]? {
+        let var = if let Ok (Str (value-> content)) = param ["name"]? {
             content
         } else { "" };
 
@@ -671,38 +680,37 @@ pub record SymbolLoader {
      * Load a type from documentation configuration
      * */
     fn loadType (self, ty : &Dict)-> &Type {
-        let isMut = if let Ok (Str (value-> m)) =  ty ["mutability"]? {
-            if (m == "dmut" || m == "mut") { true }
-            else { false }
-        } else { false };
+        let mutability = if let Ok (Str (value-> m)) = ty ["mutability"]? {
+            m
+        } else { "" };
 
         if let Ok (x) = ty ["kind"]? match x {
-            Str (value-> "fptr") => { return self.loadFuncPtrType (ty, isMut, isDelegate-> false); }
-            Str (value-> "delegate") => { return self.loadFuncPtrType (ty, isMut, isDelegate-> true); }
-            Str (value-> "array") => { return self.loadArrayType (ty, isMut); }
-            Str (value-> "class") => { return self.loadClassType (ty, isMut); }
-            Str (value-> "record") => { return self.loadClassType (ty, isMut, isRecord-> true); }
-            Str (value-> "entity") => { return self.loadClassType (ty, isMut, isEntity-> true); }
-            Str (value-> "enum") => { return self.loadEnumType (ty, isMut); }
-            Str (value-> "option") => { return self.loadOptionType (ty, isMut); }
-            Str (value-> "pointer") => { return self.loadPointerType (ty, isMut); }
-            Str (value-> "range") => { return self.loadRangeType (ty, isMut); }
-            Str (value-> "slice") => { return self.loadSliceType (ty, isMut); }
-            Str (value-> "tuple") => { return self.loadTupleType (ty, isMut); }
-            Str (value-> "map") => { return self.loadMapType (ty, isMut); }
+            Str (value-> "fptr") => { return self.loadFuncPtrType (ty, mutability, isDelegate-> false); }
+            Str (value-> "delegate") => { return self.loadFuncPtrType (ty, mutability, isDelegate-> true); }
+            Str (value-> "array") => { return self.loadArrayType (ty, mutability); }
+            Str (value-> "class") => { return self.loadClassType (ty, mutability); }
+            Str (value-> "record") => { return self.loadClassType (ty, mutability, isRecord-> true); }
+            Str (value-> "entity") => { return self.loadClassType (ty, mutability, isEntity-> true); }
+            Str (value-> "enum") => { return self.loadEnumType (ty, mutability); }
+            Str (value-> "option") => { return self.loadOptionType (ty, mutability); }
+            Str (value-> "pointer") => { return self.loadPointerType (ty, mutability); }
+            Str (value-> "range") => { return self.loadRangeType (ty, mutability); }
+            Str (value-> "slice") => { return self.loadSliceType (ty, mutability); }
+            Str (value-> "tuple") => { return self.loadTupleType (ty, mutability); }
+            Str (value-> "map") => { return self.loadMapType (ty, mutability); }
             Str (value-> "scalar") => {
                 let name = if let Ok (Str (value-> name)) = ty ["name"]? {
                     name
                 } else { "" };
 
-                return copy ScalarType (name, isMut);
+                return copy ScalarType (name, mutability);
             }
             _ => {
                 let name = if let Ok (Str (value-> name)) = ty ["name"]? {
                     name
                 } else { "" };
 
-                return copy AnyType (name, isMut);
+                return copy AnyType (name, mutability);
             }
         }
 
@@ -712,7 +720,7 @@ pub record SymbolLoader {
     /**
      * Load a function pointer from a config
      * */
-    fn loadFuncPtrType (self, d : &Dict, isMut : bool, isDelegate : bool)-> &Type {
+    fn loadFuncPtrType (self, d : &Dict, mutability : [c8], isDelegate : bool)-> &Type {
         let mut params : [mut &Type] = [];
         let mut refs : [mut bool] = [];
         let mut lazys : [mut bool] = [];
@@ -744,13 +752,13 @@ pub record SymbolLoader {
             self.loadType (ret)
         } else { EMPTY_ANY };
 
-        copy FuncPtrType (isMut, isDelegate, params, refs, lazys, retType)
+        copy FuncPtrType (mutability, isDelegate, params, refs, lazys, retType)
     }
 
     /**
      * Load the configuration of an array type
      * */
-    fn loadArrayType (self, d : &Dict, isMut : bool)-> &Type {
+    fn loadArrayType (self, d : &Dict, mutability : [c8])-> &Type {
         let len = if let Ok (Int (value-> len)) = d ["len"]? {
             cast!usize (len)
         } else { 0 };
@@ -759,57 +767,57 @@ pub record SymbolLoader {
             self.loadType (inner)
         } else { EMPTY_ANY };
 
-        copy ArrayType (isMut, inner, len)
+        copy ArrayType (mutability, inner, len)
     }
 
     /**
      * Load the configuration of a slice type
      * */
-    fn loadSliceType (self, d : &Dict, isMut : bool)-> &Type {
+    fn loadSliceType (self, d : &Dict, mutability : [c8])-> &Type {
         let inner = if let Ok (inner : &Dict) = d ["inner"]? {
             self.loadType (inner)
         } else { EMPTY_ANY };
 
-        copy SliceType (isMut, inner)
+        copy SliceType (mutability, inner)
     }
 
     /**
      * Load the configuration of an option type
      * */
-    fn loadOptionType (self, d : &Dict, isMut : bool)-> &Type {
+    fn loadOptionType (self, d : &Dict, mutability : [c8])-> &Type {
         let inner = if let Ok (inner : &Dict) = d ["inner"]? {
             self.loadType (inner)
         } else { EMPTY_ANY };
 
-        copy OptionType (isMut, inner)
+        copy OptionType (mutability, inner)
     }
 
     /**
      * Load the configuration of a pointer type
      * */
-    fn loadPointerType (self, d : &Dict, isMut : bool)-> &Type {
+    fn loadPointerType (self, d : &Dict, mutability : [c8])-> &Type {
         let inner = if let Ok (inner : &Dict) = d ["inner"]? {
             self.loadType (inner)
         } else { EMPTY_ANY };
 
-        copy PointerType (isMut, inner)
+        copy PointerType (mutability, inner)
     }
 
     /**
      * Load the configuration of a range type
      * */
-    fn loadRangeType (self, d : &Dict, isMut : bool)-> &Type {
+    fn loadRangeType (self, d : &Dict, mutability : [c8])-> &Type {
         let inner = if let Ok (inner : &Dict) = d ["inner"]? {
             self.loadType (inner)
         } else { EMPTY_ANY };
 
-        copy RangeType (isMut, inner)
+        copy RangeType (mutability, inner)
     }
 
     /**
      * Load the configuration of a tuple type
      * */
-    fn loadTupleType (self, d : &Dict, isMut : bool)-> &Type {
+    fn loadTupleType (self, d : &Dict, mutability : [c8])-> &Type {
         let mut inners : [mut &Type] = [];
         if let Ok (inner : &Array) = d ["inners"]? {
             for a in inner[] if let i : &Dict = a {
@@ -817,13 +825,13 @@ pub record SymbolLoader {
             } else { inners ~= [EMPTY_ANY]; }
         }
 
-        copy TupleType (isMut, inners)
+        copy TupleType (mutability, inners)
     }
 
     /**
      * Load the configuration of a class/struct/record type
      * */
-    fn loadClassType (self, d : &Dict, isMut : bool, isEntity : bool = false, isRecord : bool = false)-> &Type {
+    fn loadClassType (self, d : &Dict, mutability : [c8], isEntity : bool = false, isRecord : bool = false)-> &Type {
         let name = if let Ok (Str (value-> name)) = d ["name"]? {
             name
         } else { "" };
@@ -833,13 +841,13 @@ pub record SymbolLoader {
             else { false }
         } else { false };
 
-        copy ClassType (name, isMut, innerMut, isEntity-> isEntity, isRecord-> isRecord)
+        copy ClassType (name, mutability, innerMut, isEntity-> isEntity, isRecord-> isRecord)
     }
 
     /**
      * Load the configuration of an enumeration type
      * */
-    fn loadEnumType (self, d : &Dict, isMut : bool)-> &Type {
+    fn loadEnumType (self, d : &Dict, mutability : [c8])-> &Type {
         let name = if let Ok (Str (value-> name)) = d ["name"]? {
             name
         } else { "" };
@@ -848,13 +856,13 @@ pub record SymbolLoader {
             self.loadType (inner)
         } else { EMPTY_ANY };
 
-        copy EnumType (name, isMut, inner)
+        copy EnumType (name, mutability, inner)
     }
 
     /**
      * Load the configuration of a map type
      * */
-    fn loadMapType (self, d : &Dict, isMut : bool)-> &Type {
+    fn loadMapType (self, d : &Dict, mutability : [c8])-> &Type {
         let key = if let Ok (inner : &Dict) = d ["key"]? {
             self.loadType (inner)
         } else { EMPTY_ANY };
@@ -863,7 +871,7 @@ pub record SymbolLoader {
             self.loadType (inner)
         } else { EMPTY_ANY };
 
-        copy MapType (isMut, key, value)
+        copy MapType (mutability, key, value)
     }
 
     /*!

@@ -2,7 +2,6 @@ in tokens;
 
 pub enum 
 | HEAD_LEVEL_AT    = "@"
-| CODE_BLOCK       = "==="
 | CODE_BLOCK_SEVEN = "```"
 | DCOLON           = ":"
 | BOLD_UNDER       = "__"

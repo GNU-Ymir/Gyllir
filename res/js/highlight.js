@@ -9,23 +9,27 @@ var hljs=function(){"use strict";function e(n){Object.freeze(n);var t="function"
 hljs.registerLanguage("ymir",
 		              function(){"use strict";
 				                 return function(e){
-				                     var n="([ui](8|16|32|64|128|size)|f(32|64))?",
-					                     t="drop i8 i16 i32 i64 i128 isize u8 u16 u32 u64 u128 usize f32 f64 str char bool mut dmut const pure true false";
+				                     var n="([ui](8|16|32|64|size)|f(32|64|80|size)|c(8|16|32))?",
+					                     t="c8 c16 c32 i8 i16 i32 i64 isize u8 u16 u32 u64 usize f32 f64 f80 fsize bool mut dmut move alias copy dcopy true false is";
 				                     return{name:"Ymir",
 					                        aliases:["yr"],
 					                        keywords:{$pattern:e.IDENT_RE+"!?",
-						                              keyword:"break else enum extern fn for if in let match mod return sizeof static self super def dg typeof while with import assert macro move copy dcopy class throws over trait throw mut dmut pub prv prot ref alias is impl catch error success failure cte of loop record entity",
-						                              literal:"true false",
+						                              keyword:"use lazy break else enum extern fn for if in let match mod return sizeof static self super def dg typeof while with import assert macro move class throws over trait throw pub prv prot ref is impl catch error success failure cte of loop record entity is",
+						                              literal:"true false is",
 						                              built_in:t},
 					                        illegal:"</",
 					                        contains:[e.C_LINE_COMMENT_MODE,e.COMMENT("/\\*","\\*/",{contains:["self"]}),
 						                              e.inherit(e.QUOTE_STRING_MODE,{begin:/b?"/,illegal:null}),
 						                              {className:"string",variants:[{begin:/r(#*)"(.|\n)*?"\1(?!#)/},
 										                                            {begin:/b?'\\?(x\w{2}|u\w{4}|U\w{8}|.)'/}]},
+                                                      {className:"comment", variants:[{begin: "@", end:"\n", contains:[{className:"attr", begin:/[a-zA-Z_][a-zA-Z0-9_]*/}]}]},
+                                                      {className:"comment", variants:[{begin: "@{", end:"}\n", contains:[{className:"attr", begin:/[a-zA-Z_][a-zA-Z0-9_]*/}]}]},
+                                                      {className:"number", begin: "is!{", end:"}", contains:[e.inherit (e.UNDERSCORE_TITLE_MODE)]},
 						                              {className:"symbol",begin:/'[a-zA-Z_][a-zA-Z0-9_]*/},
 						                              {className:"number",variants:[{begin:"\\b0b([01_]+)"+n},{begin:"\\b0o([0-7_]+)"+n},{begin:"\\b0x([A-Fa-f0-9_]+)"+n},{begin:"\\b(\\d[\\d_]*(\\.[0-9_]+)?([eE][+-]?[0-9_]+)?)"+n}],relevance:0},
 						                              {className:"function",beginKeywords:"fn",end:"(\\(|<)",excludeEnd:!0,contains:[e.UNDERSCORE_TITLE_MODE]},{className:"meta",begin:"#\\!?\\[",end:"\\]",contains:[{className:"meta-string",begin:/"/,end:/"/}]},
-						                              {className:"class",beginKeywords:"def trait enum record entity class",end:"{",contains:[e.inherit(e.UNDERSCORE_TITLE_MODE,{endsParent:!0})],illegal:"[\\w\\d]"},{begin:e.IDENT_RE+"::",keywords:{built_in:t}},{begin:"->"}]}}}());
+						                              {className:"class",beginKeywords:"static lazy trait record entity class",end:"{",contains:[e.inherit(e.UNDERSCORE_TITLE_MODE,{endsParent:!0})],illegal:"[\\w\\d]"},
+                                                      {begin:e.IDENT_RE+"::",keywords:{built_in:t}},{begin:"->"}]}}}());
 
 hljs.registerLanguage("error",
 		              function(){"use strict";

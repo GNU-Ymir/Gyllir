@@ -5,9 +5,8 @@ use std::{stream, fs::path};
 @final
 pub class EnumType over Type {
 
-    pub let name : [c8];
-
-    pub let module : Path;
+    pub let mut name : [c8];
+    pub let mut module : Path;
 
     pub let proxy : &Type;
     
@@ -16,12 +15,22 @@ pub class EnumType over Type {
      *   - name: the name of the enum
      *   - isMut: bool is the enum is mutable
      */
-    pub self (name : [c8], isMut : bool, proxy : &Type)
-        with super (isMut-> isMut)
+    pub self (name : [c8], mutability : [c8], proxy : &Type)
+        with super (mutability-> mutability)
         , name = Path (name, sep-> "::"s8).file ()
         , module = Path (name, sep-> "::"s8).parent ()
         , proxy = proxy
-    {}
+    {
+        if let Ok (_) = std::algorithm::searching::find (self.module.file (), '!') {
+            self.name = self.module.file ();
+            self.module = self.module.parent (); // template
+        }
+    }
+
+    @field
+    pub fn fullName (self)-> [c8] {
+        self.module.push (self.name).toStr (sep-> "::")
+    }
 
     impl Streamable {
         pub over toStream (self, dmut stream : &StringStream) {

@@ -2,19 +2,34 @@ in any;
 
 use std::{stream, fs::path};
 
-pub lazy EMPTY_ANY = copy AnyType ("", false);
+pub lazy EMPTY_ANY = copy AnyType ("", "");
 
 @final
 pub class AnyType over Type {
 
-    pub let name : [c8];
-    pub let module : Path;
+    pub let mut name : [c8];
+    pub let mut module : Path;
 
-    pub self (name : [c8], isMut : bool)
-        with super (isMut-> isMut)
+    pub self (name : [c8], mutability : [c8])
+        with super (mutability-> mutability)
         , name = Path (name, sep-> "::"s8).file ()
         , module = Path (name, sep-> "::"s8).parent ()
-    {}
+    {
+        if name.len > 0 {
+            if !std::char::isAlpha (name [0]) {
+                self.name = name;
+                self.module = Path ();
+            } else if let Ok (_) = std::algorithm::searching::find (self.module.file (), '!') {
+                self.name = self.module.file ();
+                self.module = self.module.parent (); // template
+            }
+        }
+    }
+
+    @field
+    pub fn fullName (self)-> [c8] {
+        self.module.push (self.name).toStr (sep-> "::")
+    }
 
     impl Streamable {
         pub over toStream (self, dmut stream : &StringStream) {

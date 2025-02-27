@@ -7,8 +7,8 @@ pub class ScalarType over Type {
 
     pub let name : [c8];
 
-    pub self (name : [c8], isMut : bool)
-        with super (isMut-> isMut)
+    pub self (name : [c8], mutability : [c8])
+        with super (mutability-> mutability)
         , name = name
     {}
 

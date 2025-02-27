@@ -2,6 +2,13 @@
 /* by Bram de Haan (http://atelierbram.github.io/syntax-highlighting/atelier-schemes/dune) */
 /* Original Base16 color scheme by Chris Kempson (https://github.com/chriskempson/base16) */
 
+
+.hljs-attr {
+  color: #b1A8a7;
+  font-style: italic;
+}
+
+
 /* Atelier-Dune Comment */
 .hljs-comment,
 .hljs-quote {
@@ -11,7 +18,6 @@
 /* Atelier-Dune Red */
 .hljs-variable,
 .hljs-template-variable,
-.hljs-attribute,
 .hljs-tag,
 .hljs-name,
 .hljs-regexp,

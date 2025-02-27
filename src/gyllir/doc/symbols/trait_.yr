@@ -9,7 +9,7 @@ use gyllir::doc::{symbols::{variable, method, ctor, assertion},
 @final
 pub class TraitSymbol over Symbol {
     pub let mut methods : [&Method] = [];
-    pub let mut cond_methods : [(&Method, [c8])] = [];
+    pub let mut condMethods : [(&Method, [c8])] = [];
     pub let mut asserts : [Assertion] = [];
 
     pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)

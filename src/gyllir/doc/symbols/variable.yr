@@ -8,6 +8,7 @@ pub class Variable over Symbol {
 
     pub let mut type : &Type = EMPTY_ANY;
     pub let mut isMut : bool = false;
+    pub let mut isDMut : bool = false;
     pub let mut isRef : bool = false;
     pub let mut isLazy : bool = false;
     pub let mut defaultValue : [c8] = [];

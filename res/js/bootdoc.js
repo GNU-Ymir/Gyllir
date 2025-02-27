@@ -55,7 +55,7 @@ function buildModuleTree(modlist) {
  * respecting the global PackageSeparator variable.
  */
 function qualifiedModuleNameToUrl(modName) {
-    if(PackageSeparator == '.') {
+    if(PackageSeparator == '-') {
 	    return modName + '.html';
     } else {
 	    return modName.replace(/\::/g, PackageSeparator) + '.html';
@@ -174,6 +174,7 @@ function updateBreadcrumb(qualifiedName, sourceRepoUrl) {
 }
 
 var enumRegex = /^enum /;
+var macroRegex = /^macro /;
 var recordRegex = /^record /;
 var entityRegex = /^entity /;
 var classRegex = /^class /;
@@ -262,6 +263,8 @@ function buildSymbolTree() {
 		        fillSubTree ('trait');
 	        } else if(functionRegex.test(text)) {
 		        addLeaf('function');
+	        } else if(macroRegex.test(text)) {
+		        addLeaf('macro');
 	        } else if ($decl.hasClass ("y_decl_small")) {
 		        fillSubTree ('block');
             } else if(constructorRegex.test(text)) {
@@ -300,7 +303,7 @@ function populateSymbolList(tree) {
     }
 
     function leafNodeJump (name, anchor, type) {
-	    return '<a href="#' + anchor + '">' + name + '</a>';
+	    return '<a class="symbol-link" href="#' + anchor + '">' + name + '</a>';
     }
 
     var anchorNames = new Array();
@@ -349,7 +352,7 @@ function populateSymbolList(tree) {
 		        var $jump_node = $(jumpNode (node.name, anchorName, node.type));
 		        var $inner_jump = $jump_node.find ('span');
 
-		        var added = traverser(node.members, $list, $inner_jump, anchorName + '.', symTail + node.name + ".");
+		        var added = traverser(node.members, $list, $inner_jump, anchorName + '-', symTail + node.name + "-");
                 console.log (added);
                 if (added != 0) {
                     node.decl.prepend ($jump_node);
@@ -401,7 +404,7 @@ function highlightSymbol(targetId) {
 
     // Open symbol list down to highlighted symbol.
     function eatHead(name) {
-	    var i = name.lastIndexOf('.');
+	    var i = name.lastIndexOf('-');
 	    if(i != -1) {
 	        return name.slice(0, i);
 	    }

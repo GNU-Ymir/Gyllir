@@ -8,8 +8,8 @@ pub class SliceType over Type {
     // The inner type of the slice
     pub let child : &Type;
     
-    pub self (isMut : bool, inner : &Type)
-        with super (isMut-> isMut)
+    pub self (mutability : [c8], inner : &Type)
+        with super (mutability-> mutability)
         , child = inner
     {}
 
