@@ -675,7 +675,7 @@ pub class HtmlBody over HtmlNode {
         codeStream:.entabing (txt-> std::format::format ("{: <*}", pr.len + 5, " "));
         codeStream:.write (tempTest);
 
-        let base = std::format::format (" {}{} (", rename, tempFormat);
+        let base = std::format::format ("{}{} (", rename, tempFormat);
         codeStream:.write (base);
         codeStream:.detabing ();
 

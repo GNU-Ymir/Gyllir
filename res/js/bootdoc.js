@@ -68,13 +68,13 @@ function qualifiedModuleNameToUrl(modName) {
 function populateModuleList(modTree) {
     function treePackageNode(name) {
 	    return '<li class="dropdown sidebar-list-entry">' +
-	        '<a class="tree-node" href="javascript:;" title="' + name + '"><i class="icon-th-list"></i> ' + name + '<b class="caret"></b></a>' +
+	        '<span class="dropdown"><i class="icon-th-list"></i><a class="tree-node" href="javascript:;" title="' + name + '">' + name + '</a><b class="caret"></b></span>' +
 	        '<ul class="custom-icon-list"></ul></li>';
     }
 
     function treeModulePackageNode(name, url) {
 	    return '<li class="sidebar-list-entry">' +
-	        '<a class="tree-leaf tree-node" href="' + url + '" title="' + name + '"><i class="icon-th-list"></i> ' + name + '<b class="caret"></b></a>' +
+	        '<span class="dropdown"><i class="icon-th-list"></i><a class="tree-leaf tree-node" href="' + url + '" title="' + name + '">' + name + '</a><b class="caret"></b></span>' +
 	        '<ul class="custom-icon-list"></ul></li>';
     }
 
@@ -107,7 +107,7 @@ function populateModuleList(modTree) {
 		        $parentList.append($elem);
 
 		        if(member.qualifiedName == Title) { // Current module.
-		            $elem.find('a').append(' <i class="icon-asterisk"></i>');
+		            // $elem.find('a').append(' <i class="icon-asterisk"></i>');
 
 		            var $up = $parentList;
 		            while(!$up.is($listHeader)) {
@@ -126,7 +126,7 @@ function populateModuleList(modTree) {
 		        }
 
 		        if(member.qualifiedName == Title) { // Current module.
-		            $elem.find('a').append(' <i class="icon-asterisk"></i>');
+		            // $elem.find('a').append('<i class="icon-asterisk"></i>');
 
 		            var $up = $ul;
 		            while(!$up.is($listHeader)) {
@@ -292,8 +292,14 @@ function populateSymbolList(tree) {
 	    return '<div id=quickindex.' + name + '" class="quickindex"><p><b>Jump to: </b><span class="jumpto notranslate donthyphenate"></p></div>';
     }
     
-    function expandableNode(name, anchor, type) {
-	    return '<li class="dropdown sidebar-list-entry"><span>' +
+    function expandableNode(name, anchor, type, withChilds) {
+        if (withChilds) {
+	    return '<li class="dropdown sidebar-list-entry"><span class="tree-node-standalone">' +
+	            '<i class="ddoc-icon-' + type + '"></i><a class="symbol-link" href="#' + anchor + '" title="' + name + '">' + name + '</a>' +
+	        '</span><ul class="custom-icon-list"></ul></li>';
+        }
+
+        return '<li class="dropdown sidebar-list-entry"><span>' +
 	        '<i class="ddoc-icon-' + type + '"></i><a class="symbol-link" href="#' + anchor + '" title="' + name + '">' + name + '</a>' +
 	        '</span><ul class="custom-icon-list"></ul></li>';
     }
@@ -337,11 +343,11 @@ function populateSymbolList(tree) {
 	        node.symbolLinkNode.attr('href', '#' + anchorName);
 
 	        if(isTree) {
-		        var $node = $(expandableNode(node.name, anchorName, node.type));
+		        var $node = $(expandableNode(node.name, anchorName, node.type, node.members.length > 0));
 		        $parent.append($node);
 
 		        if(node.members.length > 0) {
-		            var $caret = $('<b class="caret tree-node-standalone"></b>');
+		            var $caret = $('<b class="caret"></b><i class="ddoc-icon-empty"></i>');
 		            $node.find('span').append($caret);
 		        }
 
@@ -552,7 +558,7 @@ $(document).ready(function() {
     }
 
     function standaloneNodeClick() {
-	    $(this).parent().parent().children('ul').toggle();
+	    $(this).parent ().children('ul').toggle();
     }
     
     var $treeNodes = $('.tree-node');

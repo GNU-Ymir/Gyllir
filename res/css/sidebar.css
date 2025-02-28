@@ -20,6 +20,7 @@
 
 .tree-node, .tree-leaf {
 	text-transform: none;
+	font-size: 13px;
 }
 
 .custom-icon-list {
@@ -40,6 +41,11 @@
 
 .d_comment {
 	color: gray;
+}
+
+.y_caret {
+	width: 4px;
+	margin-top: 8px;
 }
 
 .inlinecode {
