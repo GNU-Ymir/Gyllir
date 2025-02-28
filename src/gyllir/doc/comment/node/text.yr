@@ -14,5 +14,9 @@ pub class CommentText over CommentNode {
         stream:.write (self._content);
     }
 
+    pub over dumpTextShort (self)-> [c8] {
+        self._content
+    }
+
     impl Streamable;
 }

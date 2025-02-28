@@ -123,5 +123,19 @@ pub class CommentNode {
         stream:.write ("</dt><dd>", innerStream[], "</dd>");
     }
 
+    /**
+     * Dump a short version of the comment
+     * */
+    pub fn dumpTextShort (self)-> [c8] {
+        if self._head != "" return "";
+
+        let mut result = "";
+        for i in self._childrens {
+            result ~= i.dumpTextShort ();
+        }
+
+        result
+    }
+
     impl Streamable;
 }

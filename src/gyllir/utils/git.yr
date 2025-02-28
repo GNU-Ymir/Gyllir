@@ -276,6 +276,25 @@ pub record GitManager {
     }
 
     /**
+     * @returns: the current branch name
+     * */
+    pub fn getCurrentBranchName (self)-> [c8]
+        throws GitError, FsError
+    {
+        let fst = {
+            let dmut proc = copy SubProcess ("git", copy ["rev-parse", "--abbrev-ref", "HEAD"], cwd-> self._cwd);
+            proc:.start ();
+            let code = proc:.wait ();
+            if (code != 0) {
+                throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+            }
+            self.readAll (alias proc:.stdout)
+        };
+
+        fst
+    }
+
+    /**
      * @returns: the user name and email of the registered git user
      * */
     pub fn getUserName (self) -> [c8]

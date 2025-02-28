@@ -3,15 +3,17 @@ in ressources;
 use std::fs::_;
 
 pub enum
-| RESSOURCES  = Path ("/etc/gyllir/res")
-| LEAF_NODE   = Path ("/etc/gyllir/res/html/leaf_node.html")
-| DECLARATION = Path ("/etc/gyllir/res/html/declaration.html")
-| INLINE_CODE = Path ("/etc/gyllir/res/html/inline_code.html")
-| MEMBERS     = Path ("/etc/gyllir/res/html/members.html")
-| MEMBER_HEAD = Path ("/etc/gyllir/res/html/member_head.html")
-| MODULE_HEAD = Path ("/etc/gyllir/res/html/module_head.html")
-| HEADER      = Path ("/etc/gyllir/res/html/header.html")
-| FOOTER      = Path ("/etc/gyllir/res/html/footer.html")
+| RESSOURCES   = Path ("/etc/gyllir/res")
+| LEAF_NODE    = Path ("/etc/gyllir/res/html/leaf_node.html")
+| DECLARATION  = Path ("/etc/gyllir/res/html/declaration.html")
+| INLINE_CODE  = Path ("/etc/gyllir/res/html/inline_code.html")
+| MEMBERS      = Path ("/etc/gyllir/res/html/members.html")
+| MEMBER_HEAD  = Path ("/etc/gyllir/res/html/member_head.html")
+| MODULE_HEAD  = Path ("/etc/gyllir/res/html/module_head.html")
+| HEADER       = Path ("/etc/gyllir/res/html/header.html")
+| FOOTER       = Path ("/etc/gyllir/res/html/footer.html")
+| SUBMODULE    = Path ("/etc/gyllir/res/html/submodule.html")
+| MODULE_TABLE = Path ("/etc/gyllir/res/html/module_table.html")
  -> GyllirHtmlFiles;
 
 pub lazy LEAF_NODE = {
@@ -66,6 +68,20 @@ pub lazy HEADER = {
 
 pub lazy FOOTER = {
     let dmut f = File::open (GyllirHtmlFiles::FOOTER);
+    f:.readAll ()
+} catch {
+    _ => ""
+};
+
+pub lazy SUBMODULE = {
+    let dmut f = File::open (GyllirHtmlFiles::SUBMODULE);
+    f:.readAll ()
+} catch {
+    _ => ""
+};
+
+pub lazy MODULE_TABLE = {
+    let dmut f = File::open (GyllirHtmlFiles::MODULE_TABLE);
     f:.readAll ()
 } catch {
     _ => ""

@@ -60,7 +60,7 @@ pub class GyllirManager {
 
         else if let Ok (c) = self._args ["doc"]? {
             if let Ok (Str (value-> file)) = c ["input"]? {
-                RepoDocBuilder (env::currentDir (), c, file).run (alias self);
+                RepoDocBuilder (env::currentDir (), c, self.tryLoadToml (env::currentDir ()), input-> file, fromFile-> true).run (alias self);
             } else {
                 RepoDocBuilder (env::currentDir (), c, self.loadToml (env::currentDir ())).run (alias self);
             }
@@ -104,6 +104,20 @@ pub class GyllirManager {
             panic;
         }
     }
+
+    /**
+     * Load the configuration file (but return a empty configuration if not found)
+     * */
+    prv fn tryLoadToml (self, path : Path)-> GyllirPackageConfiguration {
+        let dmut f = File::open (path.push (defaults::__GYLLIR_CONFIG_FILENAME__));
+        let cfg = std::config::toml::parse (f:.readAll ());
+        f:.close ();
+
+        GyllirPackageConfiguration (cfg)
+    } catch {
+        _ => { GyllirPackageConfiguration::empty () }
+    }
+
 
     /*!
      * ====================================================================================================

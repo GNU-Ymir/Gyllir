@@ -7,11 +7,13 @@ pub lazy EMPTY_ANY = copy AnyType ("", "");
 @final
 pub class AnyType over Type {
 
+    pub let mut fullName : [c8];
     pub let mut name : [c8];
     pub let mut module : Path;
 
     pub self (name : [c8], mutability : [c8])
         with super (mutability-> mutability)
+        , fullName = name
         , name = Path (name, sep-> "::"s8).file ()
         , module = Path (name, sep-> "::"s8).parent ()
     {
@@ -19,16 +21,16 @@ pub class AnyType over Type {
             if !std::char::isAlpha (name [0]) {
                 self.name = name;
                 self.module = Path ();
-            } else if let Ok (_) = std::algorithm::searching::find (self.module.file (), '!') {
-                self.name = self.module.file ();
-                self.module = self.module.parent (); // template
+            } else if let Ok (f) = std::algorithm::searching::find (self.fullName, '!') {
+                if let Ok (e) = std::algorithm::searching::rfind (self.fullName, '}') {
+                    let templates = self.fullName [f .. e + 1];
+                    let res_name = self.fullName [0 .. f];
+                    self.module = Path (res_name, sep-> "::").parent ();
+                    self.name = Path (res_name, sep-> "::").file () ~ templates;
+                    self.fullName = res_name ~ templates;
+                }
             }
         }
-    }
-
-    @field
-    pub fn fullName (self)-> [c8] {
-        self.module.push (self.name).toStr (sep-> "::")
     }
 
     impl Streamable {

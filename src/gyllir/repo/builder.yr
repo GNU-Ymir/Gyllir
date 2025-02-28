@@ -241,7 +241,7 @@ pub record RepoBuilder {
     prv fn buildSourceDoc (self, dmut context : &GyllirManager, includes : [Path])-> (Path, Path)
         throws AssertError
     {
-        let srcPath = self.findRootTestFile ();
+        let srcPath = self.findRootSourceFile ();
         let cacheDir = self._cwd.push (defaults::__CACHE_DOC_DIR__);
         self.createCacheDirs (cacheDir);
 
@@ -265,7 +265,11 @@ pub record RepoBuilder {
      * @returns: the list of libraries to link for further dependencies
      * */
     prv fn finalizeBuild (self, dmut context : &GyllirManager, cacheDir : Path, links : [Path])-> [Path] {
-        if self._forUnitTest {
+        if (self._forDoc) {
+            links
+        }
+
+        else if self._forUnitTest {
             self.finalizeUnitTest (alias context, cacheDir, links);
             links
         }
@@ -322,7 +326,10 @@ pub record RepoBuilder {
      * Build the compile command line option to build documentation file
      * */
     prv fn createDocCompileOptions (self, srcPath : Path, depPaths : [Path])-> [[c8]] {
-        let mut options : [[c8]] = copy [srcPath.toStr (), "-c", "-fdoc", self._cwd.push (defaults::__CACHE_DOC_DIR__).push (self._cfg.name).addExtension (defaults::__DOC_EXTENSION__).toStr ()];
+        let objectFile = self._cwd.push (defaults::__CACHE_DOC_DIR__).push (self._cfg.name).addExtension (defaults::__OBJECT_EXTENSION__).toStr ();
+        let jsonFile = self._cwd.push (defaults::__CACHE_DOC_DIR__).push (self._cfg.name).addExtension (defaults::__DOC_EXTENSION__).toStr ();
+
+        let mut options : [[c8]] = copy [srcPath.toStr (), "-c", "-o", objectFile, "-fdoc", jsonFile];
         if (self._verbose) {
             options ~= ["-fv"];
         }

@@ -27,15 +27,15 @@ pub fn format (dmut stream : &StringStream, content : [c8], values : [[c8] => [c
 /**
  * Format git url that can be in ssh format to http format
  * */
-pub fn formatGitUrl (url : [c8], version : [c8] = "master")-> [c8] {
-    if url.len > 4 && url [0 .. 4] == "git@" {
+pub fn formatGitUrl (url : [c8], version : [c8] = "main")-> [c8] {
+    if url.len >= 8 && url [0 .. 4] == "git@" && url [$ - 4 .. $] == ".git" {
         if let Ok (n) = find (url, ':') {
             let rootUrl = url [4 .. n];
-            return "https://" ~ rootUrl ~ "/" ~ url [n .. $] ~ "/tree/" ~ version;
+            return "https://" ~ rootUrl ~ "/" ~ url [n + 1 .. $ - 4] ~ "/tree/" ~ strip (version) ~ "/src/";
         }
     }
 
-    url
+    url ~ "/src/"
 }
 
 /**
@@ -73,4 +73,19 @@ prv fn findNext (content : [c8]) -> ([c8], [c8], [c8]) {
     }
 
     return (content, "", "");
+}
+
+
+fn strip (str : [c8])-> [c8] {
+    let mut start = 0us, mut end = str.len;
+    let mut started = false;
+
+    for i, j in str {
+        if !std::char::isWhite (j) {
+            if (!started) { started = true; start = i; }
+            else { end = i + 1; }
+        }
+    }
+
+    str [start .. end]
 }

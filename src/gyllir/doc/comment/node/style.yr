@@ -27,5 +27,22 @@ pub class CommentStyle over CommentNode {
         }
     }
 
+    pub over dumpTextShort (self)-> [c8] {
+        match self._style {
+            CommentTokens::BOLD_STAR | CommentTokens::BOLD_UNDER => {
+                "<strong>" ~ self._content ~ "</strong>"
+            }
+            CommentTokens::ITALIC_STAR | CommentTokens::ITALIC_UNDER => {
+                "<em>" ~ self._content ~ "</em>"
+            }
+            CommentTokens::CODE_SEVEN => {
+                "<code class=\"language-ymir hljs\">" ~ self._content ~ "</code>"
+            }
+            _ => {
+                ""
+            }
+        }
+    }
+
     impl Streamable;
 }

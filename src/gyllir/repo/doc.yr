@@ -22,28 +22,20 @@ pub record RepoDocBuilder {
     // True iif input file is given instead of gyllir repo
     let _fromFile : bool;
 
+    // The git manager util
+    let _git : GitManager;
+
     /**
      * @params:
      *    - input: the input file to parse
      * */
-    pub self (path : Path, args : &Config, input : [c8])
-        with _cwd = path
-        , _args = args
-        , _cfg = GyllirPackageConfiguration::empty ()
-        , _fromFile = true
-        , _input = input
-    {}
-
-    /**
-     * @params:
-     *    - cfg: the configuration of the repo
-     * */
-    pub self (path : Path, args : &Config, cfg : GyllirPackageConfiguration)
+    pub self (path : Path, args : &Config, cfg : GyllirPackageConfiguration, input : [c8] = "", fromFile : bool = false)
         with _cwd = path
         , _args = args
         , _cfg = cfg
-        , _fromFile = false
-        , _input = ""
+        , _fromFile = fromFile
+        , _input = input
+        , _git = GitManager (cwd-> path)
     {}
 
     /**
@@ -52,8 +44,14 @@ pub record RepoDocBuilder {
     pub fn run (self, dmut context : &GyllirManager)
         throws RecursiveDependency
     {
+        let version = if (self._cfg.name == "") {
+            ""
+        } else if let Ok (v) = self._git.getCurrentBranchName ()? {
+            v
+        } else { "main" };
+
         let inputFile = if (!self._fromFile) {
-            RepoBuilder (self._cwd, copy Dict (), self._cfg, forUnitTest-> false, forDoc-> true).run (alias context);
+            RepoBuilder (self._cwd, self._args, self._cfg, forUnitTest-> false, forDoc-> true).run (alias context);
             self._cwd.push (defaults::__CACHE_DOC_DIR__).push (self._cfg.name).addExtension (defaults::__DOC_EXTENSION__)
         } else {
             Path (self._input)
@@ -82,7 +80,7 @@ pub record RepoDocBuilder {
         };
 
         let symbol = (SymbolLoader ()).load (docConfig);
-        self.generate (alias context, outputDir, symbol);
+        self.generate (alias context, version, outputDir, symbol);
     }
 
     /*!
@@ -96,13 +94,13 @@ pub record RepoDocBuilder {
     /**
      * Generate the documentation directory
      * */
-    fn generate (self, dmut context : &GyllirManager, outDir : Path, symbol : &Symbol) {
+    fn generate (self, dmut context : &GyllirManager, version : [c8], outDir : Path, symbol : &Symbol) {
         utils::log::info ("Generate", "documentation pages in '", outDir.toStr (), "'");
         self.createBaseDirectory (alias context, outDir);
         let (htmlTable, modules) = self.createHtmlTable (symbol);
 
         for m in modules {
-            self.generatePage (self._cfg.name, self._cfg.registry.path.toStr (), htmlTable, m, outDir);
+            self.generatePage (self._cfg.name, self._cfg.registry.path.toStr (), version, htmlTable, m, outDir);
         }
 
     }
@@ -143,12 +141,12 @@ pub record RepoDocBuilder {
     /**
      * Generate the page for a module
      * */
-    fn generatePage (self, project : [c8], git : [c8], table : [c8], module : &Module, outDir : Path) {
+    fn generatePage (self, project : [c8], git : [c8], version : [c8], table : [c8], module : &Module, outDir : Path) {
         let name = if module.name == "" { "index" } else { module.name };
 
         let body = copy HtmlBody (project, module);
-        let head = copy HtmlHeader (project, git, name, table, body);
-        let foot = copy HtmlFooter (name, git);
+        let head = copy HtmlHeader (project, git, version, name, table, body);
+        let foot = copy HtmlFooter (name, git, version);
 
         let dmut stream = copy StringStream ();
         head.dumpHtml (alias stream);

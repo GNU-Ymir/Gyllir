@@ -2,10 +2,12 @@ in body;
 
 use std::{stream,
           format,
+          algorithm::sorting,
           conv, fs::path};
 
 use gyllir::doc::{_, symbols::_, types::_, comment::parser};
 use gyllir::repo::defaults;
+
 
 /**
  * Html body of a page 
@@ -22,7 +24,17 @@ pub class HtmlBody over HtmlNode {
     // The name of the project
     let _project : [c8];
 
+    // The path of the current module
     let _path : Path;
+
+    let mut _akas : [mut &Symbol] = [];
+    let mut _classes : [mut &Symbol] = [];
+    let mut _traits : [mut &Symbol] = [];
+    let mut _enums : [mut &Symbol] = [];
+    let mut _functions : [mut &Symbol] = [];
+    let mut _globals : [mut &Symbol] = [];
+    let mut _macros : [mut &Symbol] = [];
+    let mut _modules : [mut &Symbol] = [];
 
     /**
      * @params: 
@@ -33,8 +45,18 @@ pub class HtmlBody over HtmlNode {
         with _project = project
         , _module = module
         , _path = Path (module.name, sep-> "::")
-    {}
-    
+    {
+        self:.loadContent ();
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ======================================          MAIN          ======================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
     /**
      * Dump the module into a html page
      * @params:
@@ -43,10 +65,16 @@ pub class HtmlBody over HtmlNode {
     pub over dumpHtml (self, dmut stream : &StringStream) {
         let content = copy ["Content" => self.dumpCommonSymbol (self._module)];
         formatter::format (alias stream, ressources::MODULE_HEAD, content);
-        
-        for ch in self._module.childs if ch !of Module {
-            self.dumpContent (alias stream, ch);
-        }
+
+        self.dumpSubModuleTable (alias stream);
+
+        for a in self._akas self.dumpContent (alias stream, a);
+        for a in self._enums self.dumpContent (alias stream, a);
+        for a in self._globals self.dumpContent (alias stream, a);
+        for a in self._macros self.dumpContent (alias stream, a);
+        for a in self._functions self.dumpContent (alias stream, a);
+        for a in self._traits self.dumpContent (alias stream, a);
+        for a in self._classes self.dumpContent (alias stream, a);
     }
 
     /**
@@ -77,6 +105,54 @@ pub class HtmlBody over HtmlNode {
         stream[]
     }
 
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ===================================          SUBMODULES          ===================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Dump the table listing the sub modules defined in this module
+     * */
+    fn dumpSubModuleTable (self, dmut stream : &StringStream) {
+        if (self._modules.len != 0) {
+            let dmut subModule = copy StringStream ();
+            for m in self._modules {
+                let p = Path (m.name, sep-> "::");
+                let mut name = p.file (), mut url = p;
+
+                if let Ok (f) = std::algorithm::searching::find (m.name, '!') {
+                    if let Ok (e) = std::algorithm::searching::rfind (m.name, '}') {
+                        let templates = m.name [f .. e];
+                        let res_name = m.name [0 .. f];
+
+                        url = Path (res_name, sep-> "::");
+                        name = Path (res_name, sep-> "::").file () ~ templates;
+                    }
+                }
+
+                let comm = copy CommentParser (m.doc);
+
+                formatter::format (alias subModule, ressources::SUBMODULE, copy ["Url" => url.toStr (sep-> "_"),
+                                                                                 "Name" => name,
+                                                                                 "Protection" => self.dumpProtection (m.protect),
+                                                                                 "Doc" => comm.dumpTextShort ()]);
+            }
+
+            formatter::format (alias stream, ressources::MODULE_TABLE, copy ["Content" => subModule[]]);
+        }
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          SYMBOLS          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
     /**
      * Dump a symbol into html
      * @params: 
@@ -85,14 +161,14 @@ pub class HtmlBody over HtmlNode {
      */
     fn dumpContent (self, dmut stream : &StringStream, sym : &Symbol, templates : [&TemplateParam] = [], templateTest : [c8] = []) {
         match sym {
-            a : &Aka        => self.dumpAka (alias stream, a, templates-> templates, templateTest-> templateTest);
-            c : &ClassSymbol      => self.dumpClass (alias stream, c, templates-> templates, templateTest-> templateTest);
-            t : &TraitSymbol      => self.dumpTrait (alias stream, t, templates-> templates, templateTest-> templateTest);
-            e : &EnumSymbol => self.dumpEnum (alias stream, e, templates-> templates, templateTest-> templateTest);
-            f : &Function   => self.dumpFunction (alias stream, f, templates-> templates, templateTest-> templateTest);
-            g : &Global     => self.dumpGlobal (alias stream, g);
-            m : &Macro      => self.dumpMacro (alias stream, m);
-            t : &Template => {
+            a : &Aka         => self.dumpAka (alias stream, a, templates-> templates, templateTest-> templateTest);
+            c : &ClassSymbol => self.dumpClass (alias stream, c, templates-> templates, templateTest-> templateTest);
+            t : &TraitSymbol => self.dumpTrait (alias stream, t, templates-> templates, templateTest-> templateTest);
+            e : &EnumSymbol  => self.dumpEnum (alias stream, e, templates-> templates, templateTest-> templateTest);
+            f : &Function    => self.dumpFunction (alias stream, f, templates-> templates, templateTest-> templateTest);
+            g : &Global      => self.dumpGlobal (alias stream, g);
+            m : &Macro       => self.dumpMacro (alias stream, m);
+            t : &Template    => {
                 for c in t.inners {
                     self.dumpContent (alias stream, c, templates-> t.params, templateTest-> t.test);
                 }
@@ -1035,8 +1111,73 @@ pub class HtmlBody over HtmlNode {
         " if (" ~ test ~ ")\n"
     }
 
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          CHECKING          ====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
     fn isLocal (self, p : Path)-> bool {
         self._path == p
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          LOADING          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Load the content to export symbols in the correct order
+     * */
+    fn loadContent (mut self) {
+        for ch in self._module.childs {
+            self:.loadElement (ch, ch);
+        }
+
+        sort (alias self._modules, |x, y| => { x.name < y.name });
+        sort (alias self._akas, |x, y| => { x.name < y.name });
+        sort (alias self._classes, |x, y| => { x.name < y.name });
+        sort (alias self._traits, |x, y| => { x.name < y.name });
+        sort (alias self._enums, |x, y| => { x.name < y.name });
+        sort (alias self._functions, |x, y| => { x.name < y.name });
+        sort (alias self._globals, |x, y| => { x.name < y.name });
+        sort (alias self._macros, |x, y| => { x.name < y.name });
+    }
+
+    /**
+     * Load an element in the correct collection
+     * */
+    fn loadElement (mut self, root : &Symbol, element : &Symbol) {
+        match element {
+            Module () => { self._modules ~= [root]; }
+            Aka () => { self._akas ~= [root]; }
+            ClassSymbol () => { self._classes ~= [root]; }
+            TraitSymbol () => { self._traits ~= [root]; }
+            EnumSymbol () => { self._enums ~= [root]; }
+            Function () => { self._functions ~= [root]; }
+            Global () => { self._globals ~= [root]; }
+            Macro () => { self._macros ~= [root]; }
+            t : &Template => {
+                if (t.inners.len <= 1) {
+                    for c in t.inners {
+                        self:.loadElement (root-> t, c);
+                    }
+                } else {
+                    for c in t.inners {
+                        let dmut newTemplate = copy Template (t.name, t.doc, t.loc, t.protect);
+                        newTemplate.test = t.test;
+                        newTemplate.params = t.params;
+                        newTemplate.inners = copy [c];
+                        self:.loadElement (root-> newTemplate, c);
+                    }
+                }
+            }
+        }
     }
 
 }

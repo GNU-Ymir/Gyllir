@@ -12,15 +12,16 @@ pub class HtmlFooter over HtmlNode {
 
     // The git repo
     let _git : [c8];
-
     let _title : [c8];
+    let _version : [c8];
     
     /**
      * Create a footer for a page 
      */
-    pub self (title : [c8], git : [c8])
+    pub self (title : [c8], git : [c8], version : [c8])
         with _title = title
         , _git = git
+        , _version = version
     {}
 
     /**
@@ -30,7 +31,7 @@ pub class HtmlFooter over HtmlNode {
      */
     pub over dumpHtml (self, dmut stream : &StringStream) {
         let mp = copy ["Title" => self._title,
-                       "GitURL" => formatter::formatGitUrl (self._git)];
+                       "GitURL" => formatter::formatGitUrl (self._git, version-> self._version)];
 
         formatter::format (alias stream, ressources::FOOTER, mp);
     }

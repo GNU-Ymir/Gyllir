@@ -14,7 +14,10 @@ pub class HtmlHeader over HtmlNode {
 
     // The git repo
     let _git : [c8];
-    
+
+    // The git current branch version
+    let _version : [c8];
+
     // The name of the page
     let _name : [c8];
 
@@ -29,9 +32,10 @@ pub class HtmlHeader over HtmlNode {
      * @params: 
      *   - name: the name of the page
      */
-    pub self (project : [c8], git : [c8], name : [c8], table : [c8], body : &HtmlBody)
+    pub self (project : [c8], git : [c8], version : [c8], name : [c8], table : [c8], body : &HtmlBody)
         with _project = project
         , _git = git
+        , _version = version
         , _name = name
         , _table = table
         , _body = body
@@ -47,7 +51,7 @@ pub class HtmlHeader over HtmlNode {
         self._body.dumpHtml (alias streamBody);
 
         let mp = copy ["Title"  => (self._project ~ " " ~ self._name),
-                       "GitURL" => formatter::formatGitUrl (self._git),
+                       "GitURL" => formatter::formatGitUrl (self._git, version-> self._version),
                        "Modules" => self._table,
                        "Body" => streamBody[]];
 
