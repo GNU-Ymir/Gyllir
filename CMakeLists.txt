@@ -1,7 +1,7 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.1)
 PROJECT(Midgard C)
 set(CMAKE_YMIR_COMPILER "gyc")
-set(CMAKE_YMIR_RELEASE_FLAGS "-fPIC" "-O3" "-fv" "-fdoc" "out.json" "-fdump-ymir")
+set(CMAKE_YMIR_RELEASE_FLAGS "-fPIC" "-O3" "-fv")
 set(CMAKE_YMIR_DEBUG_FLAGS "${CMAKE_YMIR_RELEASE_FLAGS}" "-fversion=DEBUG_LIB" "-g")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -g")
 
