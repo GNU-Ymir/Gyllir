@@ -1007,7 +1007,7 @@ pub class HtmlBody over HtmlNode {
                 };
 
                 if (c.isClass && andClass) {
-                    if c.innerMut && withMut {
+                    if c.innerMut && withMut && !c.isDMut {
                         "&(mut " ~ beg ~ c.fullName ~ "</a>)"
                     } else {
                         "&(" ~ beg ~ c.fullName ~ "</a>)"

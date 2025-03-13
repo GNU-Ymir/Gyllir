@@ -80,7 +80,7 @@ function populateModuleList(modTree) {
 
     function treeModuleNode(name, url) {
 	    return '<li class="sidebar-list-entry">' +
-	        '<a class="tree-leaf" href="' + url + '" title="' + name + '"><i class="icon-th"></i> ' + name + '</a>' +
+	        '<span><i class="icon-th"></i><a class="tree-leaf" href="' + url + '" title="' + name + '">' + name + '</a></span>' +
 	        '</li>';
     }
 

@@ -66,7 +66,7 @@ pub record RepoBuilder {
         throws RecursiveDependency
     {
         let (includes, links) = self.resolveDependencies (alias context);
-        self.runPreCommands (alias context);
+        self.runCommands (alias context, post-> false);
         let (srcPath, cacheDir) = {
             if (self._forDoc) {
                 self.buildSourceDoc (alias context, includes)
@@ -87,7 +87,7 @@ pub record RepoBuilder {
         };
 
         let finalLinks = self.finalizeBuild (alias context, cacheDir, links);
-        self.runPostCommands (alias context);
+        self.runCommands (alias context, post-> true);
 
         return (includes ~ [srcPath], finalLinks);
     }
@@ -798,35 +798,18 @@ pub record RepoBuilder {
     /**
      * Execute the commands to run before the compilation
      * */
-    prv fn runPreCommands (self, dmut context : &GyllirManager) {
+    prv fn runCommands (self, dmut context : &GyllirManager, post : bool) {
         let dmut tzer = Tokenizer!c8 ();
         tzer:.insert (" ", isSkip-> true);
         for _, c in self._cfg.commands [] {
-            if !c.isPost () {
+            if c.isPost () == post {
                 let cmd = tzer.tokenizeWithoutSkips (c.cmd);
-                let succ = if (cmd.len > 0) {
-                    context.runProcess (cmd [0], cmd [1 .. $], cwd-> self._cwd)
-                } else { false };
+                let path = if (c.cwd.isAbsolute ()) {
+                    c.cwd
+                } else { self._cwd.push (c.cwd) };
 
-                if !succ {
-                    utils::log::error ("Error", "failed to compile project '", self._cfg.name, "'");
-                    etc::c::process::_yrt_exit (-1);
-                }
-            }
-        }
-    }
-
-    /**
-     * Execute the commands to run after the compilation
-     * */
-    prv fn runPostCommands (self, dmut context : &GyllirManager) {
-        let dmut tzer = Tokenizer!c8 ();
-        tzer:.insert (" ", isSkip-> true);
-        for _, c in self._cfg.commands [] {
-            if c.isPost () {
-                let cmd = tzer.tokenizeWithoutSkips (c.cmd);
                 let succ = if (cmd.len > 0) {
-                    context.runProcess (cmd [0], cmd [1 .. $], cwd-> self._cwd)
+                    context.runProcess (cmd [0], cmd [1 .. $], cwd-> path)
                 } else { false };
 
                 if !succ {

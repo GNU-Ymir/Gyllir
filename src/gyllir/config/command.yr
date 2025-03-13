@@ -106,8 +106,11 @@ pub class CustomCommandList {
     {
         for k, v in cfg[] {
             let cmd = to!{[c8]} (v ["cmd"]);
-            let post = if let Ok (p) = v ["post"]? {
-                to!{bool} (p)
+            std::io::println (v);
+            let post = if let Ok (Str (value-> "true")) = v ["post"]? {
+                true
+            } else if let Ok (Bool (value-> true)) = v ["post"]? {
+                true
             } else { false };
 
             let cwd = if let Ok (s) = v ["cwd"]? {

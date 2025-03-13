@@ -155,6 +155,7 @@ pub class GyllirManager {
                     }
 
                     self.runProcess ("ln"s8, copy ["-s"s8, dependency.url.path.toStr (), depPath.toStr ()]);
+                    utils::log::info ("Fetched", "local dependency ", name);
                 }
             }
 
@@ -162,11 +163,19 @@ pub class GyllirManager {
                 gM.clone (dependency.url.path.toStr ());
             }
 
-            gM.fetchTags ();
             let version = dependency.version.select (self.toVersionList (GitManager (cwd-> depPath).getTagList ()));
-            if (version.isNumbered ()) {
-                gM.checkout ("v" ~ version[]);
-            } else gM.checkout (version[]);
+            {
+                if (version.isNumbered ()) {
+                    gM.checkout ("v" ~ version[]);
+                } else gM.checkout (version[]);
+            } catch {
+                _ => {
+                    gM.fetchTags ();
+                    if (version.isNumbered ()) {
+                        gM.checkout ("v" ~ version[]);
+                    } else gM.checkout (version[]);
+                }
+            }
 
             if (dependency.url.type == UrlType::GIT) {
                 if (version.isNumbered ()) {
