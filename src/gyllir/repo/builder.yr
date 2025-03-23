@@ -427,6 +427,7 @@ pub record RepoBuilder {
             weakens ~= ["--weaken-symbol=" ~ sym];
             globalize ~= ["--globalize-symbol=" ~ sym];
         }
+        weakens ~= ["--weaken-symbol=main"];
 
         context.runProcess ("objcopy", weakens ~ [old], cwd-> self._cwd, verbose-> self._verbose);
         context.runProcess ("objcopy", globalize ~ [new], cwd-> self._cwd, verbose-> self._verbose);
