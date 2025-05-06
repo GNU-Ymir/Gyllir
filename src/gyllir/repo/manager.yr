@@ -148,7 +148,7 @@ pub class GyllirManager {
         {
             utils::log::info ("Resolving", "dependency ", name, " to ", depPath.toStr ());
             let gM = GitManager (cwd-> depPath);
-            if (dependency.url.type == UrlType::LOCAL) {
+            let hasCloned = if (dependency.url.type == UrlType::LOCAL) {
                 if (!isDir (depPath) || fs::sys::fileDate (depPath) < fs::sys::fileDate (dependency.url.path)) {
                     if !isDir (depPath.parent ()) {
                         fs::sys::createDir (depPath.parent (), recursive-> true);
@@ -156,12 +156,18 @@ pub class GyllirManager {
 
                     self.runProcess ("ln"s8, copy ["-s"s8, dependency.url.path.toStr (), depPath.toStr ()]);
                     utils::log::info ("Fetched", "local dependency ", name);
+                    true
+                } else {
+                    false
                 }
             }
 
             else if !isDir (depPath) {
                 gM.clone (dependency.url.path.toStr ());
-            }
+                true
+            } else {
+                false
+            };
 
             let version = dependency.version.select (self.toVersionList (GitManager (cwd-> depPath).getTagList ()));
             {
@@ -191,6 +197,10 @@ pub class GyllirManager {
             }
 
             self._depPackages [dependency.url] = ();
+            if (hasCloned) {
+                RepoCleaner (depPath, args, conf).run ();
+            }
+
             let (ext, lbs) = RepoBuilder (depPath, args, conf, forUnitTest-> false, dry-> dry).run (alias self);
 
             self._depPackages:.remove (dependency.url);
