@@ -28,10 +28,12 @@ pub record RepoCleaner {
     /**
      * Clean directory
      * */
-    pub fn run (self) {
+    pub fn run (self, dmut context : &GyllirManager)
+        throws RecursiveDependency
+    {
         if let Ok (Bool (value-> _ = true)) = self._args ["all"]? {
             self.cleanDoc ();
-            self.cleanDeps ();
+            self.cleanDeps (alias context, recursive-> true);
             self.cleanOutputs ();
         }
 
@@ -40,7 +42,7 @@ pub record RepoCleaner {
         }
 
         else {
-            self.cleanDeps ();
+            self.cleanDeps (alias context, recursive-> false);
             self.cleanOutputs ();
         }
     }
@@ -59,9 +61,17 @@ pub record RepoCleaner {
     /**
      * Clean the dependency directory
      * */
-    pub fn cleanDeps (self) {
+    pub fn cleanDeps (self, dmut context : &GyllirManager, recursive : bool)
+        throws RecursiveDependency
+    {
         let depDir = self._cwd.push (defaults::__DEPENCY_DIR__);
         utils::log::info ("Removing", "dependency directory ", depDir.toStr ());
+        if recursive {
+            for k, d in self._cfg.dependencies[] {
+                context:.cleanDependency (self._args, self._cwd, k, d);
+            }
+        }
+
         {
             fs::sys::removeDir (depDir, recursive-> true);
         }?;

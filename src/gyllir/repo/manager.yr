@@ -1,6 +1,6 @@
 in manager;
 
-use std::{config::_, fs::_};
+use std::{config::_, fs::_, io};
 use gyllir::{config::_, args, args::_, utils::_};
 use gyllir::repo::_;
 use std::{concurrency::process, syntax::tokenizer};
@@ -43,7 +43,7 @@ pub class GyllirManager {
         }
 
         else if let Ok (c) = self._args ["clean"]? {
-            RepoCleaner (env::currentDir (), c, self.loadToml (env::currentDir ())).run ();
+            RepoCleaner (env::currentDir (), c, self.loadToml (env::currentDir ())).run (alias self);
         }
 
         else if let Ok (c) = self._args ["publish"]? {
@@ -149,17 +149,17 @@ pub class GyllirManager {
             utils::log::info ("Resolving", "dependency ", name, " to ", depPath.toStr ());
             let gM = GitManager (cwd-> depPath);
             let hasCloned = if (dependency.url.type == UrlType::LOCAL) {
-                if (!isDir (depPath) || fs::sys::fileDate (depPath) < fs::sys::fileDate (dependency.url.path)) {
-                    if !isDir (depPath.parent ()) {
-                        fs::sys::createDir (depPath.parent (), recursive-> true);
-                    }
-
-                    self.runProcess ("ln"s8, copy ["-s"s8, dependency.url.path.toStr (), depPath.toStr ()]);
-                    utils::log::info ("Fetched", "local dependency ", name);
-                    true
-                } else {
-                    false
+                if !isDir (depPath.parent ()) {
+                    fs::sys::createDir (depPath.parent (), recursive-> true);
                 }
+
+                if isLink (depPath) {
+                    removeFsEntry (depPath);
+                }
+
+                self.runProcess ("ln"s8, copy ["-s"s8, dependency.url.path.toStr (), depPath.toStr ()]);
+                utils::log::info ("Fetched", "local dependency ", name);
+                false
             }
 
             else if !isDir (depPath) {
@@ -198,7 +198,7 @@ pub class GyllirManager {
 
             self._depPackages [dependency.url] = ();
             if (hasCloned) {
-                RepoCleaner (depPath, args, conf).run ();
+                RepoCleaner (depPath, args, conf).run (alias self);
             }
 
             let (ext, lbs) = RepoBuilder (depPath, args, conf, forUnitTest-> false, dry-> dry).run (alias self);
@@ -232,6 +232,34 @@ pub class GyllirManager {
                 utils::log::error ("Resolving", "dependency ", name, " failure : ", x);
                 etc::c::process::_yrt_exit (-1);
                 panic;
+            }
+        }
+    }
+
+    /**
+     * Clear a dependency target
+     * @params:
+     *    - args: the configuration of the current building
+     *    - name: the name of the dependency to clean
+     *    - dependency: the information about the dependency to clean
+     * */
+    pub fn cleanDependency (mut self, args : &Config, cwd : Path, name : [c8], dependency : Dependency)
+        throws RecursiveDependency
+    {
+        if (dependency.url in self._depPackages) {
+            throw copy RecursiveDependency (name ~ ":"s8 ~ dependency.url.path.toStr ())
+        }
+
+        let depPath = cwd.push (defaults::__DEPENCY_DIR__).push (name);
+        utils::log::info ("Cleaning", "dependency ", name, " to ", depPath.toStr ());
+        if (dependency.url.type == UrlType::LOCAL) {
+            self._depPackages [dependency.url] = ();
+            let conf = self.loadToml (depPath);
+            RepoCleaner (depPath, args, conf).run (alias self);
+            self._depPackages:.remove (dependency.url);
+        } catch {
+            r : &RecursiveDependency => {
+                throw copy RecursiveDependency (name ~ ":"s8 ~ dependency.url.path.toStr (), subError-> (r)?);
             }
         }
     }
