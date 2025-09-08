@@ -31,7 +31,7 @@ pub record Url {
     let mut _type : UrlType = UrlType::LOCAL;
 
     // True iif the url is valid
-    let mut _valid = false;
+    let mut _valid : bool = false;
 
     /*!
      * ====================================================================================================
