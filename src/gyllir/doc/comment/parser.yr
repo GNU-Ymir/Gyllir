@@ -16,7 +16,7 @@ pub class CommentParser {
     let dmut _lex : &Lexer!{c8};
 
     // The content created by the parser
-    let dmut _root = copy CommentNode ("");
+    let dmut _root : &CommentNode = copy CommentNode ("");
 
 
     /*!

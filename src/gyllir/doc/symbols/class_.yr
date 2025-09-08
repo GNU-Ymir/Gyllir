@@ -8,11 +8,11 @@ use gyllir::doc::{symbols::{variable, method, ctor, assertion},
 @final
 pub class ClassSymbol over Symbol {
 
-    pub let mut hasDtor = false;
-    pub let mut isAbstract = false;
-    pub let mut isFinal = false;
-    pub let mut isEntity = false;
-    pub let mut isRecord = false;
+    pub let mut hasDtor    : bool = false;
+    pub let mut isAbstract : bool = false;
+    pub let mut isFinal    : bool = false;
+    pub let mut isEntity   : bool = false;
+    pub let mut isRecord   : bool = false;
 
     pub let mut ancestor : &Type = EMPTY_ANY;
     pub let mut condFields : [(&Variable, [c8])] = [];
