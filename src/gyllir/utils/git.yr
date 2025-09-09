@@ -40,7 +40,7 @@ pub record GitManager {
 
         let code = proc:.wait ();
         if (code != 0) {
-            throw copy GitError (GitErrorCode::ALREADY_INIT, self.readAll (alias proc:.stderr));
+            throw copy GitError (GitErrorCode::ALREADY_INIT, self.readAll (alias proc.stderr));
         }
     }
 
@@ -60,7 +60,7 @@ pub record GitManager {
 
         let code = proc:.wait ();
         if (code != 0) {
-            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc.stderr));
         }
     }
 
@@ -80,7 +80,7 @@ pub record GitManager {
             proc2:.start ();
             let code2 = proc2:.wait ();
             if (code2 != 0) {
-                throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+                throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc.stderr));
             }
         }
     }
@@ -96,7 +96,7 @@ pub record GitManager {
 
         let code = proc:.wait ();
         if (code != 0) {
-            throw copy GitError (GitErrorCode::ALREADY_INIT, self.readAll (alias proc:.stderr));
+            throw copy GitError (GitErrorCode::ALREADY_INIT, self.readAll (alias proc.stderr));
         }
     }
 
@@ -111,7 +111,7 @@ pub record GitManager {
 
         let code = proc:.wait ();
         if (code != 0) {
-            throw copy GitError (GitErrorCode::ALREADY_INIT, self.readAll (alias proc:.stderr));
+            throw copy GitError (GitErrorCode::ALREADY_INIT, self.readAll (alias proc.stderr));
         }
     }
 
@@ -129,7 +129,7 @@ pub record GitManager {
         proc:.start ();
         let code = proc:.wait ();
         if (code != 0) {
-            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc.stderr));
         }
     }
 
@@ -145,7 +145,7 @@ pub record GitManager {
         proc:.start ();
         let code = proc:.wait ();
         if (code != 0) {
-            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc.stderr));
         }
     }
 
@@ -161,7 +161,7 @@ pub record GitManager {
         proc:.start ();
         let code = proc:.wait ();
         if (code != 0) {
-            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc.stderr));
         }
     }
 
@@ -175,7 +175,7 @@ pub record GitManager {
         proc:.start ();
         let code = proc:.wait ();
         if (code != 0) {
-            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc.stderr));
         }
     }
 
@@ -189,7 +189,7 @@ pub record GitManager {
         proc:.start ();
         let code = proc:.wait ();
         if (code != 0) {
-            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc.stderr));
         }
     }
 
@@ -203,7 +203,7 @@ pub record GitManager {
         proc:.start ();
         let code = proc:.wait ();
         if (code != 0) {
-            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc.stderr));
         }
     }
 
@@ -219,7 +219,7 @@ pub record GitManager {
         proc:.start ();
         let code = proc:.wait ();
         if (code != 0) {
-            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc.stderr));
         }
     }
 
@@ -233,7 +233,7 @@ pub record GitManager {
         proc:.start ();
         let code = proc:.wait ();
         if (code != 0) {
-            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc.stderr));
         }
     }
 
@@ -256,9 +256,9 @@ pub record GitManager {
             proc:.start ();
             let code = proc:.wait ();
             if (code != 0) {
-                throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+                throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc.stderr));
             }
-            self.readAll (alias proc:.stdout)
+            self.readAll (alias proc.stdout)
         };
 
         let scd = {
@@ -266,10 +266,10 @@ pub record GitManager {
             proc:.start ();
             let code = proc:.wait ();
             if (code != 0) {
-                throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+                throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc.stderr));
             }
 
-            self.readAll (alias proc:.stdout)
+            self.readAll (alias proc.stdout)
         };
 
         fst ~ "\n" ~ scd
@@ -286,9 +286,9 @@ pub record GitManager {
             proc:.start ();
             let code = proc:.wait ();
             if (code != 0) {
-                throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+                throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc.stderr));
             }
-            self.readAll (alias proc:.stdout)
+            self.readAll (alias proc.stdout)
         };
 
         fst
@@ -306,10 +306,10 @@ pub record GitManager {
             proc:.start ();
             let code = proc:.wait ();
             if (code != 0) {
-                throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+                throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc.stderr));
             }
 
-            stream:.write (self.readAll (alias proc:.stdout)[0us .. $ - 1us]);
+            stream:.write (self.readAll (alias proc.stdout)[0us .. $ - 1us]);
         }
 
         {
@@ -317,9 +317,9 @@ pub record GitManager {
             proc:.start ();
             let code = proc:.wait ();
             if (code != 0) {
-                throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc:.stderr));
+                throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc.stderr));
             }
-            stream:.write (" <", self.readAll (alias proc:.stdout)[0us .. $ - 1us], ">");
+            stream:.write (" <", self.readAll (alias proc.stdout)[0us .. $ - 1us], ">");
         }
 
         stream []
