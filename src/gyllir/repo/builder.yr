@@ -196,7 +196,7 @@ pub class RepoBuilder {
 
         println ("[INFO] Creating cmake files : ", self._conf.name);
         with dmut file = File::create (self._cwd.push (defaults::__BUILD_DIR__).push (defaults::__CMAKE_FILE__), write-> true) {
-            file:.write ("CMAKE_MINIMUM_REQUIRED(VERSION 3.1)\n"s8);
+            file:.write ("CMAKE_MINIMUM_REQUIRED(VERSION 3.8)\n"s8);
             file:.write ("PROJECT("s8);
             file:.write (self._conf.name);
             file:.write (")\n"s8);
