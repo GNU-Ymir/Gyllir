@@ -46,10 +46,10 @@ pub record RepoBuilder {
         , _forUnitTest = forUnitTest
         , _forDoc = forDoc
         , _dry = dry
-        , _verbose = (if let Ok (Bool (value-> true)) = self._args ["verbose"]? {
+        , _verbose = (if let Ok (Bool (value-> true)) = args ["verbose"]? {
             true
         } else { false })
-        , _nbThreads = if let Ok (Int (value-> n)) = self._args ["j"]? {
+        , _nbThreads = if let Ok (Int (value-> n)) = args ["j"]? {
             cast!u32 (n)
         } else { etc::runtime::threads::_yrt_get_nprocs () }
     {}
