@@ -418,16 +418,16 @@ pub record RepoBuilder {
      * */
     fn removeOldSymbols (self, dmut context : &GyllirManager, output : Path, objFile : Path) {
         let old = output.toStr ();
-        let new = objFile.toStr ();
+        let new = objFile.toStr ();        
         let dmut elfLoader = etc::runtime::elf::createLoader ();
         elfLoader:.update (new);
 
         let mut weakens : [[c8]] = [], mut globalize : [[c8]] = [];
         for sym in elfLoader.getSymbols () {
-            weakens ~= ["--weaken-symbol=" ~ sym];
+            weakens ~= ["--weaken-symbol=" ~ sym, "--localize-symbol=" ~ sym];
             globalize ~= ["--globalize-symbol=" ~ sym];
         }
-        weakens ~= ["--weaken-symbol=main"];
+        weakens ~= ["--weaken-symbol=main", "--localize-symbol=main"];
 
         context.runProcess ("objcopy", weakens ~ [old], cwd-> self._cwd, verbose-> self._verbose);
         context.runProcess ("objcopy", globalize ~ [new], cwd-> self._cwd, verbose-> self._verbose);
