@@ -7,11 +7,11 @@ use std::conv::errors;
 use gyllir::config::version;
 
 enum : u8
-| SUP = 1
+| SUP    = 1
 | SUP_EQ = 2
-| INF = 3
+| INF    = 3
 | INF_EQ = 4
-| EQ  = 5
+| EQ     = 5
  ->  FilterKind;
 
 /**
@@ -65,32 +65,35 @@ pub record VersionFilter {
     /**
      * Select a version that passes the filter
      * */
-    pub fn select (self, versions : [Version])-> Version
+    pub fn select (self, versions : [(Version, [c8])])-> (Version, [c8])
         throws AssertError
     {
         let dmut stream = copy StringStream ();
         for i, v in versions {
             let mut found = true;
             for f in self._filters {
-                if !self.passFilter (f, v) {
+                if !self.passFilter (f, v._0) {
                     found = false;
                     break;
                 }
             }
-
+                        
             if found return v;
-
             if (i != 0) stream:.write (", ");
-            stream:.write (v[]);
+            stream:.write (v._0);
         }
 
-        throw copy AssertError ("No version matches the filter, candidates are [" ~ stream[] ~ "]");
+        let dmut msg = copy StringStream ();
+        msg:.write ("no version matches the filter ", self, " candidates are [", stream[], "]");        
+        throw copy AssertError (msg[]);
     }
 
     /**
      * Check wether the version passes the filter
      * */
     prv fn passFilter (self, filter : (FilterKind, Version), v : Version)-> bool {
+        if filter._1.isIgnore () { return true; }
+            
         match filter.0 {
             FilterKind::SUP => {
                 return v > filter.1;
@@ -104,9 +107,8 @@ pub record VersionFilter {
             FilterKind::SUP_EQ => {
                 return v >= filter.1;
             }
-            _ => {
-                if (filter.1[]) == "*" return true;
-                else return filter.1 == v;
+            _ => {                                            
+                return filter._1 == v;
             }
         }
     }
@@ -123,19 +125,43 @@ pub record VersionFilter {
      * Serialize a version filter
      * */
     prv fn serializeFilter (self, filter : (FilterKind, Version))-> &Config {
-        if (filter.0 == FilterKind::SUP) {
-            return copy Str (">" ~ (filter.1)[]);
+        let dmut stream = copy StringStream ();
+        if !filter._1.isIgnore () { 
+            match filter._0 {
+                FilterKind::SUP => { stream:.write ('>'); }
+                FilterKind::SUP_EQ => { stream:.write (">="); }
+                FilterKind::INF => { stream:.write ('<'); }
+                FilterKind::INF_EQ => { stream:.write ("<="); }
+                FilterKind::EQ => { stream:.write ("="); }
+            }
         }
 
-        else if (filter.0 == FilterKind::INF) {
-            return copy Str (">" ~ (filter.1)[]);
-        }
-
-        return copy Str ((filter.1)[]);
-    }
+        stream:.write (filter._1);            
+        return copy Str (stream[]);
+    }   
 
     impl Hashable;
-    impl Streamable;
+    impl Streamable {
+        pub over toStream (self, dmut stream : &StringStream) {
+            stream:.write ('[');
+            for i, f in self._filters {
+                if !f._1.isIgnore () {
+                    match f._0 {
+                        FilterKind::SUP => { stream:.write ('>'); }
+                        FilterKind::SUP_EQ => { stream:.write (">="); }
+                        FilterKind::INF => { stream:.write ('<'); }
+                        FilterKind::INF_EQ => { stream:.write ("<="); }
+                        FilterKind::EQ => { stream:.write ("="); }
+                    }
+                }
+                stream:.write (f._1);
+                if i != 0 { stream:.write (", "); }
+            }
+            stream:.write (']');
+        }
+    }
+
+    
     impl Serializable {
         pub over serialize (self)-> &Config {
             if self._filters.len == 1 {

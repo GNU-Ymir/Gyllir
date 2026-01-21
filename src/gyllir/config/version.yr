@@ -12,6 +12,9 @@ pub mod ::filter;
  */
 pub record Version {
 
+    // True iif version is indifferent 
+    let mut _all : bool = false;
+    
     // True iif this is a numbered version
     let mut _numbered : bool = false;
 
@@ -35,6 +38,13 @@ pub record Version {
     pub self (version : [c8]) {
         self:.parseVersion (version);
     }
+
+    /**
+     * All version 
+     * */
+    pub self ignore ()
+        with _all = true
+    {}
 
     /**
      * Deserialize a version from config
@@ -78,6 +88,7 @@ pub record Version {
      * @returns: the version into a string
      */
     pub fn opIndex (self)-> [c8] {
+        if self._all { return "*"; }
         if (!self._numbered) return self._name;
 
         let dmut str = copy StringStream ();
@@ -112,6 +123,13 @@ pub record Version {
         self._numbers [2]
     }
 
+    /**
+     * @returns: true if we ignore the version
+     * */
+    pub fn isIgnore (self)-> bool {
+        self._all
+    }
+    
     /*!
      * ====================================================================================================
      * ====================================================================================================
@@ -121,7 +139,7 @@ pub record Version {
      */
 
 
-    pub fn opEquals (self, o : Version)-> bool {
+    pub fn opEquals (self, o : Version)-> bool {        
         if (self._numbered != o._numbered) return false;
         if self._numbered {
             return self._numbers == o._numbers;
@@ -131,6 +149,10 @@ pub record Version {
     }
 
     pub fn opCmp (self, o : Version)-> i32 {
+        if self.opEquals (o) {
+            return 0;
+        }
+        
         if self.major > o.major return 1;
         else if self.major < o.major return -1;
 
@@ -180,12 +202,17 @@ pub record Version {
      * Parse the version from the string
      * */
     prv fn parseVersion (mut self, version : [c8]) {
+        if version == "*" {
+            self._all = true;
+            return;
+        }
+        
         let dmut tzer = Tokenizer!{c8} ();
         tzer:.insert (".", isSkip-> true);
 
         let components = tzer.tokenizeWithoutSkips (version);
         if components.len != 2 && components.len != 3 {
-            self._numbered = false;
+            self._numbered = false;            
             self._name = version;
             return;
         }

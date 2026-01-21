@@ -5,6 +5,10 @@ use gyllir::{config::_, args, args::_, utils::_};
 use gyllir::repo::_;
 use std::{concurrency::process, syntax::tokenizer};
 
+extern (C) fn printf (c : *c8, ...);
+extern (C) fn fflush (i : *void);
+extern (C) static stdout : *void;
+
 /**
  * The gyllir manager if the core of gyllir
  */
@@ -169,26 +173,7 @@ pub class GyllirManager {
                 false
             };
 
-            let version = dependency.version.select (self.toVersionList (GitManager (cwd-> depPath).getTagList ()));
-            {
-                if (version.isNumbered ()) {
-                    gM.checkout ("v" ~ version[]);
-                } else gM.checkout (version[]);
-            } catch {
-                _ => {
-                    gM.fetchTags ();
-                    if (version.isNumbered ()) {
-                        gM.checkout ("v" ~ version[]);
-                    } else gM.checkout (version[]);
-                }
-            }
-
-            if (dependency.url.type == UrlType::GIT) {
-                if (version.isNumbered ()) {
-                    gM.pull ("v" ~ version[]);
-                } else gM.pull (version[]);
-            }
-
+            self:.selectDependencyVersion (gM, dependency);
             let conf = self.loadToml (depPath);
             if (conf.type.isExecutable ()) {
                 utils::log::error ("Resolving", "dependency ", name, " in ", dependency.url, " is not a library.");
@@ -213,7 +198,7 @@ pub class GyllirManager {
 
                 utils::log::error ("Resolving", "dependency ", name, " has no version ", dependency.version);
                 if (versions.len != 0us) {
-                    utils::log::info ("", "Available versions are : ", copy [c[] for c in versions]);
+                    utils::log::info ("", "Available versions are : ", copy [c._0[] for c in versions]);
                 }
 
                 etc::c::process::_yrt_exit (-1);
@@ -224,18 +209,34 @@ pub class GyllirManager {
                 throw copy RecursiveDependency (name ~ ":"s8 ~ dependency.url.path.toStr (), subError-> (r)?);
             }
             a : &AssertError => {
-                utils::log::error ("Resolving", "dependency ", name, " failure : ", a.msg);
+                utils::log::error ("Resolving", "dependency ", name, " failure, ", a.msg);
                 etc::c::process::_yrt_exit (-1);
                 panic;
             }
             x => {
-                utils::log::error ("Resolving", "dependency ", name, " failure : ", x);
+                utils::log::error ("Resolving", "dependency ", name, " failure, ", x);
                 etc::c::process::_yrt_exit (-1);
                 panic;
             }
         }
     }
 
+    /**
+     * Select the version in the git repository
+     * */
+    fn selectDependencyVersion (mut self, gM : GitManager, dependency : Dependency)
+        throws GitError, FsError, AssertError
+    {
+        gM.fetchTags ();        
+        let version = dependency.version.select (self.toVersionList (gM.getTagList ()));            
+        if version._0.isIgnore () {
+            gM.checkout (version._1);
+            if (dependency.url.type == UrlType::GIT) {
+                gM.pull (version._1);                
+            }
+        }
+    }
+    
     /**
      * Clear a dependency target
      * @params:
@@ -267,15 +268,23 @@ pub class GyllirManager {
     /**
      * Transform a list of tags (acquired with git) into a list of version
      */
-    pub fn toVersionList (self, list : [c8])-> [Version] {
+    pub fn toVersionList (self, list : [c8])-> [(Version, [c8])] {
         let dmut tzer = Tokenizer!c8 ();
         tzer:.insert ("\n", isSkip-> true);
         let res = tzer.tokenizeWithoutSkips (list);
 
-        let mut versions : [Version] = [];
+        let mut versions : [(Version, [c8])] = [];
         for i in res {
             if (i.len > 0 && i [0] != '(') { // ignore (HEAD detached...)
-                versions = versions ~ [Version (i)];
+                let mut add = true;
+                for v in versions if i == v._1 {
+                    add = false;
+                    break;
+                }
+                
+                if add {
+                    versions = versions ~ [(Version (i), i)];
+                }
             }
         }
 
@@ -304,6 +313,31 @@ pub class GyllirManager {
         _ => false
     }
 
+    pub fn progressBar (self, nb : u32, all : u32) {
+        let len = 50u32;
+        let count = cast!u32 (cast!f32 (nb) / cast!f32 (all) * cast!f32 (len));
+        let perc = cast!f32 (nb) / cast!f32 (all);
+        
+        
+        // let buffer = copy [if i < count { '#' } else { ' ' } for i in 0 .. len];
+        atomic {
+            printf("\r\t%sProgress%s [".ptr, Colors::GREEN.ptr, Colors::RESET.ptr);
+            for _ in 0 .. count {            
+                printf("█".ptr);
+            }
+            for _ in count .. len {                
+                printf(" ".ptr);
+            }
+            
+            print ("] ");
+            print (std::format::format ("{:.2}%", perc * 100.f))?;                        
+            fflush(stdout);
+            if nb == all {
+                println ();
+            }
+        }
+    }
+    
     /**
      * Ask the user for a given value (command line read)
      * @params:

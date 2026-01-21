@@ -251,6 +251,16 @@ pub record GitManager {
     pub fn getTagList (self)-> [c8]
         throws GitError, FsError
     {
+        let current = {            
+            let dmut proc = copy SubProcess ("git", copy ["rev-parse", "--abbrev-ref", "HEAD"], cwd-> self._cwd);
+            proc:.start ();
+            let code = proc:.wait ();
+            if (code != 0) {
+                throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc.stderr));
+            }
+            self.readAll (alias proc.stdout)            
+        };
+        
         let fst = {
             let dmut proc = copy SubProcess ("git", copy ["tag"], cwd-> self._cwd);
             proc:.start ();
@@ -272,7 +282,7 @@ pub record GitManager {
             self.readAll (alias proc.stdout)
         };
 
-        fst ~ "\n" ~ scd
+        current ~ "\n" ~ fst ~ "\n" ~ scd
     }
 
     /**
