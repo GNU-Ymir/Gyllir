@@ -63,29 +63,31 @@ __doc/
  */
 pub def __SRC_DIR__ = "src";
 
-pub def __DEBUG_DIR__ = "debug";
+pub def __DEBUG_DIR__   = "debug";
 pub def __RELEASE_DIR__ = "release";
-pub def __LIB_DIR__ = "__libs"
-pub def __TEST_DIR__ = "test";
-pub def __DOC_DIR__ = "__doc";
+pub def __LIB_DIR__     = "__libs"
+pub def __TEST_DIR__    = "test";
+pub def __DOC_DIR__     = "__doc";
+pub def __YIL_DIR__     = "yils"
 pub def __DEPENCY_DIR__ = ".deps";
 
 
-pub def __CACHE_ALL_DIR__ = ".target/"
-pub def __CACHE_TMP_DIR__ = ".target/tmp"
-pub def __CACHE_RELEASE_DIR__ = ".target/release"
-pub def __CACHE_DEBUG_DIR__ = ".target/debug"
-pub def __CACHE_UNIT_DEBUG_DIR__ = ".target/unit_debug"
+pub def __CACHE_ALL_DIR__          = ".target/"
+pub def __CACHE_TMP_DIR__          = ".target/tmp"
+pub def __CACHE_RELEASE_DIR__      = ".target/release"
+pub def __CACHE_DEBUG_DIR__        = ".target/debug"
+pub def __CACHE_UNIT_DEBUG_DIR__   = ".target/unit_debug"
 pub def __CACHE_UNIT_RELEASE_DIR__ = ".target/unit_release"
-pub def __CACHE_DOC_DIR__ = ".target/doc"
-pub def __CACHE_TEST_DIR__ = ".target/test"
+pub def __CACHE_DOC_DIR__          = ".target/doc"
+pub def __CACHE_TEST_DIR__         = ".target/test"
 
 
-pub def __YMIR_EXTENSION__ = "yr";
-pub def __OBJECT_EXTENSION__ = "o";
-pub def __DEPS_EXTENSION__ = "deps";
+pub def __YMIR_EXTENSION__     = "yr";
+pub def __OBJECT_EXTENSION__   = "o";
+pub def __YIL_EXTENSION__      = "yil";
+pub def __DEPS_EXTENSION__     = "deps";
 pub def __SYM_LIST_EXTENSION__ = "syms";
-pub def __DOC_EXTENSION__ = "doc.json";
+pub def __DOC_EXTENSION__      = "doc.json";
 pub def __MARKDOWN_EXTENSION__ = "md";
-pub def __LIBRARY_EXTENSION__ = "a";
-pub def __HTML_EXTENSION__ = "html";
+pub def __LIBRARY_EXTENSION__  = "a";
+pub def __HTML_EXTENSION__     = "html";

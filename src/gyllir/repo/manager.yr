@@ -227,6 +227,12 @@ pub class GyllirManager {
     fn selectDependencyVersion (mut self, gM : GitManager, dependency : Dependency)
         throws GitError, FsError, AssertError
     {
+        // No need to fetch or swith if current branch pass the dependency version filter
+        let currentBranch = gM.getCurrentBranchName ();
+        if currentBranch.len > 0 && currentBranch [0] != '(' {
+            if dependency.version.pass (Version (currentBranch)) return;
+        }
+        
         gM.fetchTags ();        
         let version = dependency.version.select (self.toVersionList (gM.getTagList ()));            
         if version._0.isIgnore () {

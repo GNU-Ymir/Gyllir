@@ -89,6 +89,19 @@ pub record VersionFilter {
     }
 
     /**
+     * Check wether a version pass the filter
+     * */
+    pub fn pass (self, version : Version)-> bool {
+        for f in self._filters {
+            if !self.passFilter (f, version) {
+                return false;                
+            }
+        }
+        
+        return true
+    }
+
+    /**
      * Check wether the version passes the filter
      * */
     prv fn passFilter (self, filter : (FilterKind, Version), v : Version)-> bool {
