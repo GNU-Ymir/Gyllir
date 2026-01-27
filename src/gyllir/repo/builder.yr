@@ -228,7 +228,8 @@ pub record RepoBuilder {
                 if (!context.runProcess (self._cfg.compiler, modOption, cwd-> self._cwd, verbose-> self._verbose)) {
                     pool:.clear ();
                 } else {
-                    atomic { success [0] += 1; }                                        
+                    atomic { success [0] += 1; }
+                    self.ensureYILAndDepFiles (alias context, yilDir.parent (), m);
                 }
             });
         }            
@@ -287,6 +288,33 @@ pub record RepoBuilder {
         }
     }
 
+
+    /**
+     * Verify that all YIL files have beed created during the compilation
+     * If not, then the module is not attached to the package tree, we create a fake file, and warn about it
+     * */
+    fn ensureYILAndDepFiles (self, dmut _ : &GyllirManager, cacheDir : Path, modules : [Path]) {
+        for source in modules {
+            let depFile = cacheDir.push (source.stripExtension ().toStr (sep-> "_")).addExtension (defaults::__DEPS_EXTENSION__);
+            let objFile = cacheDir.push (defaults::__YIL_DIR__).push (source.stripExtension ().toStr (sep-> "_")).addExtension (defaults::__YIL_EXTENSION__);            
+
+            if !fs::sys::isFile (objFile) {
+                log::warn ("Warning", "source module ", source.toStr (), " not attached to package");
+                {
+                    let dmut f = File::create (objFile, write-> true);
+                    f:.close ();
+                }?;
+            }
+
+            if !fs::sys::isFile (depFile) {
+                {
+                    let dmut f = File::create (depFile, write-> true);
+                    f:.close ();
+                }?;               
+            }
+        }
+    }
+    
     /*!
      * ====================================================================================================
      * ====================================================================================================
