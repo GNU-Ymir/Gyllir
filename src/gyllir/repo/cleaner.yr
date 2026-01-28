@@ -41,8 +41,7 @@ pub record RepoCleaner {
             self.cleanDoc ();
         }
 
-        else {
-            self.cleanDeps (alias context, recursive-> false);
+        else {            
             self.cleanOutputs ();
         }
     }
@@ -75,16 +74,15 @@ pub record RepoCleaner {
         {
             fs::sys::removeDir (depDir, recursive-> true);
         }?;
+    }
 
+    pub fn cleanOutputs (self) {
         let cacheDebug = self._cwd.push (defaults::__CACHE_ALL_DIR__);
         utils::log::info ("Removing", "cache directory ", cacheDebug.toStr ());
         {
             fs::sys::removeDir (cacheDebug, recursive-> true);
         }?;
-    }
-
-
-    pub fn cleanOutputs (self) {
+        
         let outFile = if self._cfg.type.isExecutable () {
             self._cwd.push (self._cfg.name)
         } else {
