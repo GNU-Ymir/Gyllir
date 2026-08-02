@@ -1,0 +1,22 @@
+use gyllir::config::errors;
+
+use std::stream;
+
+__test {
+    // Without a sub error, only the message is printed
+    let e = copy RecursiveDependency("pkgA");
+    let dmut str = copy StringStream();
+    str:.write(e);
+
+    assert(str[] == "Recursive dependencies : pkgA", str[]);
+}
+
+__test {
+    // A sub error is chained on a new indented line
+    let sub = copy RecursiveDependency("pkgB");
+    let e = copy RecursiveDependency("pkgA", subError-> (sub)?);
+    let dmut str = copy StringStream();
+    str:.write(e);
+
+    assert(str[] == "Recursive dependencies : pkgA\n => \tRecursive dependencies : pkgB", str[]);
+}
