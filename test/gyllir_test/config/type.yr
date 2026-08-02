@@ -1,0 +1,66 @@
+use gyllir::config::type;
+
+use std::config::_;
+use std::config::conv;
+use std::conv::errors;
+
+__test {
+    // Default construction targets an executable
+    let t = BuildType();
+    assert(t.isExecutable(), "default build type should be executable");
+    assert(!t.isLibrary(), "default build type should not be a library");
+}
+
+__test {
+    // Parsing from a string
+    let exe = BuildType("executable");
+    assert(exe.isExecutable(), "\"executable\" should parse as an executable build type");
+    assert(!exe.isLibrary(), "\"executable\" should not parse as a library build type");
+
+    let lib = BuildType("library");
+    assert(lib.isLibrary(), "\"library\" should parse as a library build type");
+    assert(!lib.isExecutable(), "\"library\" should not parse as an executable build type");
+}
+
+__test {
+    // An unknown string is rejected
+    let mut threw = false;
+    {
+        BuildType("unknown");
+    } catch {
+        CastFailure() => { threw = true; }
+    }
+
+    assert(threw, "an unknown build type string should be rejected");
+}
+
+__test {
+    // Parsing from a configuration node
+    let lib = BuildType(copy Str("library"));
+    assert(lib.isLibrary(), "expected a library build type");
+
+    let exe = BuildType(copy Str("executable"));
+    assert(exe.isExecutable(), "expected an executable build type");
+}
+
+__test {
+    // A non string configuration is rejected
+    let mut threw = false;
+    {
+        BuildType(copy Int(12));
+    } catch {
+        AssertError() => { threw = true; }
+        CastFailure() => { threw = true; }
+    }
+
+    assert(threw, "a non string configuration should be rejected");
+}
+
+__test {
+    // Serializing round-trips the type back into its string representation
+    let exe = BuildType("executable");
+    let lib = BuildType("library");
+
+    assert(to!{[c8]} (exe.serialize()) == "executable", "unexpected serialized executable type");
+    assert(to!{[c8]} (lib.serialize()) == "library", "unexpected serialized library type");
+}
