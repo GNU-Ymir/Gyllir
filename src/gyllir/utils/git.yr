@@ -96,7 +96,7 @@ pub record GitManager {
 
         let code = proc:.wait ();
         if (code != 0) {
-            throw copy GitError (GitErrorCode::ALREADY_INIT, self.readAll (alias proc.stderr));
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc.stderr));
         }
     }
 
@@ -111,7 +111,7 @@ pub record GitManager {
 
         let code = proc:.wait ();
         if (code != 0) {
-            throw copy GitError (GitErrorCode::ALREADY_INIT, self.readAll (alias proc.stderr));
+            throw copy GitError (GitErrorCode::UNKNOWN, self.readAll (alias proc.stderr));
         }
     }
 
@@ -185,7 +185,7 @@ pub record GitManager {
     pub fn deleteTag (self, name : [c8])
         throws GitError, FsError
     {
-        let dmut proc = copy SubProcess ("git", copy ["tag", "-D", name], cwd-> self._cwd);
+        let dmut proc = copy SubProcess ("git", copy ["tag", "-d", name], cwd-> self._cwd);
         proc:.start ();
         let code = proc:.wait ();
         if (code != 0) {
@@ -301,7 +301,7 @@ pub record GitManager {
             self.readAll (alias proc.stdout)
         };
 
-        fst
+        fst [0us .. $ - 1us]
     }
 
     /**
