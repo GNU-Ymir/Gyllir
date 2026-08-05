@@ -1,0 +1,261 @@
+use gyllir::doc::html::body;
+use gyllir::doc::symbols::_;
+use gyllir::doc::symbols::module;
+use gyllir::doc::symbols::function;
+use gyllir::doc::symbols::global;
+use gyllir::doc::symbols::aka;
+use gyllir::doc::symbols::enum_;
+use gyllir::doc::symbols::macro_;
+use gyllir::doc::symbols::class_;
+use gyllir::doc::symbols::variable;
+use gyllir::doc::symbols::ctor;
+use gyllir::doc::symbols::method;
+use gyllir::doc::symbols::trait_;
+use gyllir::doc::symbols::template::_;
+use gyllir::doc::symbols::template::var;
+use gyllir::doc::types::_;
+use gyllir::doc::types::scalar;
+use gyllir::doc::types::class_;
+use gyllir::doc::types::enum_;
+
+use std::stream;
+
+fn dump(mod_ : &Module)-> [c8] {
+    let body = copy HtmlBody("MyProject", mod_);
+    let dmut stream = copy StringStream();
+    body.dumpHtml(alias stream);
+    stream[]
+}
+
+// This exact prefix (module description wrapper around an empty comment) is common to every
+// module page, regardless of its content
+def MODULE_HEAD = "<div class=\"module description\"><h3 class=\"y_dd_decl_name\">Description</h3><span class=\"module-closing\" id=\"mod-desc-closing\">[−]</span><div class=\"inner\"><div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div></div>\n";
+
+__test {
+    // A function with defaults (no params, no ret_type, no throwers) renders via the "declaration" template
+    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+    let f : &Symbol = copy Function("foo", "", INTERNAL_LOCATION, Protection::PUB);
+    mod_.childs = copy [f];
+
+    assert(dump(mod_) == MODULE_HEAD ~
+        "<!-- <hr> <\\!--  -\\-> -->\n" ~
+        "<div class=\"row-fluid declaration y_decl\"><h3 class=\"y_dd_decl_name\">\n" ~
+        "    <span class=\"symbol-target\" id=\"foo\">&nbsp;</span><span class=\"y_symbol_kind\" id=\"foo\">fn</span> <span class=\"y_symbol_name symbol-link\">foo</span> \n" ~
+        "    <span class=\"symbol-closing\" id=\"foo-closing\">[−]</span></h3>\n" ~
+        "</div>\n\n" ~
+        "<div class=\"declaration-content y_dd_decl\" id=\"foo-content\"><pre><code class=\"language-ymir\">pub fn foo ()-> </code></pre>\n" ~
+        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n",
+        "unexpected html for a bare function");
+}
+
+__test {
+    // A Global with the default (empty) type omits the type annotation entirely
+    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+    let g : &Symbol = copy Global("MAX", "", INTERNAL_LOCATION, Protection::PUB);
+    mod_.childs = copy [g];
+
+    assert(dump(mod_) == MODULE_HEAD ~
+        "<!-- <hr> <\\!--  -\\-> -->\n" ~
+        "<div class=\"row-fluid declaration y_decl\"><h3 class=\"y_dd_decl_name\">\n" ~
+        "    <span class=\"symbol-target\" id=\"MAX\">&nbsp;</span><span class=\"y_symbol_kind\" id=\"MAX\">let</span> <span class=\"y_symbol_name symbol-link\">MAX</span> \n" ~
+        "    <span class=\"symbol-closing\" id=\"MAX-closing\">[−]</span></h3>\n" ~
+        "</div>\n\n" ~
+        "<div class=\"declaration-content y_dd_decl\" id=\"MAX-content\"><pre><code class=\"language-ymir\">pub lazy MAX</code></pre>\n" ~
+        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n",
+        "unexpected html for a global with no type");
+}
+
+__test {
+    // An aka (type alias)
+    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+    let dmut a = copy Aka("MyInt", "", INTERNAL_LOCATION, Protection::PUB);
+    a.type = copy ScalarType("i32", "");
+    let a2 : &Symbol = a;
+    mod_.childs = copy [a2];
+
+    assert(dump(mod_) == MODULE_HEAD ~
+        "<!-- <hr> <\\!--  -\\-> -->\n" ~
+        "<div class=\"row-fluid declaration y_decl\"><h3 class=\"y_dd_decl_name\">\n" ~
+        "    <span class=\"symbol-target\" id=\"MyInt\">&nbsp;</span><span class=\"y_symbol_kind\" id=\"MyInt\">def</span> <span class=\"y_symbol_name symbol-link\">MyInt</span> \n" ~
+        "    <span class=\"symbol-closing\" id=\"MyInt-closing\">[−]</span></h3>\n" ~
+        "</div>\n\n" ~
+        "<div class=\"declaration-content y_dd_decl\" id=\"MyInt-content\"><pre><code class=\"language-ymir\">pub def MyInt : i32</code></pre>\n" ~
+        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n",
+        "unexpected html for a type aka");
+}
+
+__test {
+    // An enum: EnumSymbol.type must itself hold an EnumType (self-referential) for the proxy to render
+    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+    let dmut e = copy EnumSymbol("Color", "", INTERNAL_LOCATION, Protection::PUB);
+    e.type = copy EnumType("Color", "", copy ScalarType("u8", ""));
+    e.fields = copy [("RED", "0", "")];
+    let e2 : &Symbol = e;
+    mod_.childs = copy [e2];
+
+    assert(dump(mod_) == MODULE_HEAD ~
+        "<!-- <hr> <\\!--  -\\-> -->\n" ~
+        "<div class=\"row-fluid declaration y_decl\"><h3 class=\"y_dd_decl_name\">\n" ~
+        "    <span class=\"symbol-target\" id=\"Color\">&nbsp;</span><span class=\"y_symbol_kind\" id=\"Color\">enum</span> <span class=\"y_symbol_name symbol-link\">Color</span> \n" ~
+        "    <span class=\"symbol-closing\" id=\"Color-closing\">[−]</span></h3>\n" ~
+        "</div>\n\n" ~
+        "<div class=\"declaration-content y_dd_decl\" id=\"Color-content\"><pre><code class=\"language-ymir\">pub enum : u8\n" ~
+        "-> Color </code></pre>\n" ~
+        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div><div class=\"member-list\"><!-- <hr> <\\!--  -\\-> -->\n" ~
+        "<div class=\"row-fluid declaration y_decl\"><h3 class=\"y_dd_decl_name\">\n" ~
+        "    <span class=\"symbol-target\" id=\"RED\">&nbsp;</span><span class=\"y_symbol_kind\" id=\"RED\">let</span> <span class=\"y_symbol_name symbol-link\">RED</span> \n" ~
+        "    <span class=\"symbol-closing\" id=\"RED-closing\">[−]</span></h3>\n" ~
+        "</div>\n\n" ~
+        "<div class=\"declaration-content y_dd_decl\" id=\"RED-content\"><pre><code class=\"language-ymir\">RED = 0</code></pre>\n" ~
+        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n" ~
+        "</div>\n</div>\n",
+        "unexpected html for an enum with a field");
+}
+
+__test {
+    // A macro with no ctors/rules still renders its own declaration wrapper, with an empty member-list
+    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+    let m : &Symbol = copy Macro("mymacro", "", INTERNAL_LOCATION, Protection::PUB);
+    mod_.childs = copy [m];
+
+    assert(dump(mod_) == MODULE_HEAD ~
+        "<!-- <hr> <\\!--  -\\-> -->\n" ~
+        "<div class=\"row-fluid declaration y_decl\"><h3 class=\"y_dd_decl_name\">\n" ~
+        "    <span class=\"symbol-target\" id=\"mymacro\">&nbsp;</span><span class=\"y_symbol_kind\" id=\"mymacro\">macro</span> <span class=\"y_symbol_name symbol-link\">mymacro</span> \n" ~
+        "    <span class=\"symbol-closing\" id=\"mymacro-closing\">[−]</span></h3>\n" ~
+        "</div>\n\n" ~
+        "<div class=\"declaration-content y_dd_decl\" id=\"mymacro-content\"><pre><code class=\"language-ymir\">pub macro mymacro</code></pre>\n" ~
+        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div><div class=\"member-list\"></div>\n" ~
+        "</div>\n",
+        "unexpected html for an empty macro");
+}
+
+__test {
+    // A class with a field whose type lives in the same module (a "#Name" link) and one in
+    // another module ("othermod.html#Name"), a ctor and a method
+    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+    let dmut c = copy ClassSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
+
+    let dmut localField = copy Variable("x", "", INTERNAL_LOCATION, Protection::PUB);
+    localField.type = copy ClassType("mymod::Bar", "", false);
+
+    let dmut otherField = copy Variable("y", "", INTERNAL_LOCATION, Protection::PUB);
+    otherField.type = copy ClassType("othermod::Baz", "", false);
+
+    c.fields = copy [localField, otherField];
+    c.ctors = copy [copy Ctor("self", "", INTERNAL_LOCATION, Protection::PUB)];
+    c.methods = copy [copy Method("bar", "", INTERNAL_LOCATION, Protection::PUB)];
+
+    let c2 : &Symbol = c;
+    mod_.childs = copy [c2];
+    let out = dump(mod_);
+
+    // link resolution: a field type belonging to the current module links to "#Name",
+    // one belonging to another module links to "<module>.html#Name"
+    assert(out.len > 0us, "sanity: output should not be empty");
+    let localLink = "<a class=\"symbol-link\" href=\"#Bar\">mymod::Bar</a>";
+    let otherLink = "<a class=\"symbol-link\" href=\"othermod.html#Baz\">othermod::Baz</a>";
+
+    let mut foundLocal = false, mut foundOther = false;
+    for i in 0us .. out.len {
+        if (out.len - i >= localLink.len && out[i .. i + localLink.len] == localLink) { foundLocal = true; }
+        if (out.len - i >= otherLink.len && out[i .. i + otherLink.len] == otherLink) { foundOther = true; }
+    }
+
+    assert(foundLocal, "expected a local (same-module) class type to link to \"#Bar\"");
+    assert(foundOther, "expected a cross-module class type to link to \"othermod.html#Baz\"");
+}
+
+__test {
+    // Two nested modules populate the submodule table, sorted and formatted with an underscore-joined url
+    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+    let sub : &Symbol = copy Module("mymod::sub", "docs for sub", INTERNAL_LOCATION, Protection::PUB);
+    mod_.childs = copy [sub];
+
+    assert(dump(mod_) == MODULE_HEAD ~
+        "<div class=\"module description y_decl_small\">\n" ~
+        "  <h3 class=\"y_dd_decl_name\">Inner modules</h3>\n" ~
+        "  <span class=\"module-closing\" id=\"mod-desc-closing\">[−]</span>\n" ~
+        "  <div class=\"inner\" style=\"display: block;\">\n" ~
+        "    <table class=\"book\">\n" ~
+        "      <caption></caption>\n" ~
+        "      <tbody>\n" ~
+        "        <tr><th class=\"fst\" scope=\"col\">Submodule</th> <th class=\"fst\" scope=\"col\">Protection</th> <th scope=\"col\">Documentation</th></tr>\n" ~
+        "        <tr><td class=\"donthyphenate nobr\"><a href=\"mymod_sub.html\">sub</a></td><td><em>pub</em></td><td>docs for sub</td></tr>\n\n" ~
+        "    </tbody></table>\n" ~
+        "  </div>\n" ~
+        "</div>\n\n" ~
+        "<hr>\n",
+        "unexpected html for a submodule table");
+}
+
+__test {
+    // A trait with a method
+    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+    let dmut t = copy TraitSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
+    t.methods = copy [copy Method("bar", "", INTERNAL_LOCATION, Protection::PUB)];
+    let t2 : &Symbol = t;
+    mod_.childs = copy [t2];
+
+    let out = dump(mod_);
+    assert(out.len > 0us, "sanity: output should not be empty");
+
+    let needle = "<span class=\"y_symbol_kind\" id=\"Foo\">trait</span>";
+    let mut found = false;
+    for i in 0us .. out.len {
+        if (out.len - i >= needle.len && out[i .. i + needle.len] == needle) { found = true; }
+    }
+    assert(found, "expected the trait declaration header to appear");
+}
+
+__test {
+    // Functions are sorted alphabetically by name, regardless of declaration order
+    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+    let f1 : &Symbol = copy Function("zeta", "", INTERNAL_LOCATION, Protection::PUB);
+    let f2 : &Symbol = copy Function("alpha", "", INTERNAL_LOCATION, Protection::PUB);
+    mod_.childs = copy [f1, f2];
+
+    let out = dump(mod_);
+    let alphaPos = findFirst(out, "id=\"alpha\"");
+    let zetaPos = findFirst(out, "id=\"zeta\"");
+
+    assert(alphaPos.0 && zetaPos.0, "both function markers should be present");
+    assert(alphaPos.1 < zetaPos.1, "alpha should be rendered before zeta, alphabetically");
+}
+
+__test {
+    // A function wrapped in a Template renders with the template's test condition and params
+    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+    let dmut tmpl = copy Template("foo", "", INTERNAL_LOCATION, Protection::PUB);
+    tmpl.test = "T != U";
+
+    let params : [&TemplateParam] = copy [copy TemplateVarParam("T", "class")];
+    tmpl.params = params;
+
+    let f : &Symbol = copy Function("foo", "", INTERNAL_LOCATION, Protection::PUB);
+    tmpl.inners = copy [f];
+
+    let tmplSym : &Symbol = tmpl;
+    mod_.childs = copy [tmplSym];
+
+    assert(dump(mod_) == MODULE_HEAD ~
+        "<!-- <hr> <\\!--  -\\-> -->\n" ~
+        "<div class=\"row-fluid declaration y_decl\"><h3 class=\"y_dd_decl_name\">\n" ~
+        "    <span class=\"symbol-target\" id=\"foo\">&nbsp;</span><span class=\"y_symbol_kind\" id=\"foo\">fn</span> <span class=\"y_symbol_name symbol-link\">foo</span>  {class T}\n" ~
+        "    <span class=\"symbol-closing\" id=\"foo-closing\">[−]</span></h3>\n" ~
+        "</div>\n\n" ~
+        "<div class=\"declaration-content y_dd_decl\" id=\"foo-content\"><pre><code class=\"language-ymir\">pub fn if (T != U)\n" ~
+        "       foo {class T} ()-> </code></pre>\n" ~
+        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n",
+        "unexpected html for a templated function");
+}
+
+fn findFirst(haystack : [c8], needle : [c8])-> (bool, usize) {
+    if needle.len == 0us || haystack.len < needle.len return (false, 0us);
+
+    for i in 0us .. (haystack.len - needle.len + 1us) {
+        if haystack[i .. i + needle.len] == needle return (true, i);
+    }
+
+    (false, 0us)
+}
