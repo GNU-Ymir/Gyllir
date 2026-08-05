@@ -1,0 +1,106 @@
+use gyllir::config::version;
+
+use std::config::_;
+use std::config::conv;
+
+pub mod ::filter;
+
+__test {
+    // Construction from explicit numbers
+    let v = Version(1u32, 2u32, 3u32);
+    assert(v.isNumbered(), "explicit numbers should produce a numbered version");
+    assert(v.major == 1u32 && v.minor == 2u32 && v.patch == 3u32, "unexpected major/minor/patch");
+    assert(v[] == "1.2.3", "unexpected string representation");
+}
+
+__test {
+    // Parsing a numbered string, with and without a leading 'v' (as used for git tags)
+    let a = Version("1.2.3");
+    assert(a.isNumbered() && a[] == "1.2.3", "unexpected parse of \"1.2.3\"");
+
+    let b = Version("v1.2.3");
+    assert(b.isNumbered() && b[] == "1.2.3", "the leading 'v' should be stripped");
+
+    // A two component version defaults its patch to 0
+    let c = Version("1.2");
+    assert(c.isNumbered() && c[] == "1.2.0", "unexpected parse of \"1.2\"");
+}
+
+__test {
+    // Anything that isn't 2 or 3 dot separated numbers is kept as a named version
+    let noDots = Version("master");
+    assert(!noDots.isNumbered(), "\"master\" should not be numbered");
+    assert(noDots[] == "master", "unexpected string representation for a named version");
+
+    let tooMany = Version("1.2.3.4");
+    assert(!tooMany.isNumbered(), "4 components should not be treated as numbered");
+    assert(tooMany[] == "1.2.3.4", "unexpected string representation");
+
+    let notNumeric = Version("foo.bar.baz");
+    assert(!notNumeric.isNumbered(), "non numeric components should fall back to a named version");
+    assert(notNumeric[] == "foo.bar.baz", "unexpected string representation");
+}
+
+__test {
+    // "*" and the ignore() named constructor both produce an "any version" marker
+    let star = Version("*");
+    assert(star.isIgnore(), "\"*\" should be parsed as an ignored version");
+    assert(star[] == "*", "unexpected string representation for an ignored version");
+
+    let ignored = Version::ignore();
+    assert(ignored.isIgnore(), "Version::ignore() should produce an ignored version");
+    assert(ignored[] == "*", "unexpected string representation for an ignored version");
+}
+
+__test {
+    // Deserializing from a configuration
+    let v = Version(copy Str("1.2.3"));
+    assert(v.isNumbered() && v[] == "1.2.3", "unexpected version parsed from a configuration");
+
+    let mut threw = false;
+    {
+        Version(copy Int(12));
+    } catch {
+        AssertError() => { threw = true; }
+    }
+    assert(threw, "a non string configuration should be rejected");
+}
+
+__test {
+    // Incrementing a numbered version
+    let v = Version(1u32, 2u32, 3u32);
+
+    assert(v.increment(false, false)[] == "1.2.4", "a default increment should bump the patch");
+    assert(v.increment(false, true)[] == "1.3.0", "a minor increment should reset the patch");
+    assert(v.increment(true, false)[] == "2.0.0", "a major increment should reset minor and patch");
+
+    // A named version is unaffected by increment
+    let named = Version("master");
+    assert(named.increment(true, true) == named, "incrementing a named version should be a no-op");
+}
+
+__test {
+    // Equality and ordering
+    let a = Version(1u32, 2u32, 3u32);
+    let b = Version("1.2.3");
+    let c = Version(1u32, 2u32, 4u32);
+    let named = Version("master");
+
+    assert(a == b, "two versions parsed to the same numbers should be equal");
+    assert(a != c, "different patch numbers should not be equal");
+    assert(a != named, "a numbered and a named version should never be equal");
+
+    assert(c > a, "1.2.4 should be greater than 1.2.3");
+    assert(a < c, "1.2.3 should be lower than 1.2.4");
+    assert(Version(2u32, 0u32, 0u32) > Version(1u32, 9u32, 9u32), "major should take precedence over minor/patch");
+    assert(Version(1u32, 3u32, 0u32) > Version(1u32, 2u32, 9u32), "minor should take precedence over patch");
+}
+
+__test {
+    // Serializing round-trips into a string configuration node
+    let numbered = Version("1.2.3");
+    let named = Version("master");
+
+    assert(to!{[c8]}(numbered.serialize()) == "1.2.3", "unexpected serialized numbered version");
+    assert(to!{[c8]}(named.serialize()) == "master", "unexpected serialized named version");
+}

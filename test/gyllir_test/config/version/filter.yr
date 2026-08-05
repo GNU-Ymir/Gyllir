@@ -1,0 +1,170 @@
+use gyllir::config::version::filter;
+use gyllir::config::version;
+
+use std::config::_;
+use std::config::conv;
+use std::conv::errors;
+use std::stream;
+
+__test {
+    // Plain versions (no comparator) are equality filters
+    let vf = VersionFilter(copy ["1.2.3"]);
+    assert(vf.pass(Version(1u32, 2u32, 3u32)), "1.2.3 should pass an equality filter on 1.2.3");
+    assert(!vf.pass(Version(1u32, 2u32, 4u32)), "1.2.4 should not pass an equality filter on 1.2.3");
+}
+
+__test {
+    // Comparator filters, and combining several of them (all must pass)
+    let vf = VersionFilter(copy [">1.0.0", "<2.0.0"]);
+    assert(vf.pass(Version(1u32, 5u32, 0u32)), "1.5.0 should be within (1.0.0, 2.0.0)");
+    assert(!vf.pass(Version(0u32, 9u32, 0u32)), "0.9.0 should fail the > 1.0.0 bound");
+    assert(!vf.pass(Version(2u32, 0u32, 0u32)), "2.0.0 should fail the < 2.0.0 bound");
+}
+
+__test {
+    // Inclusive comparators
+    let vf = VersionFilter(copy [">=1.0.0", "<=2.0.0"]);
+    assert(vf.pass(Version(1u32, 0u32, 0u32)), "1.0.0 should pass >= 1.0.0");
+    assert(vf.pass(Version(2u32, 0u32, 0u32)), "2.0.0 should pass <= 2.0.0");
+    assert(!vf.pass(Version(0u32, 9u32, 9u32)), "0.9.9 should fail >= 1.0.0");
+    assert(!vf.pass(Version(2u32, 0u32, 1u32)), "2.0.1 should fail <= 2.0.0");
+}
+
+__test {
+    // A "*" filter accepts any version, whatever the comparator would otherwise mean
+    let vf = VersionFilter(copy ["*"]);
+    assert(vf.pass(Version(0u32, 0u32, 1u32)), "an ignore filter should accept any numbered version");
+    assert(vf.pass(Version("master")), "an ignore filter should accept any named version too");
+}
+
+__test {
+    // A comparator filter only makes sense on a numbered version
+    let mut threw = false;
+    {
+        VersionFilter(copy [">master"]);
+    } catch {
+        CastFailure() => { threw = true; }
+    }
+
+    assert(threw, "a comparator filter on a named version should be rejected");
+}
+
+__test {
+    // Deserializing a single filter from a raw string configuration node
+    let vf = VersionFilter(copy Str(">=1.0.0"));
+    assert(vf.pass(Version(1u32, 0u32, 0u32)), "expected the deserialized filter to accept 1.0.0");
+    assert(!vf.pass(Version(0u32, 9u32, 0u32)), "expected the deserialized filter to reject 0.9.0");
+}
+
+__test {
+    // Deserializing several filters from an array configuration node
+    let dmut arr = copy Array();
+    arr:.push(copy Str(">1.0.0"));
+    arr:.push(copy Str("<2.0.0"));
+
+    let vf = VersionFilter(arr);
+    assert(vf.pass(Version(1u32, 5u32, 0u32)), "expected the deserialized filters to accept 1.5.0");
+    assert(!vf.pass(Version(2u32, 5u32, 0u32)), "expected the deserialized filters to reject 2.5.0");
+}
+
+__test {
+    // A non string element inside the array configuration is rejected
+    let dmut arr = copy Array();
+    arr:.push(copy Int(12));
+
+    let mut threw = false;
+    {
+        VersionFilter(arr);
+    } catch {
+        CastFailure() => { threw = true; }
+        AssertError() => { threw = true; }
+    }
+
+    assert(threw, "a non string filter inside an array configuration should be rejected");
+}
+
+__test {
+    // A configuration that is neither a string nor an array is rejected
+    let mut threw = false;
+    {
+        VersionFilter(copy Int(12));
+    } catch {
+        AssertError() => { threw = true; }
+        CastFailure() => { threw = true; }
+    }
+
+    assert(threw, "a non string/array configuration should be rejected");
+}
+
+__test {
+    // select() returns the most recent (highest) candidate that passes every filter,
+    // not just the first one that happens to pass
+    let vf = VersionFilter(copy [">1.0.0"]);
+    let candidates = copy [
+        (Version(0u32, 9u32, 0u32), "too-old"),
+        (Version(1u32, 5u32, 0u32), "good"),
+        (Version(2u32, 0u32, 0u32), "best")
+    ];
+
+    let (selected, name) = vf.select(candidates);
+    assert(name == "best", "expected the highest passing candidate to be selected");
+    assert(selected == Version(2u32, 0u32, 0u32), "unexpected selected version");
+}
+
+__test {
+    // The order of the candidate list must not matter: the highest passing version wins
+    // even when it isn't the last (or first) one in the list
+    let vf = VersionFilter(copy [">1.0.0"]);
+    let candidates = copy [
+        (Version(1u32, 5u32, 0u32), "good"),
+        (Version(3u32, 0u32, 0u32), "best"),
+        (Version(2u32, 0u32, 0u32), "also-good"),
+        (Version(0u32, 5u32, 0u32), "too-old")
+    ];
+
+    let (selected, name) = vf.select(candidates);
+    assert(name == "best", "expected the highest passing candidate to be selected regardless of list order");
+    assert(selected == Version(3u32, 0u32, 0u32), "unexpected selected version");
+}
+
+__test {
+    // select() rejects when no candidate passes every filter
+    let vf = VersionFilter(copy [">1.0.0"]);
+    let candidates = copy [(Version(0u32, 1u32, 0u32), "too-old")];
+
+    let mut threw = false;
+    {
+        vf.select(candidates);
+    } catch {
+        AssertError() => { threw = true; }
+    }
+
+    assert(threw, "select() should reject when no candidate passes");
+}
+
+__test {
+    // Serializing a single filter round-trips into a string configuration node
+    let vf = VersionFilter(copy [">1.0.0"]);
+    assert(to!{[c8]}(vf.serialize()) == ">1.0.0", "unexpected serialized single filter");
+
+    let anyVf = VersionFilter(copy ["*"]);
+    assert(to!{[c8]}(anyVf.serialize()) == "*", "unexpected serialized ignore filter");
+}
+
+__test {
+    // A textual representation of a single filter
+    let vf = VersionFilter(copy [">1.0.0"]);
+    let dmut str = copy StringStream();
+    str:.write(vf);
+
+    assert(str[] == "[>1.0.0]", str[]);
+}
+
+__test {
+    // A textual representation of several filters, comma separated
+    let vf = VersionFilter(copy [">1.0.0", "<2.0.0"]);
+    let dmut str = copy StringStream();
+    str:.write(vf);
+
+    assert(str[] == "[>1.0.0, <2.0.0]", str[]);
+}

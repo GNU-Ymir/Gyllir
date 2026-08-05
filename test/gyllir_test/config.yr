@@ -2,3 +2,4 @@ pub mod ::command;
 pub mod ::errors;
 pub mod ::url;
 pub mod ::type;
+pub mod ::version;
