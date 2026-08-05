@@ -1,0 +1,102 @@
+use gyllir::config::url;
+
+use std::config::_;
+use std::config::{conv, json};
+
+__test {
+    // A default-constructed url is empty, of type LOCAL, and invalid
+    let u = Url();
+    assert(u.path.toStr() == "", "default url should have an empty path");
+    assert(u.type == UrlType::LOCAL, "default url type should be LOCAL");
+    assert(!u.isValid(), "default url should not be valid");
+}
+
+__test {
+    // A "local:" prefix is parsed as a local url, and stripped from the path
+    let u = Url("local:some/dir");
+    assert(u.type == UrlType::LOCAL, "expected a LOCAL url type");
+    assert(u.path.toStr() == "some/dir", "expected the \"local:\" prefix to be stripped");
+    assert(u.isValid(), "a well formed url should be valid");
+}
+
+__test {
+    // A "git:" prefix is parsed as a git url, and stripped from the path
+    let u = Url("git:some/repo");
+    assert(u.type == UrlType::GIT, "expected a GIT url type");
+    assert(u.path.toStr() == "some/repo", "expected the \"git:\" prefix to be stripped");
+    assert(u.isValid(), "a well formed url should be valid");
+}
+
+__test {
+    // Without a known prefix, the url is treated as a raw(git) remote, kept as-is
+    let u = Url("git@host.com:org/repo.git");
+    assert(u.type == UrlType::GIT, "unprefixed urls should default to GIT");
+    assert(u.path.toStr() == "git@host.com:org/repo.git", "unprefixed urls should be kept unmodified");
+    assert(u.isValid(), "a well formed url should be valid");
+}
+
+__test {
+    // Deserializing from a configuration containing a "local" key
+    let cfg = json#{"local" : "some/dir"};
+    let u = Url(cfg);
+
+    assert(u.type == UrlType::LOCAL, "expected a LOCAL url type");
+    assert(u.path.toStr() == "some/dir", "unexpected path for a \"local\" configuration");
+    assert(u.isValid(), "a well formed url should be valid");
+}
+
+__test {
+    // Deserializing from a configuration containing a "git" key
+    let cfg = json#{"git" : "some/repo"};
+    let u = Url(cfg);
+
+    assert(u.type == UrlType::GIT, "expected a GIT url type");
+    assert(u.path.toStr() == "some/repo", "unexpected path for a \"git\" configuration");
+    assert(u.isValid(), "a well formed url should be valid");
+}
+
+__test {
+    // Deserializing directly from a raw string configuration node falls back to string parsing
+    let u = Url(copy Str("local:some/dir"));
+
+    assert(u.type == UrlType::LOCAL, "expected a LOCAL url type");
+    assert(u.path.toStr() == "some/dir", "unexpected path when deserializing from a raw string");
+    assert(u.isValid(), "a well formed url should be valid");
+}
+
+__test {
+    // A dictionnary without a "local" or "git" key is rejected as malformed
+    let cfg = json#{"unknown" : "some/dir"};
+    let mut threw = false;
+    {
+        Url(cfg);
+    } catch {
+        AssertError() => { threw = true; }
+    }
+
+    assert(threw, "a dictionnary without \"local\" or \"git\" should be rejected");
+}
+
+__test {
+    // Equality only holds when path, type and validity all match
+    let a = Url("local:some/dir");
+    let b = Url("local:some/dir");
+    let c = Url("local:other/dir");
+    let d = Url("git:some/dir");
+
+    assert(a == b, "two urls parsed from the same string should be equal");
+    assert(a != c, "urls with different paths should not be equal");
+    assert(a != d, "urls with different types should not be equal");
+}
+
+__test {
+    // Serializing a local url produces a "local" entry, a git url a "git" entry
+    let localUrl = Url("local:some/dir");
+    let gitUrl = Url("git:some/repo");
+
+    let localCfg = localUrl.serialize();
+    let gitCfg = gitUrl.serialize();
+
+    assert(to!{[c8]} (localCfg["local"]) == "some/dir", "unexpected serialized path for a local url");
+    assert(to!{[c8]} (gitCfg["git"]) == "some/repo", "unexpected serialized path for a git url");
+}
