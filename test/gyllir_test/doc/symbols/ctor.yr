@@ -1,0 +1,32 @@
+use gyllir::doc::symbols::_;
+use gyllir::doc::symbols::ctor;
+use gyllir::doc::symbols::variable;
+use gyllir::doc::types::_;
+use gyllir::doc::types::scalar;
+
+use std::stream;
+
+__test {
+    let dmut c = copy Ctor("self", "", INTERNAL_LOCATION, Protection::PUB);
+    c.isUnsafe = true;
+
+    let dmut p = copy Variable("x", "", INTERNAL_LOCATION, Protection::PUB);
+    p.type = copy ScalarType("i32", "");
+    c.parameters = copy [p];
+    c.throwers = copy [cast!(&Type) (copy ScalarType("Err", ""))];
+
+    let dmut stream = copy StringStream();
+    stream:.write(c);
+
+    assert(stream[] == "Ctor self => :(0,0)\n\t@unsafe\n\tfn (x : Scalar (i32))\n\t\tthrows Scalar (Err)\n",
+           "unexpected rendering for an unsafe ctor with a thrower");
+}
+
+__test {
+    let c = copy Ctor("self", "", INTERNAL_LOCATION, Protection::PUB);
+
+    let dmut stream = copy StringStream();
+    stream:.write(c);
+
+    assert(stream[] == "Ctor self => :(0,0)\n\tfn ()\n", "unexpected rendering for a bare ctor");
+}

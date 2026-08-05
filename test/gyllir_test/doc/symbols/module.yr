@@ -1,0 +1,26 @@
+use gyllir::doc::symbols::_;
+use gyllir::doc::symbols::module;
+use gyllir::doc::symbols::function;
+
+use std::stream;
+
+__test {
+    let dmut m = copy Module("m", "", INTERNAL_LOCATION, Protection::PUB);
+    let f : &Symbol = copy Function("f", "", INTERNAL_LOCATION, Protection::PUB);
+    m.childs = copy [f];
+
+    let dmut stream = copy StringStream();
+    stream:.write(m);
+
+    assert(stream[] == "Module : m => :(0,0)\n\tFunction f => :(0,0)\n\t\tfn ()-> Any ()\n",
+           "unexpected rendering for a module with one child (nested indentation should compound)");
+}
+
+__test {
+    let m = copy Module("empty", "", INTERNAL_LOCATION, Protection::PUB);
+
+    let dmut stream = copy StringStream();
+    stream:.write(m);
+
+    assert(stream[] == "Module : empty => :(0,0)\n", "unexpected rendering for an empty module");
+}

@@ -1,0 +1,11 @@
+use gyllir::doc::symbols::template::ofv;
+
+use std::stream;
+
+__test {
+    let p = copy TemplateOfVarParam("T", "of", "i32");
+    let dmut stream = copy StringStream();
+    stream:.write(p);
+
+    assert(stream[] == "T of i32", "unexpected rendering for a template \"of\" param");
+}

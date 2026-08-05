@@ -1,0 +1,52 @@
+use gyllir::doc::symbols::_;
+use gyllir::doc::symbols::class_;
+use gyllir::doc::symbols::method;
+use gyllir::doc::symbols::ctor;
+use gyllir::doc::symbols::variable;
+use gyllir::doc::symbols::assertion;
+use gyllir::doc::types::_;
+use gyllir::doc::types::scalar;
+
+use std::stream;
+
+__test {
+    // Rendering nests fields, ctors and methods, each doubly-indented under "class {" itself indented once;
+    // note each ctor/method entry is followed by a tab-only blank line (an artefact of the trailing "\n" write)
+    let dmut c = copy ClassSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
+
+    let dmut fld = copy Variable("x", "", INTERNAL_LOCATION, Protection::PUB);
+    fld.type = copy ScalarType("i32", "");
+    c.fields = copy [fld];
+
+    let ctor = copy Ctor("self", "", INTERNAL_LOCATION, Protection::PUB);
+    c.ctors = copy [ctor];
+
+    let m = copy Method("foo", "", INTERNAL_LOCATION, Protection::PUB);
+    c.methods = copy [m];
+
+    let dmut stream = copy StringStream();
+    stream:.write(c);
+
+    assert(stream[] == "Type Foo => :(0,0)\n\tclass {\n\t\t(pub x : Scalar (i32))\n\t\tpub Ctor self => :(0,0)\n\t\t\tfn ()\n\t\t\n\t\tpub Method foo => :(0,0)\n\t\t\tfn (self)-> Any ()\n\t\t\n\t}\n",
+           "unexpected rendering for a class with a field, a ctor and a method");
+}
+
+__test {
+    // isRecord/isEntity switch the opening keyword; isClass() (from types::class_) isn't involved here,
+    // ClassSymbol just has its own plain bool flags
+    let dmut r = copy ClassSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
+    r.isRecord = true;
+
+    let dmut stream = copy StringStream();
+    stream:.write(r);
+
+    assert(stream[] == "Type Foo => :(0,0)\n\trecord {\n\t\t()\n\t}\n", "unexpected rendering for a record");
+
+    let dmut e = copy ClassSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
+    e.isEntity = true;
+
+    let dmut streamE = copy StringStream();
+    streamE:.write(e);
+
+    assert(streamE[] == "Type Foo => :(0,0)\n\tentity {\n\t\t()\n\t}\n", "unexpected rendering for an entity");
+}

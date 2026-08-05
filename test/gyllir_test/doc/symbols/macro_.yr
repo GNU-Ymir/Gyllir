@@ -1,0 +1,26 @@
+use gyllir::doc::symbols::_;
+use gyllir::doc::symbols::macro_;
+
+use std::stream;
+
+__test {
+    // A MacroRule renders as "Ctor" or "Rule" depending on isCtor, followed by its rule and skip alternatives
+    let dmut rule = copy MacroRule("r1", "", INTERNAL_LOCATION, Protection::PUB);
+    rule.rule = "expr";
+    rule.skips = copy ["+", "-"];
+
+    let dmut ctorRule = copy MacroRule("c1", "", INTERNAL_LOCATION, Protection::PUB);
+    ctorRule.isCtor = true;
+    ctorRule.rule = "expr";
+    ctorRule.skips = [];
+
+    let dmut m = copy Macro("mymacro", "", INTERNAL_LOCATION, Protection::PUB);
+    m.ctors = copy [ctorRule];
+    m.rules = copy [rule];
+
+    let dmut stream = copy StringStream();
+    stream:.write(m);
+
+    assert(stream[] == "Macro mymacro => :(0,0)\n\tCtor c1 => :(0,0)\n\t\texpr ()\n\t\n\tRule r1 => :(0,0)\n\t\texpr (+ | -)\n\t\n",
+           "unexpected rendering for a macro with a ctor rule and a normal rule");
+}

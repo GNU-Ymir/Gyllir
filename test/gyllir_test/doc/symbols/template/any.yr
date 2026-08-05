@@ -1,0 +1,11 @@
+use gyllir::doc::symbols::template::any;
+
+use std::stream;
+
+__test {
+    let p = copy TemplateAnyParam("T");
+    let dmut stream = copy StringStream();
+    stream:.write(p);
+
+    assert(stream[] == "T", "unexpected rendering for a raw template param");
+}

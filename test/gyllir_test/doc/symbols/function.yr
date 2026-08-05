@@ -1,0 +1,51 @@
+use gyllir::doc::symbols::_;
+use gyllir::doc::symbols::function;
+use gyllir::doc::symbols::variable;
+use gyllir::doc::types::_;
+use gyllir::doc::types::scalar;
+
+use std::stream;
+
+__test {
+    let loc = Location("foo.yr", 3u64, 5u64);
+    let dmut f = copy Function("bar", "docs", loc, Protection::PUB);
+    f.retType = copy ScalarType("i32", "");
+
+    let p : &Variable = copy Variable("x", "", INTERNAL_LOCATION, Protection::PUB);
+    f.parameters = copy [p];
+
+    f.isUnsafe = true;
+    f.throwers = copy [cast!(&Type) (copy ScalarType("Err", ""))];
+
+    let dmut stream = copy StringStream();
+    stream:.write(f);
+
+    assert(stream[] == "Function bar => foo.yr:(3,5)\n\t@unsafe\n\tfn (x : Any ())-> Scalar (i32)\n\t\tthrows Scalar (Err)\n",
+           "unexpected rendering for an unsafe function with a thrower");
+}
+
+__test {
+    // isInline and isUnsafe together produce a combined attribute list; no throwers means no "throws" block
+    let dmut f = copy Function("baz", "", INTERNAL_LOCATION, Protection::PUB);
+    f.isUnsafe = true;
+    f.isInline = true;
+
+    let dmut stream = copy StringStream();
+    stream:.write(f);
+
+    assert(stream[] == "Function baz => :(0,0)\n\t@{unsafe, inline}\n\tfn ()-> Any ()\n",
+           "unexpected rendering for an inline+unsafe function");
+}
+
+__test {
+    let name = "bar";
+    let doc = "some documentation";
+    let loc = Location("foo.yr", 1u64, 1u64);
+    let f = copy Function(name, doc, loc, Protection::PROT);
+
+    assert(f.name == name, "unexpected name");
+    assert(f.doc == doc, "unexpected doc");
+    assert(f.protect == Protection::PROT, "unexpected protection");
+    assert(!f.isUnsafe && !f.isInline, "flags should default to false");
+    assert(f.parameters.len == 0us && f.throwers.len == 0us, "collections should default to empty");
+}
