@@ -1,0 +1,12 @@
+use gyllir::doc::types::slice;
+use gyllir::doc::types::scalar;
+
+use std::stream;
+
+__test {
+    let s = copy SliceType("", copy ScalarType("i32", ""));
+    let dmut stream = copy StringStream();
+    stream:.write(s);
+
+    assert(stream[] == "Slice (Scalar (i32))", "unexpected rendering for a slice type");
+}

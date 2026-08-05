@@ -1,0 +1,27 @@
+use gyllir::doc::symbols::assertion;
+
+use std::stream;
+
+__test {
+    let mut a = Assertion();
+    a.test = "x > 0";
+    a.msg = "x must be positive";
+
+    let dmut stream = copy StringStream();
+    stream:.write(a);
+
+    assert(stream[] == "Assert (x > 0, x must be positive)\n", "unexpected rendering without a condition");
+}
+
+__test {
+    // A non-empty condition is prefixed with "if <condition> "
+    let mut a = Assertion();
+    a.test = "x > 0";
+    a.msg = "x must be positive";
+    a.condition = "is!{T}{i32}";
+
+    let dmut stream = copy StringStream();
+    stream:.write(a);
+
+    assert(stream[] == "if is!{T}{i32} Assert (x > 0, x must be positive)\n", "unexpected rendering with a condition");
+}

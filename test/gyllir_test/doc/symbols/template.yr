@@ -1,0 +1,41 @@
+pub mod ::and;
+pub mod ::any;
+pub mod ::ofv;
+pub mod ::var;
+pub mod ::variadic;
+
+use gyllir::doc::symbols::_;
+use gyllir::doc::symbols::template::_;
+use gyllir::doc::symbols::template::any;
+use gyllir::doc::symbols::template::var;
+use gyllir::doc::symbols::function;
+
+use std::stream;
+
+__test {
+    // Params are rendered inside "{...}", after an optional "if <test> " condition;
+    // inner symbols are rendered below, each with their own (compounding) indentation
+    let dmut t = copy Template("Foo", "", INTERNAL_LOCATION, Protection::PUB);
+    t.test = "T != U";
+
+    let params : [&TemplateParam] = copy [copy TemplateAnyParam("T"), copy TemplateVarParam("U", "of i32")];
+    t.params = params;
+
+    let inner : &Symbol = copy Function("f", "", INTERNAL_LOCATION, Protection::PUB);
+    t.inners = copy [inner];
+
+    let dmut stream = copy StringStream();
+    stream:.write(t);
+
+    assert(stream[] == "Template Foo => :(0,0)\n\tif T != U {T, of i32 U}\n\tFunction f => :(0,0)\n\t\tfn ()-> Any ()\n\t\n",
+           "unexpected rendering for a template with params and an inner symbol");
+}
+
+__test {
+    let t = copy Template("Bare", "", INTERNAL_LOCATION, Protection::PUB);
+
+    let dmut stream = copy StringStream();
+    stream:.write(t);
+
+    assert(stream[] == "Template Bare => :(0,0)\n\t{}\n", "unexpected rendering for a template with no params/test/inners");
+}

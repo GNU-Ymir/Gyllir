@@ -158,7 +158,7 @@ pub record Url {
         }
 
         else if (startsWith (url, UrlStarts::GIT)) {
-            self._path = Path (url [UrlStarts::GIT.len - 1us .. $]);
+            self._path = Path (url [UrlStarts::GIT.len .. $]);
             self._type = UrlType::GIT;
         }
 

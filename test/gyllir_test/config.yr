@@ -1,0 +1,253 @@
+use gyllir::config::_;
+
+use std::config::_;
+use std::config::{conv, json};
+use std::conv::errors;
+
+pub mod ::command;
+pub mod ::errors;
+pub mod ::url;
+pub mod ::type;
+pub mod ::version;
+
+__test {
+    // Defaults of an empty configuration
+    let cfg = GyllirPackageConfiguration::empty();
+
+    assert(cfg.name == "", "default name should be empty");
+    assert(cfg.license == "", "default license should be empty");
+    assert(cfg.descripion == "", "default description should be empty");
+    assert(cfg.compiler == "gyc", "default compiler should be \"gyc\"");
+    assert(cfg.packageRoot == "", "default package-root should be empty");
+    assert(cfg.testRoot == "", "default test-root should be empty");
+    assert(cfg.type.isExecutable(), "default build type should be executable");
+    assert(!cfg.registry.isValid(), "default registry should not be a valid url");
+    assert(cfg.version == Version(0u32, 0u32, 0u32), "default version should be 0.0.0");
+    assert(cfg.authors == [], "default authors should be empty");
+    assert(cfg.libraries == [], "default libraries should be empty");
+    assert(cfg.dependencies[].len == 0us, "default dependencies should be empty");
+    assert(cfg.commands[].len == 0us, "default commands should be empty");
+}
+
+__test {
+    // The explicit constructor only sets the fields it is given, the rest keep their defaults
+    let cfg = GyllirPackageConfiguration(
+        "my-pkg", "MIT", "a test package",
+        BuildType("library"), Url("local:some/registry"), Version(1u32, 2u32, 3u32),
+        copy ["alice", "bob"]
+    );
+
+    assert(cfg.name == "my-pkg", "unexpected name");
+    assert(cfg.license == "MIT", "unexpected license");
+    assert(cfg.descripion == "a test package", "unexpected description");
+    assert(cfg.type.isLibrary(), "unexpected build type");
+    assert(cfg.registry.path.toStr() == "some/registry", "unexpected registry path");
+    assert(cfg.version == Version(1u32, 2u32, 3u32), "unexpected version");
+    assert(cfg.authors == copy ["alice", "bob"], "unexpected authors");
+
+    // untouched by this constructor
+    assert(cfg.compiler == "gyc", "compiler should keep its default");
+    assert(cfg.libraries == [], "libraries should keep its default");
+    assert(cfg.dependencies[].len == 0us, "dependencies should keep its default");
+    assert(cfg.commands[].len == 0us, "commands should keep its default");
+}
+
+__test {
+    // Deserializing every field from a full configuration dictionary
+    let fullCfg = json#{
+        "name" : "my-pkg",
+        "license" : "MIT",
+        "description" : "a test package",
+        "type" : "executable",
+        "version" : "1.2.3",
+        "registry" : {"local" : "some/registry"},
+        "compiler" : "clang-ymir",
+        "package-root" : "src",
+        "test-root" : "test",
+        "authors" : ["alice", "bob"],
+        "libraries" : ["m", "pthread"],
+        "dependencies" : {"foo" : {"version" : "1.0.0", "url" : {"local" : "../foo"}}},
+        "commands" : {"build-hook" : {"cmd" : "echo hi", "post" : true}}
+    };
+
+    let cfg = GyllirPackageConfiguration(fullCfg);
+
+    assert(cfg.name == "my-pkg", "unexpected name");
+    assert(cfg.license == "MIT", "unexpected license");
+    assert(cfg.descripion == "a test package", "unexpected description");
+    assert(cfg.type.isExecutable(), "unexpected build type");
+    assert(cfg.version == Version(1u32, 2u32, 3u32), "unexpected version");
+    assert(cfg.registry.path.toStr() == "some/registry", "unexpected registry path");
+    assert(cfg.compiler == "clang-ymir", "unexpected compiler");
+    assert(cfg.packageRoot == "src", "unexpected package-root");
+    assert(cfg.testRoot == "test", "unexpected test-root");
+    assert(cfg.authors == copy ["alice", "bob"], "unexpected authors");
+    assert(cfg.libraries == copy ["m", "pthread"], "unexpected libraries");
+
+    assert(cfg.dependencies[].len == 1us, "expected a single dependency");
+    if let Ok(dep) = cfg.dependencies[]["foo"] {
+        assert(dep.url.path.toStr() == "../foo", "unexpected dependency url");
+        assert(dep.version.pass(Version(1u32, 0u32, 0u32)), "unexpected dependency version filter");
+    } else assert(false, "expected a \"foo\" dependency");
+
+    assert(cfg.commands[].len == 1us, "expected a single command");
+    if let Ok(cmd) = cfg.commands[]["build-hook"] {
+        assert(cmd.cmd == "echo hi" && cmd.isPost(), "unexpected build-hook command");
+    } else assert(false, "expected a \"build-hook\" command");
+}
+
+__test {
+    // Only name/license/description/type/version/registry are mandatory, everything else defaults
+    let minimalCfg = json#{
+        "name" : "minimal",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"}
+    };
+
+    let cfg = GyllirPackageConfiguration(minimalCfg);
+
+    assert(cfg.compiler == "gyc", "compiler should default to \"gyc\"");
+    assert(cfg.packageRoot == "", "package-root should default to empty");
+    assert(cfg.testRoot == "", "test-root should default to empty");
+    assert(cfg.authors == [], "authors should default to empty");
+    assert(cfg.libraries == [], "libraries should default to empty");
+    assert(cfg.dependencies[].len == 0us, "dependencies should default to empty");
+    assert(cfg.commands[].len == 0us, "commands should default to empty");
+}
+
+__test {
+    // A configuration that isn't a dictionary is rejected directly
+    let mut threw = false;
+    {
+        GyllirPackageConfiguration(copy Str("not-a-dict"));
+    } catch {
+        AssertError() => { threw = true; }
+        CastFailure() => { threw = true; }
+    }
+
+    assert(threw, "a non dictionary configuration should be rejected");
+}
+
+__test {
+    // A missing mandatory field is rejected (wrapped as a CastFailure)
+    let missingName = json#{
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"}
+    };
+
+    let mut threw = false;
+    {
+        GyllirPackageConfiguration(missingName);
+    } catch {
+        CastFailure() => { threw = true; }
+        AssertError() => { threw = true; }
+    }
+
+    assert(threw, "a missing mandatory field should be rejected");
+}
+
+__test {
+    // A wrongly typed optional field is rejected (wrapped as a CastFailure)
+    let badCompiler = json#{
+        "name" : "my-pkg",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "compiler" : 12
+    };
+
+    let mut threw = false;
+    {
+        GyllirPackageConfiguration(badCompiler);
+    } catch {
+        CastFailure() => { threw = true; }
+        AssertError() => { threw = true; }
+    }
+
+    assert(threw, "a non string compiler should be rejected");
+}
+
+__test {
+    // A wrongly typed authors field (not an array) is rejected (wrapped as a CastFailure)
+    let badAuthors = json#{
+        "name" : "my-pkg",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "authors" : "alice"
+    };
+
+    let mut threw = false;
+    {
+        GyllirPackageConfiguration(badAuthors);
+    } catch {
+        CastFailure() => { threw = true; }
+        AssertError() => { threw = true; }
+    }
+
+    assert(threw, "a non array authors field should be rejected");
+}
+
+__test {
+    // setVersion() mutates the version in place
+    let dmut cfg = GyllirPackageConfiguration::empty();
+    cfg:.setVersion(Version(2u32, 0u32, 0u32));
+
+    assert(cfg.version == Version(2u32, 0u32, 0u32), "setVersion() should update the version");
+}
+
+__test {
+    // Serializing round-trips every field written by serialize()
+    let fullCfg = json#{
+        "name" : "my-pkg",
+        "license" : "MIT",
+        "description" : "a test package",
+        "type" : "executable",
+        "version" : "1.2.3",
+        "registry" : {"local" : "some/registry"},
+        "compiler" : "clang-ymir",
+        "authors" : ["alice", "bob"],
+        "libraries" : ["m", "pthread"],
+        "dependencies" : {"foo" : {"version" : "1.0.0", "url" : {"local" : "../foo"}}},
+        "commands" : {"build-hook" : {"cmd" : "echo hi", "post" : true}}
+    };
+
+    let cfg = GyllirPackageConfiguration(fullCfg);
+    let serialized = cfg.serialize();
+
+    assert(to!{[c8]}(serialized["name"]) == "my-pkg", "unexpected serialized name");
+    assert(to!{[c8]}(serialized["license"]) == "MIT", "unexpected serialized license");
+    assert(to!{[c8]}(serialized["description"]) == "a test package", "unexpected serialized description");
+    assert(to!{[c8]}(serialized["type"]) == "executable", "unexpected serialized type");
+    assert(to!{[c8]}(serialized["version"]) == "1.2.3", "unexpected serialized version");
+    assert(to!{[c8]}(serialized["compiler"]) == "clang-ymir", "unexpected serialized compiler");
+    assert(to!{[[c8]]}(serialized["authors"]) == copy ["alice", "bob"], "unexpected serialized authors");
+    assert(to!{[[c8]]}(serialized["libraries"]) == copy ["m", "pthread"], "unexpected serialized libraries");
+
+    if let Ok(reg) = serialized["registry"]? {
+        assert(to!{[c8]}(reg["local"]) == "some/registry", "unexpected serialized registry");
+    } else assert(false, "expected a serialized registry");
+
+    if let Ok(deps) = serialized["dependencies"]? {
+        if let Ok(foo) = deps["foo"]? {
+            // an equality filter (no comparator) serializes with a leading '='
+            assert(to!{[c8]}(foo["version"]) == "=1.0.0", "unexpected serialized dependency version");
+        } else assert(false, "expected a serialized \"foo\" dependency");
+    } else assert(false, "expected serialized dependencies");
+
+    if let Ok(cmds) = serialized["commands"]? {
+        if let Ok(hook) = cmds["build-hook"]? {
+            assert(to!{[c8]}(hook["cmd"]) == "echo hi", "unexpected serialized command");
+        } else assert(false, "expected a serialized \"build-hook\" command");
+    } else assert(false, "expected serialized commands");
+}

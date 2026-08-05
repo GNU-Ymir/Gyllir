@@ -1,0 +1,12 @@
+use gyllir::doc::types::map;
+use gyllir::doc::types::scalar;
+
+use std::stream;
+
+__test {
+    let m = copy MapType("", copy ScalarType("i32", ""), copy ScalarType("[c8]", ""));
+    let dmut stream = copy StringStream();
+    stream:.write(m);
+
+    assert(stream[] == "Map (Scalar (i32) => Scalar ([c8]))", "unexpected rendering for a map type");
+}

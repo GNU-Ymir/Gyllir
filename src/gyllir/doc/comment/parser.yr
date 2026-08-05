@@ -5,7 +5,6 @@ use gyllir::doc::comment::tokens;
 
 use gyllir::doc::comment::{node, node::_, utf};
 
-pub mod .node;
 
 /**
  * This class parse Comment in order to transform documentation blocks into html elements

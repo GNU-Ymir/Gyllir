@@ -1,0 +1,49 @@
+use gyllir::doc::symbols::_;
+use gyllir::doc::symbols::method;
+use gyllir::doc::symbols::variable;
+use gyllir::doc::types::_;
+use gyllir::doc::types::scalar;
+
+use std::stream;
+
+__test {
+    // No attributes, immutable self, no parameters, default (Any) return type
+    let m = copy Method("foo", "", INTERNAL_LOCATION, Protection::PUB);
+
+    let dmut stream = copy StringStream();
+    stream:.write(m);
+
+    assert(stream[] == "Method foo => :(0,0)\n\tfn (self)-> Any ()\n", "unexpected rendering for a bare method");
+}
+
+__test {
+    // Two attributes are joined in a "@{a, b}" block
+    let dmut m = copy Method("foo", "", INTERNAL_LOCATION, Protection::PUB);
+    m.isField = true;
+    m.isFinal = true;
+
+    let dmut stream = copy StringStream();
+    stream:.write(m);
+
+    assert(stream[] == "Method foo => :(0,0)\n\t@{field, final}\n\tfn (self)-> Any ()\n",
+           "unexpected rendering for a method with multiple attributes");
+}
+
+__test {
+    // A single attribute uses the shorter "@attr" form; mut self, a parameter, a return type and a thrower
+    let dmut m = copy Method("foo", "", INTERNAL_LOCATION, Protection::PUB);
+    m.isUnsafe = true;
+    m.isMutable = true;
+    m.retType = copy ScalarType("bool", "");
+    m.throwers = copy [cast!(&Type) (copy ScalarType("Err", ""))];
+
+    let dmut p = copy Variable("x", "", INTERNAL_LOCATION, Protection::PUB);
+    p.type = copy ScalarType("i32", "");
+    m.parameters = copy [p];
+
+    let dmut stream = copy StringStream();
+    stream:.write(m);
+
+    assert(stream[] == "Method foo => :(0,0)\n\t@unsafe\n\tfn (mut self, x : Scalar (i32))-> Scalar (bool)\n\t\tthrows Scalar (Err)\n",
+           "unexpected rendering for a mutable unsafe method with a parameter and a thrower");
+}

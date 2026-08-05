@@ -1,0 +1,43 @@
+use gyllir::repo::manager;
+use gyllir::config::_;
+
+use std::fs::_;
+use std::stream;
+
+__test {
+    // toVersionList(): dedups, skips "(HEAD detached...)" markers, and parses each entry as a Version
+    // args[0] is treated as the program name and skipped by the argument parser, so it must be
+    // present (any value) alongside the real subcommand, e.g. ["gyllir", "clean"]
+    let mgr = copy GyllirManager(copy ["gyllir", "clean"]);
+
+    let list = "master\n(HEAD detached at abc123)\nv1.0.0\nv1.0.0\nv2.0.0\n";
+    let versions = mgr.toVersionList(list);
+
+    assert(versions.len == 3us, "expected 3 unique, non-detached versions");
+    assert(versions[0]._1 == "master" && versions[0]._0[] == "master", "unexpected first entry");
+    assert(versions[1]._1 == "v1.0.0" && versions[1]._0[] == "1.0.0", "unexpected second entry");
+    assert(versions[2]._1 == "v2.0.0" && versions[2]._0[] == "2.0.0", "unexpected third entry (duplicate v1.0.0 should be dropped)");
+}
+
+__test {
+    // toVersionList() on an empty list returns an empty list
+    let mgr = copy GyllirManager(copy ["gyllir", "clean"]);
+    let versions = mgr.toVersionList("");
+
+    assert(versions.len == 0us, "an empty tag list should produce no versions");
+}
+
+__test {
+    // runProcess() runs a real subprocess and reports success/failure via its exit code
+    let mgr = copy GyllirManager(copy ["gyllir", "clean"]);
+
+    assert(mgr.runProcess("true", []), "\"true\" should report success");
+    assert(!mgr.runProcess("false", []), "\"false\" should report failure");
+}
+
+__test {
+    // runProcess() on a command that doesn't exist reports failure rather than throwing
+    let mgr = copy GyllirManager(copy ["gyllir", "clean"]);
+
+    assert(!mgr.runProcess("this-command-does-not-exist-xyz", []), "a missing command should report failure, not throw");
+}

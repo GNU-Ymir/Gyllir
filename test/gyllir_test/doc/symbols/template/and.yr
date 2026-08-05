@@ -1,0 +1,24 @@
+use gyllir::doc::symbols::template::_;
+use gyllir::doc::symbols::template::and;
+use gyllir::doc::symbols::template::any;
+
+use std::stream;
+
+__test {
+    let content : [&TemplateParam] = copy [copy TemplateAnyParam("T"), copy TemplateAnyParam("U")];
+    let p = copy TemplateAndParam(content);
+
+    let dmut stream = copy StringStream();
+    stream:.write(p);
+
+    assert(stream[] == "T && U", "unexpected rendering for an \"and\" combination of template params");
+}
+
+__test {
+    let p = copy TemplateAndParam([]);
+
+    let dmut stream = copy StringStream();
+    stream:.write(p);
+
+    assert(stream[] == "", "unexpected rendering for an empty \"and\" combination");
+}

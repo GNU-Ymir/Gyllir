@@ -1,0 +1,214 @@
+use gyllir::utils::git;
+use gyllir::utils::errors;
+
+use std::fs::_;
+use std::stream;
+use std::concurrency::process;
+
+fn containsSub(haystack : [c8], needle : [c8])-> bool {
+    if needle.len == 0us return true;
+    if haystack.len < needle.len return false;
+
+    for i in 0us .. (haystack.len - needle.len + 1us) {
+        if haystack[i .. i + needle.len] == needle return true;
+    }
+
+    false
+}
+
+fn mkScratchRepo()-> Path
+    throws GitError, FsError
+{
+    let dir = sys::tempDirectory(prefix-> "gyllir_git_test_");
+    let mgr = GitManager(cwd-> dir);
+    mgr.init();
+
+    // Some environments force tag/commit signing globally (e.g. tag.gpgsign=true), which makes
+    // a plain "git tag <name>" fail non-interactively ("no tag message?"); isolate the scratch
+    // repo from that so these tests don't depend on the host's global git config
+    let dmut proc = copy SubProcess("git", copy ["config", "tag.gpgsign", "false"], cwd-> dir);
+    proc:.start();
+    proc:.wait();
+
+    dir
+}
+
+fn mkBareRepo()-> Path
+    throws FsError
+{
+    let dir = sys::tempDirectory(prefix-> "gyllir_git_bare_test_");
+    let dmut proc = copy SubProcess("git", copy ["init", "--bare"], cwd-> dir);
+    proc:.start();
+    proc:.wait();
+    dir
+}
+
+fn writeFile(dir : Path, name : [c8], content : [c8])
+    throws FsError
+{
+    let filePath = dir.push(name);
+    let dmut f = File::create(filePath, write-> true);
+    f:.write(content);
+    f:.close();
+}
+
+fn commitFile(dir : Path, name : [c8], content : [c8], msg : [c8])
+    throws GitError, FsError
+{
+    let mgr = GitManager(cwd-> dir);
+    let filePath = dir.push(name);
+    writeFile(dir, name, content);
+
+    mgr.add(filePath);
+    mgr.commit(msg);
+}
+
+__test {
+    // init() creates a ".git" directory
+    let dir = mkScratchRepo();
+    assert(sys::isDir(dir.push(".git")), "init() should create a .git directory");
+}
+
+__test {
+    // add()+commit() succeed, and the resulting branch is visible via getCurrentBranchName()
+    let dir = mkScratchRepo();
+    commitFile(dir, "a.txt", "hello", "first commit");
+
+    let mgr = GitManager(cwd-> dir);
+    let branch = mgr.getCurrentBranchName();
+
+    assert(branch == "master", "unexpected default branch name");
+}
+
+__test {
+    // commit() with nothing staged fails
+    let dir = mkScratchRepo();
+    let mgr = GitManager(cwd-> dir);
+
+    let mut threw = false;
+    {
+        mgr.commit("empty commit");
+    } catch {
+        _ : &GitError => { threw = true; }
+        _ : &FsError => { threw = true; }
+    }
+
+    assert(threw, "committing with nothing staged should throw a GitError");
+}
+
+__test {
+    // add() on a file that doesn't exist fails
+    let dir = mkScratchRepo();
+    let mgr = GitManager(cwd-> dir);
+
+    let mut threw = false;
+    {
+        mgr.add(dir.push("does-not-exist.txt"));
+    } catch {
+        _ : &GitError => { threw = true; }
+        _ : &FsError => { threw = true; }
+    }
+
+    assert(threw, "adding a non-existent file should throw a GitError");
+}
+
+__test {
+    // checkout() to a branch that doesn't exist fails
+    let dir = mkScratchRepo();
+    commitFile(dir, "a.txt", "hello", "first commit");
+    let mgr = GitManager(cwd-> dir);
+
+    let mut threw = false;
+    {
+        mgr.checkout("no-such-branch");
+    } catch {
+        _ : &GitError => { threw = true; }
+        _ : &FsError => { threw = true; }
+    }
+
+    assert(threw, "checking out a non-existent branch should throw a GitError");
+}
+
+__test {
+    // createBranch()/checkout()/deleteBranch() round trip; getTagList() surfaces branch names too
+    let dir = mkScratchRepo();
+    commitFile(dir, "a.txt", "hello", "first commit");
+    let mgr = GitManager(cwd-> dir);
+
+    mgr.createBranch("feature");
+    assert(containsSub(mgr.getTagList(), "feature"), "the new branch should be listed");
+
+    mgr.checkout("feature");
+    assert(mgr.getCurrentBranchName() == "feature", "checkout() should switch the current branch");
+
+    mgr.checkout("master");
+    assert(mgr.getCurrentBranchName() == "master", "checkout() should switch back");
+
+    mgr.deleteBranch("feature");
+    assert(!containsSub(mgr.getTagList(), "feature"), "the deleted branch should no longer be listed");
+}
+
+__test {
+    // createTag()/deleteTag() round trip, surfaced through getTagList()
+    let dir = mkScratchRepo();
+    commitFile(dir, "a.txt", "hello", "first commit");
+    let mgr = GitManager(cwd-> dir);
+
+    mgr.createTag("v1.0.0");
+    assert(containsSub(mgr.getTagList(), "v1.0.0"), "the new tag should be listed");
+
+    mgr.deleteTag("v1.0.0");
+    assert(!containsSub(mgr.getTagList(), "v1.0.0"), "the deleted tag should no longer be listed");
+}
+
+__test {
+    // clone() copies the full history/content of a local repository
+    let src = mkScratchRepo();
+    commitFile(src, "a.txt", "hello from source", "first commit");
+
+    let dst = sys::tempDirectory(prefix-> "gyllir_git_clone_test_");
+    let dstMgr = GitManager(cwd-> dst);
+    dstMgr.clone(src.toStr());
+
+    assert(sys::isFile(dst.push("a.txt")), "clone() should bring the source's committed files along");
+}
+
+__test {
+    // setRemote()+push()+fetchTags(): a tag pushed to a bare "remote" is visible after fetching it into a fresh clone
+    let src = mkScratchRepo();
+    commitFile(src, "a.txt", "hello", "first commit");
+    let srcMgr = GitManager(cwd-> src);
+    srcMgr.createTag("v2.0.0");
+
+    let bare = mkBareRepo();
+    srcMgr.setRemote(bare.toStr());
+    srcMgr.push(copy ["master", "v2.0.0"]);
+
+    let dst = sys::tempDirectory(prefix-> "gyllir_git_fetch_test_");
+    let dstMgr = GitManager(cwd-> dst);
+    dstMgr.clone(bare.toStr());
+
+    assert(containsSub(dstMgr.getTagList(), "v2.0.0"), "a tag pushed to the remote should be present right after cloning it");
+}
+
+__test {
+    // pull() brings in commits pushed to the shared remote by another clone
+    let src = mkScratchRepo();
+    commitFile(src, "a.txt", "v1", "first commit");
+    let srcMgr = GitManager(cwd-> src);
+
+    let bare = mkBareRepo();
+    srcMgr.setRemote(bare.toStr());
+    srcMgr.push(copy ["master"]);
+
+    let dst = sys::tempDirectory(prefix-> "gyllir_git_pull_test_");
+    let dstMgr = GitManager(cwd-> dst);
+    dstMgr.clone(bare.toStr());
+
+    // Push a second commit from the source, then pull it into the destination clone
+    commitFile(src, "b.txt", "v2", "second commit");
+    srcMgr.push(copy ["master"]);
+
+    dstMgr.pull("master");
+    assert(sys::isFile(dst.push("b.txt")), "pull() should bring in commits pushed by another clone");
+}

@@ -1,0 +1,23 @@
+use gyllir::doc::symbols::_;
+use gyllir::doc::symbols::enum_;
+
+use std::stream;
+
+__test {
+    let dmut e = copy EnumSymbol("Color", "", INTERNAL_LOCATION, Protection::PUB);
+    e.fields = copy [("RED", "0", ""), ("GREEN", "1", "")];
+
+    let dmut stream = copy StringStream();
+    stream:.write(e);
+
+    assert(stream[] == "Enum Color => :(0,0)\n\tRED = 0\n\tGREEN = 1\n", "unexpected rendering for an enum symbol");
+}
+
+__test {
+    let e = copy EnumSymbol("Empty", "", INTERNAL_LOCATION, Protection::PUB);
+
+    let dmut stream = copy StringStream();
+    stream:.write(e);
+
+    assert(stream[] == "Enum Empty => :(0,0)\n", "unexpected rendering for an enum symbol with no fields");
+}

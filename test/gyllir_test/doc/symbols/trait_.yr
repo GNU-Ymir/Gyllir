@@ -1,0 +1,33 @@
+use gyllir::doc::symbols::_;
+use gyllir::doc::symbols::trait_;
+use gyllir::doc::symbols::method;
+use gyllir::doc::symbols::assertion;
+
+use std::stream;
+
+__test {
+    // A compile-time assert is rendered before the (protection-prefixed) methods
+    let dmut t = copy TraitSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
+    let m = copy Method("foo", "", INTERNAL_LOCATION, Protection::PUB);
+    t.methods = copy [m];
+
+    let mut a = Assertion();
+    a.test = "is!{T}{i32}";
+    a.msg = "must be i32";
+    t.asserts = copy [a];
+
+    let dmut stream = copy StringStream();
+    stream:.write(t);
+
+    assert(stream[] == "Trait Foo => :(0,0)\n\tcte assert (is!{T}{i32}, must be i32)\n\tpub Method foo => :(0,0)\n\t\tfn (self)-> Any ()\n\t\n",
+           "unexpected rendering for a trait with an assert and a method");
+}
+
+__test {
+    let t = copy TraitSymbol("Empty", "", INTERNAL_LOCATION, Protection::PUB);
+
+    let dmut stream = copy StringStream();
+    stream:.write(t);
+
+    assert(stream[] == "Trait Empty => :(0,0)\n", "unexpected rendering for an empty trait");
+}

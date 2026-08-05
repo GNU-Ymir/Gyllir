@@ -1,0 +1,20 @@
+use gyllir::doc::symbols::template::variadic;
+
+use std::stream;
+
+__test {
+    let p = copy TemplateVariadicParam("T", false);
+    let dmut stream = copy StringStream();
+    stream:.write(p);
+
+    assert(stream[] == "T...", "unexpected rendering for a type variadic param");
+}
+
+__test {
+    // A value variadic gets a " : " marker before the "..."
+    let p = copy TemplateVariadicParam("T", true);
+    let dmut stream = copy StringStream();
+    stream:.write(p);
+
+    assert(stream[] == "T : ...", "unexpected rendering for a value variadic param");
+}

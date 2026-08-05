@@ -1,0 +1,60 @@
+use gyllir::config::command;
+
+use std::config::_;
+use std::config::{conv, json};
+
+__test {
+    // The default constructor produces an empty command list
+    let lst = copy CustomCommandList();
+    assert(lst[].len == 0us, "expected an empty command list");
+}
+
+__test {
+    // Building from a configuration exercises every branch of the post/cwd parsing:
+    // "post" as a Str("true"), as a Bool(true), and absent(defaulting to false), and
+    // "cwd" both present and absent(defaulting to ".")
+    let cfg = json#{
+        "str_post" : {"cmd" : "echo str-post", "post" : "true", "cwd" : "/tmp/build"},
+        "bool_post" : {"cmd" : "echo bool-post", "post" : true},
+        "no_post" : {"cmd" : "echo no-post"}
+    };
+
+    let lst = copy CustomCommandList(cfg);
+    assert(lst[].len == 3us, "expected the 3 declared commands to be inserted");
+
+    let mut seenStrPost = false, mut seenBoolPost = false, mut seenNoPost = false;
+    for k, c in lst[] {
+        if (k == "str_post") {
+            seenStrPost = true;
+            assert(c.cmd == "echo str-post", "unexpected cmd for str_post: " ~ c.cmd);
+            assert(c.isPost(), "post: \"true\" (Str) should be parsed as post = true");
+            assert(c.cwd.toStr() == "/tmp/build", "unexpected cwd for str_post: " ~ c.cwd.toStr());
+        } else if (k == "bool_post") {
+            seenBoolPost = true;
+            assert(c.cmd == "echo bool-post", "unexpected cmd for bool_post: " ~ c.cmd);
+            assert(c.isPost(), "post: true (Bool) should be parsed as post = true");
+            assert(c.cwd.toStr() == ".", "missing cwd should default to \".\", got: " ~ c.cwd.toStr());
+        } else if (k == "no_post") {
+            seenNoPost = true;
+            assert(c.cmd == "echo no-post", "unexpected cmd for no_post: " ~ c.cmd);
+            assert(!c.isPost(), "missing post should default to false");
+            assert(c.cwd.toStr() == ".", "missing cwd should default to \".\", got: " ~ c.cwd.toStr());
+        }
+    }
+
+    assert(seenStrPost && seenBoolPost && seenNoPost, "not every declared command was visited");
+}
+
+__test {
+    // Serializing a command list back into a configuration round-trips every field
+    let cfg = json#{
+        "serialize_me" : {"cmd" : "echo serialize", "post" : true, "cwd" : "/tmp"}
+    };
+
+    let lst = copy CustomCommandList(cfg);
+    let d = lst.serialize() ["serialize_me"];
+
+    assert(to!{[c8]} (d["cmd"]) == "echo serialize", "cmd was not serialized correctly");
+    assert(to!{bool} (d["post"]), "post was not serialized correctly");
+    assert(to!{[c8]} (d["cwd"]) == "/tmp", "cwd was not serialized correctly");
+}

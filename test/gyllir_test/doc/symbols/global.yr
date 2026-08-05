@@ -1,0 +1,24 @@
+use gyllir::doc::symbols::_;
+use gyllir::doc::symbols::global;
+
+use std::stream;
+
+__test {
+    let dmut g = copy Global("MAX", "", INTERNAL_LOCATION, Protection::PUB);
+    g.value = "42";
+
+    let dmut stream = copy StringStream();
+    stream:.write(g);
+
+    assert(stream[] == "Global MAX => :(0,0)\n\t42", "unexpected rendering for a global with a value");
+}
+
+__test {
+    let g = copy Global("MAX", "", INTERNAL_LOCATION, Protection::PUB);
+
+    let dmut stream = copy StringStream();
+    stream:.write(g);
+
+    assert(stream[] == "Global MAX => :(0,0)\n", "unexpected rendering for a global with no value");
+    assert(!g.isStatic && !g.isThreadLocal && !g.isMutable, "flags should default to false");
+}

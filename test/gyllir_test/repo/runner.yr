@@ -1,0 +1,24 @@
+use gyllir::repo::runner;
+use gyllir::config::_;
+
+use std::config::_;
+use std::fs::_;
+
+__test {
+    // run() on a library config (not forUnitTest) rejects before doing anything else
+    let cfg = GyllirPackageConfiguration(
+        "mylib", "MIT", "d", BuildType("library"), Url("local:some/registry"), Version(1u32, 0u32, 0u32), []
+    );
+
+    let runner = RepoRunner(Path("."), copy Dict(), cfg, false);
+
+    let mut threw = false;
+    {
+        runner.run();
+    } catch {
+        _ : &AssertError => { threw = true; }
+        _ : &FsError => { threw = false; }
+    }
+
+    assert(threw, "running a library project (non unit-test mode) should throw an AssertError");
+}

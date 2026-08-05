@@ -1,0 +1,13 @@
+use gyllir::doc::types::array;
+use gyllir::doc::types::scalar;
+
+use std::stream;
+
+__test {
+    let a = copy ArrayType("", copy ScalarType("i32", ""), 3us);
+    let dmut stream = copy StringStream();
+    stream:.write(a);
+
+    assert(stream[] == "Array (Scalar (i32);3)", "unexpected rendering for an array type");
+    assert(a.len == 3us, "unexpected len");
+}

@@ -738,7 +738,7 @@ pub record SymbolLoader {
 
         if let Ok (a : &Array) = d ["lazys"]? {
             for i in a[] if let Str (value-> b) = i {
-                refs ~= [b == "true"];
+                lazys ~= [b == "true"];
             }
         }
 
