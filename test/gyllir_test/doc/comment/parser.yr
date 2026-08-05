@@ -1,0 +1,128 @@
+use gyllir::doc::comment::parser;
+
+use std::stream;
+
+__test {
+    // Plain text with no markup is kept as-is, and bubbles up through dumpTextShort()
+    let p = copy CommentParser("hello world");
+    let dmut stream = copy StringStream();
+    p.dumpHtml(alias stream);
+
+    assert(stream[] == "<dt class=\"head\"></dt><dd>hello world</dd>", "unexpected html for plain text");
+    assert(p.dumpTextShort() == "hello world", "unexpected short text for plain text");
+}
+
+__test {
+    // A leading "*" on a line (the doc-comment continuation marker) is stripped, once per line
+    let p = copy CommentParser(" * line one\n * line two");
+    let dmut stream = copy StringStream();
+    p.dumpHtml(alias stream);
+
+    assert(stream[] == "<dt class=\"head\"></dt><dd>  line one\n  line two</dd>", "unexpected html with leading stars");
+    assert(p.dumpTextShort() == "  line one\n  line two", "unexpected short text with leading stars");
+}
+
+__test {
+    // An empty input parses to an empty root node
+    let p = copy CommentParser("");
+    let dmut stream = copy StringStream();
+    p.dumpHtml(alias stream);
+
+    assert(stream[] == "<dt class=\"head\"></dt><dd></dd>", "unexpected html for empty content");
+    assert(p.dumpTextShort() == "", "unexpected short text for empty content");
+}
+
+__test {
+    // Escape sequences (e.g. "\n") are converted to their real character
+    let p = copy CommentParser("a \\n b");
+    let dmut stream = copy StringStream();
+    p.dumpHtml(alias stream);
+
+    assert(stream[] == "<dt class=\"head\"></dt><dd>a \n b</dd>", "unexpected html for an escaped newline");
+    assert(p.dumpTextShort() == "a \n b", "unexpected short text for an escaped newline");
+}
+
+__test {
+    // An "@head:" section is parsed into its own sub node, excluded from the short text
+    let p = copy CommentParser("@params: some text");
+    let dmut stream = copy StringStream();
+    p.dumpHtml(alias stream);
+
+    assert(stream[] == "<dt class=\"head\"></dt><dd><dt class=\"head\">Parameters</dt><dd> some text</dd></dd>",
+           "unexpected html for a \"@params:\" section");
+    assert(p.dumpTextShort() == "", "an \"@head\" section should not contribute to the short text");
+}
+
+__test {
+    // The trailing ":" of a "@head" is optional; without it, no leading space is kept
+    let p = copy CommentParser("@custom no colon text");
+    let dmut stream = copy StringStream();
+    p.dumpHtml(alias stream);
+
+    assert(stream[] == "<dt class=\"head\"></dt><dd><dt class=\"head\">Custom</dt><dd>no colon text</dd></dd>",
+           "unexpected html for a \"@head\" section without a colon");
+}
+
+__test {
+    // A fenced code block becomes a CommentCode child, excluded from the short text
+    let p = copy CommentParser("before\n```\nlet x = 1;\n```\nafter");
+    let dmut stream = copy StringStream();
+    p.dumpHtml(alias stream);
+
+    assert(stream[] == "<dt class=\"head\"></dt><dd>before\n<pre><code class=\"language-ymir\">let x = 1;\n</code></pre>after</dd>",
+           "unexpected html for a fenced code block");
+    assert(p.dumpTextShort() == "before\nafter", "code block content should be excluded from the short text");
+}
+
+__test {
+    // "-" prefixed lines become <li> items wrapped in a <ul>
+    let p = copy CommentParser("- item one\n- item two");
+    let dmut stream = copy StringStream();
+    p.dumpHtml(alias stream);
+
+    assert(stream[] == "<dt class=\"head\"></dt><dd><ul><li> item one\n</li><li> item two</li></ul></dd>",
+           "unexpected html for a \"-\" list");
+    assert(p.dumpTextShort() == " item one\n item two", "unexpected short text for a \"-\" list");
+}
+
+__test {
+    // "+" is an equivalent list item marker
+    let p = copy CommentParser("+ plus one\n+ plus two");
+    let dmut stream = copy StringStream();
+    p.dumpHtml(alias stream);
+
+    assert(stream[] == "<dt class=\"head\"></dt><dd><ul><li> plus one\n</li><li> plus two</li></ul></dd>",
+           "unexpected html for a \"+\" list");
+}
+
+__test {
+    // "**"/"__" (bold), "_"/"*" (italic) and "`" (inline code) markers are parsed into styled spans
+    let p = copy CommentParser("a **bold** and _italic_ and `code`");
+    let dmut stream = copy StringStream();
+    p.dumpHtml(alias stream);
+
+    let expected = "a <strong>bold</strong> and <em>italic</em> and <code class=\"language-ymir hljs\">code</code>";
+    assert(stream[] == "<dt class=\"head\"></dt><dd>" ~ expected ~ "</dd>", "unexpected html for inline styles");
+    // unlike other node kinds, CommentStyle keeps its tags in the short text too
+    assert(p.dumpTextShort() == expected, "unexpected short text for inline styles");
+}
+
+__test {
+    // A style marker is only recognized when it follows whitespace, not in the middle of a word
+    let p = copy CommentParser("a__b");
+    let dmut stream = copy StringStream();
+    p.dumpHtml(alias stream);
+
+    assert(stream[] == "<dt class=\"head\"></dt><dd>a__b</dd>", "unexpected html for a mid-word marker");
+    assert(p.dumpTextShort() == "a__b", "unexpected short text for a mid-word marker");
+}
+
+__test {
+    // Inline styles are also parsed inside the body of an "@head" section
+    let p = copy CommentParser("@example:\n a **bold** word");
+    let dmut stream = copy StringStream();
+    p.dumpHtml(alias stream);
+
+    assert(stream[] == "<dt class=\"head\"></dt><dd><dt class=\"head\">Example</dt><dd>\n a <strong>bold</strong> word</dd></dd>",
+           "unexpected html for a styled \"@head\" section");
+}
