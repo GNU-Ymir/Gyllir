@@ -1,0 +1,5 @@
+Package: gyllir
+Version: @GYLLIR_VERSION_NUMBER@
+Architecture: amd64
+Maintainer: ecadorel
+Description: gnu ymir project manager
