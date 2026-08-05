@@ -1,0 +1,69 @@
+use gyllir::repo::cleaner;
+use gyllir::config::_;
+
+use std::config::_;
+use std::fs::_;
+
+__test {
+    // cleanDoc() removes the "__doc" directory under the repo's cwd
+    let dir = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
+    let docDir = dir.push("__doc");
+    sys::createDir(docDir);
+    let dmut f = File::create(docDir.push("index.html"), write-> true);
+    f:.write("hello");
+    f:.close();
+
+    assert(sys::isDir(docDir), "sanity: __doc should exist before cleaning");
+
+    let cfg = GyllirPackageConfiguration::empty();
+    let cleaner = RepoCleaner(dir, copy Dict(), cfg);
+    cleaner.cleanDoc();
+
+    assert(!sys::isDir(docDir), "cleanDoc() should remove the __doc directory");
+}
+
+__test {
+    // cleanOutputs() removes .target, and the built executable/test file named after the config
+    let dir = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
+    let targetDir = dir.push(".target");
+    sys::createDir(targetDir);
+
+    let cfg = GyllirPackageConfiguration(
+        "myexe", "MIT", "d", BuildType("executable"), Url("local:some/registry"), Version(1u32, 0u32, 0u32), []
+    );
+
+    let exePath = dir.push("myexe");
+    let dmut ef = File::create(exePath, write-> true);
+    ef:.write("binary");
+    ef:.close();
+
+    let testPath = dir.push("myexe").addExtension("test");
+    let dmut tf = File::create(testPath, write-> true);
+    tf:.write("test binary");
+    tf:.close();
+
+    let cleaner = RepoCleaner(dir, copy Dict(), cfg);
+    cleaner.cleanOutputs();
+
+    assert(!sys::isDir(targetDir), "cleanOutputs() should remove the .target directory");
+    assert(!sys::isFile(exePath), "cleanOutputs() should remove the built executable");
+    assert(!sys::isFile(testPath), "cleanOutputs() should remove the built test executable");
+}
+
+__test {
+    // For a library config, cleanOutputs() removes "lib<name>.a" instead of a bare executable
+    let dir = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
+    let cfg = GyllirPackageConfiguration(
+        "mylib", "MIT", "d", BuildType("library"), Url("local:some/registry"), Version(1u32, 0u32, 0u32), []
+    );
+
+    let libPath = dir.push("libmylib.a");
+    let dmut f = File::create(libPath, write-> true);
+    f:.write("archive");
+    f:.close();
+
+    let cleaner = RepoCleaner(dir, copy Dict(), cfg);
+    cleaner.cleanOutputs();
+
+    assert(!sys::isFile(libPath), "cleanOutputs() should remove the built library archive");
+}
