@@ -1,0 +1,36 @@
+use gyllir::utils::errors;
+
+use std::stream;
+
+__test {
+    assert(errors::to![c8] (GitErrorCode::ALREADY_INIT) == "ALREADY_INIT", "unexpected string for ALREADY_INIT");
+    assert(errors::to![c8] (GitErrorCode::UNKNOWN) == "UNKNOWN", "unexpected string for UNKNOWN");
+}
+
+__test {
+    let e = copy GitError(GitErrorCode::ALREADY_INIT, "already initialized");
+
+    assert(e.code == GitErrorCode::ALREADY_INIT, "unexpected code");
+    assert(e.msg == "already initialized", "unexpected message");
+
+    // toStream always appends a captured stack trace (even for an unthrown exception, since Exception
+    // captures it at construction time), which is environment-dependent (file paths / line numbers),
+    // so only check the fixed message prefix
+    let dmut stream = copy StringStream();
+    stream:.write(e);
+
+    let expected = "GitError (ALREADY_INIT) : already initialized";
+    assert(stream[].len >= expected.len && stream[][0 .. expected.len] == expected,
+           "unexpected rendering prefix for a GitError");
+}
+
+__test {
+    let e = copy GitError(GitErrorCode::UNKNOWN, "boom");
+
+    let dmut stream = copy StringStream();
+    stream:.write(e);
+
+    let expected = "GitError (UNKNOWN) : boom";
+    assert(stream[].len >= expected.len && stream[][0 .. expected.len] == expected,
+           "unexpected rendering prefix for an UNKNOWN GitError");
+}
