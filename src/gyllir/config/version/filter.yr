@@ -69,6 +69,9 @@ pub record VersionFilter {
         throws AssertError
     {
         let dmut stream = copy StringStream ();
+        let mut hasBest = false;
+        let mut best : (Version, [c8]) = (Version (0u32, 0u32, 0u32), "");
+
         for i, v in versions {
             let mut found = true;
             for f in self._filters {
@@ -77,14 +80,20 @@ pub record VersionFilter {
                     break;
                 }
             }
-                        
-            if found return v;
+
+            if found && (!hasBest || v._0 > best._0) {
+                best = v;
+                hasBest = true;
+            }
+
             if (i != 0) stream:.write (", ");
             stream:.write (v._0);
         }
 
+        if hasBest return best;
+
         let dmut msg = copy StringStream ();
-        msg:.write ("no version matches the filter ", self, " candidates are [", stream[], "]");        
+        msg:.write ("no version matches the filter ", self, " candidates are [", stream[], "]");
         throw copy AssertError (msg[]);
     }
 
@@ -158,6 +167,7 @@ pub record VersionFilter {
         pub over toStream (self, dmut stream : &StringStream) {
             stream:.write ('[');
             for i, f in self._filters {
+                if i != 0 { stream:.write (", "); }
                 if !f._1.isIgnore () {
                     match f._0 {
                         FilterKind::SUP => { stream:.write ('>'); }
@@ -168,7 +178,6 @@ pub record VersionFilter {
                     }
                 }
                 stream:.write (f._1);
-                if i != 0 { stream:.write (", "); }
             }
             stream:.write (']');
         }
