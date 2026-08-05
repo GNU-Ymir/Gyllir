@@ -1,0 +1,84 @@
+use gyllir::doc::html::formatter;
+
+use std::stream;
+
+__test {
+    // A "$(key)" placeholder is replaced by its value from the map
+    let dmut stream = copy StringStream();
+    let values = copy ["name" => "world"];
+    formatter::format(alias stream, "hi $(name)!", values);
+
+    assert(stream[] == "hi world!", "unexpected result for a simple placeholder");
+}
+
+__test {
+    // A placeholder is resolved even when it is the entire (minimal) content
+    let dmut stream = copy StringStream();
+    let values = copy ["a" => "X"];
+    formatter::format(alias stream, "$(a)", values);
+
+    assert(stream[] == "X", "unexpected result for a minimal placeholder");
+}
+
+__test {
+    // Content with no placeholder is copied verbatim
+    let dmut stream = copy StringStream();
+    let values : [[c8] => [c8]] = copy [];
+    formatter::format(alias stream, "no placeholders here", values);
+
+    assert(stream[] == "no placeholders here", "unexpected result for plain text");
+}
+
+__test {
+    // A placeholder whose key isn't in the map is silently dropped (surrounding text is kept)
+    let dmut stream = copy StringStream();
+    let values : [[c8] => [c8]] = copy [];
+    formatter::format(alias stream, "missing $(key) value", values);
+
+    assert(stream[] == "missing  value", "unexpected result for a missing key");
+}
+
+__test {
+    // Parentheses inside the placeholder name are matched, not treated as the closing delimiter
+    let dmut stream = copy StringStream();
+    let values = copy ["a(b)" => "NESTED"];
+    formatter::format(alias stream, "x $(a(b)) y", values);
+
+    assert(stream[] == "x NESTED y", "unexpected result for a placeholder with nested parentheses");
+}
+
+__test {
+    // Several placeholders in the same content are all resolved, including a trailing one
+    let dmut stream = copy StringStream();
+    let values = copy ["a" => "A", "b" => "B"];
+    formatter::format(alias stream, "$(a) and $(b)", values);
+
+    assert(stream[] == "A and B", "unexpected result for multiple placeholders");
+}
+
+__test {
+    // An unterminated "$(" (no matching ")") is kept as literal text, and doesn't crash
+    let dmut stream = copy StringStream();
+    let values : [[c8] => [c8]] = copy [];
+    formatter::format(alias stream, "unterminated $(oops", values);
+
+    assert(stream[] == "unterminated $(oops", "unexpected result for an unterminated placeholder");
+}
+
+__test {
+    // A "git@...:.../....git" ssh remote is rewritten to its https "tree" url, at the given version
+    let r = formatter::formatGitUrl("git@github.com:foo/bar.git", version-> "v1.2.3");
+    assert(r == "https://github.com/foo/bar/tree/v1.2.3/src/", "unexpected result for a ssh git url");
+}
+
+__test {
+    // A non-ssh url is only suffixed with "/src/", the version is ignored
+    let r = formatter::formatGitUrl("https://github.com/foo/bar", version-> "v1.2.3");
+    assert(r == "https://github.com/foo/bar/src/", "unexpected result for a non-ssh url");
+}
+
+__test {
+    // The version defaults to "main" when not given
+    let r = formatter::formatGitUrl("git@github.com:foo/bar.git");
+    assert(r == "https://github.com/foo/bar/tree/main/src/", "unexpected default version");
+}
