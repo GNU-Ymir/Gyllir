@@ -1,0 +1,123 @@
+use gyllir::doc::comment::{node, node::_};
+
+use std::stream;
+
+__test {
+    // The head is lowercased at construction, and capitalizedHead() re-capitalizes it
+    let n = copy CommentNode("PARAM");
+    assert(n.capitalizedHead() == "Param", "the head should be lowercased then capitalized");
+}
+
+__test {
+    // capitalizedHead() capitalizes the first letter of every whitespace separated token
+    let n = copy CommentNode("hello world");
+    assert(n.capitalizedHead() == "Hello World", "unexpected capitalized head");
+}
+
+__test {
+    // An empty head capitalizes to an empty string
+    let n = copy CommentNode("");
+    assert(n.capitalizedHead() == "", "an empty head should capitalize to an empty string");
+}
+
+__test {
+    // A root node (empty head) concatenates the short text of its children
+    let dmut root = copy CommentNode("");
+    root:.addChild(copy CommentText("Hello "));
+    root:.addChild(copy CommentText("World"));
+
+    assert(root.dumpTextShort() == "Hello World", "unexpected short text dump");
+}
+
+__test {
+    // A node with a non-empty head never contributes to the short text dump, even with children
+    let dmut n = copy CommentNode("param");
+    n:.addChild(copy CommentText("some text"));
+
+    assert(n.dumpTextShort() == "", "a node with a non-empty head should not produce short text");
+}
+
+__test {
+    // An empty "description" node produces no html at all
+    let n = copy CommentNode("description");
+    let dmut stream = copy StringStream();
+    n.dumpHtml(alias stream);
+
+    assert(stream[] == "", "an empty description node should not write anything");
+}
+
+__test {
+    // A "description" node is only skipped when it has no children
+    let dmut n = copy CommentNode("description");
+    n:.addChild(copy CommentText("some text"));
+
+    let dmut stream = copy StringStream();
+    n.dumpHtml(alias stream);
+
+    assert(stream[] == "<dt class=\"head\">Description</dt><dd>some text</dd>",
+           "unexpected html for a non-empty description node");
+}
+
+__test {
+    // Known heads are rendered with their dedicated titles
+    let dmut param = copy CommentNode("param");
+    param:.addChild(copy CommentText("x"));
+    let dmut streamParam = copy StringStream();
+    param.dumpHtml(alias streamParam);
+    assert(streamParam[] == "<dt class=\"head\">Parameters</dt><dd>x</dd>", "unexpected html for a \"param\" node");
+
+    let dmut ret = copy CommentNode("returns");
+    ret:.addChild(copy CommentText("x"));
+    let dmut streamRet = copy StringStream();
+    ret.dumpHtml(alias streamRet);
+    assert(streamRet[] == "<dt class=\"head\">Returns</dt><dd>x</dd>", "unexpected html for a \"returns\" node");
+
+    let dmut lic = copy CommentNode("license");
+    lic:.addChild(copy CommentText("MIT"));
+    let dmut streamLic = copy StringStream();
+    lic.dumpHtml(alias streamLic);
+    assert(streamLic[] == "<dt class=\"head\">License</dt><dd>MIT</dd>", "unexpected html for a \"license\" node");
+}
+
+__test {
+    // An unknown head falls back to its capitalized form
+    let dmut n = copy CommentNode("custom section");
+    n:.addChild(copy CommentText("x"));
+
+    let dmut stream = copy StringStream();
+    n.dumpHtml(alias stream);
+
+    assert(stream[] == "<dt class=\"head\">Custom Section</dt><dd>x</dd>", "unexpected html for an unknown head");
+}
+
+__test {
+    // Nested children are dumped and wrapped by their own dt/dd pair
+    let dmut child = copy CommentNode("warning");
+    child:.addChild(copy CommentText("careful"));
+
+    let dmut root = copy CommentNode("");
+    root:.addChild(child);
+
+    let dmut stream = copy StringStream();
+    root.dumpHtml(alias stream);
+
+    assert(stream[] == "<dt class=\"head\"></dt><dd><dt class=\"head\">Warning</dt><dd>careful</dd></dd>",
+           "unexpected nested html dump");
+}
+
+__test {
+    // A long enough inner content adds a closing toggle span before the title
+    let mut longText = "";
+    for _ in 0 .. 300 {
+        longText ~= "x";
+    }
+
+    let dmut n = copy CommentNode("info");
+    n:.addChild(copy CommentText(longText));
+
+    let dmut stream = copy StringStream();
+    n.dumpHtml(alias stream);
+
+    assert(stream[] == "<dt class=\"head\"><span class=\"desc-closing\">[−]</span> Information</dt><dd>" ~ longText ~ "</dd>",
+           "expected a closing toggle for a long inner content");
+}
