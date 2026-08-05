@@ -1,0 +1,47 @@
+use gyllir::doc::types::any;
+
+use std::stream;
+
+__test {
+    // A multi-segment name is split into a module path and a final name
+    let a = copy AnyType("foo::bar::Baz", "");
+    let dmut stream = copy StringStream();
+    stream:.write(a);
+    assert(stream[] == "Any (foo::bar::Baz)", "unexpected rendering for a multi-segment name");
+}
+
+__test {
+    // A single-segment name has no module
+    let a = copy AnyType("foo", "");
+    let dmut stream = copy StringStream();
+    stream:.write(a);
+    assert(stream[] == "Any (foo)", "unexpected rendering for a single-segment name");
+}
+
+__test {
+    // A template instantiation ("!{...}") is kept attached to the base name, not split off as a module part
+    let a = copy AnyType("mod::Vec!{i32}", "");
+    let dmut stream = copy StringStream();
+    stream:.write(a);
+    assert(stream[] == "Any (mod::Vec!{i32})", "unexpected rendering for a templated name");
+}
+
+__test {
+    // A name starting with a non-alpha character is kept as an opaque, unsplit name
+    let a = copy AnyType("!weird::Name", "");
+    let dmut stream = copy StringStream();
+    stream:.write(a);
+    assert(stream[] == "Any (!weird::Name)", "unexpected rendering for a non-alpha-led name");
+}
+
+__test {
+    // The mutability string sets isMut/isDMut exclusively
+    let a = copy AnyType("foo", "mut");
+    assert(a.isMut && !a.isDMut, "mut should set isMut only");
+
+    let b = copy AnyType("foo", "dmut");
+    assert(b.isDMut && !b.isMut, "dmut should set isDMut only");
+
+    let c = copy AnyType("foo", "");
+    assert(!c.isMut && !c.isDMut, "no mutability should set neither flag");
+}

@@ -1,0 +1,13 @@
+use gyllir::doc::types::scalar;
+
+use std::stream;
+
+__test {
+    let s = copy ScalarType("i32", "mut");
+    let dmut stream = copy StringStream();
+    stream:.write(s);
+
+    assert(stream[] == "Scalar (i32)", "unexpected rendering for a scalar type");
+    assert(s.name == "i32", "unexpected name");
+    assert(s.isMut && !s.isDMut, "unexpected mutability flags");
+}

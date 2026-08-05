@@ -1,0 +1,12 @@
+use gyllir::doc::types::option;
+use gyllir::doc::types::scalar;
+
+use std::stream;
+
+__test {
+    let o = copy OptionType("", copy ScalarType("i32", ""));
+    let dmut stream = copy StringStream();
+    stream:.write(o);
+
+    assert(stream[] == "Option (Scalar (i32))", "unexpected rendering for an option type");
+}

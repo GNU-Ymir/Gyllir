@@ -1,0 +1,44 @@
+use gyllir::doc::types::class_;
+
+use std::stream;
+
+__test {
+    // Default (not an entity, not a record) renders as "Class"
+    let c = copy ClassType("foo::Bar", "", false);
+    let dmut stream = copy StringStream();
+    stream:.write(c);
+
+    assert(stream[] == "Class (foo::Bar)", "unexpected rendering for a plain class");
+    assert(c.isClass, "a class that is neither an entity nor a record should be isClass()");
+    assert(!c.innerMut, "innerMut should be kept as given");
+}
+
+__test {
+    // An entity renders as "Entity"
+    let c = copy ClassType("foo::Bar", "", true, isEntity-> true);
+    let dmut stream = copy StringStream();
+    stream:.write(c);
+
+    assert(stream[] == "Entity (foo::Bar)", "unexpected rendering for an entity");
+    assert(!c.isClass, "an entity should not be isClass()");
+    assert(c.innerMut, "innerMut should be kept as given");
+}
+
+__test {
+    // A record renders as "Record"
+    let c = copy ClassType("foo::Bar", "", false, isRecord-> true);
+    let dmut stream = copy StringStream();
+    stream:.write(c);
+
+    assert(stream[] == "Record (foo::Bar)", "unexpected rendering for a record");
+    assert(!c.isClass, "a record should not be isClass()");
+}
+
+__test {
+    // A template instantiation is kept attached to the base name
+    let c = copy ClassType("mod::Vec!{i32}", "", false);
+    let dmut stream = copy StringStream();
+    stream:.write(c);
+
+    assert(stream[] == "Class (mod::Vec!{i32})", "unexpected rendering for a templated class");
+}

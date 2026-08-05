@@ -1,0 +1,22 @@
+use gyllir::doc::types::_;
+use gyllir::doc::types::tuple;
+use gyllir::doc::types::scalar;
+
+use std::stream;
+
+__test {
+    let childs : [&Type] = copy [copy ScalarType("i32", ""), copy ScalarType("[c8]", "")];
+    let t = copy TupleType("", childs);
+    let dmut stream = copy StringStream();
+    stream:.write(t);
+
+    assert(stream[] == "Tuple (Scalar (i32), Scalar ([c8]))", "unexpected rendering for a tuple type");
+}
+
+__test {
+    let t = copy TupleType("", []);
+    let dmut stream = copy StringStream();
+    stream:.write(t);
+
+    assert(stream[] == "Tuple ()", "unexpected rendering for an empty tuple type");
+}

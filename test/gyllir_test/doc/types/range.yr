@@ -1,0 +1,12 @@
+use gyllir::doc::types::range;
+use gyllir::doc::types::scalar;
+
+use std::stream;
+
+__test {
+    let r = copy RangeType("", copy ScalarType("i32", ""));
+    let dmut stream = copy StringStream();
+    stream:.write(r);
+
+    assert(stream[] == "Range (Scalar (i32))", "unexpected rendering for a range type");
+}

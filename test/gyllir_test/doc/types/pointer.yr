@@ -1,0 +1,12 @@
+use gyllir::doc::types::pointer;
+use gyllir::doc::types::scalar;
+
+use std::stream;
+
+__test {
+    let p = copy PointerType("", copy ScalarType("i32", ""));
+    let dmut stream = copy StringStream();
+    stream:.write(p);
+
+    assert(stream[] == "Pointer (Scalar (i32))", "unexpected rendering for a pointer type");
+}

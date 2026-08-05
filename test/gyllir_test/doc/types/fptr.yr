@@ -1,0 +1,38 @@
+use gyllir::doc::types::_;
+use gyllir::doc::types::fptr;
+use gyllir::doc::types::scalar;
+
+use std::stream;
+
+__test {
+    // A plain function pointer with two parameters, one passed by ref
+    let params : [&Type] = copy [copy ScalarType("i32", ""), copy ScalarType("[c8]", "")];
+    let refs = copy [true, false];
+    let lazys = copy [false, false];
+    let f = copy FuncPtrType("", false, params, refs, lazys, copy ScalarType("bool", ""));
+
+    let dmut stream = copy StringStream();
+    stream:.write(f);
+
+    assert(stream[] == "Fptr (ref Scalar (i32), Scalar ([c8]))-> Scalar (bool)", "unexpected rendering for a fptr type");
+}
+
+__test {
+    // A delegate with a lazy parameter, and no parameters at all
+    let f = copy FuncPtrType("", true, [], [], [], copy ScalarType("void", ""));
+
+    let dmut stream = copy StringStream();
+    stream:.write(f);
+
+    assert(stream[] == "Delegate ()-> Scalar (void)", "unexpected rendering for an empty delegate type");
+}
+
+__test {
+    let params : [&Type] = copy [copy ScalarType("i32", "")];
+    let f = copy FuncPtrType("", false, params, copy [false], copy [true], copy ScalarType("void", ""));
+
+    let dmut stream = copy StringStream();
+    stream:.write(f);
+
+    assert(stream[] == "Fptr (lazy Scalar (i32))-> Scalar (void)", "unexpected rendering for a lazy parameter");
+}
