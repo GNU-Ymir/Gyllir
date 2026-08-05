@@ -70,7 +70,7 @@ add_custom_target (gyllir_tests ALL
 
 add_dependencies(gyllir_tests gyllir_lib)
 
-install (FILES ${CMAKE_CURRENT_BINARY_DIR}/gyllir DESTINATION /usr/bin/)
+install (PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/gyllir DESTINATION /usr/bin/)
 install (FILES ${RES_HTML} DESTINATION /etc/gyllir/res/html/)
 install (FILES ${RES_JS} DESTINATION /etc/gyllir/res/js/)
 install (FILES ${RES_CSS} DESTINATION /etc/gyllir/res/css/)
