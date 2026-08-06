@@ -42,7 +42,8 @@ COPY . .
 RUN mkdir -p .build \
     && cd .build \
     && cmake .. \
-    && make -j"$(nproc)"
+    && make -j"$(nproc)" \
+    && make install
 
 FROM build AS test
 RUN .build/gyllir_tests -sf
