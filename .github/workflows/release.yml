@@ -21,12 +21,12 @@ jobs:
         run: |
           . ./YMIR_VERSION
           GYLLIR_VERSION="$(tr -d '[:space:]' < VERSION)"
-          YMIR_SHORT_VERSION="$(echo "$YMIR_BOOTSTRAP_VERSION" | cut -d. -f1,2)"
+          GCC_MAJOR="${GCC_VERSION%%.*}"
           TAG_NAME="${GYLLIR_VERSION}"
           echo "gyllir_version=${GYLLIR_VERSION}" >> "$GITHUB_OUTPUT"
           echo "ymir_bootstrap_version=${YMIR_BOOTSTRAP_VERSION}" >> "$GITHUB_OUTPUT"
           echo "gcc_version=${GCC_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "gyc_asset=v${YMIR_SHORT_VERSION}_gyc_${GCC_VERSION}_amd64.deb" >> "$GITHUB_OUTPUT"
+          echo "gyc_asset=gyc-${GCC_MAJOR}_${YMIR_BOOTSTRAP_VERSION}_amd64.deb" >> "$GITHUB_OUTPUT"
           echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Ensure this version has not already been released
