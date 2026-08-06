@@ -1,2 +1,12 @@
 .git
 .build
+
+# Host build artifacts: the image builds from scratch, and a stale .target cache copied in from
+# the host would be picked up by gyllir's incremental recompilation tracking.
+.target
+.deps
+__doc
+gyllir
+gyllir.test
+.ymir_coverage_*
+.ymir_test_success
