@@ -1,4 +1,0 @@
-pub mod ::utils;
-pub mod ::config;
-pub mod ::doc;
-pub mod ::repo;

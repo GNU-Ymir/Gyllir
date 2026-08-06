@@ -1,7 +1,7 @@
 name: Release
 
-# Manual: builds and publishes gyllir_<VERSION>_amd64.deb as a GitHub release asset. The tag
-# is a bare <gyllirVersion> (no leading `v`), read from the root VERSION file - bump it
+# Manual: builds and publishes gyllir_<version>_amd64.deb as a GitHub release asset. The tag
+# is a bare <gyllirVersion> (no leading `v`), read from the `version` key of gyllir.toml - bump it
 # (bump-patch/minor/major.yml) before dispatching this again for a new release. Fails instead of overwriting if the target
 # version has already been released; see release-preview.yml for a replaceable rolling build.
 on:
@@ -20,13 +20,15 @@ jobs:
         id: version
         run: |
           . ./YMIR_VERSION
-          GYLLIR_VERSION="$(tr -d '[:space:]' < VERSION)"
+          GYLLIR_VERSION="$(bash .github/scripts/gyllir-version.sh)"
           GCC_MAJOR="${GCC_VERSION%%.*}"
           TAG_NAME="${GYLLIR_VERSION}"
           echo "gyllir_version=${GYLLIR_VERSION}" >> "$GITHUB_OUTPUT"
           echo "ymir_bootstrap_version=${YMIR_BOOTSTRAP_VERSION}" >> "$GITHUB_OUTPUT"
           echo "gcc_version=${GCC_VERSION}" >> "$GITHUB_OUTPUT"
           echo "gyc_asset=gyc-${GCC_MAJOR}_${YMIR_BOOTSTRAP_VERSION}_amd64.deb" >> "$GITHUB_OUTPUT"
+          echo "gyllir_release_tag=${GYLLIR_BOOTSTRAP_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "gyllir_asset=gyllir_${GYLLIR_BOOTSTRAP_VERSION}_amd64.deb" >> "$GITHUB_OUTPUT"
           echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
 
       - name: Ensure this version has not already been released
@@ -35,19 +37,19 @@ jobs:
           TAG: ${{ steps.version.outputs.tag_name }}
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "::error::Release $TAG already exists - bump VERSION before releasing again."
+            echo "::error::Release $TAG already exists - bump the version in gyllir.toml before releasing again."
             exit 1
           fi
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "::error::Tag $TAG already exists on origin (with no matching release) - bump VERSION before releasing again."
+            echo "::error::Tag $TAG already exists on origin (with no matching release) - bump the version in gyllir.toml before releasing again."
             exit 1
           fi
 
       - uses: docker/setup-buildx-action@v4
 
-      # Same `package` stage the CI workflow builds on top of `test`: compiles gyllir, runs
-      # gyllir_tests -sf (failing the job if anything regressed), then stages the install +
-      # DEBIAN/control into a .deb.
+      # Same `package` stage the CI workflow builds on top of `test`: compiles gyllir with a
+      # released gyllir, runs ./gyllir.test -sf (failing the job if anything regressed), then
+      # stages the install + DEBIAN/control into a .deb.
       - name: Build, test, and package
         uses: docker/build-push-action@v7
         with:
@@ -59,6 +61,8 @@ jobs:
           build-args: |
             GYC_RELEASE_TAG=${{ steps.version.outputs.ymir_bootstrap_version }}
             GYC_ASSET=${{ steps.version.outputs.gyc_asset }}
+            GYLLIR_RELEASE_TAG=${{ steps.version.outputs.gyllir_release_tag }}
+            GYLLIR_ASSET=${{ steps.version.outputs.gyllir_asset }}
             GYLLIR_VERSION_NUMBER=${{ steps.version.outputs.gyllir_version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

@@ -52,3 +52,10 @@ _deps
 
 gyllir.toml
 src/main.yr.ydump*
+
+!gyllir.toml
+gyllir
+gyllir.test
+.ymir_coverage_*
+.ymir_test_success
+.target

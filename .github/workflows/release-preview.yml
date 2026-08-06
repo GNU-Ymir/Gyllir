@@ -1,7 +1,7 @@
 name: Preview Release
 
 # Rolling pre-release, manually triggered (pick the branch/ref from the "Run workflow" button).
-# The tag/release name is the constant `preview`, independent of VERSION: every run replaces the
+# The tag/release name is the constant `preview`, independent of the package version: every run replaces the
 # previous preview, so there is only ever one preview tag and one preview release. The asset name
 # is constant too (gyllir_preview_amd64.deb), which keeps the download URL stable across runs. The
 # name cannot collide with release.yml's bare <gyllirVersion> tags.
@@ -21,18 +21,20 @@ jobs:
         id: version
         run: |
           . ./YMIR_VERSION
-          GYLLIR_VERSION="$(tr -d '[:space:]' < VERSION)"
+          GYLLIR_VERSION="$(bash .github/scripts/gyllir-version.sh)"
           GCC_MAJOR="${GCC_VERSION%%.*}"
           echo "gyllir_version=${GYLLIR_VERSION}" >> "$GITHUB_OUTPUT"
           echo "gyc_release_tag=${YMIR_BOOTSTRAP_VERSION}" >> "$GITHUB_OUTPUT"
           echo "gyc_asset=gyc-${GCC_MAJOR}_${YMIR_BOOTSTRAP_VERSION}_amd64.deb" >> "$GITHUB_OUTPUT"
+          echo "gyllir_release_tag=${GYLLIR_BOOTSTRAP_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "gyllir_asset=gyllir_${GYLLIR_BOOTSTRAP_VERSION}_amd64.deb" >> "$GITHUB_OUTPUT"
           echo "tag_name=preview" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v4
 
-      # Same `package` stage the CI workflow builds on top of `test`: compiles gyllir, runs
-      # gyllir_tests -sf (failing the job if anything regressed), then stages the install +
-      # DEBIAN/control into a .deb.
+      # Same `package` stage the CI workflow builds on top of `test`: compiles gyllir with a
+      # released gyllir, runs ./gyllir.test -sf (failing the job if anything regressed), then
+      # stages the install + DEBIAN/control into a .deb.
       - name: Build, test, and package
         uses: docker/build-push-action@v7
         with:
@@ -44,6 +46,8 @@ jobs:
           build-args: |
             GYC_RELEASE_TAG=${{ steps.version.outputs.gyc_release_tag }}
             GYC_ASSET=${{ steps.version.outputs.gyc_asset }}
+            GYLLIR_RELEASE_TAG=${{ steps.version.outputs.gyllir_release_tag }}
+            GYLLIR_ASSET=${{ steps.version.outputs.gyllir_asset }}
             GYLLIR_VERSION_NUMBER=${{ steps.version.outputs.gyllir_version }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

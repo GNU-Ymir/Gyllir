@@ -11,13 +11,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - name: Compute gyc build-args from YMIR_VERSION
+      - name: Compute toolchain build-args from YMIR_VERSION
         id: gyc
         run: |
           . ./YMIR_VERSION
           GCC_MAJOR="${GCC_VERSION%%.*}"
           echo "release_tag=${YMIR_BOOTSTRAP_VERSION}" >> "$GITHUB_OUTPUT"
           echo "asset=gyc-${GCC_MAJOR}_${YMIR_BOOTSTRAP_VERSION}_amd64.deb" >> "$GITHUB_OUTPUT"
+          echo "gyllir_release_tag=${GYLLIR_BOOTSTRAP_VERSION}" >> "$GITHUB_OUTPUT"
+          echo "gyllir_asset=gyllir_${GYLLIR_BOOTSTRAP_VERSION}_amd64.deb" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v4
 
@@ -31,14 +33,19 @@ jobs:
           build-args: |
             GYC_RELEASE_TAG=${{ steps.gyc.outputs.release_tag }}
             GYC_ASSET=${{ steps.gyc.outputs.asset }}
+            GYLLIR_RELEASE_TAG=${{ steps.gyc.outputs.gyllir_release_tag }}
+            GYLLIR_ASSET=${{ steps.gyc.outputs.gyllir_asset }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # ./gyllir.test is the unittest executable produced by `gyllir test --dry` in the build
+      # stage; running it here (rather than letting the `test` stage do it) is what lets the
+      # coverage report be captured.
       - name: Run tests and collect coverage
         id: run_tests
         run: |
           set -o pipefail
-          docker run --rm gyllir-build:ci .build/gyllir_tests -sf -cov -j 1 | tee coverage.txt
+          docker run --rm gyllir-build:ci ./gyllir.test -sf -cov -j 1 | tee coverage.txt
 
       - name: Publish coverage summary
         if: always()
