@@ -1,8 +1,8 @@
 name: Release
 
 # Manual: builds and publishes gyllir_<VERSION>_amd64.deb as a GitHub release asset. The tag
-# is v<gyllirVersion>, read from the root VERSION file - bump it (bump-patch/minor/major.yml)
-# before dispatching this again for a new release. Fails instead of overwriting if the target
+# is a bare <gyllirVersion> (no leading `v`), read from the root VERSION file - bump it
+# (bump-patch/minor/major.yml) before dispatching this again for a new release. Fails instead of overwriting if the target
 # version has already been released; see release-preview.yml for a replaceable rolling build.
 on:
   workflow_dispatch:
