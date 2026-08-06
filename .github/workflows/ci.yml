@@ -38,7 +38,7 @@ jobs:
         id: run_tests
         run: |
           set -o pipefail
-          docker run --rm gyllir-build:ci .build/gyllir_tests -sf -cov | tee coverage.txt
+          docker run --rm gyllir-build:ci .build/gyllir_tests -sf -cov -j 1 | tee coverage.txt
 
       - name: Publish coverage summary
         if: always()

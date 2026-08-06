@@ -22,7 +22,7 @@ RUN test -n "$GYC_RELEASE_TAG" && test -n "$GYC_ASSET" || \
     (echo "GYC_RELEASE_TAG and GYC_ASSET build-args are required - see YMIR_VERSION" >&2 && exit 1)
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates curl cmake build-essential \
+        ca-certificates curl cmake build-essential git \
     && rm -rf /var/lib/apt/lists/*
 
 # The gyc .deb depends on g++-<N>/gcc-<N>/libgc-dev/libdwarf-dev; `apt-get install ./file.deb`
@@ -36,13 +36,19 @@ RUN curl -fsSL -o /tmp/gyc.deb \
 
 RUN gyc --version
 
+# GitManager's tests shell out to `git commit`/`git config --global --get user.*`, which need a
+# configured identity - nothing in this image sets one otherwise (no host ~/.gitconfig here).
+RUN git config --global user.email "ci@gyllir.local" \
+    && git config --global user.name "Gyllir CI"
+
 FROM toolchain AS build
 WORKDIR /gyllir
 COPY . .
 RUN mkdir -p .build \
     && cd .build \
     && cmake .. \
-    && make -j"$(nproc)"
+    && make -j"$(nproc)" \
+    && make install
 
 FROM build AS test
 RUN .build/gyllir_tests -sf
