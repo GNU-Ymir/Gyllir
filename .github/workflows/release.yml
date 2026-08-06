@@ -1,7 +1,7 @@
 name: Release
 
-# Manual: builds and publishes gyllir_<VERSION>_amd64.deb as a GitHub release asset. The tag
-# is a bare <gyllirVersion> (no leading `v`), read from the root VERSION file - bump it
+# Manual: builds and publishes gyllir_<version>_amd64.deb as a GitHub release asset. The tag
+# is a bare <gyllirVersion> (no leading `v`), read from the `version` key of gyllir.toml - bump it
 # (bump-patch/minor/major.yml) before dispatching this again for a new release. Fails instead of overwriting if the target
 # version has already been released; see release-preview.yml for a replaceable rolling build.
 on:
@@ -20,7 +20,7 @@ jobs:
         id: version
         run: |
           . ./YMIR_VERSION
-          GYLLIR_VERSION="$(tr -d '[:space:]' < VERSION)"
+          GYLLIR_VERSION="$(bash .github/scripts/gyllir-version.sh)"
           GCC_MAJOR="${GCC_VERSION%%.*}"
           TAG_NAME="${GYLLIR_VERSION}"
           echo "gyllir_version=${GYLLIR_VERSION}" >> "$GITHUB_OUTPUT"
@@ -35,11 +35,11 @@ jobs:
           TAG: ${{ steps.version.outputs.tag_name }}
         run: |
           if gh release view "$TAG" >/dev/null 2>&1; then
-            echo "::error::Release $TAG already exists - bump VERSION before releasing again."
+            echo "::error::Release $TAG already exists - bump the version in gyllir.toml before releasing again."
             exit 1
           fi
           if git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
-            echo "::error::Tag $TAG already exists on origin (with no matching release) - bump VERSION before releasing again."
+            echo "::error::Tag $TAG already exists on origin (with no matching release) - bump the version in gyllir.toml before releasing again."
             exit 1
           fi
 

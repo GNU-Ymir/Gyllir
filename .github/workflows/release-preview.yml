@@ -1,7 +1,7 @@
 name: Preview Release
 
 # Rolling pre-release, manually triggered (pick the branch/ref from the "Run workflow" button).
-# The tag/release name is the constant `preview`, independent of VERSION: every run replaces the
+# The tag/release name is the constant `preview`, independent of the package version: every run replaces the
 # previous preview, so there is only ever one preview tag and one preview release. The asset name
 # is constant too (gyllir_preview_amd64.deb), which keeps the download URL stable across runs. The
 # name cannot collide with release.yml's bare <gyllirVersion> tags.
@@ -21,7 +21,7 @@ jobs:
         id: version
         run: |
           . ./YMIR_VERSION
-          GYLLIR_VERSION="$(tr -d '[:space:]' < VERSION)"
+          GYLLIR_VERSION="$(bash .github/scripts/gyllir-version.sh)"
           GCC_MAJOR="${GCC_VERSION%%.*}"
           echo "gyllir_version=${GYLLIR_VERSION}" >> "$GITHUB_OUTPUT"
           echo "gyc_release_tag=${YMIR_BOOTSTRAP_VERSION}" >> "$GITHUB_OUTPUT"
