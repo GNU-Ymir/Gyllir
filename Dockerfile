@@ -5,10 +5,10 @@
 # have no default here on purpose - YMIR_VERSION at the repo root is the single source of
 # truth for these, and every CI workflow computes them from it. To build locally:
 #   . ./YMIR_VERSION
-#   YMIR_SHORT_VERSION=$(echo "$YMIR_BOOTSTRAP_VERSION" | cut -d. -f1,2)
+#   GCC_MAJOR="${GCC_VERSION%%.*}"
 #   docker build \
 #     --build-arg GYC_RELEASE_TAG="$YMIR_BOOTSTRAP_VERSION" \
-#     --build-arg GYC_ASSET="v${YMIR_SHORT_VERSION}_gyc_${GCC_VERSION}_amd64.deb" \
+#     --build-arg GYC_ASSET="gyc-${GCC_MAJOR}_${YMIR_BOOTSTRAP_VERSION}_amd64.deb" \
 #     .
 ARG GYC_RELEASE_TAG
 ARG GYC_ASSET

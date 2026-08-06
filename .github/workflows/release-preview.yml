@@ -1,8 +1,10 @@
 name: Preview Release
 
 # Rolling pre-release, manually triggered (pick the branch/ref from the "Run workflow" button).
-# The tag/release name is v<gyllirVersion> - it only changes when VERSION is bumped, so repeated
-# runs in between land on the *same* name and simply replace the previous preview.
+# The tag/release name is the constant `preview`, independent of VERSION: every run replaces the
+# previous preview, so there is only ever one preview tag and one preview release. The asset name
+# is constant too (gyllir_preview_amd64.deb), which keeps the download URL stable across runs. The
+# name cannot collide with release.yml's bare <gyllirVersion> tags.
 on:
   workflow_dispatch:
 
@@ -11,7 +13,7 @@ permissions:
 
 jobs:
   preview-release:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v7
 
@@ -20,12 +22,11 @@ jobs:
         run: |
           . ./YMIR_VERSION
           GYLLIR_VERSION="$(tr -d '[:space:]' < VERSION)"
-          YMIR_SHORT_VERSION="$(echo "$YMIR_BOOTSTRAP_VERSION" | cut -d. -f1,2)"
-          TAG_NAME="v${GYLLIR_VERSION}"
+          GCC_MAJOR="${GCC_VERSION%%.*}"
           echo "gyllir_version=${GYLLIR_VERSION}" >> "$GITHUB_OUTPUT"
           echo "gyc_release_tag=${YMIR_BOOTSTRAP_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "gyc_asset=v${YMIR_SHORT_VERSION}_gyc_${GCC_VERSION}_amd64.deb" >> "$GITHUB_OUTPUT"
-          echo "tag_name=${TAG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "gyc_asset=gyc-${GCC_MAJOR}_${YMIR_BOOTSTRAP_VERSION}_amd64.deb" >> "$GITHUB_OUTPUT"
+          echo "tag_name=preview" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v4
 
@@ -66,10 +67,11 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.version.outputs.tag_name }}
+          GYLLIR_VERSION: ${{ steps.version.outputs.gyllir_version }}
         run: |
           gh release create "$TAG" \
             --target "${{ github.sha }}" \
-            --title "Preview $TAG" \
-            --notes "Automated preview release built @ ${{ github.sha }}." \
+            --title "Preview (gyllir ${GYLLIR_VERSION})" \
+            --notes "Automated preview release of gyllir ${GYLLIR_VERSION}, built @ ${{ github.sha }}. This tag is rolling - it always points at the most recent preview build." \
             --prerelease \
             "gyllir_${TAG}_amd64.deb"

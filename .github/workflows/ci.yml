@@ -7,7 +7,7 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, linux, x64]
     steps:
       - uses: actions/checkout@v7
 
@@ -15,9 +15,9 @@ jobs:
         id: gyc
         run: |
           . ./YMIR_VERSION
-          YMIR_SHORT_VERSION="$(echo "$YMIR_BOOTSTRAP_VERSION" | cut -d. -f1,2)"
+          GCC_MAJOR="${GCC_VERSION%%.*}"
           echo "release_tag=${YMIR_BOOTSTRAP_VERSION}" >> "$GITHUB_OUTPUT"
-          echo "asset=v${YMIR_SHORT_VERSION}_gyc_${GCC_VERSION}_amd64.deb" >> "$GITHUB_OUTPUT"
+          echo "asset=gyc-${GCC_MAJOR}_${YMIR_BOOTSTRAP_VERSION}_amd64.deb" >> "$GITHUB_OUTPUT"
 
       - uses: docker/setup-buildx-action@v4
 
