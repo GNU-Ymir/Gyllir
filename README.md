@@ -50,26 +50,29 @@ with `gyc --version`) — this repo does not build `gyc` itself, only the `gylli
 
 ## Building
 
-Requires a working `gyc` toolchain (looked up as `gyc` on `PATH`, see `CMAKE_YMIR_COMPILER` in
-`CMakeLists.txt`).
+Gyllir builds itself. Requires a working `gyc` toolchain (looked up as `gyc` on `PATH`, see the
+`compiler` key of `gyllir.toml`) and an already-installed `gyllir` release — grab the latest
+`.deb` from [the releases page](https://github.com/GNU-Ymir/Gyllir/releases):
 
 ```sh
-mkdir -p .build && cd .build
-cmake ..
-make
+sudo apt-get install ./gyllir_<version>_amd64.deb
 ```
 
-This compiles `src/main.yr` (and everything it transitively imports) into a single `gyllir`
-binary with `gyc` — there's no per-module object-file build here, unlike Midgard.
+Then, from the root of this repository:
+
+```sh
+gyllir build --release   # -> ./gyllir
+gyllir test              # build and run the unit test suite
+```
 
 ### Installing
 
-```sh
-sudo make install
-```
-
-Installs the `gyllir` binary to `/usr/bin/` and the documentation-generator's static assets
-(`res/html`, `res/css`, `res/js`, `res/ico`) to `/etc/gyllir/res/...`.
+Building a `.deb` from a checkout is done through the `Dockerfile`, which pins the `gyc` and
+`gyllir` versions it builds with to `YMIR_VERSION` (see the command in the Dockerfile header, and
+`.github/workflows/release.yml` for the release automation). The resulting package installs the
+`gyllir` binary to `/usr/bin/`, the documentation-generator's static assets (`res/html`,
+`res/css`, `res/js`, `res/ico`) to `/etc/gyllir/res/...` and the completion script to
+`/etc/bash_completion.d/`.
 
 ## Usage
 
@@ -97,6 +100,8 @@ type = "executable"      # or "library"
 version = "0.1.0"
 authors = ["Jane Doe"]
 compiler = "gyc"          # optional, defaults to "gyc" on PATH
+package-root = "main"     # optional, root module under src/ (defaults to src/<name>.yr, then src/main.yr)
+test-root = "__test__"    # optional, root module under test/ (defaults to test/__test__.yr)
 registry = "local:/home/jane/.local/gyllir/my-project"
 
 [dependencies.somelib]

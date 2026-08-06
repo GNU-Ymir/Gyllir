@@ -54,17 +54,26 @@ on mutable-access annotations, since they are not repeated here.
 
 ## Build / run / test
 
-Plain CMake, no self-hosting (Gyllir doesn't build itself with `gyllir`). Requires a `gyc`
-toolchain on `PATH` (`CMAKE_YMIR_COMPILER` in `CMakeLists.txt`).
+Gyllir builds itself with `gyllir` (CMake is gone) — not a source bootstrap: an
+already-installed, previously *released* `gyllir` compiles the current tree. Requires both `gyc`
+and `gyllir` on `PATH`; `gyllir.toml` is the whole build description.
 
-- Build: `mkdir -p .build && cd .build && cmake .. && make`. This is a single `gyc` invocation
-  compiling `src/main.yr` (and everything it transitively `use`s/`mod`s) straight into the
-  `gyllir` binary — there's no separate object-file/library step like `midgard` has.
-- Install: `sudo make install` — installs the binary to `/usr/bin/` and the doc-generator's
-  static assets (`res/html`, `res/css`, `res/js`, `res/ico`) to `/etc/gyllir/res/...`.
-- There is no automated test suite in this repo today (no `test/` dir, no CI-run tests) —
-  changes are currently verified manually by running the built `gyllir` binary against a scratch
-  project.
+- Build: `gyllir build --release` → `./gyllir` (drop `--release` for a `-g` debug build). Output
+  caches live in `.target/{debug,release,unit_debug,unit_release}`.
+- `package-root = "main"` in `gyllir.toml` is load-bearing: without it `src/gyllir.yr` (matching
+  the package name) is picked as the package root, `src/main.yr` is left unattached, and the
+  executable fails to link with `undefined reference to 'main'`.
+- Tests: `gyllir test` (or `gyllir test --dry` to only compile `./gyllir.test`, then run it
+  yourself — that's what CI does, so it can pass `-cov`). Test sources live in `test/`, rooted at
+  `test/__test__.yr`.
+- Install: no `make install` anymore — the `.deb` is staged by the Dockerfile's `package` stage
+  (binary to `/usr/bin/`, `res/{html,css,js,ico}` to `/etc/gyllir/res/...`, `bash/_gyllir` to
+  `/etc/bash_completion.d/`).
+- CI (`.github/workflows/*.yml`) drives the same flow through the Dockerfile: the `toolchain`
+  stage installs the `gyc` and `gyllir` `.deb`s named by `YMIR_VERSION`
+  (`YMIR_BOOTSTRAP_VERSION` / `GCC_VERSION` / `GYLLIR_BOOTSTRAP_VERSION`), `build` runs `gyllir
+  test --dry` + `gyllir build --release`, `test` runs `./gyllir.test -sf`, `package` produces the
+  `.deb`. Build the whole thing locally with the `docker build` snippet in the Dockerfile header.
 - Manual smoke test: build `gyllir`, then in a scratch directory run `gyllir init`, `gyllir
   build`, `gyllir test`, `gyllir run`, `gyllir doc`, `gyllir clean --all` and check the expected
   files/output at each step.
