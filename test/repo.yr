@@ -1,3 +1,4 @@
+pub mod ::builder;
 pub mod ::cleaner;
 pub mod ::runner;
 pub mod ::manager;

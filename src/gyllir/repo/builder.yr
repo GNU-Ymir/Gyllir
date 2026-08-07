@@ -127,8 +127,11 @@ pub record RepoBuilder {
             }
         }
                 
+        // a deleted module produces no changed file, but the target still has to be relinked without it
+        let pruned = self.pruneRemovedModules (cacheDir, sources);
+
         // if something has to be compiled
-        if (changed.len != 0 || !sys::isFile (objFile)) {
+        if (changed.len != 0 || pruned || !sys::isFile (objFile)) {
 
             utils::log::info ("Compiling", "target for ", self._cfg.name, " v", self._cfg.version[]);
             
@@ -179,8 +182,11 @@ pub record RepoBuilder {
             }
         }
         
+        // a deleted module produces no changed file, but the target still has to be relinked without it
+        let pruned = self.pruneRemovedModules (cacheDir, unitSources);
+
         // If something has to be compiled
-        if (unitChanged.len != 0 || !sys::isFile (objFile)) {
+        if (unitChanged.len != 0 || pruned || !sys::isFile (objFile)) {
             let srcTest = self.findRootTestFile ();
 
             utils::log::info ("Compiling", "unittest for ", self._cfg.name, " v", self._cfg.version[]);
@@ -590,6 +596,55 @@ pub record RepoBuilder {
         let results = self.lookupDependencies (rootDir, cacheDir, sources, false, []);
 
         (cacheDir, sources, results)
+    }
+
+    /**
+     * Remove the YIL and dependency files of the modules that are not part of the source tree anymore
+     * Those files are never visited by 'lookupDependencies' (it only iterates over existing sources), so
+     * without that pass they would live in the cache forever, and 'buildObject' would keep linking them
+     * into the final binary (module starter functions included)
+     * @params:
+     *    - cacheDir: the output directory containing the dependency files
+     *    - sources: the list of source files that still exist (relative path from source dir)
+     * @returns: true iif at least one obsolete module was removed from the cache
+     * */
+    pub fn pruneRemovedModules (self, cacheDir : Path, sources : [Path])-> bool {
+        let yilDir = cacheDir.push (defaults::__YIL_DIR__);
+        let dmut alive : [[c8] => ()] = copy [];
+        for src in sources {
+            alive [src.stripExtension ().toStr (sep-> "_")] = ();
+        }
+
+        let mut pruned = false;
+        for f in self.listFilesInDir (yilDir, yilDir, defaults::__YIL_EXTENSION__) {
+            if f.stripExtension ().toStr (sep-> "_") !in alive {
+                utils::log::info ("Removing", "obsolete module ", f.file (), " from build cache");
+                pruned = self.removeCacheFile (yilDir.push (f)) || pruned;
+            }
+        }
+
+        for f in self.listFilesInDir (cacheDir, cacheDir, defaults::__DEPS_EXTENSION__) {
+            if f.stripExtension ().toStr (sep-> "_") !in alive {
+                pruned = self.removeCacheFile (cacheDir.push (f)) || pruned;
+            }
+        }
+
+        return pruned;
+    }
+
+    /**
+     * Remove a file of the build cache
+     * @returns: true iif the file is gone, false (with a warning) if it could not be removed, so that
+     *           a file we cannot get rid of does not force a relink at every single build
+     * */
+    prv fn removeCacheFile (self, file : Path)-> bool {
+        sys::removeFile (file)?;
+        if sys::isFile (file) {
+            utils::log::warn ("Warning", "failed to remove obsolete cache file ", file.toStr ());
+            return false;
+        }
+
+        true
     }
 
     /**
