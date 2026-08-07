@@ -30,7 +30,9 @@
 *.exe
 *.out
 *.app
-./gyllir
+# anchored: an unanchored "gyllir" would also match the src/gyllir/ directory
+/gyllir
+/gyllir.test
 
 # BIN
 *.build
@@ -50,12 +52,8 @@ compile_commands.json
 CTestTestfile.cmake
 _deps
 
-gyllir.toml
 src/main.yr.ydump*
 
-!gyllir.toml
-gyllir
-gyllir.test
 .ymir_coverage_*
 .ymir_test_success
 .target
