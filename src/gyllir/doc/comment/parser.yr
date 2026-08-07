@@ -71,6 +71,8 @@ pub class CommentParser {
         let mut wasWhite = true;
         
         loop {
+            let mut end_of_list = false, mut list_nb_space = 0us;
+
             let (n, _, _) = self._lex:.next ();
             if (n == "") break;
 
@@ -98,7 +100,11 @@ pub class CommentParser {
                     }
 
                     if (line_ret) {
-                        self._root:.addChild (self:.parseListBlock (n, nb_space));
+                        let (list, list_end_nb_space, list_line_start) = self:.parseListBlock (n, nb_space);
+                        self._root:.addChild (list);
+
+                        end_of_list = list_line_start;
+                        list_nb_space = list_end_nb_space;
                     } else {
                         self._root:.addChild (copy CommentText (n));
                     }
@@ -120,7 +126,9 @@ pub class CommentParser {
                 }
             }
 
-            if (n == CommentTokens::LINE_RET) line_ret = true;
+            // a list stops on the first token of a line, whose indentation it already counted
+            if (end_of_list) { line_ret = true; nb_space = list_nb_space; }
+            else if (n == CommentTokens::LINE_RET) line_ret = true;
             else if (n == CommentTokens::SPACE && line_ret) nb_space += 1us;
             else { nb_space = 0us; line_ret = false; }
 
@@ -150,6 +158,8 @@ pub class CommentParser {
         let mut nb_space = 0us, mut line_ret = true, mut wasWhite = true;
         
         loop {
+            let mut end_of_list = false, mut list_nb_space = 0us;
+
             cursor = self._lex.getCursor ();
             let (n, _, _) = self._lex:.next ();
             if n == "" || n == CommentTokens::HEAD_LEVEL_AT { self._lex:.rewind (expand cursor); break; }
@@ -169,7 +179,11 @@ pub class CommentParser {
                     }
 
                     if (line_ret) {
-                        node:.addChild (self:.parseListBlock (n, nb_space));
+                        let (list, list_end_nb_space, list_line_start) = self:.parseListBlock (n, nb_space);
+                        node:.addChild (list);
+
+                        end_of_list = list_line_start;
+                        list_nb_space = list_end_nb_space;
                     } else {
                         node:.addChild (copy CommentText (n));
                     }
@@ -193,7 +207,9 @@ pub class CommentParser {
                 }
             }
 
-            if (n == CommentTokens::LINE_RET) line_ret = true;
+            // a list stops on the first token of a line, whose indentation it already counted
+            if (end_of_list) { line_ret = true; nb_space = list_nb_space; }
+            else if (n == CommentTokens::LINE_RET) line_ret = true;
             else if (n == CommentTokens::SPACE && line_ret) nb_space += 1us;
             else { nb_space = 0us; line_ret = false; }
 
@@ -250,23 +266,29 @@ pub class CommentParser {
 
     /**
      * Parse an item list
-     * @params: 
+     * @params:
      *   - type: the type of item list (- or +)
      *   - item_nb_space: the number of space the item are aligned with
+     * @returns:
+     *   - .0: the parsed list
+     *   - .1: the indentation of the line the list stopped on
+     *   - .2: true iif the list was closed by a token starting a new line (in which case .1 is
+     *         meaningful, and the caller has to keep counting the indentation from there)
      */
-    prv fn parseListBlock (mut self, type : [c8], item_nb_space : usize)-> &CommentList {
+    prv fn parseListBlock (mut self, type : [c8], item_nb_space : usize)-> (&CommentList, usize, bool) {
         let mut nb_space = 0us, mut line_ret = false, mut wasWhite = true;
+        let mut stopped_at_line_start = false;
         let dmut list = copy CommentList ();
         let dmut node = copy CommentListItem ();
         let dmut currentStream = copy StringStream ();
-        
+
         loop {
             let mut add_sub_list = false;
 
             let cursor = self._lex.getCursor ();
             let (n, _, _) = self._lex:.next ();
             if (n == "") { self._lex:.rewind (expand cursor); break; }
-            
+
             else match n {
                 CommentTokens::CODE_BLOCK_SEVEN => {
                     if (currentStream[].len != 0us) {
@@ -276,15 +298,6 @@ pub class CommentParser {
 
                     node:.addChild (self:.parseCodeBlock (n, nb_space));
                 }
-                v if v == type => {
-                    if (currentStream[].len != 0us) {
-                        node:.addChild (copy CommentText (currentStream[]));
-                        currentStream:.clear ();
-                    }
-
-                    list:.addChild (node);
-                    node = copy CommentListItem ();
-                }
                 CommentTokens::LIST_ITEM_PLUS | CommentTokens::LIST_ITEM_SUB => {
                     if (currentStream[].len != 0us) {
                         node:.addChild (copy CommentText (currentStream[]));
@@ -292,11 +305,24 @@ pub class CommentParser {
                     }
 
                     if (line_ret && nb_space > item_nb_space) {
-                        node:.addChild (self:.parseListBlock (n, nb_space));
+                        // an item indented deeper than the current ones opens a sub list,
+                        // whatever the marker it uses
+                        let (sub, sub_nb_space, sub_line_start) = self:.parseListBlock (n, nb_space);
+                        node:.addChild (sub);
+
                         add_sub_list = true;
-                        line_ret = true;
-                        nb_space = 0us;
-                    } else { self._lex:.rewind (expand cursor); break; }
+                        line_ret = sub_line_start;
+                        nb_space = if (sub_line_start) { sub_nb_space } else { 0us };
+                    } else if (n == type && (!line_ret || nb_space == item_nb_space)) {
+                        // same marker at the same indentation, this is a sibling item
+                        list:.addChild (node);
+                        node = copy CommentListItem ();
+                    } else {
+                        // a dedented item, or another marker at the same level, closes the list
+                        self._lex:.rewind (expand cursor);
+                        stopped_at_line_start = line_ret;
+                        break;
+                    }
                 }
                 CommentTokens::BOLD_UNDER | CommentTokens::BOLD_STAR |
                 CommentTokens::ITALIC_UNDER | CommentTokens::ITALIC_STAR |
@@ -312,13 +338,14 @@ pub class CommentParser {
                         currentStream:.write (n);
                     }
                 }
-                _ => {                                      
+                _ => {
                     if (line_ret && nb_space < item_nb_space && n != CommentTokens::SPACE) {
                         self._lex:.rewind (expand cursor);
+                        stopped_at_line_start = true;
                         break;
                     }
 
-                    currentStream:.write (n);                
+                    currentStream:.write (n);
                 }
             }
 
@@ -338,7 +365,7 @@ pub class CommentParser {
         }
 
         list:.addChild (node);
-        list 
+        (list, nb_space, stopped_at_line_start)
     }
 
     prv fn parseBoldItalicBlock (mut self, type : [c8])-> &CommentStyle {

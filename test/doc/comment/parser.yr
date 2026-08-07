@@ -126,3 +126,36 @@ __test {
     assert(stream[] == "<dt class=\"head\"></dt><dd><dt class=\"head\">Example</dt><dd>\n a <strong>bold</strong> word</dd></dd>",
            "unexpected html for a styled \"@head\" section");
 }
+
+__test {
+    // An item indented deeper than the enclosing one opens a sub list, even when it reuses
+    // the marker of its parent, and a dedented item closes that sub list
+    let p = copy CommentParser("- outer\n  - nested\n- outer2");
+    let dmut stream = copy StringStream();
+    p.dumpHtml(alias stream);
+
+    assert(stream[] == "<dt class=\"head\"></dt><dd><ul><li> outer\n  <ul><li> nested\n</li></ul></li><li> outer2</li></ul></dd>",
+           "unexpected html for a nested list reusing the \"-\" marker");
+    assert(p.dumpTextShort() == " outer\n   nested\n outer2", "unexpected short text for a nested list");
+}
+
+__test {
+    // Nesting does not depend on the marker character: switching it gives the same tree
+    let p = copy CommentParser("- outer\n  + nested\n- outer2");
+    let dmut stream = copy StringStream();
+    p.dumpHtml(alias stream);
+
+    assert(stream[] == "<dt class=\"head\"></dt><dd><ul><li> outer\n  <ul><li> nested\n</li></ul></li><li> outer2</li></ul></dd>",
+           "unexpected html for a nested list switching to the \"+\" marker");
+}
+
+__test {
+    // Dedenting picks the enclosing list back up at the matching indentation level
+    let p = copy CommentParser("- a\n  - b\n    - c\n  - d\n- e");
+    let dmut stream = copy StringStream();
+    p.dumpHtml(alias stream);
+
+    assert(stream[] == "<dt class=\"head\"></dt><dd><ul><li> a\n  <ul><li> b\n    <ul><li> c\n  </li></ul></li><li> d\n</li></ul></li><li> e</li></ul></dd>",
+           "unexpected html for a three level list");
+    assert(p.dumpTextShort() == " a\n   b\n     c\n   d\n e", "unexpected short text for a three level list");
+}
