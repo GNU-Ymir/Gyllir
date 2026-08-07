@@ -17,6 +17,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The self-hosted runners have no gh CLI of their own; the release steps below need one.
+      - uses: ./.github/actions/setup-gh
+
       - name: Compute versions and tag name
         id: version
         run: |
