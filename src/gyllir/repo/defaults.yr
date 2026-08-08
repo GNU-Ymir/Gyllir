@@ -23,7 +23,7 @@ pub def __FST_TEST_FILE__ = "__test__.yr";
 pub def __MAIN_CONTENT__ = str#{use std::io;
     
 fn main () {
-    println ("Hello World !");
+    println ("Hello World!");
 }
 };
 
