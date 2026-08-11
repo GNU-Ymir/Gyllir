@@ -19,11 +19,11 @@ pub mod ::assertion;
 
 pub lazy INTERNAL_LOCATION = Location ("", 0, 0);
 
-pub enum
+pub enum Protection
 | PUB  = 0
 | PROT = 1
-| PRV  = 2
- -> Protection;
+| PRV  = 2;
+
 
 pub fn streamProtection (protect : Protection, dmut stream : &StringStream) {
     if protect == Protection::PUB {

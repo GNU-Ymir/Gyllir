@@ -277,7 +277,13 @@ pub class HtmlBody over HtmlNode {
         let tempFormat = self.dumpTemplates (templates);
         let tempTest = self.dumpTemplateTest (templateTest);
 
-        let kind = if c.isRecord { "record" } else if c.isEntity { "entity" } else { "class" };
+        let kind = if c.isRecord {
+            "record"
+        } else if c.isEntity {
+            "entity"
+        } else {
+            "class"
+        };
 
         let ancestor = if (c.ancestor of ClassType) {
             std::format::format ("over {}", self.dumpType (c.ancestor, andClass-> false))
@@ -1067,13 +1073,15 @@ pub class HtmlBody over HtmlNode {
                 }
             }
             _ => { "" }
-        }
+        };
 
         if (type.isMut && inner.len != 0us && withMut) {
             "mut " ~ inner
         } else if (type.isDMut && inner.len != 0 && withMut) {
             "dmut " ~ inner
-        } else inner
+        } else {
+            inner
+        }
     } catch {
         _ => {
             ""

@@ -6,13 +6,12 @@ use std::conv::errors;
 
 use gyllir::config::version;
 
-enum : u8
+enum FilterKind: u8
 | SUP    = 1
 | SUP_EQ = 2
 | INF    = 3
 | INF_EQ = 4
-| EQ     = 5
- ->  FilterKind;
+| EQ     = 5;
 
 /**
  * A filter the check compatible version
@@ -107,16 +106,16 @@ pub record VersionFilter {
             }
         }
         
-        return true
+        return true;
     }
 
     /**
      * Check wether the version passes the filter
      * */
     prv fn passFilter (self, filter : (FilterKind, Version), v : Version)-> bool {
-        if filter._1.isIgnore () { return true; }
-            
-        match filter.0 {
+        if (filter._1).isIgnore () { return true; }
+        
+        match (filter.0) {
             FilterKind::SUP => {
                 return v > filter.1;
             }
@@ -148,7 +147,7 @@ pub record VersionFilter {
      * */
     prv fn serializeFilter (self, filter : (FilterKind, Version))-> &Config {
         let dmut stream = copy StringStream ();
-        if !filter._1.isIgnore () { 
+        if !(filter._1).isIgnore () { 
             match filter._0 {
                 FilterKind::SUP => { stream:.write ('>'); }
                 FilterKind::SUP_EQ => { stream:.write (">="); }
@@ -168,7 +167,7 @@ pub record VersionFilter {
             stream:.write ('[');
             for i, f in self._filters {
                 if i != 0 { stream:.write (", "); }
-                if !f._1.isIgnore () {
+                if !(f._1).isIgnore () {
                     match f._0 {
                         FilterKind::SUP => { stream:.write ('>'); }
                         FilterKind::SUP_EQ => { stream:.write (">="); }
@@ -282,7 +281,7 @@ pub record VersionFilter {
                     throw copy std::conv::errors::CastFailure (([c8])::__typeinfo__, VersionFilter::__typeinfo__,
                                                                subError-> (copy AssertError ("malformed version filter " ~ version))?);
                 }
-            }
+            };
 
             self._filters ~= [(kind, ver)];
         } else {

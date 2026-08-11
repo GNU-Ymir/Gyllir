@@ -49,9 +49,9 @@ pub record RepoBuilder {
         , _verbose = (if let Ok (Bool (value-> true)) = args ["verbose"]? {
             true
         } else { false })
-        , _nbThreads = if let Ok (Int (value-> n)) = args ["j"]? {
+        , _nbThreads = (if let Ok (Int (value-> n)) = args ["j"]? {
             cast!u32 (n)
-        } else { etc::runtime::threads::_yrt_get_nprocs () }
+        } else { etc::runtime::threads::_yrt_get_nprocs () })
     {}
 
     /**
@@ -118,12 +118,14 @@ pub record RepoBuilder {
 
         let yilDir = cacheDir.push (defaults::__YIL_DIR__);
         if !sys::isDir (yilDir) {
-            fs::sys::createDir (yilDir);
-        } catch {
-            err => {
-                utils::log::error ("Error", "failed to compile unittests '", self._cfg.name, "' ", err);
-                etc::c::process::_yrt_exit (-1);
-                panic;
+            {
+                fs::sys::createDir (yilDir);
+            } catch {
+                err => {
+                    utils::log::error ("Error", "failed to compile unittests '", self._cfg.name, "' ", err);
+                    etc::c::process::_yrt_exit (-1);
+                    panic;
+                }
             }
         }
                 
@@ -173,12 +175,14 @@ pub record RepoBuilder {
         
         let yilDir = cacheDir.push (defaults::__YIL_DIR__);
         if !sys::isDir (yilDir) {
-            fs::sys::createDir (yilDir);
-        } catch {
-            err => {
-                utils::log::error ("Error", "failed to compile unittests '", self._cfg.name, "' ", err);
-                etc::c::process::_yrt_exit (-1);
-                panic;
+            {
+                fs::sys::createDir (yilDir);
+            } catch {
+                err => {
+                    utils::log::error ("Error", "failed to compile unittests '", self._cfg.name, "' ", err);
+                    etc::c::process::_yrt_exit (-1);
+                    panic;
+                }
             }
         }
         

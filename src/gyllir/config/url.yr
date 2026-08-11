@@ -8,15 +8,14 @@ use std::algorithm::searching;
  * - Local ones, that are refering to file datas
  * - Git ones, that are refering to a git repository on a remote server
  */
-pub enum
+pub enum UrlType
 | LOCAL = 0u8
-| GIT   = 2u8
- -> UrlType;
+| GIT   = 2u8;
 
-pub enum
+pub enum UrlStarts
 | LOCAL = "local:"
-| GIT   = "git:"
- -> UrlStarts;
+| GIT   = "git:";
+
 
 /**
  * An url that is used to get refer to package repositories
