@@ -1,6 +1,6 @@
 use gyllir::doc::loader;
 use gyllir::doc::symbols::_;
-use gyllir::doc::symbols::template::_;
+use gyllir::doc::symbols::template_::_;
 use gyllir::doc::types::_;
 
 use std::config::_;

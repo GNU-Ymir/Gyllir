@@ -1,4 +1,4 @@
-use gyllir::doc::symbols::template::any;
+use gyllir::doc::symbols::template_::any;
 
 use std::stream;
 

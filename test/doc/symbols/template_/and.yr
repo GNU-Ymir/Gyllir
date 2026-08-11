@@ -1,6 +1,6 @@
-use gyllir::doc::symbols::template::_;
-use gyllir::doc::symbols::template::and;
-use gyllir::doc::symbols::template::any;
+use gyllir::doc::symbols::template_::_;
+use gyllir::doc::symbols::template_::and;
+use gyllir::doc::symbols::template_::any;
 
 use std::stream;
 
