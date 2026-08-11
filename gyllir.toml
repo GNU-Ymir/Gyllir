@@ -4,7 +4,7 @@ author = "Emile Cadorel <ecadorel@gmail.com>"
 libraries = []
 type = "executable"
 description = "Ymir package manager, and builder"
-version = "1.2.0"
+version = "1.3.0"
 name = "gyllir"
 # Without this, src/gyllir.yr (matching the package name) is picked as the package root and
 # src/main.yr is left unattached, so the executable links with no `main`.
