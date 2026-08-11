@@ -48,7 +48,7 @@ pub record RepoInitializer {
         let registry = {
             let url = context.askUserFor ("Registry", default-> (gyllir::config::url::UrlStarts::LOCAL ~ gyllirHome.toStr ()));
             Url (url)
-        }
+        };
 
         let cfg = GyllirPackageConfiguration (name-> name,
                                               license-> license,

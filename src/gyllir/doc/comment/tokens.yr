@@ -1,6 +1,6 @@
 in tokens;
 
-pub enum 
+pub enum CommentTokens 
 | HEAD_LEVEL_AT    = "@"
 | CODE_BLOCK_SEVEN = "```"
 | DCOLON           = ":"
@@ -13,5 +13,4 @@ pub enum
 | LIST_ITEM_SUB    = "-"
 | LIST_ITEM_PLUS   = "+"
 | LINE_RET         = "\n"
-| SPACE            = " "
- -> CommentTokens;
+| SPACE            = " ";

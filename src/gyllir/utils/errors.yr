@@ -2,10 +2,10 @@ in errors;
 
 use std::stream;
 
-pub enum
+pub enum GitErrorCode
 | ALREADY_INIT = 1u8
-| UNKNOWN      = 2u8
- -> GitErrorCode;
+| UNKNOWN      = 2u8;
+
 
 /**
  * Error thrown when git utils fails

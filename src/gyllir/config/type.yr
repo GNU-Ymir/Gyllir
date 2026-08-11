@@ -5,10 +5,10 @@ use std::{config::_, stream};
 /**
  * Enum defining the type of the target
  * */
-enum
+enum BuildTypeEnum
 | EXECUTABLE = (0u8, "executable")
-| LIBRARY    = (1u8, "library")
- -> BuildTypeEnum;
+| LIBRARY    = (1u8, "library");
+
 
 /**
  * Record used to transform configuration into a build type

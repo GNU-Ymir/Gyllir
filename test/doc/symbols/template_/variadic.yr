@@ -1,4 +1,4 @@
-use gyllir::doc::symbols::template::variadic;
+use gyllir::doc::symbols::template_::variadic;
 
 use std::stream;
 

@@ -145,7 +145,7 @@ pub class GyllirManager {
         throws RecursiveDependency
     {
         if (dependency.url in self._depPackages) {
-            throw copy RecursiveDependency (name ~ ":"s8 ~ dependency.url.path.toStr ())
+            throw copy RecursiveDependency (name ~ ":"s8 ~ dependency.url.path.toStr ());
         }
 
         let depPath = cwd.push (defaults::__DEPENCY_DIR__).push (name);
@@ -235,7 +235,7 @@ pub class GyllirManager {
         
         gM.fetchTags ();        
         let version = dependency.version.select (self.toVersionList (gM.getTagList ()));            
-        if version._0.isIgnore () {
+        if (version._0).isIgnore () {
             gM.checkout (version._1);
             if (dependency.url.type == UrlType::GIT) {
                 gM.pull (version._1);                
@@ -254,19 +254,21 @@ pub class GyllirManager {
         throws RecursiveDependency
     {
         if (dependency.url in self._depPackages) {
-            throw copy RecursiveDependency (name ~ ":"s8 ~ dependency.url.path.toStr ())
+            throw copy RecursiveDependency (name ~ ":"s8 ~ dependency.url.path.toStr ());
         }
 
         let depPath = cwd.push (defaults::__DEPENCY_DIR__).push (name);
         utils::log::info ("Cleaning", "dependency ", name, " to ", depPath.toStr ());
         if (dependency.url.type == UrlType::LOCAL) {
-            self._depPackages [dependency.url] = ();
-            let conf = self.loadToml (depPath);
-            RepoCleaner (depPath, args, conf).run (alias self);
-            self._depPackages:.remove (dependency.url);
-        } catch {
-            r : &RecursiveDependency => {
-                throw copy RecursiveDependency (name ~ ":"s8 ~ dependency.url.path.toStr (), subError-> (r)?);
+            {
+                self._depPackages [dependency.url] = ();
+                let conf = self.loadToml (depPath);
+                RepoCleaner (depPath, args, conf).run (alias self);
+                self._depPackages:.remove (dependency.url);
+            } catch {
+                r : &RecursiveDependency => {
+                    throw copy RecursiveDependency (name ~ ":"s8 ~ dependency.url.path.toStr (), subError-> (r)?);
+                }
             }
         }
     }
@@ -336,7 +338,7 @@ pub class GyllirManager {
             }
             
             print ("] ");
-            print (std::format::format ("{:.2}%", perc * 100.f))?;                        
+            print (std::format::format ("{:.2}%", perc * 100.0f))?;                        
             fflush(stdout);
             if nb == all {
                 println ();

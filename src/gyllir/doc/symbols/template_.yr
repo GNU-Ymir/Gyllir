@@ -1,4 +1,4 @@
-in template;
+in template_;
 
 use std::stream;
 use gyllir::doc::symbols::none_;

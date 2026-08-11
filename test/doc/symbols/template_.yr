@@ -5,9 +5,9 @@ pub mod ::var;
 pub mod ::variadic;
 
 use gyllir::doc::symbols::_;
-use gyllir::doc::symbols::template::_;
-use gyllir::doc::symbols::template::any;
-use gyllir::doc::symbols::template::var;
+use gyllir::doc::symbols::template_::_;
+use gyllir::doc::symbols::template_::any;
+use gyllir::doc::symbols::template_::var;
 use gyllir::doc::symbols::function;
 
 use std::stream;

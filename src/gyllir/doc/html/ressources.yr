@@ -2,7 +2,7 @@ in ressources;
 
 use std::fs::_;
 
-pub enum
+pub enum GyllirHtmlFiles
 | RESSOURCES   = Path ("/etc/gyllir/res")
 | LEAF_NODE    = Path ("/etc/gyllir/res/html/leaf_node.html")
 | DECLARATION  = Path ("/etc/gyllir/res/html/declaration.html")
@@ -13,76 +13,94 @@ pub enum
 | HEADER       = Path ("/etc/gyllir/res/html/header.html")
 | FOOTER       = Path ("/etc/gyllir/res/html/footer.html")
 | SUBMODULE    = Path ("/etc/gyllir/res/html/submodule.html")
-| MODULE_TABLE = Path ("/etc/gyllir/res/html/module_table.html")
- -> GyllirHtmlFiles;
+| MODULE_TABLE = Path ("/etc/gyllir/res/html/module_table.html");
 
 pub lazy LEAF_NODE = {
-    let dmut f = File::open (GyllirHtmlFiles::LEAF_NODE);
-    f:.readAll ()
-} catch {
-    _ => ""
+    {
+        let dmut f = File::open (GyllirHtmlFiles::LEAF_NODE);
+        f:.readAll ()
+    } catch {
+        _ => ""
+    }
 };
 
 pub lazy DECLARATION = {
-    let dmut f = File::open (GyllirHtmlFiles::DECLARATION);
-    f:.readAll ()
-} catch {
-    _ => ""
+    {
+        let dmut f = File::open (GyllirHtmlFiles::DECLARATION);
+        f:.readAll ()
+    } catch {
+        _ => ""
+    }
 };
 
 pub lazy INLINE_CODE = {
-    let dmut f = File::open (GyllirHtmlFiles::INLINE_CODE);
-    f:.readAll ()
-} catch {
-    _ => ""
+    {
+        let dmut f = File::open (GyllirHtmlFiles::INLINE_CODE);
+        f:.readAll ()
+    } catch {
+        _ => ""
+    }
 };
 
 pub lazy MEMBERS = {
-    let dmut f = File::open (GyllirHtmlFiles::MEMBERS);
-    f:.readAll ()
-} catch {
-    _ => ""
+    {
+        let dmut f = File::open (GyllirHtmlFiles::MEMBERS);
+        f:.readAll ()
+    } catch {
+        _ => ""
+    }
 };
 
 pub lazy MEMBER_HEAD = {
-    let dmut f = File::open (GyllirHtmlFiles::MEMBER_HEAD);
-    f:.readAll ()
-} catch {
-    _ => ""
+    {
+        let dmut f = File::open (GyllirHtmlFiles::MEMBER_HEAD);
+        f:.readAll ()
+    } catch {
+        _ => ""
+    }
 };
 
 pub lazy MODULE_HEAD = {
-    let dmut f = File::open (GyllirHtmlFiles::MODULE_HEAD);
-    f:.readAll ()
-} catch {
-    _ => ""
+    {
+        let dmut f = File::open (GyllirHtmlFiles::MODULE_HEAD);
+        f:.readAll ()
+    } catch {
+        _ => ""
+    }
 };
 
-
 pub lazy HEADER = {
-    let dmut f = File::open (GyllirHtmlFiles::HEADER);
-    f:.readAll ()
-} catch {
-    _ =>  ""
+    {
+        let dmut f = File::open (GyllirHtmlFiles::HEADER);
+        f:.readAll ()
+    } catch {
+        _ =>  ""
+    }
 };
 
 pub lazy FOOTER = {
-    let dmut f = File::open (GyllirHtmlFiles::FOOTER);
-    f:.readAll ()
-} catch {
-    _ => ""
+    {
+        let dmut f = File::open (GyllirHtmlFiles::FOOTER);
+        f:.readAll ()
+    } catch {
+        _ => ""
+    }
 };
 
 pub lazy SUBMODULE = {
-    let dmut f = File::open (GyllirHtmlFiles::SUBMODULE);
-    f:.readAll ()
-} catch {
-    _ => ""
+    {
+        let dmut f = File::open (GyllirHtmlFiles::SUBMODULE);
+        f:.readAll ()
+    } catch {
+        _ => ""
+    }
 };
 
 pub lazy MODULE_TABLE = {
-    let dmut f = File::open (GyllirHtmlFiles::MODULE_TABLE);
-    f:.readAll ()
-} catch {
-    _ => ""
+    {
+        let dmut f = File::open (GyllirHtmlFiles::MODULE_TABLE);
+        f:.readAll ()
+    } catch {
+        _ => ""
+    }
 };

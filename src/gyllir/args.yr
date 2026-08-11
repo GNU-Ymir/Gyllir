@@ -80,7 +80,7 @@ pub class GyllirArgumentParser {
         let dmut parser = (copy ArgumentParser)
             :.help ("help", short-> "h", comments-> "print this help and exit");
 
-        return {
+        return ({
             parser.parse (args)
         } catch {
             err : &std::config::args::errors::HelpRequestError => {
@@ -89,7 +89,7 @@ pub class GyllirArgumentParser {
                 panic;
             }
             e => throw e;
-        }?
+        })?;
     }
 
     /**
@@ -104,7 +104,7 @@ pub class GyllirArgumentParser {
             :.option!{i32} ("j", comments-> "number of parallel threads to spawn")
             :.flag ("verbose", short-> "v", comments-> "verbose mode");
 
-        return {
+        return ({
             parser.parse (args)
         } catch {
             err : &std::config::args::errors::HelpRequestError => {
@@ -113,7 +113,7 @@ pub class GyllirArgumentParser {
                 panic;
             }
             e => throw e;
-        }?
+        })?;
     }
 
     /**
@@ -145,7 +145,7 @@ pub class GyllirArgumentParser {
             :.flag ("yes", short-> "y", comments-> "do not ask for validation")
             :.position!{[c8]} ("message", comments-> "the message of the version");
 
-        return {
+        return ({
             let res = parser.parse (args);
             let mut nb = 0;
             for i in ["major", "minor", "patch"] {
@@ -168,7 +168,7 @@ pub class GyllirArgumentParser {
                 panic;
             }
             e => throw e;
-        }?
+        })?;
     }
 
     /**
@@ -182,7 +182,7 @@ pub class GyllirArgumentParser {
             :.flag ("doc", comments-> "clean the documentation")
             :.flag ("all", short-> "a", comments-> "clean all the generated files (including the documentation)");
 
-        return {
+        return ({
             parser.parse (args)
         } catch {
             err : &std::config::args::errors::HelpRequestError => {
@@ -191,7 +191,7 @@ pub class GyllirArgumentParser {
                 panic;
             }
             e => throw e;
-        }?
+        })?;
     }
 
     /**
@@ -206,7 +206,7 @@ pub class GyllirArgumentParser {
             :.option!{[c8]} ("input", short-> "i", comments-> "input json file already produced by a previous compilation")
             :.option!{[c8]} ("output", short-> "o", comments-> "output directory");
 
-        return {
+        return ({
             parser.parse (args)
         } catch {
             err : &std::config::args::errors::HelpRequestError => {
@@ -215,7 +215,7 @@ pub class GyllirArgumentParser {
                 panic;
             }
             e => throw e;
-        }?
+        })?;
     }
 
     /**
@@ -231,7 +231,7 @@ pub class GyllirArgumentParser {
             :.flag ("release", comments-> "compile tests in release mode (debug by default)")
             :.option!{i32} ("j", comments-> "number of parallel threads to spawn");
 
-        return {
+        return ({
             parser.parse (args)
         } catch {
             err : &std::config::args::errors::HelpRequestError => {
@@ -240,7 +240,7 @@ pub class GyllirArgumentParser {
                 panic;
             }
             e => throw e;
-        }?
+        })?;
     }
 
 }
