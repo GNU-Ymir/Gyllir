@@ -25,8 +25,8 @@ pub class ClassSymbol over Symbol {
     pub let mut condMethods : [(&Method, [c8])] = [];
     pub let mut condCtors : [(&Ctor, [c8])] = [];
 
-    pub let mut templateMethods : [&template::Template] = [];
-    pub let mut templateCtors : [&template::Template] = [];
+    pub let mut templateMethods : [&template_::Template] = [];
+    pub let mut templateCtors : [&template_::Template] = [];
 
     pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
         with super (name, doc, loc, protection)
