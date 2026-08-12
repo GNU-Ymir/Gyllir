@@ -8,7 +8,7 @@ __test {
     let dmut str = copy StringStream();
     str:.write(e);
 
-    assert(str[] == "Recursive dependencies : pkgA", str[]);
+    assert(str[] == "Recursive dependencies: pkgA", str[]);
 }
 
 __test {
@@ -18,5 +18,5 @@ __test {
     let dmut str = copy StringStream();
     str:.write(e);
 
-    assert(str[] == "Recursive dependencies : pkgA\n => \tRecursive dependencies : pkgB", str[]);
+    assert(str[] == "Recursive dependencies: pkgA\n => \tRecursive dependencies: pkgB", str[]);
 }

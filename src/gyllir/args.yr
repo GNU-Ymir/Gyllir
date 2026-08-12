@@ -1,6 +1,55 @@
 in args;
 
 use std::config::_;
+use std::{io, stream, concurrency::process};
+
+
+/**
+ * The version of the gyllir binary.
+ * @info: kept in sync with the 'version' field of gyllir.toml by 'tools/set-version.sh',
+ *   declared as a pre build command in the '[commands]' table of gyllir.toml.
+ * */
+pub def __GYLLIR_VERSION__ = "1.3.0";
+
+/**
+ * Format the version banner of gyllir
+ * @params:
+ *    - compiler: the version of the compiler that gyllir drives ("" if unknown)
+ * @returns: the text printed by 'gyllir --version'
+ * */
+pub fn versionString(compiler: [c8] = "")-> [c8] {
+    let dmut stream = copy StringStream();
+    stream:.write("gyllir "s8):.write(__GYLLIR_VERSION__);
+    if (compiler != "") {
+        stream:.write("\n"s8):.write(compiler);
+    }
+
+    stream[]
+}
+
+/**
+ * Ask the compiler for its own version
+ * @params:
+ *    - compiler: the name of the compiler binary
+ * @returns: the first line printed by '<compiler> --version', or "" if it cannot be run
+ * */
+pub fn compilerVersion(compiler: [c8] = "gyc")-> [c8] {
+    let dmut proc = copy SubProcess(compiler, copy ["--version"s8]);
+    proc:.start();
+
+    if (proc:.wait() != 0) return "";
+
+    let dmut pipe = alias proc.stdout;
+    let dmut res: [c8] = [];
+    while let Ok(c) = pipe:.read!c8()? {
+        if (c == '\n') break;
+        res ~= [c];
+    }
+
+    res
+} catch {
+    _ => ""
+}
 
 
 /**
@@ -23,6 +72,8 @@ pub class GyllirArgumentParser {
         with _mainParser = copy ArgumentParser()
     {
         self._mainParser:.help("help", short-> "h", comments-> "print this help and exit");
+        self._mainParser:.flag("version", short-> "V", comments-> "print version information and exit");
+
         self._mainParser:.sub("init", cmd-> &self.parseInit, comments-> "initialize a gyllir repository and create the config file.", hyphenated-> false);
         self._mainParser:.sub("build", &self.parseBuild, comments-> "build the project in the current directory", hyphenated-> false);
         self._mainParser:.sub("run", &self.parseRun, comments-> "build the project and run the produced executable", hyphenated-> false);
@@ -40,6 +91,12 @@ pub class GyllirArgumentParser {
     pub fn parse(self, args: [[c8]])-> &Config {
         {
             let ret = self._mainParser.parse(args);
+            if let Ok(Bool(value-> _ = true)) = ret["version"]? {
+                std::io::println(versionString(compiler-> compilerVersion()));
+                etc::c::process::_yrt_exit(0);
+                panic;
+            }
+
             let mut found = false;
             for i in ["init", "build", "run", "publish", "clean", "doc", "test"] {
                 if (i in ret) {

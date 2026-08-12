@@ -14,13 +14,14 @@ _gyllir() {
     GLOBAL_COMMANDS="\
 		init\
 		build
+		run
 		clean
 		publish
 		test
 		doc"
 
     GLOBAL_OPTIONS="\
-		-h --help"
+		-h --help -V --version"
 
     INIT_OPTIONS="\
 	     -h --help --name"

@@ -14,3 +14,6 @@ package-root = "main"
 
 [registry]
 git = "git@github.com:GNU-Ymir/Gyllir.git"
+
+[commands]
+set-version = { cmd = "./tools/set-version.sh", post = false }
