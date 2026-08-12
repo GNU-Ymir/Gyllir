@@ -32,6 +32,16 @@ the user's interactive shell — a fresh subprocess may not inherit it; check wi
 - Team discovery (only needed if working across other Linear workspaces/teams):
   `query { teams { nodes { id key name } } }`.
 
+## Pull request titles
+
+PR titles must read `[YMI-XXX][kind] Log` — `YMI-XXX` is the Linear issue, and `[kind]` is
+optional and defaults to a feature. Known kinds: `feat`/`feature`, `fix`, `perf`, `refactor`,
+`doc(s)`, `test(s)`, `chore`/`ci`/`build`/`style`, `breaking`. This is not cosmetic: the release
+notes are generated from these titles by `.github/scripts/changelog.sh`, one entry per merged PR
+(the commits inside a PR are never listed), grouped by kind. **A PR whose title does not follow
+the format — no issue key, or a kind outside that list — is left out of the release notes
+entirely**; the skip is logged on stderr by the release job, but the change goes unannounced.
+
 The branch currently checked out is generally named `YMI-<issue_number>-<short-description>`
 (e.g. `YMI-34-coverage-by-files`) — the `YMI-<issue_number>` part is the Linear issue key, so it
 can be used to look up the issue this branch's work is tracked against (`issue(id: "YMI-34")` or
