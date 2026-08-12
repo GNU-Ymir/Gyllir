@@ -1,6 +1,6 @@
 in defaults;
 
-/** 
+/**
  * The filename of the configuration
  */
 pub def __GYLLIR_CONFIG_FILENAME__ = "gyllir.toml";
@@ -21,27 +21,27 @@ pub def __FST_TEST_FILE__ = "__test__.yr";
  * The content of the initial file
  */
 pub def __MAIN_CONTENT__ = str#{use std::io;
-    
-fn main () {
-    println ("Hello World!");
+
+fn main() {
+    println("Hello World!");
 }
 };
 
 pub def __LIB_CONTENT__ = str#{use std::io;
 
-pub fn foo () {
-    println ("Hello from lib");
+pub fn foo() {
+    println("Hello from lib");
 }
 };
 
 
 pub def __FST_TEST_CONTENT__ = str#{use std::io;
-    
+
 __test {
-    println ("Example of first test");
-                
+    println("Example of first test");
+
     // To make a test fail, throw an exception
-    // for example, assert (false);
+    // for example, assert(false);
 }
 };
 
@@ -54,7 +54,7 @@ pub def __GITIGNORE_CONTENT__ = str#{
 !.gitignore
 __doc/
 .target/
-};        
+};
 
 
 

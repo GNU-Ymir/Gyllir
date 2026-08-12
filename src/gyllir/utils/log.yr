@@ -13,40 +13,40 @@ pub enum Colors
 | RESET = "\u{0x001B}[0m"s8;
 
 
-pub fn info {T...} (padd : [c8] = "\t", what : [c8], params : T) {
-    let dmut stream = copy StringStream ();
-    cte if isTuple!{typeof (params)} {
+pub fn info {T...} (padd: [c8] = "\t", what: [c8], params: T) {
+    let dmut stream = copy StringStream();
+    cte if isTuple!{typeof(params)} {
         for i in params {
-            stream:.write (i);
+            stream:.write(i);
         }
-    } else stream:.write (params);
+    } else stream:.write(params);
 
     atomic {
-        println (padd, Colors::GREEN, what, Colors::RESET, " ", stream[]);
+        println(padd, Colors::GREEN, what, Colors::RESET, " ", stream[]);
     }
 }
 
-pub fn warn {T...} (padd : [c8] = "\t", what : [c8], params : T) {
-    let dmut stream = copy StringStream ();
-    cte if isTuple!{typeof (params)} {
+pub fn warn {T...} (padd: [c8] = "\t", what: [c8], params: T) {
+    let dmut stream = copy StringStream();
+    cte if isTuple!{typeof(params)} {
         for i in params {
-            stream:.write (i);
+            stream:.write(i);
         }
-    } else stream:.write (params);
+    } else stream:.write(params);
     atomic {
-        println (padd, Colors::YELLOW, what, Colors::RESET, " ", stream[]);
+        println(padd, Colors::YELLOW, what, Colors::RESET, " ", stream[]);
     }
 }
 
-pub fn error {T...} (padd : [c8] = "\t", what : [c8], params : T) {
-    let dmut stream = copy StringStream ();
-    cte if isTuple!{typeof (params)} {
+pub fn error {T...} (padd: [c8] = "\t", what: [c8], params: T) {
+    let dmut stream = copy StringStream();
+    cte if isTuple!{typeof(params)} {
         for i in params {
-            stream:.write (i);
+            stream:.write(i);
         }
-    } else stream:.write (params);
+    } else stream:.write(params);
 
     atomic {
-        eprintln (padd, Colors::RED, what, Colors::RESET, " ", stream[]);
+        eprintln(padd, Colors::RED, what, Colors::RESET, " ", stream[]);
     }
 }

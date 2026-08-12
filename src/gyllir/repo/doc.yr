@@ -8,79 +8,79 @@ use gyllir::doc::{_, symbols::_, types::_, html::_};
 pub record RepoDocBuilder {
 
     // The current working directory
-    let _cwd : Path;
+    let _cwd: Path;
 
     // The command line options
-    let _args : &Config;
+    let _args: &Config;
 
     // The package configuration
-    let _cfg : GyllirPackageConfiguration;
+    let _cfg: GyllirPackageConfiguration;
 
     // the input file to parse
-    let _input : [c8];
+    let _input: [c8];
 
     // True iif input file is given instead of gyllir repo
-    let _fromFile : bool;
+    let _fromFile: bool;
 
     // The git manager util
-    let _git : GitManager;
+    let _git: GitManager;
 
     /**
      * @params:
      *    - input: the input file to parse
      * */
-    pub self (path : Path, args : &Config, cfg : GyllirPackageConfiguration, input : [c8] = "", fromFile : bool = false)
+    pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration, input: [c8] = "", fromFile: bool = false)
         with _cwd = path
         , _args = args
         , _cfg = cfg
         , _fromFile = fromFile
         , _input = input
-        , _git = GitManager (cwd-> path)
+        , _git = GitManager(cwd-> path)
     {}
 
     /**
      * Run the build executable
      * */
-    pub fn run (self, dmut context : &GyllirManager)
+    pub fn run(self, dmut context: &GyllirManager)
         throws RecursiveDependency
     {
         let version = if (self._cfg.name == "") {
             ""
-        } else if let Ok (v) = self._git.getCurrentBranchName ()? {
+        } else if let Ok(v) = self._git.getCurrentBranchName()? {
             v
         } else { "main" };
 
         let inputFile = if (!self._fromFile) {
-            RepoBuilder (self._cwd, self._args, self._cfg, forUnitTest-> false, forDoc-> true).run (alias context);
-            self._cwd.push (defaults::__CACHE_DOC_DIR__).push (self._cfg.name).addExtension (defaults::__DOC_EXTENSION__)
+            RepoBuilder(self._cwd, self._args, self._cfg, forUnitTest-> false, forDoc-> true).run(alias context);
+            self._cwd.push(defaults::__CACHE_DOC_DIR__).push(self._cfg.name).addExtension(defaults::__DOC_EXTENSION__)
         } else {
-            Path (self._input)
+            Path(self._input)
         };
 
-        let outputDir = if let Ok (Str (value-> dir)) = self._args ["output"]? {
-            Path (dir)
+        let outputDir = if let Ok(Str(value-> dir)) = self._args["output"]? {
+            Path(dir)
         } else {
-            self._cwd.push (defaults::__DOC_DIR__)
+            self._cwd.push(defaults::__DOC_DIR__)
         };
 
         let docConfig = {
-            let dmut file = File::open (inputFile, read-> true);
-            json::parse (file:.readAll ())
+            let dmut file = File::open(inputFile, read-> true);
+            json::parse(file:.readAll())
         } catch {
-            FsError () => {
-                utils::log::error ("Error", "failed to read documentation file '", inputFile.toStr (), "'");
-                etc::c::process::_yrt_exit (-1);
+            FsError() => {
+                utils::log::error("Error", "failed to read documentation file '", inputFile.toStr(), "'");
+                etc::c::process::_yrt_exit(-1);
                 panic;
             }
-            err : &SyntaxError => {
-                utils::log::error ("Error", "failed to parse documentation file '", inputFile.toStr (), "' : ", err);
-                etc::c::process::_yrt_exit (-1);
+            err: &SyntaxError => {
+                utils::log::error("Error", "failed to parse documentation file '", inputFile.toStr(), "' : ", err);
+                etc::c::process::_yrt_exit(-1);
                 panic;
             }
         };
 
-        let symbol = (SymbolLoader ()).load (docConfig);
-        self.generate (alias context, version, outputDir, symbol);
+        let symbol = (SymbolLoader()).load(docConfig);
+        self.generate(alias context, version, outputDir, symbol);
     }
 
     /*!
@@ -94,13 +94,13 @@ pub record RepoDocBuilder {
     /**
      * Generate the documentation directory
      * */
-    fn generate (self, dmut context : &GyllirManager, version : [c8], outDir : Path, symbol : &Symbol) {
-        utils::log::info ("Generate", "documentation pages in '", outDir.toStr (), "'");
-        self.createBaseDirectory (alias context, outDir);
-        let (htmlTable, modules) = self.createHtmlTable (symbol);
+    fn generate(self, dmut context: &GyllirManager, version: [c8], outDir: Path, symbol: &Symbol) {
+        utils::log::info("Generate", "documentation pages in '", outDir.toStr(), "'");
+        self.createBaseDirectory(alias context, outDir);
+        let (htmlTable, modules) = self.createHtmlTable(symbol);
 
         for m in modules {
-            self.generatePage (self._cfg.name, self._cfg.registry.path.toStr (), version, htmlTable, m, outDir);
+            self.generatePage(self._cfg.name, self._cfg.registry.path.toStr(), version, htmlTable, m, outDir);
         }
 
     }
@@ -110,22 +110,22 @@ pub record RepoDocBuilder {
      * @params:
      *    - outDir: the output directory
      * */
-    fn createBaseDirectory (self, dmut _ : &GyllirManager, outDir : Path) {
+    fn createBaseDirectory(self, dmut _: &GyllirManager, outDir: Path) {
         let ymir_res = ressources::GyllirHtmlFiles::RESSOURCES;
-        fs::sys::copyDir (ymir_res.push ("js"), outDir.push ("js"), recursive-> true, create-> true);
-        fs::sys::copyDir (ymir_res.push ("css"), outDir.push ("css"), recursive-> true, create-> true);
-        fs::sys::copyDir (ymir_res.push ("ico"), outDir.push ("ico"), recursive-> true, create-> true);
+        fs::sys::copyDir(ymir_res.push("js"), outDir.push("js"), recursive-> true, create-> true);
+        fs::sys::copyDir(ymir_res.push("css"), outDir.push("css"), recursive-> true, create-> true);
+        fs::sys::copyDir(ymir_res.push("ico"), outDir.push("ico"), recursive-> true, create-> true);
 
         // Remove old generated html files
-        for i in readDir (outDir) match i {
-            FsEntry (kind-> FsEntryKind::FILE, path-> p) if p.extension () == defaults::__HTML_EXTENSION__ => {
-                removeFile (p);
+        for i in readDir(outDir) match i {
+            FsEntry(kind-> FsEntryKind::FILE, path-> p) if p.extension() == defaults::__HTML_EXTENSION__ => {
+                removeFile(p);
             }
         }
     } catch {
-        FsError () => {
-            utils::log::error ("Error", "failed to create directory '", outDir.toStr (), "'");
-            etc::c::process::_yrt_exit (-1);
+        FsError() => {
+            utils::log::error("Error", "failed to create directory '", outDir.toStr(), "'");
+            etc::c::process::_yrt_exit(-1);
             panic;
         }
     }
@@ -141,24 +141,24 @@ pub record RepoDocBuilder {
     /**
      * Generate the page for a module
      * */
-    fn generatePage (self, project : [c8], git : [c8], version : [c8], table : [c8], module : &Module, outDir : Path) {
+    fn generatePage(self, project: [c8], git: [c8], version: [c8], table: [c8], module: &Module, outDir: Path) {
         let name = if module.name == "" { "index" } else { module.name };
 
-        let body = copy HtmlBody (project, module);
-        let head = copy HtmlHeader (project, git, version, name, table, body);
-        let foot = copy HtmlFooter (name, git, version);
+        let body = copy HtmlBody(project, module);
+        let head = copy HtmlHeader(project, git, version, name, table, body);
+        let foot = copy HtmlFooter(name, git, version);
 
-        let dmut stream = copy StringStream ();
-        head.dumpHtml (alias stream);
-        foot.dumpHtml (alias stream);
+        let dmut stream = copy StringStream();
+        head.dumpHtml(alias stream);
+        foot.dumpHtml(alias stream);
 
-        let path = Path (name, sep-> "::").addExtension (defaults::__HTML_EXTENSION__).toStr (sep-> "_");
+        let path = Path(name, sep-> "::").addExtension(defaults::__HTML_EXTENSION__).toStr(sep-> "_");
         {
-            let dmut f = File::create (outDir.push (path), write-> true);
-            f:.write (stream[]);
+            let dmut f = File::create(outDir.push(path), write-> true);
+            f:.write(stream[]);
         } catch {
             _ => {
-                utils::log::warn ("Error", "failed to write documentation file for module '", name, "'");
+                utils::log::warn("Error", "failed to write documentation file for module '", name, "'");
             }
         }
     }
@@ -179,11 +179,11 @@ pub record RepoDocBuilder {
      *    - .0: the html content of the menu table
      *    - .1: the list of modules found in the tree
      * */
-    fn createHtmlTable (self, symbol : &Symbol)-> ([c8], [&Module]) {
-        let dmut stream = copy StringStream ();
-        let mut modules : [mut &Module] = [];
-        if let m : &Module = symbol {
-            self.dumpModuleTable (m, alias stream, ref modules);
+    fn createHtmlTable(self, symbol: &Symbol)-> ([c8], [&Module]) {
+        let dmut stream = copy StringStream();
+        let mut modules: [mut &Module] = [];
+        if let m: &Module = symbol {
+            self.dumpModuleTable(m, alias stream, ref modules);
         }
 
         (stream[], modules)
@@ -192,21 +192,21 @@ pub record RepoDocBuilder {
     /**
      * Dump the module table in the stream
      * */
-    fn dumpModuleTable (self, module : &Module, dmut stream : &StringStream, ref mut modules : [mut &Module]) {
+    fn dumpModuleTable(self, module: &Module, dmut stream: &StringStream, ref mut modules: [mut &Module]) {
         modules ~= [module];
 
-        let path = Path (module.name, sep-> "::");
-        let mp = copy ["Url" => path.toStr (sep-> "_"), "Name" => path.toStr (sep-> "::"), "Title" => path.toStr (sep-> "::")];
+        let path = Path(module.name, sep-> "::");
+        let mp = copy ["Url" => path.toStr(sep-> "_"), "Name" => path.toStr(sep-> "::"), "Title" => path.toStr(sep-> "::")];
         if module.name.len > 0 {
-            formatter::format (alias stream, html::ressources::LEAF_NODE, mp);
+            formatter::format(alias stream, html::ressources::LEAF_NODE, mp);
         }
 
         // let mut fst = true;
         for ch in module.childs match ch {
-            chMod : &Module => {
-                self.dumpModuleTable (chMod, alias stream, ref modules);
+            chMod: &Module => {
+                self.dumpModuleTable(chMod, alias stream, ref modules);
             }
         }
-    } 
+    }
 
 }

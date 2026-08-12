@@ -6,9 +6,9 @@ use gyllir::doc::{symbols::variable, types};
 @final
 pub class Ctor over Symbol {
 
-    pub let mut parameters : [&Variable] = [];
-    pub let mut throwers : [&Type] = [];
-    pub let mut isUnsafe : bool = false;
+    pub let mut parameters: [&Variable] = [];
+    pub let mut throwers: [&Type] = [];
+    pub let mut isUnsafe: bool = false;
 
     /**
      * @params:
@@ -16,33 +16,33 @@ pub class Ctor over Symbol {
      *    - loc: the location of the module declaration
      *    - childs: the symbols found in the module
      * */
-    pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
+    pub self (name: [c8], doc: [c8], loc: Location, protection: Protection)
         with super (name, doc, loc, protection)
     {}
 
     impl Streamable {
-        pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Ctor ", self.name, " => ", self.loc, "\n");
-            stream:.entabing ();
-            if self.isUnsafe { stream:.write ("@unsafe\n"); }
+        pub over toStream(self, dmut stream: &StringStream) {
+            stream:.write("Ctor ", self.name, " => ", self.loc, "\n");
+            stream:.entabing();
+            if self.isUnsafe { stream:.write("@unsafe\n"); }
 
-            stream:.write ("fn (");
+            stream:.write("fn (");
             for i, j in self.parameters {
-                if i != 0 stream:.write (", ");
-                stream:.write (j);
+                if i != 0 stream:.write(", ");
+                stream:.write(j);
             }
-            stream:.write (")\n");
+            stream:.write(")\n");
             if (self.throwers.len != 0) {
-                stream:.entabing ();
-                stream:.write ("throws ");
+                stream:.entabing();
+                stream:.write("throws ");
                 for i, j in self.throwers {
-                    if (i != 0) stream:.write (", ");
-                    stream:.write (j);
+                    if (i != 0) stream:.write(", ");
+                    stream:.write(j);
                 }
-                stream:.detabing ();
-                stream:.write ("\n");
+                stream:.detabing();
+                stream:.write("\n");
             }
-            stream:.detabing ();
+            stream:.detabing();
         }
     }
 }

@@ -5,20 +5,20 @@ use gyllir::doc::{_, symbols::_, types::_};
 
 
 /**
- * Html footer of a page 
+ * Html footer of a page
  */
 @final
 pub class HtmlFooter over HtmlNode {
 
     // The git repo
-    let _git : [c8];
-    let _title : [c8];
-    let _version : [c8];
-    
+    let _git: [c8];
+    let _title: [c8];
+    let _version: [c8];
+
     /**
-     * Create a footer for a page 
+     * Create a footer for a page
      */
-    pub self (title : [c8], git : [c8], version : [c8])
+    pub self (title: [c8], git: [c8], version: [c8])
         with _title = title
         , _git = git
         , _version = version
@@ -29,11 +29,11 @@ pub class HtmlFooter over HtmlNode {
      * @params:
      *   - stream: the stream to populate
      */
-    pub over dumpHtml (self, dmut stream : &StringStream) {
+    pub over dumpHtml(self, dmut stream: &StringStream) {
         let mp = copy ["Title" => self._title,
-                       "GitURL" => formatter::formatGitUrl (self._git, version-> self._version)];
+                       "GitURL" => formatter::formatGitUrl(self._git, version-> self._version)];
 
-        formatter::format (alias stream, ressources::FOOTER, mp);
+        formatter::format(alias stream, ressources::FOOTER, mp);
     }
 
 }

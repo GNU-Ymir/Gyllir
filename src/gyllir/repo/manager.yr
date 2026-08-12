@@ -5,9 +5,9 @@ use gyllir::{config::_, args, args::_, utils::_};
 use gyllir::repo::_;
 use std::{concurrency::process, syntax::tokenizer};
 
-extern (C) fn printf (c : *c8, ...);
-extern (C) fn fflush (i : *void);
-extern (C) static stdout : *void;
+extern (C) fn printf(c: *c8, ...);
+extern (C) fn fflush(i: *void);
+extern (C) static stdout: *void;
 
 /**
  * The gyllir manager if the core of gyllir
@@ -15,66 +15,66 @@ extern (C) static stdout : *void;
 pub class GyllirManager {
 
     // The list of arguments passed to the program
-    let mut _args : &Config;
+    let mut _args: &Config;
 
     // The list of resolved dependencies
-    let dmut _depPackages : [Url => ()] = copy [];
+    let dmut _depPackages: [Url => ()] = copy [];
 
     /**
-     * Create a Gyllir builder from an argument 
+     * Create a Gyllir builder from an argument
      */
-    pub self (args : [[c8]])
-        with _args = (copy GyllirArgumentParser ()).parse (args)
+    pub self (args: [[c8]])
+        with _args = (copy GyllirArgumentParser()).parse(args)
     {}
-    
+
     /**
      * Run the builder
      * @returns: the builder did something
      */
-    pub fn run (mut self) {
-        if let Ok (c) = self._args ["init"]? {
-            RepoInitializer (c).run (self)
+    pub fn run(mut self) {
+        if let Ok(c) = self._args["init"]? {
+            RepoInitializer(c).run(self)
         }
 
-        else if let Ok (c) =  self._args ["build"]? {
-            RepoBuilder (env::currentDir (), c, self.loadToml (env::currentDir ()), forUnitTest-> false).run (alias self);
+        else if let Ok(c) =  self._args["build"]? {
+            RepoBuilder(env::currentDir(), c, self.loadToml(env::currentDir()), forUnitTest-> false).run(alias self);
         }
 
-        else if let Ok (c) = self._args ["run"]? {
-            let cfg = self.loadToml (env::currentDir ());
-            RepoBuilder (env::currentDir (), copy Dict (), cfg, forUnitTest-> false).run (alias self);
-            RepoRunner (env::currentDir (), c, cfg, forUnitTest-> false).run ();
+        else if let Ok(c) = self._args["run"]? {
+            let cfg = self.loadToml(env::currentDir());
+            RepoBuilder(env::currentDir(), copy Dict(), cfg, forUnitTest-> false).run(alias self);
+            RepoRunner(env::currentDir(), c, cfg, forUnitTest-> false).run();
         }
 
-        else if let Ok (c) = self._args ["clean"]? {
-            RepoCleaner (env::currentDir (), c, self.loadToml (env::currentDir ())).run (alias self);
+        else if let Ok(c) = self._args["clean"]? {
+            RepoCleaner(env::currentDir(), c, self.loadToml(env::currentDir())).run(alias self);
         }
 
-        else if let Ok (c) = self._args ["publish"]? {
-            RepoPublisher (env::currentDir (), c, self.loadToml (env::currentDir ())).run (alias self);
+        else if let Ok(c) = self._args["publish"]? {
+            RepoPublisher(env::currentDir(), c, self.loadToml(env::currentDir())).run(alias self);
         }
 
-        else if let Ok (c) = self._args ["test"]? {
-            let cfg = self.loadToml (env::currentDir ());
-            RepoBuilder (env::currentDir (), c, cfg, forUnitTest-> true).run (alias self);
-            if let Ok (Bool (value-> _ = false)) = c ["dry"]? {
-                RepoRunner (env::currentDir (), copy Dict (), cfg, forUnitTest-> true).run ();
+        else if let Ok(c) = self._args["test"]? {
+            let cfg = self.loadToml(env::currentDir());
+            RepoBuilder(env::currentDir(), c, cfg, forUnitTest-> true).run(alias self);
+            if let Ok(Bool(value-> _ = false)) = c["dry"]? {
+                RepoRunner(env::currentDir(), copy Dict(), cfg, forUnitTest-> true).run();
             }
         }
 
-        else if let Ok (c) = self._args ["doc"]? {
-            if let Ok (Str (value-> file)) = c ["input"]? {
-                RepoDocBuilder (env::currentDir (), c, self.tryLoadToml (env::currentDir ()), input-> file, fromFile-> true).run (alias self);
+        else if let Ok(c) = self._args["doc"]? {
+            if let Ok(Str(value-> file)) = c["input"]? {
+                RepoDocBuilder(env::currentDir(), c, self.tryLoadToml(env::currentDir()), input-> file, fromFile-> true).run(alias self);
             } else {
-                RepoDocBuilder (env::currentDir (), c, self.loadToml (env::currentDir ())).run (alias self);
+                RepoDocBuilder(env::currentDir(), c, self.loadToml(env::currentDir())).run(alias self);
             }
         }
 
         else panic;
     } catch {
         err => {
-            utils::log::error ("Error", err);
-            etc::c::process::_yrt_exit (-1);
+            utils::log::error("Error", err);
+            etc::c::process::_yrt_exit(-1);
         }
     }
 
@@ -90,36 +90,36 @@ pub class GyllirManager {
     /**
      * Load the configuration file
      * */
-    prv fn loadToml (self, path : Path)-> GyllirPackageConfiguration {
-        let dmut f = File::open (path.push (defaults::__GYLLIR_CONFIG_FILENAME__));
-        let cfg = std::config::toml::parse (f:.readAll ());
-        f:.close ();
+    prv fn loadToml(self, path: Path)-> GyllirPackageConfiguration {
+        let dmut f = File::open(path.push(defaults::__GYLLIR_CONFIG_FILENAME__));
+        let cfg = std::config::toml::parse(f:.readAll());
+        f:.close();
 
-        GyllirPackageConfiguration (cfg)
+        GyllirPackageConfiguration(cfg)
     } catch {
-        FsError () => {
-            utils::log::error ("Error", "failed to read configuration file gyllir.toml");
-            etc::c::process::_yrt_exit (-1);
+        FsError() => {
+            utils::log::error("Error", "failed to read configuration file gyllir.toml");
+            etc::c::process::_yrt_exit(-1);
             panic;
         }
         err => {
-            utils::log::error ("Error", err);
-            etc::c::process::_yrt_exit (-1);
+            utils::log::error("Error", err);
+            etc::c::process::_yrt_exit(-1);
             panic;
         }
     }
 
     /**
-     * Load the configuration file (but return a empty configuration if not found)
+     * Load the configuration file(but return a empty configuration if not found)
      * */
-    prv fn tryLoadToml (self, path : Path)-> GyllirPackageConfiguration {
-        let dmut f = File::open (path.push (defaults::__GYLLIR_CONFIG_FILENAME__));
-        let cfg = std::config::toml::parse (f:.readAll ());
-        f:.close ();
+    prv fn tryLoadToml(self, path: Path)-> GyllirPackageConfiguration {
+        let dmut f = File::open(path.push(defaults::__GYLLIR_CONFIG_FILENAME__));
+        let cfg = std::config::toml::parse(f:.readAll());
+        f:.close();
 
-        GyllirPackageConfiguration (cfg)
+        GyllirPackageConfiguration(cfg)
     } catch {
-        _ => { GyllirPackageConfiguration::empty () }
+        _ => { GyllirPackageConfiguration::empty() }
     }
 
 
@@ -141,81 +141,81 @@ pub class GyllirManager {
      *    - .0: the list of path to the root files of libraries to include
      *    - .1: the list of path to the built libraries to link
      */
-    pub fn resolveDependency (mut self, args : &Config, cwd : Path, name : [c8], dependency : Dependency, dry : bool)-> ([Path], [Path])
+    pub fn resolveDependency(mut self, args: &Config, cwd: Path, name: [c8], dependency: Dependency, dry: bool)-> ([Path], [Path])
         throws RecursiveDependency
     {
         if (dependency.url in self._depPackages) {
-            throw copy RecursiveDependency (name ~ ":"s8 ~ dependency.url.path.toStr ());
+            throw copy RecursiveDependency(name ~ ":"s8 ~ dependency.url.path.toStr());
         }
 
-        let depPath = cwd.push (defaults::__DEPENCY_DIR__).push (name);
+        let depPath = cwd.push(defaults::__DEPENCY_DIR__).push(name);
         {
-            utils::log::info ("Resolving", "dependency ", name, " to ", depPath.toStr ());
-            let gM = GitManager (cwd-> depPath);
+            utils::log::info("Resolving", "dependency ", name, " to ", depPath.toStr());
+            let gM = GitManager(cwd-> depPath);
             let hasCloned = if (dependency.url.type == UrlType::LOCAL) {
-                if !isDir (depPath.parent ()) {
-                    fs::sys::createDir (depPath.parent (), recursive-> true);
+                if !isDir(depPath.parent()) {
+                    fs::sys::createDir(depPath.parent(), recursive-> true);
                 }
 
-                if isLink (depPath) {
-                    removeFsEntry (depPath);
+                if isLink(depPath) {
+                    removeFsEntry(depPath);
                 }
 
-                self.runProcess ("ln"s8, copy ["-s"s8, dependency.url.path.toStr (), depPath.toStr ()]);
-                utils::log::info ("Fetched", "local dependency ", name);
+                self.runProcess("ln"s8, copy ["-s"s8, dependency.url.path.toStr(), depPath.toStr()]);
+                utils::log::info("Fetched", "local dependency ", name);
                 false
             }
 
-            else if !isDir (depPath) {
-                gM.clone (dependency.url.path.toStr ());
+            else if !isDir(depPath) {
+                gM.clone(dependency.url.path.toStr());
                 true
             } else {
                 false
             };
 
-            self:.selectDependencyVersion (gM, dependency);
-            let conf = self.loadToml (depPath);
-            if (conf.type.isExecutable ()) {
-                utils::log::error ("Resolving", "dependency ", name, " in ", dependency.url, " is not a library.");
-                etc::c::process::_yrt_exit (-1);
+            self:.selectDependencyVersion(gM, dependency);
+            let conf = self.loadToml(depPath);
+            if (conf.type.isExecutable()) {
+                utils::log::error("Resolving", "dependency ", name, " in ", dependency.url, " is not a library.");
+                etc::c::process::_yrt_exit(-1);
                 panic;
             }
 
-            self._depPackages [dependency.url] = ();
+            self._depPackages[dependency.url] = ();
             if (hasCloned) {
-                RepoCleaner (depPath, args, conf).run (alias self);
+                RepoCleaner(depPath, args, conf).run(alias self);
             }
 
-            let (ext, lbs) = RepoBuilder (depPath, args, conf, forUnitTest-> false, dry-> dry).run (alias self);
+            let (ext, lbs) = RepoBuilder(depPath, args, conf, forUnitTest-> false, dry-> dry).run(alias self);
 
-            self._depPackages:.remove (dependency.url);
+            self._depPackages:.remove(dependency.url);
             (ext, lbs)
         } catch {
-            GitError () => {
+            GitError() => {
                 let versions = {
-                    self.toVersionList (GitManager (cwd-> depPath).getTagList ())
+                    self.toVersionList(GitManager(cwd-> depPath).getTagList())
                 } catch { _ => [] };
 
-                utils::log::error ("Resolving", "dependency ", name, " has no version ", dependency.version);
+                utils::log::error("Resolving", "dependency ", name, " has no version ", dependency.version);
                 if (versions.len != 0us) {
-                    utils::log::info ("", "Available versions are : ", copy [c._0[] for c in versions]);
+                    utils::log::info("", "Available versions are: ", copy [c._0[] for c in versions]);
                 }
 
-                etc::c::process::_yrt_exit (-1);
+                etc::c::process::_yrt_exit(-1);
                 panic;
             }
 
-            r : &RecursiveDependency => {
-                throw copy RecursiveDependency (name ~ ":"s8 ~ dependency.url.path.toStr (), subError-> (r)?);
+            r: &RecursiveDependency => {
+                throw copy RecursiveDependency(name ~ ":"s8 ~ dependency.url.path.toStr(), subError-> (r)?);
             }
-            a : &AssertError => {
-                utils::log::error ("Resolving", "dependency ", name, " failure, ", a.msg);
-                etc::c::process::_yrt_exit (-1);
+            a: &AssertError => {
+                utils::log::error("Resolving", "dependency ", name, " failure, ", a.msg);
+                etc::c::process::_yrt_exit(-1);
                 panic;
             }
             x => {
-                utils::log::error ("Resolving", "dependency ", name, " failure, ", x);
-                etc::c::process::_yrt_exit (-1);
+                utils::log::error("Resolving", "dependency ", name, " failure, ", x);
+                etc::c::process::_yrt_exit(-1);
                 panic;
             }
         }
@@ -224,25 +224,25 @@ pub class GyllirManager {
     /**
      * Select the version in the git repository
      * */
-    fn selectDependencyVersion (mut self, gM : GitManager, dependency : Dependency)
+    fn selectDependencyVersion(mut self, gM: GitManager, dependency: Dependency)
         throws GitError, FsError, AssertError
     {
         // No need to fetch or swith if current branch pass the dependency version filter
-        let currentBranch = gM.getCurrentBranchName ();
-        if currentBranch.len > 0 && currentBranch [0] != '(' {
-            if dependency.version.pass (Version (currentBranch)) return;
+        let currentBranch = gM.getCurrentBranchName();
+        if currentBranch.len > 0 && currentBranch[0] != '(' {
+            if dependency.version.pass(Version(currentBranch)) return;
         }
-        
-        gM.fetchTags ();        
-        let version = dependency.version.select (self.toVersionList (gM.getTagList ()));            
-        if (version._0).isIgnore () {
-            gM.checkout (version._1);
+
+        gM.fetchTags();
+        let version = dependency.version.select(self.toVersionList(gM.getTagList()));
+        if (version._0).isIgnore() {
+            gM.checkout(version._1);
             if (dependency.url.type == UrlType::GIT) {
-                gM.pull (version._1);                
+                gM.pull(version._1);
             }
         }
     }
-    
+
     /**
      * Clear a dependency target
      * @params:
@@ -250,48 +250,48 @@ pub class GyllirManager {
      *    - name: the name of the dependency to clean
      *    - dependency: the information about the dependency to clean
      * */
-    pub fn cleanDependency (mut self, args : &Config, cwd : Path, name : [c8], dependency : Dependency)
+    pub fn cleanDependency(mut self, args: &Config, cwd: Path, name: [c8], dependency: Dependency)
         throws RecursiveDependency
     {
         if (dependency.url in self._depPackages) {
-            throw copy RecursiveDependency (name ~ ":"s8 ~ dependency.url.path.toStr ());
+            throw copy RecursiveDependency(name ~ ":"s8 ~ dependency.url.path.toStr());
         }
 
-        let depPath = cwd.push (defaults::__DEPENCY_DIR__).push (name);
-        utils::log::info ("Cleaning", "dependency ", name, " to ", depPath.toStr ());
+        let depPath = cwd.push(defaults::__DEPENCY_DIR__).push(name);
+        utils::log::info("Cleaning", "dependency ", name, " to ", depPath.toStr());
         if (dependency.url.type == UrlType::LOCAL) {
             {
-                self._depPackages [dependency.url] = ();
-                let conf = self.loadToml (depPath);
-                RepoCleaner (depPath, args, conf).run (alias self);
-                self._depPackages:.remove (dependency.url);
+                self._depPackages[dependency.url] = ();
+                let conf = self.loadToml(depPath);
+                RepoCleaner(depPath, args, conf).run(alias self);
+                self._depPackages:.remove(dependency.url);
             } catch {
-                r : &RecursiveDependency => {
-                    throw copy RecursiveDependency (name ~ ":"s8 ~ dependency.url.path.toStr (), subError-> (r)?);
+                r: &RecursiveDependency => {
+                    throw copy RecursiveDependency(name ~ ":"s8 ~ dependency.url.path.toStr(), subError-> (r)?);
                 }
             }
         }
     }
 
     /**
-     * Transform a list of tags (acquired with git) into a list of version
+     * Transform a list of tags(acquired with git) into a list of version
      */
-    pub fn toVersionList (self, list : [c8])-> [(Version, [c8])] {
-        let dmut tzer = Tokenizer!c8 ();
-        tzer:.insert ("\n", isSkip-> true);
-        let res = tzer.tokenizeWithoutSkips (list);
+    pub fn toVersionList(self, list: [c8])-> [(Version, [c8])] {
+        let dmut tzer = Tokenizer!c8();
+        tzer:.insert("\n", isSkip-> true);
+        let res = tzer.tokenizeWithoutSkips(list);
 
-        let mut versions : [(Version, [c8])] = [];
+        let mut versions: [(Version, [c8])] = [];
         for i in res {
-            if (i.len > 0 && i [0] != '(') { // ignore (HEAD detached...)
+            if (i.len > 0 && i[0] != '(') { // ignore(HEAD detached...)
                 let mut add = true;
                 for v in versions if i == v._1 {
                     add = false;
                     break;
                 }
-                
+
                 if add {
-                    versions = versions ~ [(Version (i), i)];
+                    versions = versions ~ [(Version(i), i)];
                 }
             }
         }
@@ -302,57 +302,57 @@ pub class GyllirManager {
     /**
      * Run a sub process
      * */
-    pub fn runProcess (self, cmd : [c8], params : [[c8]], cwd : Path = env::currentDir (), verbose : bool = false)-> bool {
+    pub fn runProcess(self, cmd: [c8], params: [[c8]], cwd: Path = env::currentDir(), verbose: bool = false)-> bool {
         if (verbose) {
-            let dmut stream = copy std::stream::StringStream ();
-            stream:.write (cmd);
+            let dmut stream = copy std::stream::StringStream();
+            stream:.write(cmd);
             for o in params {
-                stream:.write (" ");
-                stream:.write (o);
+                stream:.write(" ");
+                stream:.write(o);
             }
-            utils::log::info ("Run", stream[]);
+            utils::log::info("Run", stream[]);
         }
 
-        let dmut subProc = copy SubProcess (cmd, params, cwd-> cwd);
-        subProc:.start (redirect-> false);
-        let code = subProc:.wait ();
+        let dmut subProc = copy SubProcess(cmd, params, cwd-> cwd);
+        subProc:.start(redirect-> false);
+        let code = subProc:.wait();
         code == 0
     } catch {
         _ => false
     }
 
-    pub fn progressBar (self, nb : u32, all : u32) {
+    pub fn progressBar(self, nb: u32, all: u32) {
         let len = 50u32;
-        let count = cast!u32 (cast!f32 (nb) / cast!f32 (all) * cast!f32 (len));
-        let perc = cast!f32 (nb) / cast!f32 (all);
-        
-        
+        let count = cast!u32(cast!f32(nb) / cast!f32(all) * cast!f32(len));
+        let perc = cast!f32(nb) / cast!f32(all);
+
+
         // let buffer = copy [if i < count { '#' } else { ' ' } for i in 0 .. len];
         atomic {
             printf("\r\t%sProgress%s [".ptr, Colors::GREEN.ptr, Colors::RESET.ptr);
-            for _ in 0 .. count {            
+            for _ in 0 .. count {
                 printf("█".ptr);
             }
-            for _ in count .. len {                
+            for _ in count .. len {
                 printf(" ".ptr);
             }
-            
-            print ("] ");
-            print (std::format::format ("{:.2}%", perc * 100.0f))?;                        
+
+            print("] ");
+            print(std::format::format("{:.2}%", perc * 100.0f))?;
             fflush(stdout);
             if nb == all {
-                println ();
+                println();
             }
         }
     }
-    
+
     /**
-     * Ask the user for a given value (command line read)
+     * Ask the user for a given value(command line read)
      * @params:
      *   - ask: the text to write as a question
      *   - default: the default value to return if the user did write nothing
      */
-    pub fn askUserFor (self, ask : [c8], default : [c8] = "") -> [c8] {
+    pub fn askUserFor(self, ask: [c8], default: [c8] = "")-> [c8] {
         let x = if (default == "") {
             std::io::read![c8] (ask-> (ask ~ " :"))
         } else {
@@ -370,9 +370,9 @@ pub class GyllirManager {
      *   - ask: the text to write as a question
      *   - default: the default value to return if the user did write nothing
      */
-    pub fn askUserYesNo (self, ask : [c8], default : [c8] = "") -> bool {
-        let res = self.askUserFor (ask ~ "(y/n)", default-> default);
-        if (res.len == 1 && std::char::toUpper (res [0]) == 'Y') return true;
+    pub fn askUserYesNo(self, ask: [c8], default: [c8] = "")-> bool {
+        let res = self.askUserFor(ask ~ "(y/n)", default-> default);
+        if (res.len == 1 && std::char::toUpper(res[0]) == 'Y') return true;
 
         false
     }

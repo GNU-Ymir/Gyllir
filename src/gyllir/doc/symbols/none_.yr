@@ -14,4 +14,4 @@ pub class None over Symbol {
 }
 
 
-pub lazy NONE_SYMBOL = copy None ();
+pub lazy NONE_SYMBOL = copy None();

@@ -6,16 +6,16 @@ use std::stream;
 pub class RangeType over Type {
 
     // The inner type of the range
-    pub let child : &Type;
-    
-    pub self (mutability : [c8], inner : &Type)
+    pub let child: &Type;
+
+    pub self (mutability: [c8], inner: &Type)
         with super (mutability-> mutability)
         , child = inner
     {}
 
     impl Streamable {
-        pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Range (", self.child, ")");
+        pub over toStream(self, dmut stream: &StringStream) {
+            stream:.write("Range (", self.child, ")");
         }
     }
 }

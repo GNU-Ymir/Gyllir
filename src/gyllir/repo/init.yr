@@ -7,18 +7,18 @@ use std::fs::_;
 pub record RepoInitializer {
 
     // The argument line
-    let _args : &Config;
+    let _args: &Config;
 
     // The git manager util
-    let _git : GitManager;
+    let _git: GitManager;
 
     /**
      * @params:
      *    - args: the command line options
      * */
-    pub self (args : &Config)
+    pub self (args: &Config)
         with _args = args
-        , _git = GitManager (cwd-> env::currentDir ())
+        , _git = GitManager(cwd-> env::currentDir())
     {}
 
     /*!
@@ -32,41 +32,41 @@ pub record RepoInitializer {
     /**
      *
      * */
-    pub fn run (self, context : &GyllirManager) {
-        let path = env::currentDir ();
-        if (std::fs::sys::isFile (path.push (defaults::__GYLLIR_CONFIG_FILENAME__))) {
-            throw copy AssertError ("The target directory already contains a 'gyllir.toml' file. Aborting.");
+    pub fn run(self, context: &GyllirManager) {
+        let path = env::currentDir();
+        if (std::fs::sys::isFile(path.push(defaults::__GYLLIR_CONFIG_FILENAME__))) {
+            throw copy AssertError("The target directory already contains a 'gyllir.toml' file. Aborting.");
         }
 
-        let name = context.askUserFor ("Name", default-> "main");
-        let author = context.askUserFor ("Author name", default-> self._git.getUserName ());
-        let descr = context.askUserFor ("Description", default-> "A minimal Ymir app");
-        let license = context.askUserFor ("License", default-> "proprietary");
-        let type = context.askUserFor ("Type (executable/library)", default-> "executable");
+        let name = context.askUserFor("Name", default-> "main");
+        let author = context.askUserFor("Author name", default-> self._git.getUserName());
+        let descr = context.askUserFor("Description", default-> "A minimal Ymir app");
+        let license = context.askUserFor("License", default-> "proprietary");
+        let type = context.askUserFor("Type (executable/library)", default-> "executable");
 
-        let gyllirHome = Path (unsafe { env::getVar ("HOME") }).push (".local").push ("gyllir").push (name);
+        let gyllirHome = Path(unsafe { env::getVar("HOME") }).push(".local").push("gyllir").push(name);
         let registry = {
-            let url = context.askUserFor ("Registry", default-> (gyllir::config::url::UrlStarts::LOCAL ~ gyllirHome.toStr ()));
-            Url (url)
+            let url = context.askUserFor("Registry", default-> (gyllir::config::url::UrlStarts::LOCAL ~ gyllirHome.toStr()));
+            Url(url)
         };
 
-        let cfg = GyllirPackageConfiguration (name-> name,
+        let cfg = GyllirPackageConfiguration(name-> name,
                                               license-> license,
                                               description-> descr,
                                               authors-> copy [author],
-                                              type-> BuildType (type),
-                                              version-> Version (0, 1, 0),
+                                              type-> BuildType(type),
+                                              version-> Version(0, 1, 0),
                                               registry-> registry);
 
-        self.createEmptyRepo (cfg);
+        self.createEmptyRepo(cfg);
     } catch {
-        a : &AssertError => {
-            utils::log::error ("Error", "in the project creation : ", a.msg);
-            etc::c::process::_yrt_exit (-1);
+        a: &AssertError => {
+            utils::log::error("Error", "in the project creation: ", a.msg);
+            etc::c::process::_yrt_exit(-1);
         }
         err => {
-            utils::log::error ("Error", "in the project creation : ", err);
-            etc::c::process::_yrt_exit (-1);
+            utils::log::error("Error", "in the project creation: ", err);
+            etc::c::process::_yrt_exit(-1);
         }
     }
 
@@ -81,49 +81,49 @@ pub record RepoInitializer {
     /**
      * Create the new empty repository
      * */
-    prv fn createEmptyRepo (self, cfg : GyllirPackageConfiguration)
+    prv fn createEmptyRepo(self, cfg: GyllirPackageConfiguration)
         throws FsError, GitError
     {
         {
-            let dmut f = File::create (Path (defaults::__GYLLIR_CONFIG_FILENAME__), write-> true);
-            f:.write (std::config::toml::dump (cfg.serialize ()));
-            f:.close ();
+            let dmut f = File::create(Path(defaults::__GYLLIR_CONFIG_FILENAME__), write-> true);
+            f:.write(std::config::toml::dump(cfg.serialize()));
+            f:.close();
         }
 
-        fs::sys::createDir (Path (".").push (defaults::__SRC_DIR__))?;
-        fs::sys::createDir (Path (".").push (defaults::__TEST_DIR__))?;
-        if (cfg.type.isExecutable ()) {
+        fs::sys::createDir(Path(".").push(defaults::__SRC_DIR__))?;
+        fs::sys::createDir(Path(".").push(defaults::__TEST_DIR__))?;
+        if (cfg.type.isExecutable()) {
             {
-                let dmut f = File::create (Path (defaults::__SRC_DIR__).push (defaults::__MAIN_FILE__), write-> true);
-                f:.write (defaults::__MAIN_CONTENT__);
-                f:.close ();
+                let dmut f = File::create(Path(defaults::__SRC_DIR__).push(defaults::__MAIN_FILE__), write-> true);
+                f:.write(defaults::__MAIN_CONTENT__);
+                f:.close();
             }
         } else {
             {
-                let dmut f = File::create (Path (defaults::__SRC_DIR__).push (Path (cfg.name).addExtension (defaults::__YMIR_EXTENSION__)), write-> true);
-                f:.write (defaults::__LIB_CONTENT__);
-                f:.close ();
+                let dmut f = File::create(Path(defaults::__SRC_DIR__).push(Path(cfg.name).addExtension(defaults::__YMIR_EXTENSION__)), write-> true);
+                f:.write(defaults::__LIB_CONTENT__);
+                f:.close();
             }
         }
 
         {
-            let dmut f = File::create (Path (defaults::__TEST_DIR__).push (defaults::__FST_TEST_FILE__), write-> true);
-            f:.write (defaults::__FST_TEST_CONTENT__);
-            f:.close ();
+            let dmut f = File::create(Path(defaults::__TEST_DIR__).push(defaults::__FST_TEST_FILE__), write-> true);
+            f:.write(defaults::__FST_TEST_CONTENT__);
+            f:.close();
         }
 
         {
-            let dmut f = File::create (Path (defaults::__GITIGNORE_FILENAME__), write-> true);
-            f:.write (defaults::__GITIGNORE_CONTENT__);
-            f:.write (cfg.name ~ ".a\n");
-            f:.write (cfg.name ~ ".so\n");
-            f:.write (cfg.name ~ "\n");
-            f:.write (cfg.name ~ ".test\n");
-            f:.close ();
+            let dmut f = File::create(Path(defaults::__GITIGNORE_FILENAME__), write-> true);
+            f:.write(defaults::__GITIGNORE_CONTENT__);
+            f:.write(cfg.name ~ ".a\n");
+            f:.write(cfg.name ~ ".so\n");
+            f:.write(cfg.name ~ "\n");
+            f:.write(cfg.name ~ ".test\n");
+            f:.close();
         }
 
-        self._git.init ();
-        self._git.add (Path ("./."));
-        self._git.commit ("Initial commit");
+        self._git.init();
+        self._git.add(Path("./."));
+        self._git.commit("Initial commit");
     }
 }

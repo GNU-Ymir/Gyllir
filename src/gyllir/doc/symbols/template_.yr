@@ -18,30 +18,30 @@ pub class TemplateParam {
 @final
 pub class Template over Symbol {
 
-    pub let mut test : [c8] = [];
-    pub let mut params : [&TemplateParam] = [];
-    pub let mut inners : [&Symbol] = [];
+    pub let mut test: [c8] = [];
+    pub let mut params: [&TemplateParam] = [];
+    pub let mut inners: [&Symbol] = [];
 
-    pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
+    pub self (name: [c8], doc: [c8], loc: Location, protection: Protection)
         with super (name, doc, loc, protection)
     {}
 
     impl Streamable {
-        pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Template ", self.name, " => ", self.loc, "\n");
-            stream:.entabing ();
-            if (self.test != "") stream:.write ("if ", self.test, " ");
-            stream:.write ("{");
+        pub over toStream(self, dmut stream: &StringStream) {
+            stream:.write("Template ", self.name, " => ", self.loc, "\n");
+            stream:.entabing();
+            if (self.test != "") stream:.write("if ", self.test, " ");
+            stream:.write("{");
             for i, j in self.params {
-                if i != 0 stream:.write (", ");
-                stream:.write (j);
+                if i != 0 stream:.write(", ");
+                stream:.write(j);
             }
-            stream:.write ("}\n");
+            stream:.write("}\n");
 
             for i in self.inners {
-                stream:.write (i, "\n");
+                stream:.write(i, "\n");
             }
-            stream:.detabing ();
+            stream:.detabing();
         }
     }
 }

@@ -6,22 +6,22 @@ use std::stream;
 pub class TupleType over Type {
 
     // The inner types of the tuple
-    pub let childs : [&Type];
+    pub let childs: [&Type];
 
-    pub self (mutability : [c8], childs : [&Type])
+    pub self (mutability: [c8], childs: [&Type])
         with super (mutability-> mutability)
         , childs = childs
     {}
 
     impl Streamable {
-        pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Tuple (");
+        pub over toStream(self, dmut stream: &StringStream) {
+            stream:.write("Tuple (");
             for i, j in self.childs {
-                if i != 0 stream:.write (", ");
-                stream:.write (j);
+                if i != 0 stream:.write(", ");
+                stream:.write(j);
             }
 
-            stream:.write (")");
+            stream:.write(")");
         }
     }
 }

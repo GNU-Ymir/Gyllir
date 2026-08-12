@@ -8,27 +8,27 @@ use gyllir::doc::{symbols::{variable, method, ctor, assertion},
 
 @final
 pub class TraitSymbol over Symbol {
-    pub let mut methods : [&Method] = [];
-    pub let mut condMethods : [(&Method, [c8])] = [];
-    pub let mut asserts : [Assertion] = [];
+    pub let mut methods: [&Method] = [];
+    pub let mut condMethods: [(&Method, [c8])] = [];
+    pub let mut asserts: [Assertion] = [];
 
-    pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
+    pub self (name: [c8], doc: [c8], loc: Location, protection: Protection)
         with super (name, doc, loc, protection)
     {}
 
     impl Streamable {
-        pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Trait ", self.name, " => ", self.loc, "\n");
-            stream:.entabing ();
+        pub over toStream(self, dmut stream: &StringStream) {
+            stream:.write("Trait ", self.name, " => ", self.loc, "\n");
+            stream:.entabing();
             for i in self.asserts {
-                stream:.write ("cte assert (", i.test, ", ", i.msg, ")\n");
+                stream:.write("cte assert (", i.test, ", ", i.msg, ")\n");
             }
 
             for i in self.methods {
-                streamProtection (i.protect, alias stream);
-                stream:.write (i, "\n");
+                streamProtection(i.protect, alias stream);
+                stream:.write(i, "\n");
             }
-            stream:.detabing ();
+            stream:.detabing();
         }
     }
 

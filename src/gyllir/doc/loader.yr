@@ -14,29 +14,29 @@ pub record SymbolLoader {
     /**
      * Load a configuration and return the symbol found in it
      * */
-    pub fn load (self, config : &Config)-> &Symbol {
-        if let d : &Dict = config && "kind" in d {
-            if let Ok (x) = d ["kind"]? match x {
-                Str (value-> "module") => { return self.loadModule (d); }
-                Str (value-> "function") => { return self.loadFunction (d); }
-                Str (value-> "method") => { return self.loadMethod (d); }
-                Str (value-> "ctor") => { return self.loadCtor (d); }
-                Str (value-> "class") => { return self.loadClass (d); }
-                Str (value-> "entity") => { return self.loadClass (d, isEntity-> true); }
-                Str (value-> "record") => { return self.loadClass (d, isRecord-> true); }
-                Str (value-> "template") => { return self.loadTemplate (d); }
-                Str (value-> "trait") => { return self.loadTrait (d); }
-                Str (value-> "enum") => { return self.loadEnum (d); }
-                Str (value-> "global") => { return self.loadGlobal (d); }
-                Str (value-> "def") => { return self.loadAka (d); }
-                Str (value-> "macro") => { return self.loadMacro (d); }
-                Str (value-> kind) => {
-                    utils::log::warn ("Warning", "undefined symbol kind : '", kind, "'");
+    pub fn load(self, config: &Config)-> &Symbol {
+        if let d: &Dict = config && "kind" in d {
+            if let Ok(x) = d["kind"]? match x {
+                Str(value-> "module") => { return self.loadModule(d); }
+                Str(value-> "function") => { return self.loadFunction(d); }
+                Str(value-> "method") => { return self.loadMethod(d); }
+                Str(value-> "ctor") => { return self.loadCtor(d); }
+                Str(value-> "class") => { return self.loadClass(d); }
+                Str(value-> "entity") => { return self.loadClass(d, isEntity-> true); }
+                Str(value-> "record") => { return self.loadClass(d, isRecord-> true); }
+                Str(value-> "template") => { return self.loadTemplate(d); }
+                Str(value-> "trait") => { return self.loadTrait(d); }
+                Str(value-> "enum") => { return self.loadEnum(d); }
+                Str(value-> "global") => { return self.loadGlobal(d); }
+                Str(value-> "def") => { return self.loadAka(d); }
+                Str(value-> "macro") => { return self.loadMacro(d); }
+                Str(value-> kind) => {
+                    utils::log::warn("Warning", "undefined symbol kind: '", kind, "'");
                 }
             }
         }
 
-        copy symbols::none_::None ()
+        copy symbols::none_::None()
     }
 
     /*!
@@ -50,14 +50,14 @@ pub record SymbolLoader {
     /**
      * Load the configuration of a module documentation
      * */
-    fn loadModule (self, module : &Dict)-> &Module {
-        let (name, doc, loc, protection) = self.loadStandard (module);
-        let dmut result = copy Module (name, doc, loc, protection);
+    fn loadModule(self, module: &Dict)-> &Module {
+        let (name, doc, loc, protection) = self.loadStandard(module);
+        let dmut result = copy Module(name, doc, loc, protection);
 
-        if let Ok (ch) = module ["childs"]? match ch {
-            a : &Array => {
+        if let Ok(ch) = module["childs"]? match ch {
+            a: &Array => {
                 for x in a[] {
-                    let i = self.load (x);
+                    let i = self.load(x);
                     if (i !of none_::None) {
                         result.childs ~= [i];
                     }
@@ -80,21 +80,21 @@ pub record SymbolLoader {
     /**
      * Load a configuration of a function documentation
      * */
-    fn loadFunction (self, func : &Dict)-> &Function {
-        let (name, doc, loc, protection) = self.loadStandard (func);
-        let dmut result = copy Function (name, doc, loc, protection);
+    fn loadFunction(self, func: &Dict)-> &Function {
+        let (name, doc, loc, protection) = self.loadStandard(func);
+        let dmut result = copy Function(name, doc, loc, protection);
 
-        result.parameters = self.loadParams (func);
-        if let Ok (attrs : &Array) = func ["attributes"]? {
+        result.parameters = self.loadParams(func);
+        if let Ok(attrs: &Array) = func["attributes"]? {
             for a in attrs[] match a {
-                Str (value-> "unsafe") => { result.isUnsafe = true; }
-                Str (value-> "inline") => { result.isInline = true; }
+                Str(value-> "unsafe") => { result.isUnsafe = true; }
+                Str(value-> "inline") => { result.isInline = true; }
             }
         }
 
-        result.throwers = self.loadThrowers (func);
-        if let Ok (d : &Dict) = func ["ret_type"]? {
-            result.retType = self.loadType (d);
+        result.throwers = self.loadThrowers(func);
+        if let Ok(d: &Dict) = func["ret_type"]? {
+            result.retType = self.loadType(d);
         }
 
         result
@@ -103,45 +103,45 @@ pub record SymbolLoader {
     /**
      * Load a constructor
      * */
-    fn loadCtor (self, func : &Dict)-> &Ctor {
-        let (name, doc, loc, protection) = self.loadStandard (func);
-        let dmut result = copy Ctor (name, doc, loc, protection);
+    fn loadCtor(self, func: &Dict)-> &Ctor {
+        let (name, doc, loc, protection) = self.loadStandard(func);
+        let dmut result = copy Ctor(name, doc, loc, protection);
 
-        result.parameters = self.loadParams (func);
-        if let Ok (attrs : &Array) = func ["attributes"]? {
+        result.parameters = self.loadParams(func);
+        if let Ok(attrs: &Array) = func["attributes"]? {
             for a in attrs[] match a {
-                Str (value-> "unsafe") => { result.isUnsafe = true; }
+                Str(value-> "unsafe") => { result.isUnsafe = true; }
             }
         }
 
-        result.throwers = self.loadThrowers (func);
+        result.throwers = self.loadThrowers(func);
         result
     }
 
     /**
      * Load a method
      * */
-    fn loadMethod (self, func : &Dict)-> &Method {
-        let (name, doc, loc, protection) = self.loadStandard (func);
-        let dmut result = copy Method (name, doc, loc, protection);
+    fn loadMethod(self, func: &Dict)-> &Method {
+        let (name, doc, loc, protection) = self.loadStandard(func);
+        let dmut result = copy Method(name, doc, loc, protection);
 
-        result.parameters = self.loadParams (func);
-        if let Ok (attrs : &Array) = func ["attributes"]? {
+        result.parameters = self.loadParams(func);
+        if let Ok(attrs: &Array) = func["attributes"]? {
             for a in attrs[] match a {
-                Str (value-> "unsafe") => { result.isUnsafe = true; }
-                Str (value-> "field") => { result.isField = true; }
-                Str (value-> "final") => { result.isFinal = true; }
-                Str (value-> "abstract") => { result.isEmpty = true; }
+                Str(value-> "unsafe") => { result.isUnsafe = true; }
+                Str(value-> "field") => { result.isField = true; }
+                Str(value-> "final") => { result.isFinal = true; }
+                Str(value-> "abstract") => { result.isEmpty = true; }
             }
         }
 
-        result.isMutable = if let Ok (Str (value-> "true")) = func ["mutable"]? {
+        result.isMutable = if let Ok(Str(value-> "true")) = func["mutable"]? {
             true
         } else { false };
 
-        result.throwers = self.loadThrowers (func);
-        if let Ok (d : &Dict) = func ["ret_type"]? {
-            result.retType = self.loadType (d);
+        result.throwers = self.loadThrowers(func);
+        if let Ok(d: &Dict) = func["ret_type"]? {
+            result.retType = self.loadType(d);
         }
 
         result
@@ -150,19 +150,19 @@ pub record SymbolLoader {
     /**
      * Load parameters from configuration
      * */
-    fn loadParams (self, func : &Dict)-> [&Variable] {
-        let mut vars : [mut &Variable] = [];
-        if let Ok (params : &Array) = func ["params"]? {
+    fn loadParams(self, func: &Dict)-> [&Variable] {
+        let mut vars: [mut &Variable] = [];
+        if let Ok(params: &Array) = func["params"]? {
             for a in params[] {
-                let (name, doc, loc, protection) = self.loadStandard (a);
-                let dmut var = copy Variable (name, doc, loc, protection);
+                let (name, doc, loc, protection) = self.loadStandard(a);
+                let dmut var = copy Variable(name, doc, loc, protection);
 
-                if let Ok (type : &Dict) =  a ["type"]? { var.type = self.loadType (type); }
-                if let Ok (Str (value-> "true")) = a ["ref"]? { var.isRef = true; }
-                if let Ok (Str (value-> "true")) = a ["lazy"]? { var.isLazy = true; }
-                if let Ok (Str (value-> default)) = a ["value"]? { var.defaultValue = default; }
+                if let Ok(type: &Dict) =  a["type"]? { var.type = self.loadType(type); }
+                if let Ok(Str(value-> "true")) = a["ref"]? { var.isRef = true; }
+                if let Ok(Str(value-> "true")) = a["lazy"]? { var.isLazy = true; }
+                if let Ok(Str(value-> default)) = a["value"]? { var.defaultValue = default; }
 
-                if let Ok (Str (value-> m)) =  a ["mutability"]? {
+                if let Ok(Str(value-> m)) =  a["mutability"]? {
                     var.isMut = (if (m == "mut") { true }
                                  else { false });
 
@@ -180,11 +180,11 @@ pub record SymbolLoader {
     /**
      * Load the throwers of a function/ctors/etc..
      * */
-    fn loadThrowers (self, func : &Dict)-> [&Type] {
-        let mut res : [mut &Type] = [];
-        if let Ok (thrs : &Array) = func ["throwers"]? {
-            for a in thrs[] if let d : &Dict = a {
-                res ~= [self.loadType (d)];
+    fn loadThrowers(self, func: &Dict)-> [&Type] {
+        let mut res: [mut &Type] = [];
+        if let Ok(thrs: &Array) = func["throwers"]? {
+            for a in thrs[] if let d: &Dict = a {
+                res ~= [self.loadType(d)];
             }
         }
 
@@ -202,21 +202,21 @@ pub record SymbolLoader {
     /**
      * Load a class symbol
      * */
-    fn loadClass (self, cl : &Dict, isEntity : bool = false, isRecord : bool = false)-> &ClassSymbol {
-        let (name, doc, loc, protection) = self.loadStandard (cl);
-        let dmut result = copy ClassSymbol (name, doc, loc, protection);
+    fn loadClass(self, cl: &Dict, isEntity: bool = false, isRecord: bool = false)-> &ClassSymbol {
+        let (name, doc, loc, protection) = self.loadStandard(cl);
+        let dmut result = copy ClassSymbol(name, doc, loc, protection);
         result.isEntity = isEntity;
         result.isRecord = isRecord;
 
-        if let Ok (Str (value-> "true")) = cl ["has_dtor"]? { result.hasDtor = true; }
-        if let Ok (Str (value-> "true")) = cl ["abstract"]? { result.isAbstract = true; }
-        if let Ok (Str (value-> "true")) = cl ["final"]? { result.isFinal = true; }
-        if let Ok (anc : &Dict) = cl ["ancestor"]? { result.ancestor = self.loadType (anc); }
+        if let Ok(Str(value-> "true")) = cl["has_dtor"]? { result.hasDtor = true; }
+        if let Ok(Str(value-> "true")) = cl["abstract"]? { result.isAbstract = true; }
+        if let Ok(Str(value-> "true")) = cl["final"]? { result.isFinal = true; }
+        if let Ok(anc: &Dict) = cl["ancestor"]? { result.ancestor = self.loadType(anc); }
 
-        if let Ok (arr : &Array) = cl ["fields"]? {
-            for a in arr[] if let fi : &Dict = a {
-                let field = self.loadField (fi);
-                if let Ok (Str (value-> cond)) = a ["condition"]? && cond != "" {
+        if let Ok(arr: &Array) = cl["fields"]? {
+            for a in arr[] if let fi: &Dict = a {
+                let field = self.loadField(fi);
+                if let Ok(Str(value-> cond)) = a["condition"]? && cond != "" {
                     result.condFields ~= [(field, cond)];
                 } else {
                     result.fields ~= [field];
@@ -224,10 +224,10 @@ pub record SymbolLoader {
             }
         }
 
-        if let Ok (arr : &Array) = cl ["ctors"]? {
-            for c in arr[] if let d : &Dict = c {
-                let ctor = self.loadCtor (d);
-                if let Ok (Str (value-> cond)) = d ["condition"]? && cond != "" {
+        if let Ok(arr: &Array) = cl["ctors"]? {
+            for c in arr[] if let d: &Dict = c {
+                let ctor = self.loadCtor(d);
+                if let Ok(Str(value-> cond)) = d["condition"]? && cond != "" {
                     result.condCtors ~= [(ctor, cond)];
                 } else {
                     result.ctors ~= [ctor];
@@ -235,10 +235,10 @@ pub record SymbolLoader {
             }
         }
 
-        if let Ok (arr : &Array) = cl ["methods"]? {
-            for c in arr[] if let d : &Dict = c {
-                let m = self.loadMethod (d);
-                if let Ok (Str (value-> cond)) = d ["condition"]? && cond != "" {
+        if let Ok(arr: &Array) = cl["methods"]? {
+            for c in arr[] if let d: &Dict = c {
+                let m = self.loadMethod(d);
+                if let Ok(Str(value-> cond)) = d["condition"]? && cond != "" {
                     result.condMethods ~= [(m, cond)];
                 } else {
                     result.methods ~= [m];
@@ -246,27 +246,27 @@ pub record SymbolLoader {
             }
         }
 
-        if let Ok (arr : &Array) = cl ["template_ctors"]? {
-            for c in arr[] if let d : &Dict = c {
-                result.templateCtors ~= [self.loadTemplate (d)];
+        if let Ok(arr: &Array) = cl["template_ctors"]? {
+            for c in arr[] if let d: &Dict = c {
+                result.templateCtors ~= [self.loadTemplate(d)];
             }
         }
 
-        if let Ok (arr : &Array) = cl ["template_methods"]? {
-            for c in arr[] if let d : &Dict = c {
-                result.templateMethods ~= [self.loadTemplate (d)];
+        if let Ok(arr: &Array) = cl["template_methods"]? {
+            for c in arr[] if let d: &Dict = c {
+                result.templateMethods ~= [self.loadTemplate(d)];
             }
         }
 
-        if let Ok (arr : &Array) = cl ["asserts"]? {
-            for c in arr[] if let d : &Dict = c {
-                result.asserts ~= [self.loadAssertion (d)];
+        if let Ok(arr: &Array) = cl["asserts"]? {
+            for c in arr[] if let d: &Dict = c {
+                result.asserts ~= [self.loadAssertion(d)];
             }
         }
 
-        if let Ok (arr : &Array) = cl ["implements"]? {
-            for i in arr[] if let d : &Dict = i {
-                result.implements ~= [self.loadImpl (d)];
+        if let Ok(arr: &Array) = cl["implements"]? {
+            for i in arr[] if let d: &Dict = i {
+                result.implements ~= [self.loadImpl(d)];
             }
         }
 
@@ -276,16 +276,16 @@ pub record SymbolLoader {
     /**
      * Load a field from configuration
      * */
-    fn loadField (self, fi : &Dict)-> &Variable {
-        let (name, doc, loc, protection) = self.loadStandard (fi);
-        let dmut var = copy Variable (name, doc, loc, protection);
+    fn loadField(self, fi: &Dict)-> &Variable {
+        let (name, doc, loc, protection) = self.loadStandard(fi);
+        let dmut var = copy Variable(name, doc, loc, protection);
 
-        if let Ok (type : &Dict) =  fi ["type"]? { var.type = self.loadType (type); }
-        if let Ok (Str (value-> "true")) = fi ["ref"]? { var.isRef = true; }
-        if let Ok (Str (value-> "true")) = fi ["lazy"]? { var.isLazy = true; }
-        if let Ok (Str (value-> default)) = fi ["value"]? { var.defaultValue = default; }
+        if let Ok(type: &Dict) =  fi["type"]? { var.type = self.loadType(type); }
+        if let Ok(Str(value-> "true")) = fi["ref"]? { var.isRef = true; }
+        if let Ok(Str(value-> "true")) = fi["lazy"]? { var.isLazy = true; }
+        if let Ok(Str(value-> default)) = fi["value"]? { var.defaultValue = default; }
 
-        if let Ok (Str (value-> m)) =  fi ["mutability"]? {
+        if let Ok(Str(value-> m)) =  fi["mutability"]? {
             var.isMut = (if (m == "mut") { true }
                          else { false });
             var.isDMut = (if (m == "dmut") { true }
@@ -298,21 +298,21 @@ pub record SymbolLoader {
     /**
      * Load an assertion in a trait of a class
      * */
-    fn loadAssertion (self, a : &Dict)-> Assertion {
-        let mut res = Assertion ();
-        if let Ok (Str (value-> test)) = a ["test"]? {
+    fn loadAssertion(self, a: &Dict)-> Assertion {
+        let mut res = Assertion();
+        if let Ok(Str(value-> test)) = a["test"]? {
             res.test = test;
         }
 
-        if let Ok (Str (value-> msg)) = a ["msg"]? {
+        if let Ok(Str(value-> msg)) = a["msg"]? {
             res.msg = msg;
         }
 
-        if let Ok (Str (value-> doc)) = a ["doc"]? {
+        if let Ok(Str(value-> doc)) = a["doc"]? {
             res.doc = doc;
         }
 
-        if let Ok (Str (value-> condition)) = a ["condition"]? {
+        if let Ok(Str(value-> condition)) = a["condition"]? {
             res.condition = condition;
         }
 
@@ -322,12 +322,12 @@ pub record SymbolLoader {
     /**
      * Load an implementation in a class
      * */
-    fn loadImpl (self, i : &Dict)-> (&Type, [c8]) {
-        let type = if let Ok (t : &Dict) = i ["trait"]? {
-            self.loadType (t)
+    fn loadImpl(self, i: &Dict)-> (&Type, [c8]) {
+        let type = if let Ok(t: &Dict) = i["trait"]? {
+            self.loadType(t)
         } else { EMPTY_ANY };
 
-        let condition = if let Ok (Str (value-> cond)) = i ["condition"]? {
+        let condition = if let Ok(Str(value-> cond)) = i["condition"]? {
             cond
         } else { "" };
 
@@ -346,14 +346,14 @@ pub record SymbolLoader {
     /**
      * Load a trait symbol
      * */
-    fn loadTrait (self, tr : &Dict)-> &TraitSymbol {
-        let (name, doc, loc, protection) = self.loadStandard (tr);
-        let dmut result = copy TraitSymbol (name, doc, loc, protection);
+    fn loadTrait(self, tr: &Dict)-> &TraitSymbol {
+        let (name, doc, loc, protection) = self.loadStandard(tr);
+        let dmut result = copy TraitSymbol(name, doc, loc, protection);
 
-        if let Ok (arr : &Array) = tr ["methods"]? {
-            for a in arr[] if let d : &Dict = a {
-                let m = self.loadMethod (d);
-                if let Ok (Str (value-> cond)) = d ["condition"]? && cond != "" {
+        if let Ok(arr: &Array) = tr["methods"]? {
+            for a in arr[] if let d: &Dict = a {
+                let m = self.loadMethod(d);
+                if let Ok(Str(value-> cond)) = d["condition"]? && cond != "" {
                     result.condMethods ~= [(m, cond)];
                 } else {
                     result.methods ~= [m];
@@ -361,9 +361,9 @@ pub record SymbolLoader {
             }
         }
 
-        if let Ok (arr : &Array) = tr ["asserts"]? {
-            for a in arr[] if let d : &Dict = a {
-                result.asserts ~= [self.loadAssertion (d)];
+        if let Ok(arr: &Array) = tr["asserts"]? {
+            for a in arr[] if let d: &Dict = a {
+                result.asserts ~= [self.loadAssertion(d)];
             }
         }
 
@@ -381,25 +381,25 @@ pub record SymbolLoader {
     /**
      * Load the configuration of the documentation of an enumeration
      * */
-    fn loadEnum (self, en : &Dict)-> &EnumSymbol {
-        let (name, doc, loc, protect) = self.loadStandard (en);
-        let dmut result = copy EnumSymbol (name, doc, loc, protect);
+    fn loadEnum(self, en: &Dict)-> &EnumSymbol {
+        let (name, doc, loc, protect) = self.loadStandard(en);
+        let dmut result = copy EnumSymbol(name, doc, loc, protect);
 
-        if let Ok (et : &Dict) = en ["type"]? {
-            result.type = self.loadType (et);
+        if let Ok(et: &Dict) = en["type"]? {
+            result.type = self.loadType(et);
         }
 
-        if let Ok (arr : &Array) = en ["fields"]? {
-            for a in arr[] if let d : &Dict = a {
-                let fname = if let Ok (Str (value-> fname)) = d ["name"]? {
+        if let Ok(arr: &Array) = en["fields"]? {
+            for a in arr[] if let d: &Dict = a {
+                let fname = if let Ok(Str(value-> fname)) = d["name"]? {
                     fname
                 } else { "" };
 
-                let value = if let Ok (Str (value-> value)) = d ["value"]? {
+                let value = if let Ok(Str(value-> value)) = d["value"]? {
                     value
                 } else { "" };
 
-                let fdoc = if let Ok (Str (value-> fdoc)) = d ["doc"]? {
+                let fdoc = if let Ok(Str(value-> fdoc)) = d["doc"]? {
                     fdoc
                 } else { "" };
 
@@ -421,27 +421,27 @@ pub record SymbolLoader {
     /**
      * Load the configuration of the documentation of a global variable
      * */
-    fn loadGlobal (self, glb : &Dict)-> &Global {
-        let (name, doc, loc, protect) = self.loadStandard (glb);
-        let dmut result = copy Global (name, doc, loc, protect);
+    fn loadGlobal(self, glb: &Dict)-> &Global {
+        let (name, doc, loc, protect) = self.loadStandard(glb);
+        let dmut result = copy Global(name, doc, loc, protect);
 
-        if let Ok (Str (value-> "true")) = glb ["thread_local"]? {
+        if let Ok(Str(value-> "true")) = glb["thread_local"]? {
             result.isThreadLocal = true;
         }
 
-        if let Ok (Str (value-> "true")) = glb ["static"]? {
+        if let Ok(Str(value-> "true")) = glb["static"]? {
             result.isStatic = true;
         }
 
-        if let Ok (Str (value-> "mut" | "dmut")) = glb ["mutability"]? {
+        if let Ok(Str(value-> "mut" | "dmut")) = glb["mutability"]? {
             result.isMutable = true;
         }
 
-        if let Ok (ty : &Dict) = glb ["type"]? {
-            result.type = self.loadType (ty);
+        if let Ok(ty: &Dict) = glb["type"]? {
+            result.type = self.loadType(ty);
         }
 
-        if let Ok (Str (value-> value)) = glb ["value"]? {
+        if let Ok(Str(value-> value)) = glb["value"]? {
             result.value = value;
         }
 
@@ -459,16 +459,16 @@ pub record SymbolLoader {
     /**
      * Load the configuration of the documentation of an aka symbol
      * */
-    fn loadAka (self, aka : &Dict)-> &Aka {
-        let (name, doc, loc, protect) = self.loadStandard (aka);
-        let dmut result = copy Aka (name, doc, loc, protect);
+    fn loadAka(self, aka: &Dict)-> &Aka {
+        let (name, doc, loc, protect) = self.loadStandard(aka);
+        let dmut result = copy Aka(name, doc, loc, protect);
 
-        if let Ok (Str (value-> value)) = aka ["value"]? {
+        if let Ok(Str(value-> value)) = aka["value"]? {
             result.isValue = true;
             result.value = value;
-        } else if let Ok (ty : &Dict) = aka ["type"]? {
+        } else if let Ok(ty: &Dict) = aka["type"]? {
             result.isValue = false;
-            result.type = self.loadType (ty);
+            result.type = self.loadType(ty);
         }
 
         result
@@ -485,19 +485,19 @@ pub record SymbolLoader {
     /**
      * Load a macro
      * */
-    fn loadMacro (self, m : &Dict)-> &Macro {
-        let (name, doc, loc, protect) = self.loadStandard (m);
-        let dmut result = copy Macro (name, doc, loc, protect);
+    fn loadMacro(self, m: &Dict)-> &Macro {
+        let (name, doc, loc, protect) = self.loadStandard(m);
+        let dmut result = copy Macro(name, doc, loc, protect);
 
-        if let Ok (arr : &Array) = m ["ctors"]? {
-            for a in arr[] if let d : &Dict = a {
-                result.ctors ~= [self.loadMacroRule (d)];
+        if let Ok(arr: &Array) = m["ctors"]? {
+            for a in arr[] if let d: &Dict = a {
+                result.ctors ~= [self.loadMacroRule(d)];
             }
         }
 
-        if let Ok (arr : &Array) = m ["rules"]? {
-            for a in arr[] if let d : &Dict = a {
-                result.rules ~= [self.loadMacroRule (d)];
+        if let Ok(arr: &Array) = m["rules"]? {
+            for a in arr[] if let d: &Dict = a {
+                result.rules ~= [self.loadMacroRule(d)];
             }
         }
 
@@ -507,22 +507,22 @@ pub record SymbolLoader {
     /**
      * Load the configuration of a macro rule
      * */
-    fn loadMacroRule (self, m : &Dict)-> &MacroRule {
-        let (name, doc, loc, protect) = self.loadStandard (m);
-        let dmut result = copy MacroRule (name, doc, loc, protect);
+    fn loadMacroRule(self, m: &Dict)-> &MacroRule {
+        let (name, doc, loc, protect) = self.loadStandard(m);
+        let dmut result = copy MacroRule(name, doc, loc, protect);
 
-        if let Ok (Str (value-> "ctor")) = m ["kind"]? {
+        if let Ok(Str(value-> "ctor")) = m["kind"]? {
             result.isCtor = true;
         } else {
             result.isCtor = false;
         }
 
-        if let Ok (Str (value-> rule)) = m ["rule"]? {
+        if let Ok(Str(value-> rule)) = m["rule"]? {
             result.rule = rule;
         }
 
-        if let Ok (arr : &Array) = m ["skips"]? {
-            for a in arr[] if let Str (value-> v) = a {
+        if let Ok(arr: &Array) = m["skips"]? {
+            for a in arr[] if let Str(value-> v) = a {
                 result.skips ~= [v];
             }
         }
@@ -541,18 +541,18 @@ pub record SymbolLoader {
     /**
      * Load the configuration of the documentation of an template symbol
      * */
-    fn loadTemplate (self, tmpl : &Dict)-> &Template {
-        let (name, doc, loc, protection) = self.loadStandard (tmpl);
-        let dmut result = copy Template (name, doc, loc, protection);
-        result.params = self.loadTemplateParams (tmpl);
+    fn loadTemplate(self, tmpl: &Dict)-> &Template {
+        let (name, doc, loc, protection) = self.loadStandard(tmpl);
+        let dmut result = copy Template(name, doc, loc, protection);
+        result.params = self.loadTemplateParams(tmpl);
 
-        if let Ok (Str (value-> test)) = tmpl ["test"]? {
+        if let Ok(Str(value-> test)) = tmpl["test"]? {
             result.test = test;
         }
 
-        if let Ok (a : &Array) = tmpl ["content"]? {
+        if let Ok(a: &Array) = tmpl["content"]? {
             for x in a[] {
-                result.inners ~= [self.load (x)];
+                result.inners ~= [self.load(x)];
             }
         }
 
@@ -562,12 +562,12 @@ pub record SymbolLoader {
     /**
      * Load the template parameters of a template
      * */
-    fn loadTemplateParams (self, tmpl : &Dict)-> [&TemplateParam] {
-        let mut params : [&TemplateParam] = [];
-        if let Ok (a : &Array) = tmpl ["templates"]? {
-            for x in a [] match x {
-                d : &Dict => {
-                    params ~= [self.loadTemplateParam (d)];
+    fn loadTemplateParams(self, tmpl: &Dict)-> [&TemplateParam] {
+        let mut params: [&TemplateParam] = [];
+        if let Ok(a: &Array) = tmpl["templates"]? {
+            for x in a[] match x {
+                d: &Dict => {
+                    params ~= [self.loadTemplateParam(d)];
                 }
             }
         }
@@ -578,94 +578,91 @@ pub record SymbolLoader {
     /**
      * Load a template parameter
      * */
-    fn loadTemplateParam (self, param : &Dict)-> &TemplateParam {
-        if let Ok (x) = param ["kind"]? match x {
-            Str (value-> "and") => return self.loadTemplateAndParam (param);
-            Str (value-> "of" | "over" | "impl") =>
-                return self.loadTemplateOfVarParam (param);
-            Str (value-> "class" | "record" | "entity" | "tuple" | "alias") =>
-                return self.loadTemplateVarParam (param);
-            Str (value-> "variadic") =>
-                return self.loadTemplateVariadicParam (param);
+    fn loadTemplateParam(self, param: &Dict)-> &TemplateParam {
+        if let Ok(x) = param["kind"]? match x {
+            Str(value-> "and") => return self.loadTemplateAndParam(param);
+            Str(value-> "of" | "over" | "impl") => return self.loadTemplateOfVarParam(param);
+            Str(value-> "class" | "record" | "entity" | "tuple" | "alias") => return self.loadTemplateVarParam(param);
+            Str(value-> "variadic") => return self.loadTemplateVariadicParam(param);
         }
 
-        self.loadTemplateAnyParam (param)
+        self.loadTemplateAnyParam(param)
     }
 
     /**
      * Load a template and parameter
      * */
-    fn loadTemplateAndParam (self, param : &Dict)-> &TemplateAndParam {
-        let mut inners : [&TemplateParam] = [];
-        if let Ok (a : &Array) = param ["content"]? {
-            for x in a [] match x {
-                d : &Dict => {
-                    inners ~= [self.loadTemplateParam (d)];
+    fn loadTemplateAndParam(self, param: &Dict)-> &TemplateAndParam {
+        let mut inners: [&TemplateParam] = [];
+        if let Ok(a: &Array) = param["content"]? {
+            for x in a[] match x {
+                d: &Dict => {
+                    inners ~= [self.loadTemplateParam(d)];
                 }
             }
         }
 
-        copy TemplateAndParam (inners)
+        copy TemplateAndParam(inners)
     }
 
     /**
      * Load a template parameter
      * */
-    fn loadTemplateOfVarParam (self, param : &Dict)-> &TemplateOfVarParam {
-        let var = if let Ok (Str (value-> content)) = param ["name"]? {
+    fn loadTemplateOfVarParam(self, param: &Dict)-> &TemplateOfVarParam {
+        let var = if let Ok(Str(value-> content)) = param["name"]? {
             content
         } else { "" };
 
-        let kind = if let Ok (Str (value-> content)) = param ["kind"]? {
+        let kind = if let Ok(Str(value-> content)) = param["kind"]? {
             content
         } else { "" };
 
-        let content = if let Ok (Str (value-> content)) = param ["content"]? {
+        let content = if let Ok(Str(value-> content)) = param["content"]? {
             content
         } else { "" };
 
-        copy TemplateOfVarParam (var, kind, content)
+        copy TemplateOfVarParam(var, kind, content)
     }
 
     /**
      * Load a template parameter
      * */
-    fn loadTemplateVarParam (self, param : &Dict)-> &TemplateVarParam {
-        let var = if let Ok (Str (value-> content)) = param ["name"]? {
+    fn loadTemplateVarParam(self, param: &Dict)-> &TemplateVarParam {
+        let var = if let Ok(Str(value-> content)) = param["name"]? {
             content
         } else { "" };
 
-        let kind = if let Ok (Str (value-> content)) = param ["kind"]? {
+        let kind = if let Ok(Str(value-> content)) = param["kind"]? {
             content
         } else { "" };
 
-        copy TemplateVarParam (var, kind)
+        copy TemplateVarParam(var, kind)
     }
 
     /**
      * Load a template parameter
      * */
-    fn loadTemplateVariadicParam (self, param : &Dict)-> &TemplateVariadicParam {
-        let var = if let Ok (Str (value-> content)) = param ["name"]? {
+    fn loadTemplateVariadicParam(self, param: &Dict)-> &TemplateVariadicParam {
+        let var = if let Ok(Str(value-> content)) = param["name"]? {
             content
         } else { "" };
 
-        let isValue = if let Ok (Str (value-> "true")) = param ["value"]? {
+        let isValue = if let Ok(Str(value-> "true")) = param["value"]? {
             true
         } else { false };
 
-        copy TemplateVariadicParam (var, isValue)
+        copy TemplateVariadicParam(var, isValue)
     }
 
     /**
      * Load a template parameter
      * */
-    fn loadTemplateAnyParam (self, param : &Dict)-> &TemplateAnyParam {
-        let content = if let Ok (Str (value-> content)) = param ["content"]? {
+    fn loadTemplateAnyParam(self, param: &Dict)-> &TemplateAnyParam {
+        let content = if let Ok(Str(value-> content)) = param["content"]? {
             content
         } else { "" };
 
-        copy TemplateAnyParam (content)
+        copy TemplateAnyParam(content)
     }
 
     /*!
@@ -679,38 +676,38 @@ pub record SymbolLoader {
     /**
      * Load a type from documentation configuration
      * */
-    fn loadType (self, ty : &Dict)-> &Type {
-        let mutability = if let Ok (Str (value-> m)) = ty ["mutability"]? {
+    fn loadType(self, ty: &Dict)-> &Type {
+        let mutability = if let Ok(Str(value-> m)) = ty["mutability"]? {
             m
         } else { "" };
 
-        if let Ok (x) = ty ["kind"]? match x {
-            Str (value-> "fptr") => { return self.loadFuncPtrType (ty, mutability, isDelegate-> false); }
-            Str (value-> "delegate") => { return self.loadFuncPtrType (ty, mutability, isDelegate-> true); }
-            Str (value-> "array") => { return self.loadArrayType (ty, mutability); }
-            Str (value-> "class") => { return self.loadClassType (ty, mutability); }
-            Str (value-> "record") => { return self.loadClassType (ty, mutability, isRecord-> true); }
-            Str (value-> "entity") => { return self.loadClassType (ty, mutability, isEntity-> true); }
-            Str (value-> "enum") => { return self.loadEnumType (ty, mutability); }
-            Str (value-> "option") => { return self.loadOptionType (ty, mutability); }
-            Str (value-> "pointer") => { return self.loadPointerType (ty, mutability); }
-            Str (value-> "range") => { return self.loadRangeType (ty, mutability); }
-            Str (value-> "slice") => { return self.loadSliceType (ty, mutability); }
-            Str (value-> "tuple") => { return self.loadTupleType (ty, mutability); }
-            Str (value-> "map") => { return self.loadMapType (ty, mutability); }
-            Str (value-> "scalar") => {
-                let name = if let Ok (Str (value-> name)) = ty ["name"]? {
+        if let Ok(x) = ty["kind"]? match x {
+            Str(value-> "fptr") => { return self.loadFuncPtrType(ty, mutability, isDelegate-> false); }
+            Str(value-> "delegate") => { return self.loadFuncPtrType(ty, mutability, isDelegate-> true); }
+            Str(value-> "array") => { return self.loadArrayType(ty, mutability); }
+            Str(value-> "class") => { return self.loadClassType(ty, mutability); }
+            Str(value-> "record") => { return self.loadClassType(ty, mutability, isRecord-> true); }
+            Str(value-> "entity") => { return self.loadClassType(ty, mutability, isEntity-> true); }
+            Str(value-> "enum") => { return self.loadEnumType(ty, mutability); }
+            Str(value-> "option") => { return self.loadOptionType(ty, mutability); }
+            Str(value-> "pointer") => { return self.loadPointerType(ty, mutability); }
+            Str(value-> "range") => { return self.loadRangeType(ty, mutability); }
+            Str(value-> "slice") => { return self.loadSliceType(ty, mutability); }
+            Str(value-> "tuple") => { return self.loadTupleType(ty, mutability); }
+            Str(value-> "map") => { return self.loadMapType(ty, mutability); }
+            Str(value-> "scalar") => {
+                let name = if let Ok(Str(value-> name)) = ty["name"]? {
                     name
                 } else { "" };
 
-                return copy ScalarType (name, mutability);
+                return copy ScalarType(name, mutability);
             }
             _ => {
-                let name = if let Ok (Str (value-> name)) = ty ["name"]? {
+                let name = if let Ok(Str(value-> name)) = ty["name"]? {
                     name
                 } else { "" };
 
-                return copy AnyType (name, mutability);
+                return copy AnyType(name, mutability);
             }
         }
 
@@ -720,24 +717,24 @@ pub record SymbolLoader {
     /**
      * Load a function pointer from a config
      * */
-    fn loadFuncPtrType (self, d : &Dict, mutability : [c8], isDelegate : bool)-> &Type {
-        let mut params : [mut &Type] = [];
-        let mut refs : [mut bool] = [];
-        let mut lazys : [mut bool] = [];
-        if let Ok (a : &Array) = d ["params"]? {
-            for i in a[] if let inner : &Dict = i {
-                params ~= [self.loadType (inner)];
+    fn loadFuncPtrType(self, d: &Dict, mutability: [c8], isDelegate: bool)-> &Type {
+        let mut params: [mut &Type] = [];
+        let mut refs: [mut bool] = [];
+        let mut lazys: [mut bool] = [];
+        if let Ok(a: &Array) = d["params"]? {
+            for i in a[] if let inner: &Dict = i {
+                params ~= [self.loadType(inner)];
             }
         }
 
-        if let Ok (a : &Array) = d ["refs"]? {
-            for i in a[] if let Str (value-> b) = i {
+        if let Ok(a: &Array) = d["refs"]? {
+            for i in a[] if let Str(value-> b) = i {
                 refs ~= [b == "true"];
             }
         }
 
-        if let Ok (a : &Array) = d ["lazys"]? {
-            for i in a[] if let Str (value-> b) = i {
+        if let Ok(a: &Array) = d["lazys"]? {
+            for i in a[] if let Str(value-> b) = i {
                 lazys ~= [b == "true"];
             }
         }
@@ -748,130 +745,130 @@ pub record SymbolLoader {
             lazys = [];
         }
 
-        let retType = if let Ok (ret : &Dict) = d ["return"]? {
-            self.loadType (ret)
+        let retType = if let Ok(ret: &Dict) = d["return"]? {
+            self.loadType(ret)
         } else { EMPTY_ANY };
 
-        copy FuncPtrType (mutability, isDelegate, params, refs, lazys, retType)
+        copy FuncPtrType(mutability, isDelegate, params, refs, lazys, retType)
     }
 
     /**
      * Load the configuration of an array type
      * */
-    fn loadArrayType (self, d : &Dict, mutability : [c8])-> &Type {
-        let len = if let Ok (Int (value-> len)) = d ["len"]? {
-            cast!usize (len)
+    fn loadArrayType(self, d: &Dict, mutability: [c8])-> &Type {
+        let len = if let Ok(Int(value-> len)) = d["len"]? {
+            cast!usize(len)
         } else { 0 };
 
-        let inner = if let Ok (inner : &Dict) = d ["inner"]? {
-            self.loadType (inner)
+        let inner = if let Ok(inner: &Dict) = d["inner"]? {
+            self.loadType(inner)
         } else { EMPTY_ANY };
 
-        copy ArrayType (mutability, inner, len)
+        copy ArrayType(mutability, inner, len)
     }
 
     /**
      * Load the configuration of a slice type
      * */
-    fn loadSliceType (self, d : &Dict, mutability : [c8])-> &Type {
-        let inner = if let Ok (inner : &Dict) = d ["inner"]? {
-            self.loadType (inner)
+    fn loadSliceType(self, d: &Dict, mutability: [c8])-> &Type {
+        let inner = if let Ok(inner: &Dict) = d["inner"]? {
+            self.loadType(inner)
         } else { EMPTY_ANY };
 
-        copy SliceType (mutability, inner)
+        copy SliceType(mutability, inner)
     }
 
     /**
      * Load the configuration of an option type
      * */
-    fn loadOptionType (self, d : &Dict, mutability : [c8])-> &Type {
-        let inner = if let Ok (inner : &Dict) = d ["inner"]? {
-            self.loadType (inner)
+    fn loadOptionType(self, d: &Dict, mutability: [c8])-> &Type {
+        let inner = if let Ok(inner: &Dict) = d["inner"]? {
+            self.loadType(inner)
         } else { EMPTY_ANY };
 
-        copy OptionType (mutability, inner)
+        copy OptionType(mutability, inner)
     }
 
     /**
      * Load the configuration of a pointer type
      * */
-    fn loadPointerType (self, d : &Dict, mutability : [c8])-> &Type {
-        let inner = if let Ok (inner : &Dict) = d ["inner"]? {
-            self.loadType (inner)
+    fn loadPointerType(self, d: &Dict, mutability: [c8])-> &Type {
+        let inner = if let Ok(inner: &Dict) = d["inner"]? {
+            self.loadType(inner)
         } else { EMPTY_ANY };
 
-        copy PointerType (mutability, inner)
+        copy PointerType(mutability, inner)
     }
 
     /**
      * Load the configuration of a range type
      * */
-    fn loadRangeType (self, d : &Dict, mutability : [c8])-> &Type {
-        let inner = if let Ok (inner : &Dict) = d ["inner"]? {
-            self.loadType (inner)
+    fn loadRangeType(self, d: &Dict, mutability: [c8])-> &Type {
+        let inner = if let Ok(inner: &Dict) = d["inner"]? {
+            self.loadType(inner)
         } else { EMPTY_ANY };
 
-        copy RangeType (mutability, inner)
+        copy RangeType(mutability, inner)
     }
 
     /**
      * Load the configuration of a tuple type
      * */
-    fn loadTupleType (self, d : &Dict, mutability : [c8])-> &Type {
-        let mut inners : [mut &Type] = [];
-        if let Ok (inner : &Array) = d ["inners"]? {
-            for a in inner[] if let i : &Dict = a {
-                inners ~= [self.loadType (i)];
+    fn loadTupleType(self, d: &Dict, mutability: [c8])-> &Type {
+        let mut inners: [mut &Type] = [];
+        if let Ok(inner: &Array) = d["inners"]? {
+            for a in inner[] if let i: &Dict = a {
+                inners ~= [self.loadType(i)];
             } else { inners ~= [EMPTY_ANY]; }
         }
 
-        copy TupleType (mutability, inners)
+        copy TupleType(mutability, inners)
     }
 
     /**
      * Load the configuration of a class/struct/record type
      * */
-    fn loadClassType (self, d : &Dict, mutability : [c8], isEntity : bool = false, isRecord : bool = false)-> &Type {
-        let name = if let Ok (Str (value-> name)) = d ["name"]? {
+    fn loadClassType(self, d: &Dict, mutability: [c8], isEntity: bool = false, isRecord: bool = false)-> &Type {
+        let name = if let Ok(Str(value-> name)) = d["name"]? {
             name
         } else { "" };
 
-        let innerMut = if let Ok (Str (value-> m)) =  d ["mutability"]? {
+        let innerMut = if let Ok(Str(value-> m)) =  d["mutability"]? {
             if (m == "dmut") { true }
             else { false }
         } else { false };
 
-        copy ClassType (name, mutability, innerMut, isEntity-> isEntity, isRecord-> isRecord)
+        copy ClassType(name, mutability, innerMut, isEntity-> isEntity, isRecord-> isRecord)
     }
 
     /**
      * Load the configuration of an enumeration type
      * */
-    fn loadEnumType (self, d : &Dict, mutability : [c8])-> &Type {
-        let name = if let Ok (Str (value-> name)) = d ["name"]? {
+    fn loadEnumType(self, d: &Dict, mutability: [c8])-> &Type {
+        let name = if let Ok(Str(value-> name)) = d["name"]? {
             name
         } else { "" };
 
-        let inner = if let Ok (inner : &Dict) = d ["proxy"]? {
-            self.loadType (inner)
+        let inner = if let Ok(inner: &Dict) = d["proxy"]? {
+            self.loadType(inner)
         } else { EMPTY_ANY };
 
-        copy EnumType (name, mutability, inner)
+        copy EnumType(name, mutability, inner)
     }
 
     /**
      * Load the configuration of a map type
      * */
-    fn loadMapType (self, d : &Dict, mutability : [c8])-> &Type {
-        let key = if let Ok (inner : &Dict) = d ["key"]? {
-            self.loadType (inner)
+    fn loadMapType(self, d: &Dict, mutability: [c8])-> &Type {
+        let key = if let Ok(inner: &Dict) = d["key"]? {
+            self.loadType(inner)
         } else { EMPTY_ANY };
 
-        let value = if let Ok (inner : &Dict) = d ["value"]? {
-            self.loadType (inner)
+        let value = if let Ok(inner: &Dict) = d["value"]? {
+            self.loadType(inner)
         } else { EMPTY_ANY };
 
-        copy MapType (mutability, key, value)
+        copy MapType(mutability, key, value)
     }
 
     /*!
@@ -885,35 +882,35 @@ pub record SymbolLoader {
     /**
      * Load the standard information of a symbol
      * */
-    fn loadStandard (self, cfg : &Config, defaultProtection : Protection = Protection::PRV)-> ([c8], [c8], Location, Protection) {
-        if let doc : &Dict = cfg {
-            let name = if let Ok (Str (value-> name)) = doc ["name"]? {
+    fn loadStandard(self, cfg: &Config, defaultProtection: Protection = Protection::PRV)-> ([c8], [c8], Location, Protection) {
+        if let doc: &Dict = cfg {
+            let name = if let Ok(Str(value-> name)) = doc["name"]? {
                 name
             } else { "" };
 
-            let filename = if let Ok (Str (value-> file)) = doc ["loc_file"]? {
+            let filename = if let Ok(Str(value-> file)) = doc["loc_file"]? {
                 file
             } else { "" };
 
-            let line = if let Ok (Int (value-> i)) = doc ["loc_line"]?  {
-                cast!u64 (i)
+            let line = if let Ok(Int(value-> i)) = doc["loc_line"]?  {
+                cast!u64(i)
             } else { 0 };
 
-            let col = if let Ok (Int (value-> i)) = doc ["loc_col"]?  {
-                cast!u64 (i)
+            let col = if let Ok(Int(value-> i)) = doc["loc_col"]?  {
+                cast!u64(i)
             } else { 0 };
 
-            let comm = if let Ok (Str (value-> c)) = doc ["doc"]? {
+            let comm = if let Ok(Str(value-> c)) = doc["doc"]? {
                 c
             } else { "" };
 
-            let protect = if let Ok (Str (value-> prt)) = doc ["protect"]? {
+            let protect = if let Ok(Str(value-> prt)) = doc["protect"]? {
                 if (prt == "pub") { Protection::PUB }
                 else if (prt == "prot") { Protection::PROT }
                 else { Protection::PRV }
             } else { defaultProtection };
 
-            return (name, comm, Location (filename, line, col), protect);
+            return (name, comm, Location(filename, line, col), protect);
         }
 
         ("", "", INTERNAL_LOCATION, defaultProtection)

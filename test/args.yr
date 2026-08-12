@@ -1,0 +1,30 @@
+use gyllir::args;
+use gyllir::config::version;
+
+__test {
+    // The version constant is kept in sync with gyllir.toml by tools/set-version.sh, so it must
+    // always be a numbered version and never be left at its "0.0.0" placeholder
+    let v = Version(__GYLLIR_VERSION__);
+    assert(v.isNumbered(), "__GYLLIR_VERSION__ is not a numbered version: " ~ __GYLLIR_VERSION__);
+    assert(v[] == __GYLLIR_VERSION__, "__GYLLIR_VERSION__ is not a canonical version: " ~ __GYLLIR_VERSION__);
+    assert(v != Version(0u32, 0u32, 0u32), "__GYLLIR_VERSION__ was left at its placeholder value");
+}
+
+__test {
+    // Without a compiler version, the banner is a single line naming the tool and its version
+    let banner = versionString();
+    assert(banner == "gyllir " ~ __GYLLIR_VERSION__, "unexpected version banner: " ~ banner);
+}
+
+__test {
+    // The compiler version, when known, is appended on a second line
+    let banner = versionString(compiler-> "Ymir version 1.2.2 20260811");
+    assert(banner == "gyllir " ~ __GYLLIR_VERSION__ ~ "\nYmir version 1.2.2 20260811",
+           "unexpected version banner: " ~ banner);
+}
+
+__test {
+    // A compiler that cannot be run reports no version rather than failing
+    assert(compilerVersion(compiler-> "gyllir-no-such-compiler") == "",
+           "an unknown compiler should report an empty version");
+}

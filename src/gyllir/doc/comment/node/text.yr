@@ -4,17 +4,17 @@ use std::stream;
 
 @final
 pub class CommentText over CommentNode {
-    let _content : [c8];
+    let _content: [c8];
 
-    pub self (content : [c8])
+    pub self (content: [c8])
         with  _content = content
     {}
 
-    pub over dumpHtml (self, dmut stream : &StringStream) {
-        stream:.write (self._content);
+    pub over dumpHtml(self, dmut stream: &StringStream) {
+        stream:.write(self._content);
     }
 
-    pub over dumpTextShort (self)-> [c8] {
+    pub over dumpTextShort(self)-> [c8] {
         self._content
     }
 

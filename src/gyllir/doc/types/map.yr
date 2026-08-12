@@ -5,18 +5,18 @@ use std::stream;
 @final
 pub class MapType over Type {
 
-    pub let key : &Type;
-    pub let value : &Type;
+    pub let key: &Type;
+    pub let value: &Type;
 
-    pub self (mutability : [c8], key : &Type, value : &Type)
+    pub self (mutability: [c8], key: &Type, value: &Type)
         with super (mutability-> mutability)
         , key = key
         , value = value
     {}
 
     impl Streamable {
-        pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Map (", self.key, " => ", self.value, ")");
+        pub over toStream(self, dmut stream: &StringStream) {
+            stream:.write("Map (", self.key, " => ", self.value, ")");
         }
     }
 }

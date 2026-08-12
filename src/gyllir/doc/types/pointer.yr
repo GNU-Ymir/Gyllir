@@ -6,16 +6,16 @@ use std::stream;
 pub class PointerType over Type {
 
     // The inner type of the pointer
-    pub let child : &Type;
+    pub let child: &Type;
 
-    pub self (mutability : [c8], inner : &Type)
+    pub self (mutability: [c8], inner: &Type)
         with super (mutability-> mutability)
         , child = inner
     {}
 
     impl Streamable {
-        pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Pointer (", self.child, ")");
+        pub over toStream(self, dmut stream: &StringStream) {
+            stream:.write("Pointer (", self.child, ")");
         }
     }
 }

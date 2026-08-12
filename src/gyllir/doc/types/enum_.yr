@@ -5,38 +5,38 @@ use std::{stream, fs::path};
 @final
 pub class EnumType over Type {
 
-    pub let mut fullName : [c8];
-    pub let mut name : [c8];
-    pub let mut module : Path;
+    pub let mut fullName: [c8];
+    pub let mut name: [c8];
+    pub let mut module: Path;
 
-    pub let proxy : &Type;
-    
+    pub let proxy: &Type;
+
     /**
-     * @params: 
+     * @params:
      *   - name: the name of the enum
      *   - isMut: bool is the enum is mutable
      */
-    pub self (name : [c8], mutability : [c8], proxy : &Type)
+    pub self (name: [c8], mutability: [c8], proxy: &Type)
         with super (mutability-> mutability)
         , fullName = name
-        , name = Path (name, sep-> "::"s8).file ()
-        , module = Path (name, sep-> "::"s8).parent ()
+        , name = Path(name, sep-> "::"s8).file()
+        , module = Path(name, sep-> "::"s8).parent()
         , proxy = proxy
     {
-        if let Ok (f) = std::algorithm::searching::find (self.fullName, '!') {
-            if let Ok (e) = std::algorithm::searching::rfind (self.fullName, '}') {
-                let templates = self.fullName [f .. e + 1];
-                let res_name = self.fullName [0 .. f];
-                self.module = Path (res_name, sep-> "::").parent ();
-                self.name = Path (res_name, sep-> "::").file () ~ templates;
+        if let Ok(f) = std::algorithm::searching::find(self.fullName, '!') {
+            if let Ok(e) = std::algorithm::searching::rfind(self.fullName, '}') {
+                let templates = self.fullName[f .. e + 1];
+                let res_name = self.fullName[0 .. f];
+                self.module = Path(res_name, sep-> "::").parent();
+                self.name = Path(res_name, sep-> "::").file() ~ templates;
                 self.fullName = res_name ~ templates;
             }
         }
     }
 
     impl Streamable {
-        pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Enum (", self.module.push (self.name).toStr (sep-> "::"), ")");
+        pub over toStream(self, dmut stream: &StringStream) {
+            stream:.write("Enum (", self.module.push(self.name).toStr(sep-> "::"), ")");
         }
     }
 }

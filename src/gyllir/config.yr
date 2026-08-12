@@ -18,43 +18,43 @@ use gyllir::config::_;
 pub record GyllirPackageConfiguration {
 
     // The name of the package
-    let mut _name : [c8] = "";
+    let mut _name: [c8] = "";
 
     // The license of the package
-    let mut _license : [c8] = "";
+    let mut _license: [c8] = "";
 
     // The short descripion
-    let mut _description : [c8] = "";
+    let mut _description: [c8] = "";
 
     // The compiler
-    let mut _compiler : [c8] = "gyc";
+    let mut _compiler: [c8] = "gyc";
 
     // The package root file
-    let mut _packageRoot : [c8] = "";
+    let mut _packageRoot: [c8] = "";
 
     // The test root file
-    let mut _testRoot : [c8] = "";
+    let mut _testRoot: [c8] = "";
 
     // The type of the target
-    let mut _type : BuildType = BuildType ();
+    let mut _type: BuildType = BuildType();
 
     // The registry in which the publishing has to be made
-    let mut _registry : Url = Url ();
+    let mut _registry: Url = Url();
 
     // The version of the package
-    let mut _version : Version = Version (0, 0, 0);
+    let mut _version: Version = Version(0, 0, 0);
 
     // The list of authors
-    let mut _authors : [[c8]] = [];
+    let mut _authors: [[c8]] = [];
 
-    // The list of libraries to link (from C language)
-    let mut _libraries : [[c8]] = [];
+    // The list of libraries to link(from C language)
+    let mut _libraries: [[c8]] = [];
 
     // The list of dependencies of the package
-    let mut _dependencies : &DependencyList = copy DependencyList ();
+    let mut _dependencies: &DependencyList = copy DependencyList();
 
     // The list of custom commands to run when building the project
-    let mut _commands : &CustomCommandList = copy CustomCommandList ();
+    let mut _commands: &CustomCommandList = copy CustomCommandList();
 
     /*!
      * ====================================================================================================
@@ -67,9 +67,9 @@ pub record GyllirPackageConfiguration {
     /**
      * Empty gyllir configuration
      * */
-    pub self empty () {}
+    pub self empty() {}
 
-    pub self (name : [c8], license : [c8], description : [c8], type : BuildType, registry : Url, version : Version, authors : [[c8]])
+    pub self (name: [c8], license: [c8], description: [c8], type: BuildType, registry: Url, version: Version, authors: [[c8]])
         with _name = name
         , _license = license
         , _description = description
@@ -82,14 +82,14 @@ pub record GyllirPackageConfiguration {
     /**
      * Construct a package configuration from a config
      * */
-    pub self (cfg : &Config)
+    pub self (cfg: &Config)
         throws std::conv::errors::CastFailure, AssertError
     {
-        if let d : &Dict = cfg {
-            self:.parsePackage (d);
+        if let d: &Dict = cfg {
+            self:.parsePackage(d);
         }
 
-        else throw copy AssertError ("Expecting a dictionnary");
+        else throw copy AssertError("Expecting a dictionnary");
     }
 
     /*!
@@ -102,67 +102,67 @@ pub record GyllirPackageConfiguration {
 
 
     @field
-    pub fn name (self)-> [c8] {
+    pub fn name(self)-> [c8] {
         self._name
     }
 
     @field
-    pub fn license (self)-> [c8] {
+    pub fn license(self)-> [c8] {
         self._license
     }
 
     @field
-    pub fn descripion (self)-> [c8] {
+    pub fn descripion(self)-> [c8] {
         self._description
     }
 
     @field
-    pub fn type (self)-> BuildType {
+    pub fn type(self)-> BuildType {
         self._type
     }
 
     @field
-    pub fn compiler (self)-> [c8] {
+    pub fn compiler(self)-> [c8] {
         self._compiler
     }
 
     @field
-    pub fn packageRoot (self)-> [c8] {
+    pub fn packageRoot(self)-> [c8] {
         self._packageRoot
     }
 
     @field
-    pub fn testRoot (self)-> [c8] {
+    pub fn testRoot(self)-> [c8] {
         self._testRoot
     }
 
     @field
-    pub fn registry (self)-> Url {
+    pub fn registry(self)-> Url {
         self._registry
     }
 
     @field
-    pub fn version (self)-> Version {
+    pub fn version(self)-> Version {
         self._version
     }
 
     @field
-    pub fn authors (self)-> [[c8]] {
+    pub fn authors(self)-> [[c8]] {
         self._authors
     }
 
     @field
-    pub fn libraries (self)-> [[c8]] {
+    pub fn libraries(self)-> [[c8]] {
         self._libraries
     }
 
     @field
-    pub fn dependencies (self)-> &DependencyList {
+    pub fn dependencies(self)-> &DependencyList {
         self._dependencies
     }
 
     @field
-    pub fn commands (self)-> &CustomCommandList {
+    pub fn commands(self)-> &CustomCommandList {
         self._commands
     }
 
@@ -177,7 +177,7 @@ pub record GyllirPackageConfiguration {
     /**
      * Set the version of the configuration
      * */
-    pub fn setVersion (mut self, v : Version) {
+    pub fn setVersion(mut self, v: Version) {
         self._version = v;
     }
 
@@ -191,20 +191,20 @@ pub record GyllirPackageConfiguration {
 
     impl Streamable;
     impl Serializable {
-        pub over serialize (self)-> &Config {
-            let dmut d = copy Dict ();
-            d:["name"] = copy Str (self._name);
-            d:["license"] = copy Str (self._license);
-            d:["description"] = copy Str (self._description);
-            d:["type"] = self._type.serialize ();
-            d:["registry"] = self._registry.serialize ();
-            d:["version"] = self._version.serialize ();
-            d:["dependencies"] = self._dependencies.serialize ();
-            d:["commands"] = self._commands.serialize ();
-            d:["compiler"] = copy Str (self._compiler);
+        pub over serialize(self)-> &Config {
+            let dmut d = copy Dict();
+            d:["name"] = copy Str(self._name);
+            d:["license"] = copy Str(self._license);
+            d:["description"] = copy Str(self._description);
+            d:["type"] = self._type.serialize();
+            d:["registry"] = self._registry.serialize();
+            d:["version"] = self._version.serialize();
+            d:["dependencies"] = self._dependencies.serialize();
+            d:["commands"] = self._commands.serialize();
+            d:["compiler"] = copy Str(self._compiler);
 
-            d:["authors"] = copy Array (copy [copy Str (i) for i in self._authors]);
-            d:["libraries"] = copy Array (copy [copy Str (i) for i in self._libraries]);
+            d:["authors"] = copy Array(copy [copy Str(i) for i in self._authors]);
+            d:["libraries"] = copy Array(copy [copy Str(i) for i in self._libraries]);
 
             d
         }
@@ -221,57 +221,57 @@ pub record GyllirPackageConfiguration {
     /**
      * Parse a configuration defining a package
      * */
-    prv fn parsePackage (mut self, d : &Dict)
+    prv fn parsePackage(mut self, d: &Dict)
         throws CastFailure
     {
-        self._name = std::config::conv::to!{[c8]} (d ["name"]);
-        self._license = std::config::conv::to!{[c8]} (d ["license"]);
-        self._description = std::config::conv::to!{[c8]} (d ["description"]);
-        self._type = std::config::conv::to!{BuildType} (d ["type"]);
-        self._version = std::config::conv::to!{Version} (d ["version"]);
-        self._registry = std::config::conv::to!{Url} (d ["registry"]);
+        self._name = std::config::conv::to!{[c8]} (d["name"]);
+        self._license = std::config::conv::to!{[c8]} (d["license"]);
+        self._description = std::config::conv::to!{[c8]} (d["description"]);
+        self._type = std::config::conv::to!{BuildType} (d["type"]);
+        self._version = std::config::conv::to!{Version} (d["version"]);
+        self._registry = std::config::conv::to!{Url} (d["registry"]);
 
-        if let Ok (Str (value-> c)) = d ["compiler"]? {
+        if let Ok(Str(value-> c)) = d["compiler"]? {
             self._compiler = c;
-        } else if let Ok (_) = d ["compiler"]? {
-            throw copy AssertError ("expecting a string for 'compiler'");
+        } else if let Ok(_) = d["compiler"]? {
+            throw copy AssertError("expecting a string for 'compiler'");
         }
 
-        if let Ok (Str (value-> v)) = d ["package-root"]? {
+        if let Ok(Str(value-> v)) = d["package-root"]? {
             self._packageRoot = v;
-        } else if let Ok (_) = d ["package-root"]? {
-            throw copy AssertError ("expecting a string for 'package-root'");
+        } else if let Ok(_) = d["package-root"]? {
+            throw copy AssertError("expecting a string for 'package-root'");
         }
 
-        if let Ok (Str (value-> v)) = d ["test-root"]? {
+        if let Ok(Str(value-> v)) = d["test-root"]? {
             self._testRoot = v;
-        } else if let Ok (_) = d ["test-root"]? {
-            throw copy AssertError ("expecting a string for 'test-root'");
+        } else if let Ok(_) = d["test-root"]? {
+            throw copy AssertError("expecting a string for 'test-root'");
         }
 
-        if let Ok (a : &Array) = d ["authors"]? {
+        if let Ok(a: &Array) = d["authors"]? {
             self._authors = copy [std::config::conv::to!{[c8]} (i) for i in a[]];
-        } else if let Ok (_) = d ["authors"]? {
-            throw copy AssertError ("expecting an array of string for 'authors'");
+        } else if let Ok(_) = d["authors"]? {
+            throw copy AssertError("expecting an array of string for 'authors'");
         }
 
-        if let Ok (a : &Array) = d ["libraries"]? {
+        if let Ok(a: &Array) = d["libraries"]? {
             self._libraries = copy [std::config::conv::to!{[c8]} (i) for i in a[]];
-        } else if let Ok (_) = d ["libraries"]? {
-            throw copy AssertError ("expecting an array of string for 'libraries'");
+        } else if let Ok(_) = d["libraries"]? {
+            throw copy AssertError("expecting an array of string for 'libraries'");
         }
 
-        if let Ok (x) = d ["dependencies"]? {
+        if let Ok(x) = d["dependencies"]? {
             self._dependencies = std::config::conv::to!{&DependencyList} (x);
         }
 
-        if let Ok (x) = d ["commands"]? {
+        if let Ok(x) = d["commands"]? {
             self._commands = std::config::conv::to!{&CustomCommandList} (x);
         }
     } catch {
         inE => {
-            throw copy CastFailure ((&Config)::__typeinfo__, GyllirPackageConfiguration::__typeinfo__, subError-> (inE)?);
+            throw copy CastFailure((&Config)::__typeinfo__, GyllirPackageConfiguration::__typeinfo__, subError-> (inE)?);
         }
     }
-    
+
 }

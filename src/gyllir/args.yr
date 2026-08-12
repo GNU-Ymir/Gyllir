@@ -1,6 +1,55 @@
 in args;
 
 use std::config::_;
+use std::{io, stream, concurrency::process};
+
+
+/**
+ * The version of the gyllir binary.
+ * @info: kept in sync with the 'version' field of gyllir.toml by 'tools/set-version.sh',
+ *   declared as a pre build command in the '[commands]' table of gyllir.toml.
+ * */
+pub def __GYLLIR_VERSION__ = "1.3.0";
+
+/**
+ * Format the version banner of gyllir
+ * @params:
+ *    - compiler: the version of the compiler that gyllir drives ("" if unknown)
+ * @returns: the text printed by 'gyllir --version'
+ * */
+pub fn versionString(compiler: [c8] = "")-> [c8] {
+    let dmut stream = copy StringStream();
+    stream:.write("gyllir "s8):.write(__GYLLIR_VERSION__);
+    if (compiler != "") {
+        stream:.write("\n"s8):.write(compiler);
+    }
+
+    stream[]
+}
+
+/**
+ * Ask the compiler for its own version
+ * @params:
+ *    - compiler: the name of the compiler binary
+ * @returns: the first line printed by '<compiler> --version', or "" if it cannot be run
+ * */
+pub fn compilerVersion(compiler: [c8] = "gyc")-> [c8] {
+    let dmut proc = copy SubProcess(compiler, copy ["--version"s8]);
+    proc:.start();
+
+    if (proc:.wait() != 0) return "";
+
+    let dmut pipe = alias proc.stdout;
+    let dmut res: [c8] = [];
+    while let Ok(c) = pipe:.read!c8()? {
+        if (c == '\n') break;
+        res ~= [c];
+    }
+
+    res
+} catch {
+    _ => ""
+}
 
 
 /**
@@ -9,7 +58,7 @@ use std::config::_;
 pub class GyllirArgumentParser {
 
     // The main argument parser leading to sub commands
-    let dmut _mainParser : &ArgumentParser;
+    let dmut _mainParser: &ArgumentParser;
 
     /*!
      * ====================================================================================================
@@ -20,16 +69,18 @@ pub class GyllirArgumentParser {
      */
 
     pub self ()
-        with _mainParser = copy ArgumentParser ()
+        with _mainParser = copy ArgumentParser()
     {
-        self._mainParser:.help ("help", short-> "h", comments-> "print this help and exit");
-        self._mainParser:.sub ("init", cmd-> &self.parseInit, comments-> "initialize a gyllir repository and create the config file.", hyphenated-> false);
-        self._mainParser:.sub ("build", &self.parseBuild, comments-> "build the project in the current directory", hyphenated-> false);
-        self._mainParser:.sub ("run", &self.parseRun, comments-> "build the project and run the produced executable", hyphenated-> false);
-        self._mainParser:.sub ("publish", &self.parsePublish, comments-> "publish a version to the package registry", hyphenated-> false);
-        self._mainParser:.sub ("clean", &self.parseClean, comments-> "clean the project (remove generated files)", hyphenated-> false);
-        self._mainParser:.sub ("doc", &self.parseDoc, comments-> "build the documentation", hyphenated-> false);
-        self._mainParser:.sub ("test", &self.parseTest, comments-> "build and run the unit tests", hyphenated-> false);
+        self._mainParser:.help("help", short-> "h", comments-> "print this help and exit");
+        self._mainParser:.flag("version", short-> "V", comments-> "print version information and exit");
+
+        self._mainParser:.sub("init", cmd-> &self.parseInit, comments-> "initialize a gyllir repository and create the config file.", hyphenated-> false);
+        self._mainParser:.sub("build", &self.parseBuild, comments-> "build the project in the current directory", hyphenated-> false);
+        self._mainParser:.sub("run", &self.parseRun, comments-> "build the project and run the produced executable", hyphenated-> false);
+        self._mainParser:.sub("publish", &self.parsePublish, comments-> "publish a version to the package registry", hyphenated-> false);
+        self._mainParser:.sub("clean", &self.parseClean, comments-> "clean the project (remove generated files)", hyphenated-> false);
+        self._mainParser:.sub("doc", &self.parseDoc, comments-> "build the documentation", hyphenated-> false);
+        self._mainParser:.sub("test", &self.parseTest, comments-> "build and run the unit tests", hyphenated-> false);
     }
 
     /**
@@ -37,9 +88,15 @@ pub class GyllirArgumentParser {
      * @returns: the configuration
      * @warning: exits if the configuration was malformed
      * */
-    pub fn parse (self, args : [[c8]])-> &Config {
+    pub fn parse(self, args: [[c8]])-> &Config {
         {
-            let ret = self._mainParser.parse (args);
+            let ret = self._mainParser.parse(args);
+            if let Ok(Bool(value-> _ = true)) = ret["version"]? {
+                std::io::println(versionString(compiler-> compilerVersion()));
+                etc::c::process::_yrt_exit(0);
+                panic;
+            }
+
             let mut found = false;
             for i in ["init", "build", "run", "publish", "clean", "doc", "test"] {
                 if (i in ret) {
@@ -49,15 +106,15 @@ pub class GyllirArgumentParser {
             }
 
             if !found {
-                std::io::eprintln (self._mainParser.getUsage (usage-> "gyllir"));
-                etc::c::process::_yrt_exit (-1);
+                std::io::eprintln(self._mainParser.getUsage(usage-> "gyllir"));
+                etc::c::process::_yrt_exit(-1);
             }
 
             ret
         } catch {
             e => {
-                std::io::eprintln (self._mainParser.explain (e, usage-> "gyllir"));
-                etc::c::process::_yrt_exit (-1);
+                std::io::eprintln(self._mainParser.explain(e, usage-> "gyllir"));
+                etc::c::process::_yrt_exit(-1);
                 panic;
             }
         }
@@ -76,16 +133,16 @@ pub class GyllirArgumentParser {
      * @params:
      *    - args: the argument passed to the sub command
      * */
-    prv fn parseInit (self, args : [[c8]])-> (&Config)? {
+    prv fn parseInit(self, args: [[c8]])-> (&Config)? {
         let dmut parser = (copy ArgumentParser)
-            :.help ("help", short-> "h", comments-> "print this help and exit");
+            :.help("help", short-> "h", comments-> "print this help and exit");
 
         return ({
-            parser.parse (args)
+            parser.parse(args)
         } catch {
-            err : &std::config::args::errors::HelpRequestError => {
-                std::io::eprintln (parser.explain (err, usage-> "gyllir init"));
-                etc::c::process::_yrt_exit (-1);
+            err: &std::config::args::errors::HelpRequestError => {
+                std::io::eprintln(parser.explain(err, usage-> "gyllir init"));
+                etc::c::process::_yrt_exit(-1);
                 panic;
             }
             e => throw e;
@@ -97,19 +154,19 @@ pub class GyllirArgumentParser {
      * @params:
      *    - args: the argument passed to the sub command
      * */
-    prv fn parseBuild (self, args : [[c8]])-> (&Config)? {
+    prv fn parseBuild(self, args: [[c8]])-> (&Config)? {
         let dmut parser = (copy ArgumentParser)
-            :.help ("help", short-> "h", comments-> "print this help and exit")
-            :.flag ("release", comments-> "build the release mode (debug by default)")
+            :.help("help", short-> "h", comments-> "print this help and exit")
+            :.flag("release", comments-> "build the release mode (debug by default)")
             :.option!{i32} ("j", comments-> "number of parallel threads to spawn")
-            :.flag ("verbose", short-> "v", comments-> "verbose mode");
+            :.flag("verbose", short-> "v", comments-> "verbose mode");
 
         return ({
-            parser.parse (args)
+            parser.parse(args)
         } catch {
-            err : &std::config::args::errors::HelpRequestError => {
-                std::io::eprintln (parser.explain (err, usage-> "gyllir build"));
-                etc::c::process::_yrt_exit (-1);
+            err: &std::config::args::errors::HelpRequestError => {
+                std::io::eprintln(parser.explain(err, usage-> "gyllir build"));
+                etc::c::process::_yrt_exit(-1);
                 panic;
             }
             e => throw e;
@@ -121,10 +178,10 @@ pub class GyllirArgumentParser {
      * @params:
      *    - args: the argument passed to the sub command
      * */
-    prv fn parseRun (self, args : [[c8]])-> (&Config)? {
-        let dmut result = copy Array ();
-        for i in args [1 .. $] { // first element is 'run'
-            result:.push (copy Str (i));
+    prv fn parseRun(self, args: [[c8]])-> (&Config)? {
+        let dmut result = copy Array();
+        for i in args[1 .. $] { // first element is 'run'
+            result:.push(copy Str(i));
         }
 
         (result)?
@@ -135,36 +192,36 @@ pub class GyllirArgumentParser {
      * @params:
      *    - args: the arguments passed to the sub command
      * */
-    prv fn parsePublish (self, args : [[c8]])-> (&Config)? {
+    prv fn parsePublish(self, args: [[c8]])-> (&Config)? {
         let dmut parser = (copy ArgumentParser)
-            :.help ("help", short-> "h", comments-> "print this help and exit")
-            :.flag ("major", comments-> "publish a major version")
-            :.flag ("minor", comments-> "publish a minor version")
-            :.flag ("patch", comments-> "publish a patch")
-            :.flag ("dry", comments-> "do not verify the package before publishing (neither building nor testing)")
-            :.flag ("yes", short-> "y", comments-> "do not ask for validation")
+            :.help("help", short-> "h", comments-> "print this help and exit")
+            :.flag("major", comments-> "publish a major version")
+            :.flag("minor", comments-> "publish a minor version")
+            :.flag("patch", comments-> "publish a patch")
+            :.flag("dry", comments-> "do not verify the package before publishing (neither building nor testing)")
+            :.flag("yes", short-> "y", comments-> "do not ask for validation")
             :.position!{[c8]} ("message", comments-> "the message of the version");
 
         return ({
-            let res = parser.parse (args);
+            let res = parser.parse(args);
             let mut nb = 0;
             for i in ["major", "minor", "patch"] {
-                if let Ok (Bool (value-> _ = true)) = res[i]? {
+                if let Ok(Bool(value-> _ = true)) = res[i]? {
                     nb += 1;
                 }
             }
 
             if nb > 1 {
-                std::io::eprintln (parser.getUsage (usage-> "gyllir publish"));
-                utils::log::error ("Error", "flags 'major', 'minor' and 'patch' are exclusive");
-                etc::c::process::_yrt_exit (-1);
+                std::io::eprintln(parser.getUsage(usage-> "gyllir publish"));
+                utils::log::error("Error", "flags 'major', 'minor' and 'patch' are exclusive");
+                etc::c::process::_yrt_exit(-1);
             }
 
             res
         } catch {
-            err : &std::config::args::errors::HelpRequestError => {
-                std::io::println (parser.explain (err, usage-> "gyllir publish"));
-                etc::c::process::_yrt_exit (-1);
+            err: &std::config::args::errors::HelpRequestError => {
+                std::io::println(parser.explain(err, usage-> "gyllir publish"));
+                etc::c::process::_yrt_exit(-1);
                 panic;
             }
             e => throw e;
@@ -176,18 +233,18 @@ pub class GyllirArgumentParser {
      * @params:
      *    - args: the arguments passed to the sub command
      * */
-    prv fn parseClean (self, args : [[c8]])-> (&Config)? {
+    prv fn parseClean(self, args: [[c8]])-> (&Config)? {
         let dmut parser = (copy ArgumentParser)
-            :.help ("help", short-> "h", comments-> "print this help and exit")
-            :.flag ("doc", comments-> "clean the documentation")
-            :.flag ("all", short-> "a", comments-> "clean all the generated files (including the documentation)");
+            :.help("help", short-> "h", comments-> "print this help and exit")
+            :.flag("doc", comments-> "clean the documentation")
+            :.flag("all", short-> "a", comments-> "clean all the generated files (including the documentation)");
 
         return ({
-            parser.parse (args)
+            parser.parse(args)
         } catch {
-            err : &std::config::args::errors::HelpRequestError => {
-                std::io::eprintln (parser.explain (err, usage-> "gyllir clean"));
-                etc::c::process::_yrt_exit (-1);
+            err: &std::config::args::errors::HelpRequestError => {
+                std::io::eprintln(parser.explain(err, usage-> "gyllir clean"));
+                etc::c::process::_yrt_exit(-1);
                 panic;
             }
             e => throw e;
@@ -199,19 +256,19 @@ pub class GyllirArgumentParser {
      * @params:
      *    - args: the arguments passed to the sub command
      * */
-    prv fn parseDoc (self, args : [[c8]])-> (&Config)? {
+    prv fn parseDoc(self, args: [[c8]])-> (&Config)? {
         let dmut parser = (copy ArgumentParser)
-            :.help ("help", short-> "h", comments-> "print this help and exit")
-            :.flag ("verbose", short-> "v", comments-> "verbose mode")
+            :.help("help", short-> "h", comments-> "print this help and exit")
+            :.flag("verbose", short-> "v", comments-> "verbose mode")
             :.option!{[c8]} ("input", short-> "i", comments-> "input json file already produced by a previous compilation")
             :.option!{[c8]} ("output", short-> "o", comments-> "output directory");
 
         return ({
-            parser.parse (args)
+            parser.parse(args)
         } catch {
-            err : &std::config::args::errors::HelpRequestError => {
-                std::io::eprintln (parser.explain (err, usage-> "gyllir doc"));
-                etc::c::process::_yrt_exit (-1);
+            err: &std::config::args::errors::HelpRequestError => {
+                std::io::eprintln(parser.explain(err, usage-> "gyllir doc"));
+                etc::c::process::_yrt_exit(-1);
                 panic;
             }
             e => throw e;
@@ -223,20 +280,20 @@ pub class GyllirArgumentParser {
      * @params:
      *     - args: the arguments passed to the sub command
      * */
-    prv fn parseTest (self, args : [[c8]])-> (&Config)? {
+    prv fn parseTest(self, args: [[c8]])-> (&Config)? {
         let dmut parser = (copy ArgumentParser)
-            :.help ("help", short-> "h", comments-> "print this help and exit")
-            :.flag ("verbose", short-> "v", comments-> "clean the documentation")
-            :.flag ("dry", comments-> "only compile the test executable, but does not run them")
-            :.flag ("release", comments-> "compile tests in release mode (debug by default)")
+            :.help("help", short-> "h", comments-> "print this help and exit")
+            :.flag("verbose", short-> "v", comments-> "clean the documentation")
+            :.flag("dry", comments-> "only compile the test executable, but does not run them")
+            :.flag("release", comments-> "compile tests in release mode (debug by default)")
             :.option!{i32} ("j", comments-> "number of parallel threads to spawn");
 
         return ({
-            parser.parse (args)
+            parser.parse(args)
         } catch {
-            err : &std::config::args::errors::HelpRequestError => {
-                std::io::eprintln (parser.explain (err, usage-> "gyllir test"));
-                etc::c::process::_yrt_exit (-1);
+            err: &std::config::args::errors::HelpRequestError => {
+                std::io::eprintln(parser.explain(err, usage-> "gyllir test"));
+                etc::c::process::_yrt_exit(-1);
                 panic;
             }
             e => throw e;

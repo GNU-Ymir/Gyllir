@@ -22,15 +22,15 @@ pub mod ::tuple;
 pub class Type {
 
     // True if the type is mutable
-    pub let isMut : bool;
-    pub let isDMut : bool;
+    pub let isMut: bool;
+    pub let isDMut: bool;
 
     /**
      * @params:
      *     - name: the name of the type
      *     - isMut: true if the type is mutable
      */
-    pub self (mutability : [c8] = "")
+    pub self (mutability: [c8] = "")
         with isMut = (mutability == "mut")
         , isDMut = (mutability == "dmut")
     {}
