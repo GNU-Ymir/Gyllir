@@ -1,6 +1,6 @@
 in tokens;
 
-pub enum CommentTokens 
+pub enum CommentTokens
 | HEAD_LEVEL_AT    = "@"
 | CODE_BLOCK_SEVEN = "```"
 | DCOLON           = ":"

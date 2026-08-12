@@ -18,6 +18,6 @@ pub class HtmlNode {
      * @params:
      *   - stream: the stream to populate
      */
-    pub fn dumpHtml (self, dmut stream : &StringStream);
+    pub fn dumpHtml(self, dmut stream: &StringStream);
 
 }

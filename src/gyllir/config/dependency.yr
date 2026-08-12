@@ -9,12 +9,12 @@ use gyllir::config::{url, version, version::filter};
 pub record Dependency {
 
     // The version of the dependency package
-    let _version : VersionFilter;
+    let _version: VersionFilter;
 
     // The url of the dependency
-    let _url : Url;
+    let _url: Url;
 
-    pub self (version : VersionFilter, url : Url)
+    pub self (version: VersionFilter, url: Url)
         with _version = version
         , _url = url
     {}
@@ -28,12 +28,12 @@ pub record Dependency {
      */
 
     @field
-    pub fn version (self)-> VersionFilter {
+    pub fn version(self)-> VersionFilter {
         self._version
     }
 
     @field
-    pub fn url (self)-> Url {
+    pub fn url(self)-> Url {
         self._url
     }
 
@@ -47,7 +47,7 @@ pub class DependencyList {
     /**
      * The list of dependencies
      */
-    let mut _package : [[c8] => mut Dependency] = copy [];
+    let mut _package: [[c8] => mut Dependency] = copy [];
 
     /**
      * Create an empty dependency list
@@ -57,28 +57,28 @@ pub class DependencyList {
     /**
      * Create a dependency list from a map of Dependency
      */
-    pub self (mut elem : [[c8] => mut Dependency])
+    pub self (mut elem: [[c8] => mut Dependency])
         with _package = alias elem
     {}
 
     /**
      * Create a dependency list from a configuration
      * This constructor can be used by the std for serialization
-     * @example: 
+     * @example:
      * =================
-     * def getConfiguration ()-> &Config;
+     * def getConfiguration()-> &Config;
      *
-     * let dmut list = getConfiguration ().to!{&DependencyList} ();
+     * let dmut list = getConfiguration().to!{&DependencyList} ();
      * =================
      */
-    pub self (cfg : &Config)
+    pub self (cfg: &Config)
         throws AssertError, std::conv::errors::CastFailure
     {
-        if let d : &Dict = cfg {
-            self:.insert (d);
+        if let d: &Dict = cfg {
+            self:.insert(d);
         }
 
-        else throw copy AssertError ("Expecting a dictionnary"s8);
+        else throw copy AssertError("Expecting a dictionnary"s8);
     }
 
     /*!
@@ -94,14 +94,14 @@ pub class DependencyList {
      * @params:
      *   - elem: the name of dependency to remove
      */
-    pub fn remove (mut self, elem : [c8]) {
-        self._package:.remove (elem);
+    pub fn remove(mut self, elem: [c8]) {
+        self._package:.remove(elem);
     }
 
     /**
      * @returns: the list of dependencies
      */
-    pub fn opIndex (self)-> [[c8] => Dependency] {
+    pub fn opIndex(self)-> [[c8] => Dependency] {
         self._package
     }
 
@@ -115,12 +115,12 @@ pub class DependencyList {
 
     impl Streamable;
     impl Serializable {
-        pub over serialize (self)-> &Config {
-            let dmut res = copy Dict ();
+        pub over serialize(self)-> &Config {
+            let dmut res = copy Dict();
             for k, d in self._package {
-                let dmut dep = copy Dict ();
+                let dmut dep = copy Dict();
                 dep:["version"] = d.version.serialize();
-                dep:["url"] = d.url.serialize ();
+                dep:["url"] = d.url.serialize();
 
                 res:[k] = dep;
             }
@@ -141,24 +141,24 @@ pub class DependencyList {
     /**
      * Insert the dependencies from a configuration dictionnary
      */
-    prv fn insert (mut self, cfg : &Dict)
+    prv fn insert(mut self, cfg: &Dict)
         throws std::conv::errors::CastFailure
     {
         {
             for k, v in cfg[] {
-                let version = VersionFilter (v ["version"]);
-                let url = Url (v ["url"]);
+                let version = VersionFilter(v["version"]);
+                let url = Url(v["url"]);
 
-                self._package [k] = Dependency (version-> version, url);
+                self._package[k] = Dependency(version-> version, url);
             }
         } catch {
             inE => {
-                throw copy std::conv::errors::CastFailure ((&Config)::__typeinfo__, Dependency::__typeinfo__, subError-> (inE)?);
+                throw copy std::conv::errors::CastFailure((&Config)::__typeinfo__, Dependency::__typeinfo__, subError-> (inE)?);
             }
         }
     }
 
 
-    
+
 
 }

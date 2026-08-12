@@ -20,17 +20,17 @@ pub enum UrlStarts
 /**
  * An url that is used to get refer to package repositories
  * Url seems to be a common object, maybe it has its place in the std, in the use std::net module
- */   
+ */
 pub record Url {
 
     // The path of the url
-    let mut _path : Path = Path ("");
+    let mut _path: Path = Path("");
 
     // The type of the url
-    let mut _type : UrlType = UrlType::LOCAL;
+    let mut _type: UrlType = UrlType::LOCAL;
 
     // True iif the url is valid
-    let mut _valid : bool = false;
+    let mut _valid: bool = false;
 
     /*!
      * ====================================================================================================
@@ -48,43 +48,43 @@ pub record Url {
     /**
      * Create an url from a string
      */
-    pub self (c : [c8]) {
-        self:.parseStr (c);
+    pub self (c: [c8]) {
+        self:.parseStr(c);
         self._valid = true;
     }
 
     /**
      * Create an url from a configuration
      * This constructor can be used by the std for deserialization
-     * @example: 
+     * @example:
      * ====================
-     * fn getConfiguration ()-> &Config;
+     * fn getConfiguration()-> &Config;
      *
-     * let dmut list = getConfiguration ().to!{&Url} (); 
+     * let dmut list = getConfiguration().to!{&Url} ();
      * ====================
      */
-    pub self (cfg : &Config)
+    pub self (cfg: &Config)
         throws AssertError
     {
-        if let Ok (Str (value-> url)) = cfg ["local"]? {
-            self._path = Path (url);
+        if let Ok(Str(value-> url)) = cfg["local"]? {
+            self._path = Path(url);
             self._type = UrlType::LOCAL;
             self._valid = true;
         }
 
-        else if let Ok (Str (value-> url)) = cfg ["git"]? {
-            self._path = Path (url);
+        else if let Ok(Str(value-> url)) = cfg["git"]? {
+            self._path = Path(url);
             self._type = UrlType::GIT;
             self._valid = true;
         }
 
 
-        else if let Str (value-> url)  = cfg {
-            self:.parseStr (url);
+        else if let Str(value-> url)  = cfg {
+            self:.parseStr(url);
             self._valid = true;
         }
 
-        else throw copy AssertError ("malformed url");
+        else throw copy AssertError("malformed url");
     }
 
     /*!
@@ -99,7 +99,7 @@ pub record Url {
      * @returns: the type of url
      */
     @field
-    pub fn type (self)-> UrlType {
+    pub fn type(self)-> UrlType {
         self._type
     }
 
@@ -107,14 +107,14 @@ pub record Url {
      * @returns: the path of the url
      */
     @field
-    pub fn path (self)-> Path {
+    pub fn path(self)-> Path {
         self._path
     }
 
     /**
      * @returns: true if the url parsing succeded
      */
-    pub fn isValid (self)-> bool {
+    pub fn isValid(self)-> bool {
         self._valid
     }
 
@@ -129,7 +129,7 @@ pub record Url {
     /**
      * @returns: true if self == o
      */
-    pub fn opEquals (self, ref o : Url)-> bool {
+    pub fn opEquals(self, ref o: Url)-> bool {
         if (self._path != o._path) return false;
         if (self._type != o._type) return false;
         if (self._valid != o._valid) return false;
@@ -150,19 +150,19 @@ pub record Url {
      * @params:
      *    - url: the url to parse
      */
-    prv fn parseStr (mut self, url : [c8]) {
-        if startsWith (url, UrlStarts::LOCAL) {
-            self._path = Path (url [UrlStarts::LOCAL.len .. $]);
+    prv fn parseStr(mut self, url: [c8]) {
+        if startsWith(url, UrlStarts::LOCAL) {
+            self._path = Path(url[UrlStarts::LOCAL.len .. $]);
             self._type = UrlType::LOCAL;
         }
 
-        else if (startsWith (url, UrlStarts::GIT)) {
-            self._path = Path (url [UrlStarts::GIT.len .. $]);
+        else if (startsWith(url, UrlStarts::GIT)) {
+            self._path = Path(url[UrlStarts::GIT.len .. $]);
             self._type = UrlType::GIT;
         }
 
         else {
-            self._path = Path (url);
+            self._path = Path(url);
             self._type = UrlType::GIT;
         }
     }
@@ -182,17 +182,17 @@ pub record Url {
         /**
          * Transform the url into a configuration
          */
-        pub over serialize (self)-> &Config {
-            let dmut d = copy Dict ();
-            match self._type {                
+        pub over serialize(self)-> &Config {
+            let dmut d = copy Dict();
+            match self._type {
                 UrlType::LOCAL => {
-                    d:["local"] = copy Str (self._path.toStr ());
+                    d:["local"] = copy Str(self._path.toStr());
                 }
-                _ => { d:["git"] = copy Str (self._path.toStr ()); }
+                _ => { d:["git"] = copy Str(self._path.toStr()); }
             }
 
             d
         }
     }
-        
+
 }

@@ -6,16 +6,16 @@ use gyllir::doc::{symbols::variable, types, types::any};
 @final
 pub class Method over Symbol {
 
-    pub let mut parameters : [&Variable] = [];
-    pub let mut throwers : [&Type] = [];
-    pub let mut retType : &Type = EMPTY_ANY;
+    pub let mut parameters: [&Variable] = [];
+    pub let mut throwers: [&Type] = [];
+    pub let mut retType: &Type = EMPTY_ANY;
 
-    pub let mut isMutable : bool =  false;
+    pub let mut isMutable: bool =  false;
 
-    pub let mut isFinal : bool = false;
-    pub let mut isEmpty : bool = false;
-    pub let mut isField : bool = false;
-    pub let mut isUnsafe : bool = false;
+    pub let mut isFinal: bool = false;
+    pub let mut isEmpty: bool = false;
+    pub let mut isField: bool = false;
+    pub let mut isUnsafe: bool = false;
 
     /**
      * @params:
@@ -23,50 +23,50 @@ pub class Method over Symbol {
      *    - loc: the location of the module declaration
      *    - childs: the symbols found in the module
      * */
-    pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
+    pub self (name: [c8], doc: [c8], loc: Location, protection: Protection)
         with super (name, doc, loc, protection)
     {}
 
     impl Streamable {
-        pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Method ", self.name, " => ", self.loc, "\n");
-            stream:.entabing ();
-            let mut attrs : [[c8]] = [];
+        pub over toStream(self, dmut stream: &StringStream) {
+            stream:.write("Method ", self.name, " => ", self.loc, "\n");
+            stream:.entabing();
+            let mut attrs: [[c8]] = [];
             if self.isField { attrs ~= ["field"]; }
             if self.isFinal { attrs ~= ["final"]; }
             if self.isUnsafe { attrs ~= ["unsafe"]; }
 
             if attrs.len == 1 {
-                stream:.write ("@", attrs [0], "\n");
+                stream:.write("@", attrs[0], "\n");
             } else if attrs.len > 1 {
-                stream:.write ("@{");
+                stream:.write("@{");
                 for i, j in attrs {
-                    if i != 0 { stream:.write (", "); }
-                    stream:.write (j);
+                    if i != 0 { stream:.write(", "); }
+                    stream:.write(j);
                 }
-                stream:.write ("}\n");
+                stream:.write("}\n");
             }
 
-            stream:.write ("fn (");
-            if (self.isMutable) { stream:.write ("mut self"); }
-            else { stream:.write ("self"); }
+            stream:.write("fn (");
+            if (self.isMutable) { stream:.write("mut self"); }
+            else { stream:.write("self"); }
 
             for j in self.parameters {
-                stream:.write (", ");
-                stream:.write (j);
+                stream:.write(", ");
+                stream:.write(j);
             }
-            stream:.write (")-> ", self.retType, "\n");
+            stream:.write(")-> ", self.retType, "\n");
             if (self.throwers.len != 0) {
-                stream:.entabing ();
-                stream:.write ("throws ");
+                stream:.entabing();
+                stream:.write("throws ");
                 for i, j in self.throwers {
-                    if (i != 0) stream:.write (", ");
-                    stream:.write (j);
+                    if (i != 0) stream:.write(", ");
+                    stream:.write(j);
                 }
-                stream:.detabing ();
-                stream:.write ("\n");
+                stream:.detabing();
+                stream:.write("\n");
             }
-            stream:.detabing ();
+            stream:.detabing();
         }
     }
 }

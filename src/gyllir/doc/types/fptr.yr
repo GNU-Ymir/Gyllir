@@ -9,26 +9,26 @@ use std::stream;
 pub class FuncPtrType over Type {
 
     // True iif this is a delegate
-    pub let isDelegate : bool;
+    pub let isDelegate: bool;
 
     // The return type of the dg pointer
-    pub let retType : &Type;
+    pub let retType: &Type;
 
     // The parameters of the function
-    pub let parameters : [&Type];
+    pub let parameters: [&Type];
 
-    // True for reference parameters (_refs.len == _parameters.len)
-    pub let refs : [bool];
+    // True for reference parameters(_refs.len == _parameters.len)
+    pub let refs: [bool];
 
-    // True for lazy parameters (_lazys.len == _parameters.len)
-    pub let lazys : [bool];
-    
+    // True for lazy parameters(_lazys.len == _parameters.len)
+    pub let lazys: [bool];
+
     /**
      * @parameters:
-     *    - name: the name of the type ("dg_pointer")
+     *    - name: the name of the type("dg_pointer")
      *    - isMut: true if the type is mutable
      */
-    pub self (mutability : [c8], isDelegate : bool, parameters : [&Type], refs : [bool], lazys : [bool], retType : &Type)
+    pub self (mutability: [c8], isDelegate: bool, parameters: [&Type], refs: [bool], lazys: [bool], retType: &Type)
         with super (mutability-> mutability)
         , isDelegate = isDelegate
         , retType = retType
@@ -38,21 +38,21 @@ pub class FuncPtrType over Type {
     {}
 
     impl Streamable {
-        pub over toStream (self, dmut stream : &StringStream) {
+        pub over toStream(self, dmut stream: &StringStream) {
             if self.isDelegate {
-                stream:.write ("Delegate (");
+                stream:.write("Delegate (");
             } else {
-                stream:.write ("Fptr (");
+                stream:.write("Fptr (");
             }
             for i, j in self.parameters {
-                if i != 0 stream:.write (", ");
-                if self.refs [i] stream:.write ("ref ");
-                if self.lazys [i] stream:.write ("lazy ");
-                stream:.write (j);
+                if i != 0 stream:.write(", ");
+                if self.refs[i] stream:.write("ref ");
+                if self.lazys[i] stream:.write("lazy ");
+                stream:.write(j);
             }
 
-            stream:.write (")-> ", self.retType);
+            stream:.write(")-> ", self.retType);
         }
     }
-    
+
 }

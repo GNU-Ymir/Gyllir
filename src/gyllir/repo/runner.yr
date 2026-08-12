@@ -7,22 +7,22 @@ use gyllir::{repo::_, utils::_, config::_};
 pub record RepoRunner {
 
     // The current working directory
-    let _cwd : Path;
+    let _cwd: Path;
 
     // The command line options
-    let _args : &Config;
+    let _args: &Config;
 
     // The package configuration
-    let _cfg : GyllirPackageConfiguration;
+    let _cfg: GyllirPackageConfiguration;
 
     // True iif the runner is configured to run unittests
-    let _forUnitTest : bool;
+    let _forUnitTest: bool;
 
     /**
      * @params:
      *    - cfg: the configuration of the repo
      * */
-    pub self (path : Path, args : &Config, cfg : GyllirPackageConfiguration, forUnitTest : bool)
+    pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration, forUnitTest: bool)
         with _cwd = path
         , _args = args
         , _cfg = cfg
@@ -32,36 +32,36 @@ pub record RepoRunner {
     /**
      * Run the build executable
      * */
-    pub fn run (self)
+    pub fn run(self)
         throws AssertError, FsError
     {
         if (self._forUnitTest) {
-            utils::log::info ("Executing", "tests ", self._cfg.name, " v", self._cfg.version[]);
-            std::io::println ("\n");
-            let dmut subProc = copy SubProcess ("./" ~ self._cfg.name ~ ".test", [], cwd-> self._cwd);
-            subProc:.start (redirect-> false);
-            let code = subProc:.wait ();
+            utils::log::info("Executing", "tests ", self._cfg.name, " v", self._cfg.version[]);
+            std::io::println("\n");
+            let dmut subProc = copy SubProcess("./" ~ self._cfg.name ~ ".test", [], cwd-> self._cwd);
+            subProc:.start(redirect-> false);
+            let code = subProc:.wait();
 
-            etc::c::process::_yrt_exit (code);
+            etc::c::process::_yrt_exit(code);
         } else {
-            if !self._cfg.type.isExecutable () {
-                throw copy AssertError ("Run command only usable with executables");
+            if !self._cfg.type.isExecutable() {
+                throw copy AssertError("Run command only usable with executables");
             }
 
-            let mut options : [[c8]] = [];
-            if let a : &Array = self._args {
-                for i in a[] if let Str (value-> v) = i {
+            let mut options: [[c8]] = [];
+            if let a: &Array = self._args {
+                for i in a[] if let Str(value-> v) = i {
                     options ~= [v];
                 }
             }
 
-            utils::log::info ("Executing", "project ", self._cfg.name, " v", self._cfg.version[]);
-            std::io::println ("\n");
-            let dmut subProc = copy SubProcess ("./" ~ self._cfg.name, options, cwd-> self._cwd);
-            subProc:.start (redirect-> false);
-            let code = subProc:.wait ();
+            utils::log::info("Executing", "project ", self._cfg.name, " v", self._cfg.version[]);
+            std::io::println("\n");
+            let dmut subProc = copy SubProcess("./" ~ self._cfg.name, options, cwd-> self._cwd);
+            subProc:.start(redirect-> false);
+            let code = subProc:.wait();
 
-            etc::c::process::_yrt_exit (code);
+            etc::c::process::_yrt_exit(code);
         }
     }
 

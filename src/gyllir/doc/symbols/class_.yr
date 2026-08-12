@@ -8,79 +8,79 @@ use gyllir::doc::{symbols::{variable, method, ctor, assertion},
 @final
 pub class ClassSymbol over Symbol {
 
-    pub let mut hasDtor    : bool = false;
-    pub let mut isAbstract : bool = false;
-    pub let mut isFinal    : bool = false;
-    pub let mut isEntity   : bool = false;
-    pub let mut isRecord   : bool = false;
+    pub let mut hasDtor: bool = false;
+    pub let mut isAbstract: bool = false;
+    pub let mut isFinal: bool = false;
+    pub let mut isEntity: bool = false;
+    pub let mut isRecord: bool = false;
 
-    pub let mut ancestor : &Type = EMPTY_ANY;
-    pub let mut condFields : [(&Variable, [c8])] = [];
-    pub let mut fields : [&Variable] = [];
+    pub let mut ancestor: &Type = EMPTY_ANY;
+    pub let mut condFields: [(&Variable, [c8])] = [];
+    pub let mut fields: [&Variable] = [];
 
-    pub let mut asserts : [Assertion] = [];
-    pub let mut implements : [(&Type, [c8])] = [];
-    pub let mut methods : [&Method] = [];
-    pub let mut ctors : [&Ctor] = [];
-    pub let mut condMethods : [(&Method, [c8])] = [];
-    pub let mut condCtors : [(&Ctor, [c8])] = [];
+    pub let mut asserts: [Assertion] = [];
+    pub let mut implements: [(&Type, [c8])] = [];
+    pub let mut methods: [&Method] = [];
+    pub let mut ctors: [&Ctor] = [];
+    pub let mut condMethods: [(&Method, [c8])] = [];
+    pub let mut condCtors: [(&Ctor, [c8])] = [];
 
-    pub let mut templateMethods : [&template_::Template] = [];
-    pub let mut templateCtors : [&template_::Template] = [];
+    pub let mut templateMethods: [&template_::Template] = [];
+    pub let mut templateCtors: [&template_::Template] = [];
 
-    pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
+    pub self (name: [c8], doc: [c8], loc: Location, protection: Protection)
         with super (name, doc, loc, protection)
     {}
 
     impl Streamable {
-        pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Type ", self.name, " => ", self.loc, "\n");
-            stream:.entabing ();
-            if self.isRecord { stream:.write ("record {\n"); }
-            else if self.isEntity { stream:.write ("entity {\n"); }
-            else { stream:.write ("class {\n"); }
-            stream:.entabing ();
+        pub over toStream(self, dmut stream: &StringStream) {
+            stream:.write("Type ", self.name, " => ", self.loc, "\n");
+            stream:.entabing();
+            if self.isRecord { stream:.write("record {\n"); }
+            else if self.isEntity { stream:.write("entity {\n"); }
+            else { stream:.write("class {\n"); }
+            stream:.entabing();
             for i in self.implements {
-                stream:.write ("impl ", i, "\n");
+                stream:.write("impl ", i, "\n");
             }
 
-            if (self.implements.len != 0) stream:.write ("\n");
+            if (self.implements.len != 0) stream:.write("\n");
             for i in self.asserts {
-                stream:.write ("cte assert (", i.test, ", ", i.msg, ")\n");
+                stream:.write("cte assert (", i.test, ", ", i.msg, ")\n");
             }
 
-            stream:.write ("(");
+            stream:.write("(");
             for i, f in self.fields {
-                if i != 0 stream:.write (", ");
-                streamProtection (f.protect, alias stream);
-                stream:.write (f);
+                if i != 0 stream:.write(", ");
+                streamProtection(f.protect, alias stream);
+                stream:.write(f);
             }
-            stream:.detabing ();
-            stream:.write (")\n");
+            stream:.detabing();
+            stream:.write(")\n");
 
-            stream:.entabing ();
+            stream:.entabing();
 
             for i in self.ctors {
-                streamProtection (i.protect, alias stream);
-                stream:.write (i, "\n");
+                streamProtection(i.protect, alias stream);
+                stream:.write(i, "\n");
             }
             for i in self.templateCtors {
-                streamProtection (i.protect, alias stream);
-                stream:.write (i, "\n");
+                streamProtection(i.protect, alias stream);
+                stream:.write(i, "\n");
             }
             for i in self.methods {
-                streamProtection (i.protect, alias stream);
-                stream:.write (i, "\n");
+                streamProtection(i.protect, alias stream);
+                stream:.write(i, "\n");
             }
             for i in self.templateMethods {
-                streamProtection (i.protect, alias stream);
-                stream:.write (i, "\n");
+                streamProtection(i.protect, alias stream);
+                stream:.write(i, "\n");
             }
 
-            stream:.detabing ();
+            stream:.detabing();
 
-            stream:.write ("}\n");
-            stream:.detabing ();
+            stream:.write("}\n");
+            stream:.detabing();
         }
     }
 }

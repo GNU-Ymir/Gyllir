@@ -8,13 +8,13 @@ use std::stream;
  * */
 pub record Command {
     // The command to run
-    let _cmd : [c8];
+    let _cmd: [c8];
 
     // True iif the command is a post command
-    let _isPost : bool;
+    let _isPost: bool;
 
     // The path location of the command
-    let _cwd : Path;
+    let _cwd: Path;
 
     /**
      * @params:
@@ -22,7 +22,7 @@ pub record Command {
      *    - post: true iif the command is executed after the generation
      *    - cwd: the location of the command execution
      * */
-    pub self (cmd : [c8], post : bool, cwd : Path = Path ("."))
+    pub self (cmd: [c8], post: bool, cwd: Path = Path("."))
         with _cmd = cmd
         , _isPost = post
         , _cwd = cwd
@@ -37,16 +37,16 @@ pub record Command {
      */
 
     @field
-    pub fn cmd (self)-> [c8] {
+    pub fn cmd(self)-> [c8] {
         self._cmd
     }
 
-    pub fn isPost (self)-> bool {
+    pub fn isPost(self)-> bool {
         self._isPost
     }
 
     @field
-    pub fn cwd (self)-> Path {
+    pub fn cwd(self)-> Path {
         self._cwd
     }
 }
@@ -57,7 +57,7 @@ pub record Command {
 pub class CustomCommandList {
 
     // The list of command in the list
-    let dmut _lst : [[c8] => Command] = copy [];
+    let dmut _lst: [[c8] => Command] = copy [];
 
     /**
      * Create an empty command list
@@ -67,12 +67,12 @@ pub class CustomCommandList {
     /**
      * Create a command list from a configuration
      * */
-    pub self (cfg : &Config)
+    pub self (cfg: &Config)
         throws AssertError, ConfigError, std::conv::errors::CastFailure
     {
-        if let d : &Dict = cfg {
-            self:.insert (d);
-        } else throw copy AssertError ("Execpted a dictionnary");
+        if let d: &Dict = cfg {
+            self:.insert(d);
+        } else throw copy AssertError("Execpted a dictionnary");
     }
 
     /*!
@@ -86,7 +86,7 @@ pub class CustomCommandList {
     /**
      * @returns: the list of command
      * */
-    pub fn opIndex (self)-> [[c8] => Command] {
+    pub fn opIndex(self)-> [[c8] => Command] {
         self._lst
     }
 
@@ -101,24 +101,24 @@ pub class CustomCommandList {
     /**
      * Insert commands a dictionnary configuration
      * */
-    prv fn insert (mut self, cfg : &Dict)
+    prv fn insert(mut self, cfg: &Dict)
         throws ConfigError, std::conv::errors::CastFailure
     {
         for k, v in cfg[] {
-            let cmd = to!{[c8]} (v ["cmd"]);
-            let post = if let Ok (Str (value-> "true")) = v ["post"]? {
+            let cmd = to!{[c8]} (v["cmd"]);
+            let post = if let Ok(Str(value-> "true")) = v["post"]? {
                 true
-            } else if let Ok (Bool (value-> true)) = v ["post"]? {
+            } else if let Ok(Bool(value-> true)) = v["post"]? {
                 true
             } else { false };
 
-            let cwd = if let Ok (s) = v ["cwd"]? {
-                Path (to!{[c8]} (s))
-            } else { Path (".") };
+            let cwd = if let Ok(s) = v["cwd"]? {
+                Path(to!{[c8]} (s))
+            } else { Path(".") };
 
-            self._lst [k] = Command (cmd, post, cwd-> cwd);
-        }        
-    }       
+            self._lst[k] = Command(cmd, post, cwd-> cwd);
+        }
+    }
 
     /*!
      * ====================================================================================================
@@ -130,14 +130,14 @@ pub class CustomCommandList {
 
     impl Streamable;
     impl Serializable {
-        
-        pub over serialize (self)-> &Config {
-            let dmut ret = copy Dict ();
+
+        pub over serialize(self)-> &Config {
+            let dmut ret = copy Dict();
             for k, c in self._lst {
-                let dmut cmd = copy Dict ();
-                cmd:["cmd"] = copy Str (c.cmd);
-                cmd:["post"] = copy Bool (c.isPost ());
-                cmd:["cwd"] = copy Str (c.cwd.toStr ());
+                let dmut cmd = copy Dict();
+                cmd:["cmd"] = copy Str(c.cmd);
+                cmd:["post"] = copy Bool(c.isPost());
+                cmd:["cwd"] = copy Str(c.cwd.toStr());
 
                 ret:[k] = cmd;
             }
@@ -147,4 +147,3 @@ pub class CustomCommandList {
     }
 
 }
-

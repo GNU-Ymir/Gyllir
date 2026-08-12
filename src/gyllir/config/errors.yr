@@ -7,19 +7,19 @@ use std::stream;
  * */
 @final
 pub class RecursiveDependency over Exception {
-    pub let msg : [c8];
-    pub let sub : (&Exception)?;
+    pub let msg: [c8];
+    pub let sub: (&Exception)?;
 
-    pub self (msg : [c8], subError : (&Exception)? = none)
+    pub self (msg: [c8], subError: (&Exception)? = none)
         with msg = msg
         , sub = subError
     {}
 
     impl Streamable {
-        pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write ("Recursive dependencies : ", self.msg);
-            if let Ok (sub) = self.sub {
-                stream:.writeln (""):.write (" => "s8):.write ("\t"s8):.write (sub);
+        pub over toStream(self, dmut stream: &StringStream) {
+            stream:.write("Recursive dependencies: ", self.msg);
+            if let Ok(sub) = self.sub {
+                stream:.writeln(""):.write(" => "s8):.write("\t"s8):.write(sub);
             }
         }
     }

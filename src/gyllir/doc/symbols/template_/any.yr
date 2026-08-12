@@ -4,15 +4,15 @@ use std::stream;
 
 @final
 pub class TemplateAnyParam over TemplateParam {
-    pub let content : [c8] = [];
+    pub let content: [c8] = [];
 
-    pub self (content : [c8])
+    pub self (content: [c8])
         with content = content
     {}
 
     impl Streamable {
-        pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write (self.content);
+        pub over toStream(self, dmut stream: &StringStream) {
+            stream:.write(self.content);
         }
     }
 

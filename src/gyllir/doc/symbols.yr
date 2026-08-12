@@ -17,7 +17,7 @@ pub mod ::aka;
 pub mod ::macro_;
 pub mod ::assertion;
 
-pub lazy INTERNAL_LOCATION = Location ("", 0, 0);
+pub lazy INTERNAL_LOCATION = Location("", 0, 0);
 
 pub enum Protection
 | PUB  = 0
@@ -25,28 +25,28 @@ pub enum Protection
 | PRV  = 2;
 
 
-pub fn streamProtection (protect : Protection, dmut stream : &StringStream) {
+pub fn streamProtection(protect: Protection, dmut stream: &StringStream) {
     if protect == Protection::PUB {
-        stream:.write ("pub ");
+        stream:.write("pub ");
     } else if protect == Protection::PROT {
-        stream:.write ("prot ");
-    } else stream:.write ("prv ");
+        stream:.write("prot ");
+    } else stream:.write("prv ");
 }
 
 pub record Location {
-    pub let filename : Path;
-    pub let line : u64;
-    pub let col : u64;
+    pub let filename: Path;
+    pub let line: u64;
+    pub let col: u64;
 
-    pub self (filename : [c8], line : u64, col : u64)
-        with filename = Path (filename)
+    pub self (filename: [c8], line: u64, col: u64)
+        with filename = Path(filename)
         , line = line
         , col = col
     {}
 
     impl Streamable {
-        pub over toStream (self, dmut stream : &StringStream) {
-            stream:.write (self.filename.toStr (), ":(", self.line, ",", self.col, ")");
+        pub over toStream(self, dmut stream: &StringStream) {
+            stream:.write(self.filename.toStr(), ":(", self.line, ",", self.col, ")");
         }
     }
 }
@@ -56,12 +56,12 @@ pub record Location {
  * */
 @abstract
 pub class Symbol {
-    pub let name : [c8];
-    pub let loc : Location;
-    pub let doc : [c8];
-    pub let protect : Protection;
+    pub let name: [c8];
+    pub let loc: Location;
+    pub let doc: [c8];
+    pub let protect: Protection;
 
-    pub self (name : [c8], doc : [c8], loc : Location, protection : Protection)
+    pub self (name: [c8], doc: [c8], loc: Location, protection: Protection)
         with name = name
         , loc = loc
         , doc = doc

@@ -16,7 +16,7 @@ enum BuildTypeEnum
 pub record BuildType {
 
     // The type of the target to build
-    let mut _type : u8 = BuildTypeEnum::EXECUTABLE.0;
+    let mut _type: u8 = BuildTypeEnum::EXECUTABLE.0;
 
     /**
      * executable target
@@ -27,23 +27,23 @@ pub record BuildType {
      * @params:
      *    - type: a string defining the type of the target
      * */
-    pub self (type : [c8])
+    pub self (type: [c8])
         throws std::conv::errors::CastFailure
     {
-        self:.parseType (type);
+        self:.parseType(type);
     }
 
     /**
      * Transform a configuration into a build type
      * */
-    pub self (cfg : &Config)
+    pub self (cfg: &Config)
         throws std::conv::errors::CastFailure, AssertError
     {
-        if let Str (value-> type) = cfg {
-            self:.parseType (type);
+        if let Str(value-> type) = cfg {
+            self:.parseType(type);
         }
 
-        else throw copy AssertError ("Expecting a string");
+        else throw copy AssertError("Expecting a string");
     }
 
     /*!
@@ -54,11 +54,11 @@ pub record BuildType {
      * ====================================================================================================
      */
 
-    pub fn isExecutable (self)-> bool {
+    pub fn isExecutable(self)-> bool {
         self._type == BuildTypeEnum::EXECUTABLE.0
     }
 
-    pub fn isLibrary (self)-> bool {
+    pub fn isLibrary(self)-> bool {
         self._type == BuildTypeEnum::LIBRARY.0
     }
 
@@ -72,10 +72,10 @@ pub record BuildType {
 
     impl Streamable;
     impl Serializable {
-        pub over serialize (self)-> &Config {
+        pub over serialize(self)-> &Config {
             for i in BuildTypeEnum::__members__ {
                 if i.0 == self._type {
-                    return copy Str (i.1);
+                    return copy Str(i.1);
                 }
             }
 
@@ -94,7 +94,7 @@ pub record BuildType {
     /**
      * Parse the type from a string
      * */
-    prv fn parseType (mut self, value : [c8])
+    prv fn parseType(mut self, value: [c8])
         throws std::conv::errors::CastFailure
     {
         for i in BuildTypeEnum::__members__ {
@@ -104,6 +104,6 @@ pub record BuildType {
             }
         }
 
-        throw copy std::conv::errors::CastFailure (([c8])::__typeinfo__, BuildType::__typeinfo__);
+        throw copy std::conv::errors::CastFailure(([c8])::__typeinfo__, BuildType::__typeinfo__);
     }
 }

@@ -4,35 +4,35 @@ use std::{stream};
 use gyllir::doc::{_, symbols::_, types::_, html::_};
 
 /**
- * Html header of a page 
+ * Html header of a page
  */
 @final
 pub class HtmlHeader over HtmlNode {
 
     // The name of the project
-    let _project : [c8];
+    let _project: [c8];
 
     // The git repo
-    let _git : [c8];
+    let _git: [c8];
 
     // The git current branch version
-    let _version : [c8];
+    let _version: [c8];
 
     // The name of the page
-    let _name : [c8];
+    let _name: [c8];
 
     // The toc of the page
-    let _table : [c8];
+    let _table: [c8];
 
     // The body of the page
-    let _body : &HtmlBody;
+    let _body: &HtmlBody;
 
     /**
-     * Create a header for a page 
-     * @params: 
+     * Create a header for a page
+     * @params:
      *   - name: the name of the page
      */
-    pub self (project : [c8], git : [c8], version : [c8], name : [c8], table : [c8], body : &HtmlBody)
+    pub self (project: [c8], git: [c8], version: [c8], name: [c8], table: [c8], body: &HtmlBody)
         with _project = project
         , _git = git
         , _version = version
@@ -46,16 +46,16 @@ pub class HtmlHeader over HtmlNode {
      * @params:
      *   - stream: the stream to populate
      */
-    pub over dumpHtml (self, dmut stream : &StringStream) {
-        let dmut streamBody = copy StringStream ();
-        self._body.dumpHtml (alias streamBody);
+    pub over dumpHtml(self, dmut stream: &StringStream) {
+        let dmut streamBody = copy StringStream();
+        self._body.dumpHtml(alias streamBody);
 
-        let mp = copy ["Title"  => (self._project ~ " " ~ self._name),
-                       "GitURL" => formatter::formatGitUrl (self._git, version-> self._version),
+        let mp = copy ["Title" => (self._project ~ " " ~ self._name),
+                       "GitURL" => formatter::formatGitUrl(self._git, version-> self._version),
                        "Modules" => self._table,
                        "Body" => streamBody[]];
 
-        formatter::format (alias stream, ressources::HEADER, mp);
+        formatter::format(alias stream, ressources::HEADER, mp);
     }
 
 }
