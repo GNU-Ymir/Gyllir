@@ -127,8 +127,16 @@ pub record RepoPublisher {
         } else { true };
 
         if (compile) {
-            RepoBuilder(self._cwd, copy Dict(), self._cfg, forUnitTest-> true).run(alias context);
-            RepoRunner(self._cwd, copy Dict(), self._cfg, forUnitTest-> true).run();
+            let dmut all: [[c8] => ()] = copy [];
+            for k, _ in self._cfg.targets() {
+                all[k] = ();
+            }
+
+            let (built, _, _) = context:.buildTargets(self._cwd, copy Dict(), self._cfg, all, forUnitTest-> true);
+            let code = context.runUnitTests(self._cwd, self._cfg, built);
+            if (code != 0) {
+                etc::c::process::_yrt_exit(code);
+            }
         }
     }
 

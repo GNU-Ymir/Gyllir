@@ -1,9 +1,9 @@
 in manager;
 
-use std::{config::_, fs::_, io};
+use std::{config::_, fs::_, io, stream};
 use gyllir::{config::_, args, args::_, utils::_};
 use gyllir::repo::_;
-use std::{concurrency::process, syntax::tokenizer};
+use std::{algorithm::sorting, concurrency::process, syntax::tokenizer};
 
 extern (C) fn printf(c: *c8, ...);
 extern (C) fn fflush(i: *void);
@@ -37,13 +37,18 @@ pub class GyllirManager {
         }
 
         else if let Ok(c) =  self._args["build"]? {
-            RepoBuilder(env::currentDir(), c, self.loadToml(env::currentDir()), forUnitTest-> false).run(alias self);
+            let cwd = env::currentDir();
+            let cfg = self.loadToml(cwd);
+            self:.buildTargets(cwd, c, cfg, self.selectTargets(cfg, c));
         }
 
         else if let Ok(c) = self._args["run"]? {
-            let cfg = self.loadToml(env::currentDir());
-            RepoBuilder(env::currentDir(), copy Dict(), cfg, forUnitTest-> false).run(alias self);
-            RepoRunner(env::currentDir(), c, cfg, forUnitTest-> false).run();
+            let cwd = env::currentDir();
+            let cfg = self.loadToml(cwd);
+            let (target, forwarded) = self.selectRunTarget(cfg, c);
+
+            self:.buildTargets(cwd, copy Dict(), cfg, copy [target.name => ()]);
+            etc::c::process::_yrt_exit(RepoRunner(cwd, forwarded, cfg, target, forUnitTest-> false).run());
         }
 
         else if let Ok(c) = self._args["clean"]? {
@@ -55,23 +60,32 @@ pub class GyllirManager {
         }
 
         else if let Ok(c) = self._args["test"]? {
-            let cfg = self.loadToml(env::currentDir());
-            RepoBuilder(env::currentDir(), c, cfg, forUnitTest-> true).run(alias self);
+            let cwd = env::currentDir();
+            let cfg = self.loadToml(cwd);
+            let (built, _, _) = self:.buildTargets(cwd, c, cfg, self.selectTargets(cfg, c), forUnitTest-> true);
             if let Ok(Bool(value-> _ = false)) = c["dry"]? {
-                RepoRunner(env::currentDir(), copy Dict(), cfg, forUnitTest-> true).run();
+                etc::c::process::_yrt_exit(self.runUnitTests(cwd, cfg, built));
             }
         }
 
         else if let Ok(c) = self._args["doc"]? {
+            let cwd = env::currentDir();
             if let Ok(Str(value-> file)) = c["input"]? {
-                RepoDocBuilder(env::currentDir(), c, self.tryLoadToml(env::currentDir()), input-> file, fromFile-> true).run(alias self);
+                RepoDocBuilder(cwd, c, self.tryLoadToml(cwd), input-> file, fromFile-> true).run(alias self);
             } else {
-                RepoDocBuilder(env::currentDir(), c, self.loadToml(env::currentDir())).run(alias self);
+                let cfg = self.loadToml(cwd);
+                self:.buildTargets(cwd, c, cfg, self.selectTargets(cfg, c), forDoc-> true);
             }
         }
 
         else panic;
     } catch {
+        // a misconfigured package, or a command line naming a target that does not exist: the message
+        // is written for the user, a stack trace into gyllir would only bury it
+        a: &AssertError => {
+            utils::log::error("Error", a.msg);
+            etc::c::process::_yrt_exit(-1);
+        }
         err => {
             utils::log::error("Error", err);
             etc::c::process::_yrt_exit(-1);
@@ -102,6 +116,13 @@ pub class GyllirManager {
             etc::c::process::_yrt_exit(-1);
             panic;
         }
+        // a malformed gyllir.toml: the message names what the user has to fix, a stack trace into
+        // the configuration parser would only bury it
+        a: &AssertError => {
+            utils::log::error("Error", "in gyllir.toml, ", a.msg);
+            etc::c::process::_yrt_exit(-1);
+            panic;
+        }
         err => {
             utils::log::error("Error", err);
             etc::c::process::_yrt_exit(-1);
@@ -122,6 +143,395 @@ pub class GyllirManager {
         _ => { GyllirPackageConfiguration::empty() }
     }
 
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * =====================================          TARGETS          ====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Build a set of targets of a package, and every target of that package they link, in an order
+     * where a target is always built after the ones it links
+     * @params:
+     *    - cwd: the root directory of the package
+     *    - args: the configuration of the sub command
+     *    - cfg: the configuration of the package
+     *    - selected: the names of the targets to build
+     *    - forUnitTest: true to also build the unittest executable of the selected targets
+     *    - forDoc: true to generate the documentation of the selected targets instead of building them
+     *    - dry: true to resolve the dependencies without compiling anything
+     * @returns:
+     *    - .0: the selected targets, in the order they were built
+     *    - .1: the root files to include to compile against the selected targets
+     *    - .2: the archives to link against the selected targets
+     * */
+    pub fn buildTargets(mut self, cwd: Path, args: &Config, cfg: GyllirPackageConfiguration, selected: [[c8] => ()],
+                        forUnitTest: bool = false, forDoc: bool = false, dry: bool = false)-> ([Target], [Path], [Path])
+        throws AssertError, RecursiveDependency
+    {
+        let targets = cfg.targets();
+        let ordered = self.orderedTargets(cfg, targets);
+        let linked = self.linkedTargets(targets, selected);
+
+        // the documentation of a package producing several artifacts is one site per target
+        let subDir = targets.len > 1us;
+
+        let mut builtIncludes: [[c8] => mut [Path]] = copy [];
+        let mut builtLinks: [[c8] => mut [Path]] = copy [];
+
+        let mut res: [Target] = [];
+        let mut outIncludes: [Path] = [];
+        let mut outLinks: [Path] = [];
+
+        for t in ordered {
+            let isLinked = t.name in linked;
+            let isSelected = t.name in selected;
+
+            if (isLinked || isSelected) {
+                let (includes, links) = self.gatherTargetArtifacts(t, builtIncludes, builtLinks);
+
+                let mut ownIncludes: [Path] = [];
+                let mut ownLinks: [Path] = [];
+                let mut hasOwn = false;
+
+                // a target another one links is always built as an artifact first: the unittest and
+                // the documentation builds of a target produce nothing to link against
+                if (isLinked) {
+                    let (i, l) = RepoBuilder(cwd, args, cfg, t, forUnitTest-> false, dry-> dry)
+                        .run(alias self, targetIncludes-> includes, targetLinks-> links);
+
+                    builtIncludes[t.name] = i;
+                    builtLinks[t.name] = l;
+                    ownIncludes = i;
+                    ownLinks = l;
+                    hasOwn = true;
+                }
+
+                if (isSelected) {
+                    if (forDoc) {
+                        RepoDocBuilder(cwd, args, cfg, target-> t, subDir-> subDir)
+                            .run(alias self, targetIncludes-> includes, targetLinks-> links);
+                    }
+
+                    else if (forUnitTest || !hasOwn) {
+                        let (i, l) = RepoBuilder(cwd, args, cfg, t, forUnitTest-> forUnitTest, dry-> dry)
+                            .run(alias self, targetIncludes-> includes, targetLinks-> links);
+
+                        if (!hasOwn) {
+                            ownIncludes = i;
+                            ownLinks = l;
+                        }
+                    }
+
+                    res ~= [t];
+                    outIncludes ~= ownIncludes;
+                    outLinks ~= ownLinks;
+                }
+            }
+        }
+
+        (res, self.uniquePaths(outIncludes), self.uniquePaths(outLinks))
+    }
+
+    /**
+     * The targets of a package to build, according to the command line
+     * @params:
+     *    - cfg: the configuration of the package
+     *    - args: the configuration of the sub command
+     * @returns: the names of the targets named by the command line, or every declared target when it
+     *    names none
+     * @throws:
+     *    - AssertError: if the command line names a target the package does not declare
+     * */
+    pub fn selectTargets(self, cfg: GyllirPackageConfiguration, args: &Config)-> [[c8] => ()]
+        throws AssertError
+    {
+        let targets = cfg.targets();
+        let dmut res: [[c8] => ()] = copy [];
+
+        if let Ok(Str(value-> name)) = args["target"]? {
+            if (name !in targets) {
+                throw copy AssertError("unknown target '" ~ name ~ "', " ~ self.targetNames(targets));
+            }
+
+            res[name] = ();
+            return res;
+        }
+
+        for k, _ in targets {
+            res[k] = ();
+        }
+
+        res
+    }
+
+    /**
+     * Run the unittest executables of a list of targets, one after the other
+     * @returns: the exit code of the first failing one, 0 if they all passed
+     * */
+    pub fn runUnitTests(self, cwd: Path, cfg: GyllirPackageConfiguration, targets: [Target])-> i32
+        throws AssertError, FsError
+    {
+        let mut res = 0;
+        for t in targets {
+            let code = RepoRunner(cwd, copy Dict(), cfg, t, forUnitTest-> true).run();
+            if (code != 0 && res == 0) {
+                res = code;
+            }
+        }
+
+        res
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ==================================          TARGET ORDER          ==================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * The targets of a package, ordered so that a target always comes after the targets of the same
+     * package it links
+     * @params:
+     *    - cfg: the configuration of the package
+     *    - targets: the targets of that package
+     * @throws:
+     *    - AssertError: if a target links a target, or selects a dependency, that is not declared
+     *    - RecursiveDependency: if the targets of the package form a cycle
+     * */
+    pub fn orderedTargets(self, cfg: GyllirPackageConfiguration, targets: [[c8] => Target])-> [Target]
+        throws AssertError, RecursiveDependency
+    {
+        self.validateTargets(cfg, targets);
+
+        let dmut done: [[c8] => ()] = copy [];
+        let mut res: [Target] = [];
+        let mut remaining = self.sortedNames(targets);
+
+        while remaining.len > 0us {
+            let mut blocked: [[c8]] = [];
+            for name in remaining if let Ok(t) = targets[name] {
+                let mut ready = true;
+                for d in t.targets if d !in done {
+                    ready = false;
+                }
+
+                if (ready) {
+                    res ~= [t];
+                    done[name] = ();
+                } else {
+                    blocked ~= [name];
+                }
+            }
+
+            // nothing could be built in a whole pass, every target left waits for another one
+            if (blocked.len == remaining.len) {
+                throw copy RecursiveDependency("targets of '" ~ cfg.name ~ "', " ~ self.quotedNames(blocked));
+            }
+
+            remaining = blocked;
+        }
+
+        res
+    }
+
+    /**
+     * Check that every name a target refers to is declared by the package
+     * @throws:
+     *    - AssertError: on the first name that is not
+     * */
+    prv fn validateTargets(self, cfg: GyllirPackageConfiguration, targets: [[c8] => Target])
+        throws AssertError
+    {
+        let dependencies = cfg.dependencies[];
+        for name, t in targets {
+            for d in t.targets {
+                if (d == name) {
+                    throw copy AssertError("target '" ~ name ~ "' links itself");
+                }
+
+                if (d !in targets) {
+                    throw copy AssertError("target '" ~ name ~ "' links the unknown target '" ~ d ~ "'");
+                }
+            }
+
+            // 'dependencies' selects among the '[dependencies.*]' of the package, it never declares one
+            for d in t.dependencies if d !in dependencies {
+                throw copy AssertError("target '" ~ name ~ "' selects the unknown dependency '" ~ d ~ "'");
+            }
+        }
+    }
+
+    /**
+     * The transitive closure of the targets linked by a set of targets
+     * @params:
+     *    - targets: every target of the package
+     *    - selected: the names of the targets to start from
+     * @returns: the names of the targets that have to be built as artifacts for 'selected' to link
+     * */
+    prv fn linkedTargets(self, targets: [[c8] => Target], selected: [[c8] => ()])-> [[c8] => ()] {
+        let dmut res: [[c8] => ()] = copy [];
+        let mut front: [[c8]] = [];
+        for k, _ in selected {
+            if let Ok(t) = targets[k] {
+                front ~= t.targets;
+            }
+        }
+
+        while front.len > 0us {
+            let mut next: [[c8]] = [];
+            for name in front if name !in res {
+                res[name] = ();
+                if let Ok(t) = targets[name] {
+                    next ~= t.targets;
+                }
+            }
+
+            front = next;
+        }
+
+        res
+    }
+
+    /**
+     * The artifacts of the targets of the same package a target links
+     * @params:
+     *    - t: the target about to be built
+     *    - includes: the root files produced by the targets already built, by target name
+     *    - links: the archives produced by the targets already built, by target name
+     * */
+    prv fn gatherTargetArtifacts(self, t: Target, includes: [[c8] => [Path]], links: [[c8] => [Path]])-> ([Path], [Path]) {
+        let mut resIncludes: [Path] = [];
+        let mut resLinks: [Path] = [];
+        for d in t.targets {
+            if let Ok(i) = includes[d] { resIncludes ~= i; }
+            if let Ok(l) = links[d] { resLinks ~= l; }
+        }
+
+        (self.uniquePaths(resIncludes), self.uniquePaths(resLinks))
+    }
+
+    /**
+     * @returns: 'paths', keeping the first occurrence of each
+     * @info: a diamond between two targets, or between two dependencies, otherwise puts the same
+     *   archive on the link line twice, which the linker rejects with a 'multiple definition' error
+     * */
+    pub fn uniquePaths(self, paths: [Path])-> [Path] {
+        let dmut seen: [[c8] => ()] = copy [];
+        let mut res: [Path] = [];
+        for p in paths {
+            let key = p.toStr();
+            if (key !in seen) {
+                seen[key] = ();
+                res ~= [p];
+            }
+        }
+
+        res
+    }
+
+    /**
+     * The target to run, and the arguments to forward to it.
+     * 'gyllir run' forwards its raw arguments to the executable it runs, so a first argument naming a
+     * declared target selects that target, and a first argument that is '--' forwards everything that
+     * follows without looking at it
+     * @throws:
+     *    - AssertError: if the package declares several targets and none was named
+     * */
+    prv fn selectRunTarget(self, cfg: GyllirPackageConfiguration, args: &Config)-> (Target, &Config)
+        throws AssertError
+    {
+        let targets = cfg.targets();
+        let mut values: [[c8]] = [];
+        if let a: &Array = args {
+            for i in a[] if let Str(value-> v) = i {
+                values ~= [v];
+            }
+        }
+
+        let mut name = "";
+        let mut start = 0us;
+        if (values.len > 0us) {
+            if (values[0] == "--") {
+                start = 1us;
+            } else if (values[0] in targets) {
+                name = values[0];
+                start = 1us;
+            }
+        }
+
+        let dmut forwarded = copy Array();
+        for v in values[start .. $] {
+            forwarded:.push(copy Str(v));
+        }
+
+        let names = self.sortedNames(targets);
+        if (name == "") {
+            if (names.len != 1us) {
+                throw copy AssertError("'gyllir run' needs the name of a target, " ~ self.targetNames(targets));
+            }
+
+            name = names[0];
+        }
+
+        if let Ok(t) = targets[name] {
+            return (t, forwarded);
+        }
+
+        throw copy AssertError("unknown target '" ~ name ~ "', " ~ self.targetNames(targets));
+    }
+
+    /**
+     * @returns: the names of 'targets', in alphabetical order, so that the build order of two targets
+     *    that do not link each other does not depend on the iteration order of a map
+     * */
+    prv fn sortedNames(self, targets: [[c8] => Target])-> [[c8]] {
+        let names: [[c8]] = copy [k for k, _ in targets];
+        let mut res: [mut [c8]] = copy names;
+        sorting::sort(alias res, |x, y| {
+            let mut i = 0us;
+            let mut lower = x.len < y.len;
+            while i < x.len && i < y.len {
+                if (x[i] != y[i]) {
+                    lower = x[i] < y[i];
+                    break;
+                }
+
+                i += 1us;
+            }
+
+            lower
+        });
+
+        res
+    }
+
+    /**
+     * @returns: the declared targets, for an error message
+     * */
+    prv fn targetNames(self, targets: [[c8] => Target])-> [c8] {
+        "declared targets are " ~ self.quotedNames(self.sortedNames(targets))
+    }
+
+    /**
+     * @returns: 'names', quoted and comma separated
+     * */
+    prv fn quotedNames(self, names: [[c8]])-> [c8] {
+        let dmut stream = copy StringStream();
+        let mut first = true;
+        for n in names {
+            if (!first) { stream:.write(", "s8); }
+            stream:.write("'"s8):.write(n):.write("'"s8);
+            first = false;
+        }
+
+        stream[]
+    }
 
     /*!
      * ====================================================================================================
@@ -175,7 +585,15 @@ pub class GyllirManager {
 
             self:.selectDependencyVersion(gM, dependency);
             let conf = self.loadToml(depPath);
-            if (conf.type.isExecutable()) {
+
+            // only the library targets of a dependency are of any use here, an executable it also
+            // declares is never linked into the package that depends on it
+            let dmut libTargets: [[c8] => ()] = copy [];
+            for k, t in conf.targets() if !t.type.isExecutable() {
+                libTargets[k] = ();
+            }
+
+            if (libTargets.len == 0us) {
                 utils::log::error("Resolving", "dependency ", name, " in ", dependency.url, " is not a library.");
                 etc::c::process::_yrt_exit(-1);
                 panic;
@@ -186,7 +604,7 @@ pub class GyllirManager {
                 RepoCleaner(depPath, args, conf).run(alias self);
             }
 
-            let (ext, lbs) = RepoBuilder(depPath, args, conf, forUnitTest-> false, dry-> dry).run(alias self);
+            let (_, ext, lbs) = self:.buildTargets(depPath, args, conf, libTargets, dry-> dry);
 
             self._depPackages:.remove(dependency.url);
             (ext, lbs)

@@ -15,36 +15,44 @@ pub record RepoRunner {
     // The package configuration
     let _cfg: GyllirPackageConfiguration;
 
+    // The target whose artifact is executed
+    let _target: Target;
+
     // True iif the runner is configured to run unittests
     let _forUnitTest: bool;
 
     /**
      * @params:
      *    - cfg: the configuration of the repo
+     *    - target: the target whose artifact is executed
      * */
-    pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration, forUnitTest: bool)
+    pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration, target: Target, forUnitTest: bool)
         with _cwd = path
         , _args = args
         , _cfg = cfg
+        , _target = target
         , _forUnitTest = forUnitTest
     {}
 
     /**
      * Run the build executable
+     * @returns: the exit code of the executed artifact
+     * @info: the caller is the one exiting, so that 'gyllir test' can run the tests of every target
+     *   before failing on the first one that did not pass
      * */
-    pub fn run(self)
+    pub fn run(self)-> i32
         throws AssertError, FsError
     {
+        let output = self._target.outputName();
         if (self._forUnitTest) {
-            utils::log::info("Executing", "tests ", self._cfg.name, " v", self._cfg.version[]);
+            utils::log::info("Executing", "tests ", output, " v", self._cfg.version[]);
             std::io::println("\n");
-            let dmut subProc = copy SubProcess("./" ~ self._cfg.name ~ ".test", [], cwd-> self._cwd);
+            let dmut subProc = copy SubProcess("./" ~ output ~ ".test", [], cwd-> self._cwd);
             subProc:.start(redirect-> false);
-            let code = subProc:.wait();
 
-            etc::c::process::_yrt_exit(code);
+            subProc:.wait()
         } else {
-            if !self._cfg.type.isExecutable() {
+            if !self._target.type.isExecutable() {
                 throw copy AssertError("Run command only usable with executables");
             }
 
@@ -55,13 +63,12 @@ pub record RepoRunner {
                 }
             }
 
-            utils::log::info("Executing", "project ", self._cfg.name, " v", self._cfg.version[]);
+            utils::log::info("Executing", "project ", output, " v", self._cfg.version[]);
             std::io::println("\n");
-            let dmut subProc = copy SubProcess("./" ~ self._cfg.name, options, cwd-> self._cwd);
+            let dmut subProc = copy SubProcess("./" ~ output, options, cwd-> self._cwd);
             subProc:.start(redirect-> false);
-            let code = subProc:.wait();
 
-            etc::c::process::_yrt_exit(code);
+            subProc:.wait()
         }
     }
 

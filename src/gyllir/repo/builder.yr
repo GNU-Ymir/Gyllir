@@ -20,6 +20,9 @@ pub record RepoBuilder {
     // The package configuration
     let _cfg: GyllirPackageConfiguration;
 
+    // The target of the package that is being built
+    let _target: Target;
+
     // True if the builder has to print verbose messages
     let _verbose: bool;
 
@@ -38,11 +41,14 @@ pub record RepoBuilder {
     /**
      * @params:
      *    - cfg: the configuration of the repo
+     *    - target: the target of the package to build, the single target synthesized from the top
+     *      level fields of 'cfg' when it declares no '[targets.<name>]' table
      * */
-    pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration, forUnitTest: bool, forDoc: bool = false, dry: bool = false)
+    pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration, target: Target, forUnitTest: bool, forDoc: bool = false, dry: bool = false)
         with _cwd = path
         , _args = args
         , _cfg = cfg
+        , _target = target
         , _forUnitTest = forUnitTest
         , _forDoc = forDoc
         , _dry = dry
@@ -58,14 +64,21 @@ pub record RepoBuilder {
      * Build the repository
      * @params:
      *    - context: the context of the compilation
+     *    - targetIncludes: the root files of the targets of the same package the built target links
+     *    - targetLinks: the archives of the targets of the same package the built target links
      * @returns:
      *    - .0: the list of path to the root files of libraries to include for further dependency building
      *    - .1: the list of path to the built libraries to link for further dependency building
      * */
-    pub fn run(self, dmut context: &GyllirManager)-> ([Path], [Path])
+    pub fn run(self, dmut context: &GyllirManager, targetIncludes: [Path] = [], targetLinks: [Path] = [])-> ([Path], [Path])
         throws RecursiveDependency
     {
-        let (includes, links) = self.resolveDependencies(alias context);
+        let (depIncludes, depLinks) = self.resolveDependencies(alias context);
+
+        // a target and a dependency of that target may well select the same package, and a target
+        // linked by this one has already put its own dependencies on the line
+        let includes = context.uniquePaths(depIncludes ~ targetIncludes);
+        let links = context.uniquePaths(depLinks ~ targetLinks);
         self.runCommands(alias context, post-> false);
         let (srcPath, cacheDir) = {
             if (self._forDoc) {
@@ -80,7 +93,7 @@ pub record RepoBuilder {
             }
         } catch {
             err: &AssertError => {
-                utils::log::error("Error", "failed to compile project ", self._cfg.name, "' : ", err.msg);
+                utils::log::error("Error", "failed to compile project '", self._cfg.name, "' : ", err.msg);
                 etc::c::process::_yrt_exit(-1);
                 panic;
             }
@@ -89,7 +102,7 @@ pub record RepoBuilder {
         let finalLinks = self.finalizeBuild(alias context, cacheDir, links);
         self.runCommands(alias context, post-> true);
 
-        return (includes ~ [srcPath], finalLinks);
+        return (context.uniquePaths(includes ~ [srcPath]), context.uniquePaths(finalLinks));
     }
 
 
@@ -113,8 +126,8 @@ pub record RepoBuilder {
 
         self.createCacheDirs(cacheDir);
 
-        utils::log::info("Compiling", self._cfg.name, " v", self._cfg.version[]);
-        let objFile = cacheDir.push(self._cfg.name).addExtension(defaults::__LIBRARY_EXTENSION__);
+        utils::log::info("Compiling", self._target.name, " of ", self._cfg.name, " v", self._cfg.version[]);
+        let objFile = cacheDir.push(self._target.outputName()).addExtension(defaults::__LIBRARY_EXTENSION__);
 
         let yilDir = cacheDir.push(defaults::__YIL_DIR__);
         if !sys::isDir(yilDir) {
@@ -135,7 +148,7 @@ pub record RepoBuilder {
         // if something has to be compiled
         if (changed.len != 0 || pruned || !sys::isFile(objFile)) {
 
-            utils::log::info("Compiling", "target for ", self._cfg.name, " v", self._cfg.version[]);
+            utils::log::info("Compiling", "target ", self._target.name, " for ", self._cfg.name, " v", self._cfg.version[]);
 
             // Create the compile options according to the current configuration
             let options = self.createCompileOptions(srcPath, cacheDir, includes);
@@ -168,10 +181,10 @@ pub record RepoBuilder {
         let (unitSources, unitChanged) = self.listUnittestChangedFiles(changedSources);
 
         // create the output directory if not exist
-        let cacheDir = self._cwd.push(defaults::__CACHE_TEST_DIR__);
+        let cacheDir = self.targetCacheDir(defaults::__CACHE_TEST_DIR__);
         self.createCacheDirs(cacheDir);
 
-        let objFile = cacheDir.push(self._cfg.name).addExtension(defaults::__LIBRARY_EXTENSION__);
+        let objFile = cacheDir.push(self._target.outputName()).addExtension(defaults::__LIBRARY_EXTENSION__);
 
         let yilDir = cacheDir.push(defaults::__YIL_DIR__);
         if !sys::isDir(yilDir) {
@@ -193,7 +206,7 @@ pub record RepoBuilder {
         if (unitChanged.len != 0 || pruned || !sys::isFile(objFile)) {
             let srcTest = self.findRootTestFile();
 
-            utils::log::info("Compiling", "unittest for ", self._cfg.name, " v", self._cfg.version[]);
+            utils::log::info("Compiling", "unittest of ", self._target.name, " for ", self._cfg.name, " v", self._cfg.version[]);
 
             // Create the compile options according to the current configuration
             let options = self.createCompileOptions(srcTest, cacheDir, includes ~ [srcPath]);
@@ -255,11 +268,11 @@ pub record RepoBuilder {
         throws AssertError
     {
         let srcPath = self.findRootSourceFile();
-        let cacheDir = self._cwd.push(defaults::__CACHE_DOC_DIR__);
+        let cacheDir = self.targetCacheDir(defaults::__CACHE_DOC_DIR__);
         self.createCacheDirs(cacheDir);
 
         let options = self.createDocCompileOptions(srcPath, includes);
-        utils::log::info("Compiling", "documentation for ", self._cfg.name, " v", self._cfg.version[]);
+        utils::log::info("Compiling", "documentation of ", self._target.name, " for ", self._cfg.name, " v", self._cfg.version[]);
         if !context.runProcess(self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose) {
             utils::log::error("Error", "failed to compile documentation '", self._cfg.name, "'");
             etc::c::process::_yrt_exit(-1);
@@ -287,7 +300,7 @@ pub record RepoBuilder {
             links
         }
 
-        else if self._cfg.type.isExecutable() {
+        else if self._target.type.isExecutable() {
             self.finalizeExecutable(alias context, cacheDir, links);
             links
         }
@@ -359,15 +372,17 @@ pub record RepoBuilder {
             options ~= ["-g"];
         }
 
-        options
+        // last, so that a target can override the options gyllir picked for it(-g, -O3, ...)
+        options ~ self._target.flags
     }
 
     /**
      * Build the compile command line option to build documentation file
      * */
     prv fn createDocCompileOptions(self, srcPath: Path, depPaths: [Path])-> [[c8]] {
-        let objectFile = self._cwd.push(defaults::__CACHE_DOC_DIR__).push(self._cfg.name).addExtension(defaults::__OBJECT_EXTENSION__).toStr();
-        let jsonFile = self._cwd.push(defaults::__CACHE_DOC_DIR__).push(self._cfg.name).addExtension(defaults::__DOC_EXTENSION__).toStr();
+        let docDir = self.targetCacheDir(defaults::__CACHE_DOC_DIR__);
+        let objectFile = docDir.push(self._target.outputName()).addExtension(defaults::__OBJECT_EXTENSION__).toStr();
+        let jsonFile = docDir.push(self._target.outputName()).addExtension(defaults::__DOC_EXTENSION__).toStr();
 
         let mut options: [[c8]] = copy [srcPath.toStr(), "-c", "-o", objectFile, "-fdoc", jsonFile];
         if (self._verbose) {
@@ -378,7 +393,7 @@ pub record RepoBuilder {
             options ~= ["-I", p.toStr()];
         }
 
-        options
+        options ~ self._target.flags
     }
 
     /**
@@ -495,13 +510,14 @@ pub record RepoBuilder {
      * Finalize the unittest executable
      * */
     prv fn finalizeUnitTest(self, dmut context: &GyllirManager, cacheDir: Path, dependencyLibs: [Path]) {
-        let createdTmp = (cacheDir.push(self._cfg.name).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
-        let createdUnittests = (self._cwd.push(defaults::__CACHE_TEST_DIR__).push(self._cfg.name).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
+        let output = self._target.outputName();
+        let createdTmp = (cacheDir.push(output).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
+        let createdUnittests = (self.targetCacheDir(defaults::__CACHE_TEST_DIR__).push(output).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
 
-        let mut options = copy ["-fv", "-funittest", createdTmp, createdUnittests, "-o", self._cfg.name ~ ".test"];
+        let mut options = copy ["-fv", "-funittest", createdTmp, createdUnittests, "-o", output ~ ".test"];
         options ~= copy [d.toStr() for d in dependencyLibs];
 
-        for k in self._cfg.libraries {
+        for k in self._target.libraries {
             options ~= ["-l" ~ k];
         }
 
@@ -516,19 +532,20 @@ pub record RepoBuilder {
             etc::c::process::_yrt_exit(-1);
         }
 
-        utils::log::info("Produced", "executable file ", self._cfg.name, ".test");
+        utils::log::info("Produced", "executable file ", output, ".test");
     }
 
     /**
      * Finalize the executable
      * */
     prv fn finalizeExecutable(self, dmut context: &GyllirManager, cacheDir: Path, dependencyLibs: [Path]) {
-        let createdTmp = (cacheDir.push(self._cfg.name).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
+        let output = self._target.outputName();
+        let createdTmp = (cacheDir.push(output).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
 
-        let mut options = copy ["-fv", createdTmp, "-o", self._cfg.name];
+        let mut options = copy ["-fv", createdTmp, "-o", output];
         options ~= copy [d.toStr() for d in dependencyLibs];
 
-        for k in self._cfg.libraries {
+        for k in self._target.libraries {
             options ~= ["-l" ~ k];
         }
 
@@ -543,7 +560,7 @@ pub record RepoBuilder {
             etc::c::process::_yrt_exit(-1);
         }
 
-        utils::log::info("Produced", "executable file ", self._cfg.name);
+        utils::log::info("Produced", "executable file ", output);
     }
 
     /**
@@ -551,15 +568,16 @@ pub record RepoBuilder {
      * @returns: the result file
      * */
     prv fn finalizeLibrary(self, dmut context: &GyllirManager, cacheDir: Path, _: [Path])-> Path {
-        let createdTmp = (cacheDir.push(self._cfg.name).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
-        let resultFile = self._cwd.push("lib" ~ self._cfg.name).addExtension(defaults::__LIBRARY_EXTENSION__);
+        let output = self._target.outputName();
+        let createdTmp = (cacheDir.push(output).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
+        let resultFile = self._cwd.push("lib" ~ output).addExtension(defaults::__LIBRARY_EXTENSION__);
 
         if (!context.runProcess("cp", copy [createdTmp, resultFile.toStr()], cwd-> self._cwd, verbose-> self._verbose)) {
             utils::log::error("Error", "failed to compile project '", self._cfg.name, "'");
             etc::c::process::_yrt_exit(-1);
         }
 
-        utils::log::info("Produced", "library file ", "lib", self._cfg.name, ".", defaults::__LIBRARY_EXTENSION__);
+        utils::log::info("Produced", "library file ", "lib", output, ".", defaults::__LIBRARY_EXTENSION__);
         resultFile
     }
 
@@ -579,7 +597,7 @@ pub record RepoBuilder {
      * */
     prv fn listUnittestChangedFiles(self, changedSources: [Path])-> ([Path], [Path]) {
         let rootDir = self._cwd.push(defaults::__TEST_DIR__);
-        let cacheDir = self._cwd.push(defaults::__CACHE_TEST_DIR__);
+        let cacheDir = self.targetCacheDir(defaults::__CACHE_TEST_DIR__);
         let sources = self.listFilesInDir(rootDir, rootDir, extension-> defaults::__YMIR_EXTENSION__);
         let results = self.lookupDependencies(rootDir, cacheDir, sources, true, changedSources);
 
@@ -595,7 +613,7 @@ pub record RepoBuilder {
      * */
     prv fn listChangedFiles(self)-> (Path, [Path], [Path]) {
         let cacheDir = self.defineOutputDirectory();
-        let rootDir = self._cwd.push(defaults::__SRC_DIR__);
+        let rootDir = self._cwd.push(self._target.sourceDir);
         let sources = self.listFilesInDir(rootDir, rootDir, extension-> defaults::__YMIR_EXTENSION__);
         let results = self.lookupDependencies(rootDir, cacheDir, sources, false, []);
 
@@ -700,7 +718,7 @@ pub record RepoBuilder {
     prv fn readCacheDependencies(self, sourceDir: Path, cacheDir: Path, source: Path, date: u64, forUnitTest: bool, changedSources: [Path])-> (bool, [Path]) {
         let depFile = cacheDir.push(source.stripExtension().toStr(sep-> "_")).addExtension(defaults::__DEPS_EXTENSION__);
         let objFile = cacheDir.push(defaults::__YIL_DIR__).push(source.stripExtension().toStr(sep-> "_")).addExtension(defaults::__YIL_EXTENSION__);
-        let packageDir = self._cwd.push(defaults::__SRC_DIR__);
+        let packageDir = self._cwd.push(self._target.sourceDir);
 
         if let Ok(Instant(sec-> d)) = sys::fileDate(depFile)? {
             if d < date || !sys::isFile(objFile) || !sys::isFile(depFile) {
@@ -770,15 +788,17 @@ pub record RepoBuilder {
     }
 
     /**
-     * Find the root file of the package
-     * @returns: the path to the root file of the package
+     * Find the root file of the target
+     * @returns: the path to the root file of the target
      * */
     prv fn findRootSourceFile(self)-> Path
         throws AssertError
     {
-        // Overriden by configuration file
-        if let name = self._cfg.packageRoot && name != "" {
-            let mainPath = self._cwd.push(defaults::__SRC_DIR__).push(name).addExtension(defaults::__YMIR_EXTENSION__);
+        let srcDir = self._cwd.push(self._target.sourceDir);
+
+        // Overriden by configuration file, a declared root that does not exist is an error, never a fallback
+        if let name = self._target.packageRoot && name != "" {
+            let mainPath = srcDir.push(name).addExtension(defaults::__YMIR_EXTENSION__);
             if (!fs::sys::isFile(mainPath)) {
                 throw copy AssertError("No package root file found at " ~ mainPath.toStr());
             }
@@ -786,13 +806,19 @@ pub record RepoBuilder {
             return mainPath;
         }
 
-        // Otherwise searching for default root files __lib__.yr, or package name
-        let libPath = self._cwd.push(defaults::__SRC_DIR__).push(self._cfg.name).addExtension(defaults::__YMIR_EXTENSION__);
+        // Otherwise the root module is named after the target
+        let libPath = srcDir.push(self._target.rootModule()).addExtension(defaults::__YMIR_EXTENSION__);
         if (fs::sys::isFile(libPath)) {
             return libPath;
         }
 
-        let mainPath = self._cwd.push(defaults::__SRC_DIR__).push(defaults::__MAIN_FILE__);
+        // A declared target roots at its own name and nowhere else, only the target synthesized for a
+        // package declaring none keeps the historical fallback to 'src/main.yr'
+        if (!self._target.synthesized) {
+            throw copy AssertError("No package root file found at " ~ libPath.toStr() ~ " for target '" ~ self._target.name ~ "'");
+        }
+
+        let mainPath = srcDir.push(defaults::__MAIN_FILE__);
         if (fs::sys::isFile(mainPath)) {
             return mainPath;
         }
@@ -808,7 +834,7 @@ pub record RepoBuilder {
         throws AssertError
     {
         // Overriden by configuration file
-        if let name = self._cfg.testRoot && name != "" {
+        if let name = self._target.testRoot && name != "" {
             let mainPath = self._cwd.push(defaults::__TEST_DIR__).push(name).addExtension(defaults::__YMIR_EXTENSION__);
             if (!fs::sys::isFile(mainPath)) {
                 throw copy AssertError("No unittest root file found at " ~ mainPath.toStr());
@@ -828,22 +854,32 @@ pub record RepoBuilder {
     }
 
     /**
+     * The build cache of the target being built
+     * @params:
+     *    - kind: the sub directory of the cache, one of the '__CACHE_*_DIR__' defaults
+     * @returns: '<cwd>/.target/<target>/<kind>'
+     * */
+    prv fn targetCacheDir(self, kind: [c8])-> Path {
+        defaults::targetCacheDir(self._cwd, self._target.name, kind)
+    }
+
+    /**
      * Define the output directory of the build
      * */
     prv fn defineOutputDirectory(self)-> Path {
         if let Ok(Bool(value-> _ = true)) = self._args["release"]? {
             if self._forUnitTest {
-                self._cwd.push(defaults::__CACHE_UNIT_RELEASE_DIR__)
+                self.targetCacheDir(defaults::__CACHE_UNIT_RELEASE_DIR__)
             } else {
-                self._cwd.push(defaults::__CACHE_RELEASE_DIR__)
+                self.targetCacheDir(defaults::__CACHE_RELEASE_DIR__)
             }
         }
 
         else {
             if self._forUnitTest {
-                self._cwd.push(defaults::__CACHE_UNIT_DEBUG_DIR__)
+                self.targetCacheDir(defaults::__CACHE_UNIT_DEBUG_DIR__)
             } else {
-                self._cwd.push(defaults::__CACHE_DEBUG_DIR__)
+                self.targetCacheDir(defaults::__CACHE_DEBUG_DIR__)
             }
         }
     }
@@ -902,7 +938,7 @@ pub record RepoBuilder {
     {
         let dmut libs: [Path] = [];
         let dmut names: [Path] = [];
-        for k, d in self._cfg.dependencies[] {
+        for k, d in self._cfg.dependencies[] if self._target.selects(k) {
             let (n, l) = context:.resolveDependency(self._args, self._cwd, k, d, dry-> (self._forDoc || self._dry));
             libs ~= l;
             names ~= n;
