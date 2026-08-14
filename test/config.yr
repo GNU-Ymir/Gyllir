@@ -7,6 +7,7 @@ use std::conv::errors;
 pub mod ::command;
 pub mod ::errors;
 pub mod ::url;
+pub mod ::target;
 pub mod ::type;
 pub mod ::version;
 
@@ -204,6 +205,226 @@ __test {
     cfg:.setVersion(Version(2u32, 0u32, 0u32));
 
     assert(cfg.version == Version(2u32, 0u32, 0u32), "setVersion() should update the version");
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * =====================================          TARGETS          ====================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+__test {
+    // A package declaring no "[targets.*]" table still has exactly one target, synthesized from its
+    // top level fields and named after the package
+    let cfg = GyllirPackageConfiguration(json#{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "library",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "package-root" : "main",
+        "test-root" : "__test__",
+        "flags" : ["-O0"],
+        "libraries" : ["m"]
+    });
+
+    let targets = cfg.targets();
+    assert(targets.len == 1us, "a package declaring no target should have exactly one");
+
+    if let Ok(t) = targets["myapp"] {
+        assert(t.name == "myapp", "the synthesized target should be named after the package");
+        assert(t.type.isLibrary(), "the synthesized target should carry the type of the package");
+        assert(t.packageRoot == "main", "the synthesized target should carry the package root");
+        assert(t.testRoot == "__test__", "the synthesized target should carry the test root");
+        assert(t.flags == copy ["-O0"], "the synthesized target should carry the package flags");
+        assert(t.libraries == copy ["m"], "the synthesized target should carry the package libraries");
+        assert(t.synthesized, "the target of a package declaring none is a synthesized one");
+    } else assert(false, "expected a target named after the package");
+}
+
+__test {
+    // A package declaring targets has exactly those, and none named after the package itself
+    let cfg = GyllirPackageConfiguration(json#{
+        "name" : "multi",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "targets" : {
+            "mylib" : {"type" : "library"},
+            "cli" : {"targets" : ["mylib"]}
+        }
+    });
+
+    let targets = cfg.targets();
+    assert(targets.len == 2us, "a package declaring two targets should have exactly those");
+    assert("multi" !in targets, "no target should be synthesized for a package declaring some");
+
+    if let Ok(t) = targets["cli"] {
+        assert(!t.synthesized, "a declared target is not a synthesized one");
+    } else assert(false, "expected a declared \"cli\" target");
+}
+
+__test {
+    // "type" is optional at the package level, and defaults to an executable
+    let cfg = GyllirPackageConfiguration(json#{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"}
+    });
+
+    assert(cfg.type.isExecutable(), "a package declaring no type should be an executable");
+}
+
+__test {
+    // Every field describing a single artifact is rejected next to a "[targets.*]" table: it would
+    // simply go unread, which is the trap the rule exists to prevent
+    for key in copy ["type", "package-root", "test-root", "flags", "libraries"] {
+        let dmut d = copy Dict();
+        d:["name"] = copy Str("multi");
+        d:["license"] = copy Str("MIT");
+        d:["description"] = copy Str("d");
+        d:["version"] = copy Str("1.0.0");
+        d:["registry"] = json#{"local" : "some/registry"};
+        d:["targets"] = json#{"cli" : {"type" : "executable"}};
+
+        // a well typed value, so that what rejects it is the exclusivity rule and not the parser
+        if (key == "type") {
+            d:[key] = copy Str("executable");
+        } else if (key == "flags" || key == "libraries") {
+            d:[key] = copy Array(copy [copy Str("x")]);
+        } else {
+            d:[key] = copy Str("main");
+        }
+
+        let mut msg = "";
+        {
+            GyllirPackageConfiguration(d);
+        } catch {
+            a: &AssertError => { msg = a.msg; }
+            _: &CastFailure => { msg = ""; }
+        }
+
+        assert(msg.len > 0us, "'" ~ key ~ "' should be rejected at the top level of a multi target package");
+        assert(msg[0 .. key.len + 2us] == "'" ~ key ~ "'", "the error should name the rejected key, got: " ~ msg);
+    }
+}
+
+__test {
+    // The same fields are accepted at the top level of a package declaring no target
+    let cfg = GyllirPackageConfiguration(json#{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "package-root" : "main",
+        "test-root" : "__test__",
+        "flags" : ["-O0"],
+        "libraries" : ["m"]
+    });
+
+    assert(cfg.flags == copy ["-O0"], "unexpected package flags");
+    assert(cfg.libraries == copy ["m"], "unexpected package libraries");
+}
+
+__test {
+    // Serializing a package that declares targets writes them back, and none of the fields that
+    // would be rejected on the next read
+    let cfg = GyllirPackageConfiguration(json#{
+        "name" : "multi",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "targets" : {"cli" : {"type" : "executable", "package-root" : "main"}}
+    });
+
+    let serialized = cfg.serialize();
+
+    if let Ok(targets) = serialized["targets"]? {
+        if let Ok(cli) = targets["cli"]? {
+            assert(to!{[c8]}(cli["package-root"]) == "main", "the target entries should be written back");
+        } else assert(false, "expected a serialized \"cli\" target");
+    } else assert(false, "expected the declared targets to be serialized");
+
+    for key in copy ["type", "package-root", "test-root", "flags", "libraries"] {
+        assert(key !in serialized, "'" ~ key ~ "' must not be written next to a target table");
+    }
+}
+
+__test {
+    // Serializing a package that declares no target writes its top level fields, and no target
+    // table: "gyllir publish" rewrites the whole file, and must not inject the synthesized target
+    let cfg = GyllirPackageConfiguration(json#{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "library",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "package-root" : "main",
+        "test-root" : "__test__",
+        "flags" : ["-O0"],
+        "libraries" : ["m"]
+    });
+
+    let serialized = cfg.serialize();
+
+    assert("targets" !in serialized, "a package declaring no target should not gain one on publish");
+    assert(to!{[c8]}(serialized["type"]) == "library", "unexpected serialized type");
+    assert(to!{[c8]}(serialized["package-root"]) == "main", "the package root should be written back");
+    assert(to!{[c8]}(serialized["test-root"]) == "__test__", "the test root should be written back");
+    assert(to!{[[c8]]}(serialized["flags"]) == copy ["-O0"], "unexpected serialized flags");
+    assert(to!{[[c8]]}(serialized["libraries"]) == copy ["m"], "unexpected serialized libraries");
+}
+
+__test {
+    // A package that never declared a package root, a test root or flags does not gain them either
+    let cfg = GyllirPackageConfiguration(json#{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"}
+    });
+
+    let serialized = cfg.serialize();
+
+    assert("package-root" !in serialized, "an unset package root should not be written back");
+    assert("test-root" !in serialized, "an unset test root should not be written back");
+    assert("flags" !in serialized, "an empty flag list should not be written back");
+}
+
+__test {
+    // A configuration holding targets survives a serialization round trip
+    let cfg = GyllirPackageConfiguration(json#{
+        "name" : "multi",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "targets" : {
+            "mylib" : {"type" : "library"},
+            "cli" : {"type" : "executable", "targets" : ["mylib"], "output" : "gyllir-cli"}
+        }
+    });
+
+    let back = GyllirPackageConfiguration(cfg.serialize());
+    let targets = back.targets();
+
+    assert(targets.len == 2us, "both targets should survive the round trip");
+    if let Ok(t) = targets["cli"] {
+        assert(t.outputName() == "gyllir-cli", "the output name should survive the round trip");
+        assert(t.targets == copy ["mylib"], "the linked targets should survive the round trip");
+    } else assert(false, "expected a \"cli\" target after the round trip");
 }
 
 __test {
