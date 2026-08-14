@@ -20,7 +20,7 @@ pub class Module over Symbol {
 
     impl Streamable {
         pub over toStream(self, dmut stream: &StringStream) {
-            stream:.write("Module: ", self.name, " => ", self.loc, "\n");
+            stream:.write("Module : ", self.name, " => ", self.loc, "\n");
             stream:.entabing();
             for d in self.childs {
                 stream:.write(d);

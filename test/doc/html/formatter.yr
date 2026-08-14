@@ -23,7 +23,7 @@ __test {
 __test {
     // Content with no placeholder is copied verbatim
     let dmut stream = copy StringStream();
-    let values : [[c8] => [c8]] = copy [];
+    let values: [[c8] => [c8]] = copy [];
     formatter::format(alias stream, "no placeholders here", values);
 
     assert(stream[] == "no placeholders here", "unexpected result for plain text");
@@ -32,7 +32,7 @@ __test {
 __test {
     // A placeholder whose key isn't in the map is silently dropped (surrounding text is kept)
     let dmut stream = copy StringStream();
-    let values : [[c8] => [c8]] = copy [];
+    let values: [[c8] => [c8]] = copy [];
     formatter::format(alias stream, "missing $(key) value", values);
 
     assert(stream[] == "missing  value", "unexpected result for a missing key");
@@ -59,7 +59,7 @@ __test {
 __test {
     // An unterminated "$(" (no matching ")") is kept as literal text, and doesn't crash
     let dmut stream = copy StringStream();
-    let values : [[c8] => [c8]] = copy [];
+    let values: [[c8] => [c8]] = copy [];
     formatter::format(alias stream, "unterminated $(oops", values);
 
     assert(stream[] == "unterminated $(oops", "unexpected result for an unterminated placeholder");

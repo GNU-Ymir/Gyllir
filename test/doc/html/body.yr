@@ -20,7 +20,7 @@ use gyllir::doc::types::enum_;
 
 use std::stream;
 
-fn dump(mod_ : &Module)-> [c8] {
+fn dump(mod_: &Module)-> [c8] {
     let body = copy HtmlBody("MyProject", mod_);
     let dmut stream = copy StringStream();
     body.dumpHtml(alias stream);
@@ -34,7 +34,7 @@ def MODULE_HEAD = "<div class=\"module description\"><h3 class=\"y_dd_decl_name\
 __test {
     // A function with defaults (no params, no ret_type, no throwers) renders via the "declaration" template
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
-    let f : &Symbol = copy Function("foo", "", INTERNAL_LOCATION, Protection::PUB);
+    let f: &Symbol = copy Function("foo", "", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [f];
 
     assert(dump(mod_) == MODULE_HEAD ~
@@ -51,7 +51,7 @@ __test {
 __test {
     // A Global with the default (empty) type omits the type annotation entirely
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
-    let g : &Symbol = copy Global("MAX", "", INTERNAL_LOCATION, Protection::PUB);
+    let g: &Symbol = copy Global("MAX", "", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [g];
 
     assert(dump(mod_) == MODULE_HEAD ~
@@ -70,7 +70,7 @@ __test {
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let dmut a = copy Aka("MyInt", "", INTERNAL_LOCATION, Protection::PUB);
     a.type = copy ScalarType("i32", "");
-    let a2 : &Symbol = a;
+    let a2: &Symbol = a;
     mod_.childs = copy [a2];
 
     assert(dump(mod_) == MODULE_HEAD ~
@@ -90,7 +90,7 @@ __test {
     let dmut e = copy EnumSymbol("Color", "", INTERNAL_LOCATION, Protection::PUB);
     e.type = copy EnumType("Color", "", copy ScalarType("u8", ""));
     e.fields = copy [("RED", "0", "")];
-    let e2 : &Symbol = e;
+    let e2: &Symbol = e;
     mod_.childs = copy [e2];
 
     assert(dump(mod_) == MODULE_HEAD ~
@@ -115,7 +115,7 @@ __test {
 __test {
     // A macro with no ctors/rules still renders its own declaration wrapper, with an empty member-list
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
-    let m : &Symbol = copy Macro("mymacro", "", INTERNAL_LOCATION, Protection::PUB);
+    let m: &Symbol = copy Macro("mymacro", "", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [m];
 
     assert(dump(mod_) == MODULE_HEAD ~
@@ -146,7 +146,7 @@ __test {
     c.ctors = copy [copy Ctor("self", "", INTERNAL_LOCATION, Protection::PUB)];
     c.methods = copy [copy Method("bar", "", INTERNAL_LOCATION, Protection::PUB)];
 
-    let c2 : &Symbol = c;
+    let c2: &Symbol = c;
     mod_.childs = copy [c2];
     let out = dump(mod_);
 
@@ -169,7 +169,7 @@ __test {
 __test {
     // Two nested modules populate the submodule table, sorted and formatted with an underscore-joined url
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
-    let sub : &Symbol = copy Module("mymod::sub", "docs for sub", INTERNAL_LOCATION, Protection::PUB);
+    let sub: &Symbol = copy Module("mymod::sub", "docs for sub", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [sub];
 
     assert(dump(mod_) == MODULE_HEAD ~
@@ -194,7 +194,7 @@ __test {
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let dmut t = copy TraitSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
     t.methods = copy [copy Method("bar", "", INTERNAL_LOCATION, Protection::PUB)];
-    let t2 : &Symbol = t;
+    let t2: &Symbol = t;
     mod_.childs = copy [t2];
 
     let out = dump(mod_);
@@ -211,8 +211,8 @@ __test {
 __test {
     // Functions are sorted alphabetically by name, regardless of declaration order
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
-    let f1 : &Symbol = copy Function("zeta", "", INTERNAL_LOCATION, Protection::PUB);
-    let f2 : &Symbol = copy Function("alpha", "", INTERNAL_LOCATION, Protection::PUB);
+    let f1: &Symbol = copy Function("zeta", "", INTERNAL_LOCATION, Protection::PUB);
+    let f2: &Symbol = copy Function("alpha", "", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [f1, f2];
 
     let out = dump(mod_);
@@ -229,13 +229,13 @@ __test {
     let dmut tmpl = copy Template("foo", "", INTERNAL_LOCATION, Protection::PUB);
     tmpl.test = "T != U";
 
-    let params : [&TemplateParam] = copy [copy TemplateVarParam("T", "class")];
+    let params: [&TemplateParam] = copy [copy TemplateVarParam("T", "class")];
     tmpl.params = params;
 
-    let f : &Symbol = copy Function("foo", "", INTERNAL_LOCATION, Protection::PUB);
+    let f: &Symbol = copy Function("foo", "", INTERNAL_LOCATION, Protection::PUB);
     tmpl.inners = copy [f];
 
-    let tmplSym : &Symbol = tmpl;
+    let tmplSym: &Symbol = tmpl;
     mod_.childs = copy [tmplSym];
 
     assert(dump(mod_) == MODULE_HEAD ~
@@ -250,7 +250,7 @@ __test {
         "unexpected html for a templated function");
 }
 
-fn findFirst(haystack : [c8], needle : [c8])-> (bool, usize) {
+fn findFirst(haystack: [c8], needle: [c8])-> (bool, usize) {
     if needle.len == 0us || haystack.len < needle.len return (false, 0us);
 
     for i in 0us .. (haystack.len - needle.len + 1us) {

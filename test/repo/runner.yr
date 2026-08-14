@@ -16,8 +16,8 @@ __test {
     {
         runner.run();
     } catch {
-        _ : &AssertError => { threw = true; }
-        _ : &FsError => { threw = false; }
+        _: &AssertError => { threw = true; }
+        _: &FsError => { threw = false; }
     }
 
     assert(threw, "running a library project (non unit-test mode) should throw an AssertError");

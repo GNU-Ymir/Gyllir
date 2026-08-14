@@ -10,77 +10,77 @@ use std::fs::_;
  * (as they are named on disk: source path flattened with "_")
  * @returns: the cache directory
  * */
-fn mkCacheDir (names : [[c8]])-> Path
+fn mkCacheDir(names: [[c8]])-> Path
     throws FsError
 {
-    let dir = sys::tempDirectory (prefix-> "gyllir_builder_test_");
-    let cacheDir = dir.push (defaults::__CACHE_DEBUG_DIR__);
-    sys::createDir (cacheDir.push (defaults::__YIL_DIR__), recursive-> true);
+    let dir = sys::tempDirectory(prefix-> "gyllir_builder_test_");
+    let cacheDir = dir.push(defaults::__CACHE_DEBUG_DIR__);
+    sys::createDir(cacheDir.push(defaults::__YIL_DIR__), recursive-> true);
 
     for n in names {
-        let dmut y = File::create (cacheDir.push (defaults::__YIL_DIR__).push (n).addExtension (defaults::__YIL_EXTENSION__), write-> true);
-        y:.write ("yil");
-        y:.close ();
+        let dmut y = File::create(cacheDir.push(defaults::__YIL_DIR__).push(n).addExtension(defaults::__YIL_EXTENSION__), write-> true);
+        y:.write("yil");
+        y:.close();
 
-        let dmut d = File::create (cacheDir.push (n).addExtension (defaults::__DEPS_EXTENSION__), write-> true);
-        d:.write ("deps");
-        d:.close ();
+        let dmut d = File::create(cacheDir.push(n).addExtension(defaults::__DEPS_EXTENSION__), write-> true);
+        d:.write("deps");
+        d:.close();
     }
 
     cacheDir
 }
 
-fn mkBuilder (cacheDir : Path)-> RepoBuilder {
-    RepoBuilder (cacheDir.parent ().parent (), copy Dict (), GyllirPackageConfiguration::empty (), false)
+fn mkBuilder(cacheDir: Path)-> RepoBuilder {
+    RepoBuilder(cacheDir.parent().parent(), copy Dict(), GyllirPackageConfiguration::empty(), false)
 }
 
-fn hasYIL (cacheDir : Path, name : [c8])-> bool {
-    sys::isFile (cacheDir.push (defaults::__YIL_DIR__).push (name).addExtension (defaults::__YIL_EXTENSION__))
+fn hasYIL(cacheDir: Path, name: [c8])-> bool {
+    sys::isFile(cacheDir.push(defaults::__YIL_DIR__).push(name).addExtension(defaults::__YIL_EXTENSION__))
 }
 
-fn hasDeps (cacheDir : Path, name : [c8])-> bool {
-    sys::isFile (cacheDir.push (name).addExtension (defaults::__DEPS_EXTENSION__))
+fn hasDeps(cacheDir: Path, name: [c8])-> bool {
+    sys::isFile(cacheDir.push(name).addExtension(defaults::__DEPS_EXTENSION__))
 }
 
 __test {
     // pruneRemovedModules() drops the YIL and deps files of a module whose source is gone, and keeps the others
-    let cacheDir = mkCacheDir (copy ["main", "gone"]);
-    let builder = mkBuilder (cacheDir);
+    let cacheDir = mkCacheDir(copy ["main", "gone"]);
+    let builder = mkBuilder(cacheDir);
 
-    let pruned = builder.pruneRemovedModules (cacheDir, copy [Path ("main.yr")]);
+    let pruned = builder.pruneRemovedModules(cacheDir, copy [Path("main.yr")]);
 
-    assert (pruned, "removing a module should report the cache as pruned");
-    assert (hasYIL (cacheDir, "main"), "the YIL of a live module should be kept");
-    assert (hasDeps (cacheDir, "main"), "the deps of a live module should be kept");
-    assert (!hasYIL (cacheDir, "gone"), "the YIL of a deleted module should be removed");
-    assert (!hasDeps (cacheDir, "gone"), "the deps of a deleted module should be removed");
+    assert(pruned, "removing a module should report the cache as pruned");
+    assert(hasYIL(cacheDir, "main"), "the YIL of a live module should be kept");
+    assert(hasDeps(cacheDir, "main"), "the deps of a live module should be kept");
+    assert(!hasYIL(cacheDir, "gone"), "the YIL of a deleted module should be removed");
+    assert(!hasDeps(cacheDir, "gone"), "the deps of a deleted module should be removed");
 }
 
 __test {
     // Nothing to prune: every cached module still has a source, so the cache is left untouched
-    let cacheDir = mkCacheDir (copy ["main", "sub_other"]);
-    let builder = mkBuilder (cacheDir);
+    let cacheDir = mkCacheDir(copy ["main", "sub_other"]);
+    let builder = mkBuilder(cacheDir);
 
-    let pruned = builder.pruneRemovedModules (cacheDir, copy [Path ("main.yr"), Path ("sub/other.yr")]);
+    let pruned = builder.pruneRemovedModules(cacheDir, copy [Path("main.yr"), Path("sub/other.yr")]);
 
-    assert (!pruned, "an up to date cache should not be reported as pruned");
-    assert (hasYIL (cacheDir, "main"), "the YIL of a live module should be kept");
-    assert (hasYIL (cacheDir, "sub_other"), "the YIL of a live nested module should be kept");
-    assert (hasDeps (cacheDir, "sub_other"), "the deps of a live nested module should be kept");
+    assert(!pruned, "an up to date cache should not be reported as pruned");
+    assert(hasYIL(cacheDir, "main"), "the YIL of a live module should be kept");
+    assert(hasYIL(cacheDir, "sub_other"), "the YIL of a live nested module should be kept");
+    assert(hasDeps(cacheDir, "sub_other"), "the deps of a live nested module should be kept");
 }
 
 __test {
     // A deps file left without its YIL counterpart is pruned as well
-    let cacheDir = mkCacheDir (copy ["main"]);
-    let builder = mkBuilder (cacheDir);
+    let cacheDir = mkCacheDir(copy ["main"]);
+    let builder = mkBuilder(cacheDir);
 
-    let dmut d = File::create (cacheDir.push ("orphan").addExtension (defaults::__DEPS_EXTENSION__), write-> true);
-    d:.write ("deps");
-    d:.close ();
+    let dmut d = File::create(cacheDir.push("orphan").addExtension(defaults::__DEPS_EXTENSION__), write-> true);
+    d:.write("deps");
+    d:.close();
 
-    let pruned = builder.pruneRemovedModules (cacheDir, copy [Path ("main.yr")]);
+    let pruned = builder.pruneRemovedModules(cacheDir, copy [Path("main.yr")]);
 
-    assert (pruned, "an orphan deps file should report the cache as pruned");
-    assert (!hasDeps (cacheDir, "orphan"), "an orphan deps file should be removed");
-    assert (hasDeps (cacheDir, "main"), "the deps of a live module should be kept");
+    assert(pruned, "an orphan deps file should report the cache as pruned");
+    assert(!hasDeps(cacheDir, "orphan"), "an orphan deps file should be removed");
+    assert(hasDeps(cacheDir, "main"), "the deps of a live module should be kept");
 }

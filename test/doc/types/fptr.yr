@@ -6,7 +6,7 @@ use std::stream;
 
 __test {
     // A plain function pointer with two parameters, one passed by ref
-    let params : [&Type] = copy [copy ScalarType("i32", ""), copy ScalarType("[c8]", "")];
+    let params: [&Type] = copy [copy ScalarType("i32", ""), copy ScalarType("[c8]", "")];
     let refs = copy [true, false];
     let lazys = copy [false, false];
     let f = copy FuncPtrType("", false, params, refs, lazys, copy ScalarType("bool", ""));
@@ -28,7 +28,7 @@ __test {
 }
 
 __test {
-    let params : [&Type] = copy [copy ScalarType("i32", "")];
+    let params: [&Type] = copy [copy ScalarType("i32", "")];
     let f = copy FuncPtrType("", false, params, copy [false], copy [true], copy ScalarType("void", ""));
 
     let dmut stream = copy StringStream();

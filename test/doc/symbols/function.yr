@@ -11,7 +11,7 @@ __test {
     let dmut f = copy Function("bar", "docs", loc, Protection::PUB);
     f.retType = copy ScalarType("i32", "");
 
-    let p : &Variable = copy Variable("x", "", INTERNAL_LOCATION, Protection::PUB);
+    let p: &Variable = copy Variable("x", "", INTERNAL_LOCATION, Protection::PUB);
     f.parameters = copy [p];
 
     f.isUnsafe = true;

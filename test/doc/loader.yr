@@ -34,7 +34,7 @@ __test {
         "protect" : "prot"
     });
 
-    if let fn_ : &Function = f {
+    if let fn_: &Function = f {
         assert(fn_.name == "foo", "unexpected name");
         assert(fn_.doc == "does foo things", "unexpected doc");
         assert(fn_.loc.filename.toStr() == "src/foo.yr", "unexpected loc filename");
@@ -47,7 +47,7 @@ __test {
     // Protection defaults to PRV when "protect" is missing or unrecognized
     let l = SymbolLoader();
     let f = l.load(json#{"kind" : "function", "name" : "foo"});
-    if let fn_ : &Function = f {
+    if let fn_: &Function = f {
         assert(fn_.protect == Protection::PRV, "protection should default to PRV");
     } else assert(false, "expected a Function symbol");
 }
@@ -72,7 +72,7 @@ __test {
         "ret_type" : {"kind" : "scalar", "name" : "i32"}
     });
 
-    if let fn_ : &Function = f {
+    if let fn_: &Function = f {
         assert(fn_.isUnsafe && fn_.isInline, "unexpected attributes");
         assert(fn_.parameters.len == 1us, "expected a single parameter");
         assert(fn_.throwers.len == 1us, "expected a single thrower");
@@ -81,7 +81,7 @@ __test {
         retStream:.write(fn_.retType);
         assert(retStream[] == "Scalar (i32)", "unexpected ret_type");
 
-        if let fptrT : &FuncPtrType = fn_.parameters[0].type {
+        if let fptrT: &FuncPtrType = fn_.parameters[0].type {
             assert(!fptrT.isDelegate, "expected a plain fptr, not a delegate");
             assert(fptrT.parameters.len == 2us, "expected two fptr parameters");
             // this is exactly the array that the loadFuncPtrType refs/lazys copy-paste bug corrupted
@@ -101,7 +101,7 @@ __test {
         "params" : [{"name" : "x", "type" : {"kind" : "scalar", "name" : "i32"}}]
     });
 
-    if let c_ : &Ctor = c {
+    if let c_: &Ctor = c {
         assert(c_.isUnsafe, "expected isUnsafe to be set");
         assert(c_.parameters.len == 1us, "expected a single parameter");
     } else assert(false, "expected a Ctor symbol");
@@ -118,7 +118,7 @@ __test {
         "ret_type" : {"kind" : "scalar", "name" : "bool"}
     });
 
-    if let m_ : &Method = m {
+    if let m_: &Method = m {
         assert(m_.isMutable, "expected isMutable to be set");
         assert(m_.isField && m_.isFinal && !m_.isUnsafe, "unexpected attributes");
     } else assert(false, "expected a Method symbol");
@@ -144,7 +144,7 @@ __test {
         "implements" : [{"trait" : {"kind" : "class", "name" : "Comparable"}}]
     });
 
-    if let c_ : &ClassSymbol = c {
+    if let c_: &ClassSymbol = c {
         assert(c_.hasDtor && c_.isAbstract && !c_.isFinal, "unexpected flags");
         assert(c_.fields.len == 1us, "conditional fields should not go into the plain fields list");
         assert(c_.condFields.len == 1us && c_.condFields[0]._1 == "is!{T}{i32}", "unexpected condFields");
@@ -163,12 +163,12 @@ __test {
     // "entity"/"record" kinds set the corresponding flags on the same ClassSymbol
     let l = SymbolLoader();
     let e = l.load(json#{"kind" : "entity", "name" : "Foo"});
-    if let e_ : &ClassSymbol = e {
+    if let e_: &ClassSymbol = e {
         assert(e_.isEntity && !e_.isRecord, "unexpected entity flags");
     } else assert(false, "expected a ClassSymbol");
 
     let r = l.load(json#{"kind" : "record", "name" : "Foo"});
-    if let r_ : &ClassSymbol = r {
+    if let r_: &ClassSymbol = r {
         assert(r_.isRecord && !r_.isEntity, "unexpected record flags");
     } else assert(false, "expected a ClassSymbol");
 }
@@ -186,7 +186,7 @@ __test {
         "asserts" : [{"test" : "true", "msg" : "always"}]
     });
 
-    if let t_ : &TraitSymbol = t {
+    if let t_: &TraitSymbol = t {
         assert(t_.methods.len == 1us, "conditional methods should not go into the plain methods list");
         assert(t_.condMethods.len == 1us, "expected a single condMethods entry");
         assert(t_.asserts.len == 1us, "expected a single assert");
@@ -203,7 +203,7 @@ __test {
         "fields" : [{"name" : "RED", "value" : "0", "doc" : "the color red"}]
     });
 
-    if let e_ : &EnumSymbol = e {
+    if let e_: &EnumSymbol = e {
         assert(e_.fields.len == 1us, "expected a single field");
         assert(e_.fields[0]._0 == "RED" && e_.fields[0]._1 == "0" && e_.fields[0]._2 == "the color red",
                "unexpected field tuple");
@@ -227,7 +227,7 @@ __test {
         "value" : "0"
     });
 
-    if let g_ : &Global = g {
+    if let g_: &Global = g {
         assert(g_.isThreadLocal && g_.isStatic && g_.isMutable, "unexpected flags");
         assert(g_.value == "0", "unexpected value");
     } else assert(false, "expected a Global symbol");
@@ -237,7 +237,7 @@ __test {
     // A "def" (aka) with a literal value
     let l = SymbolLoader();
     let a = l.load(json#{"kind" : "def", "name" : "MAX", "value" : "42"});
-    if let a_ : &Aka = a {
+    if let a_: &Aka = a {
         assert(a_.isValue && a_.value == "42", "unexpected value-form aka");
     } else assert(false, "expected an Aka symbol");
 }
@@ -246,7 +246,7 @@ __test {
     // A "def" (aka) with a type
     let l = SymbolLoader();
     let a = l.load(json#{"kind" : "def", "name" : "MyInt", "type" : {"kind" : "scalar", "name" : "i32"}});
-    if let a_ : &Aka = a {
+    if let a_: &Aka = a {
         assert(!a_.isValue, "unexpected value-form flag on a type aka");
 
         let dmut typeStream = copy StringStream();
@@ -265,7 +265,7 @@ __test {
         "rules" : [{"name" : "r1", "kind" : "rule", "rule" : "expr", "skips" : ["+", "-"]}]
     });
 
-    if let m_ : &Macro = m {
+    if let m_: &Macro = m {
         assert(m_.ctors.len == 1us && m_.ctors[0].isCtor, "unexpected ctor rules");
         assert(m_.rules.len == 1us && !m_.rules[0].isCtor, "unexpected normal rules");
         assert(m_.rules[0].skips == copy ["+", "-"], "unexpected skips");
@@ -284,7 +284,7 @@ __test {
         ]
     });
 
-    if let m_ : &Module = m {
+    if let m_: &Module = m {
         assert(m_.childs.len == 1us, "the unrecognized child should have been dropped");
         assert(m_.childs[0] of Function, "the remaining child should be the function");
     } else assert(false, "expected a Module symbol");
@@ -307,7 +307,7 @@ __test {
         "content" : [{"kind" : "function", "name" : "foo"}]
     });
 
-    if let t_ : &Template = t {
+    if let t_: &Template = t {
         assert(t_.test == "T != U", "unexpected template test");
         assert(t_.params.len == 5us, "unexpected number of template params");
         assert(t_.params[0] of TemplateVarParam, "expected a var param for \"class\"");
@@ -323,55 +323,55 @@ __test {
     let l = SymbolLoader();
 
     let f1 = l.load(json#{"kind" : "function", "name" : "f", "ret_type" : {"kind" : "array", "len" : 3, "inner" : {"kind" : "scalar", "name" : "i32"}}});
-    if let fn1 : &Function = f1 {
+    if let fn1: &Function = f1 {
         assert(fn1.retType of ArrayType, "expected an ArrayType");
     } else assert(false, "expected a Function symbol");
 
     let f2 = l.load(json#{"kind" : "function", "name" : "f", "ret_type" : {"kind" : "tuple", "inners" : [{"kind" : "scalar", "name" : "i32"}]}});
-    if let fn2 : &Function = f2 {
+    if let fn2: &Function = f2 {
         assert(fn2.retType of TupleType, "expected a TupleType");
     } else assert(false, "expected a Function symbol");
 
     let f3 = l.load(json#{"kind" : "function", "name" : "f", "ret_type" : {"kind" : "map", "key" : {"kind" : "scalar", "name" : "i32"}, "value" : {"kind" : "scalar", "name" : "bool"}}});
-    if let fn3 : &Function = f3 {
+    if let fn3: &Function = f3 {
         assert(fn3.retType of MapType, "expected a MapType");
     } else assert(false, "expected a Function symbol");
 
     let f4 = l.load(json#{"kind" : "function", "name" : "f", "ret_type" : {"kind" : "option", "inner" : {"kind" : "scalar", "name" : "i32"}}});
-    if let fn4 : &Function = f4 {
+    if let fn4: &Function = f4 {
         assert(fn4.retType of OptionType, "expected an OptionType");
     } else assert(false, "expected a Function symbol");
 
     let f5 = l.load(json#{"kind" : "function", "name" : "f", "ret_type" : {"kind" : "pointer", "inner" : {"kind" : "scalar", "name" : "i32"}}});
-    if let fn5 : &Function = f5 {
+    if let fn5: &Function = f5 {
         assert(fn5.retType of PointerType, "expected a PointerType");
     } else assert(false, "expected a Function symbol");
 
     let f6 = l.load(json#{"kind" : "function", "name" : "f", "ret_type" : {"kind" : "range", "inner" : {"kind" : "scalar", "name" : "i32"}}});
-    if let fn6 : &Function = f6 {
+    if let fn6: &Function = f6 {
         assert(fn6.retType of RangeType, "expected a RangeType");
     } else assert(false, "expected a Function symbol");
 
     let f7 = l.load(json#{"kind" : "function", "name" : "f", "ret_type" : {"kind" : "slice", "inner" : {"kind" : "scalar", "name" : "i32"}}});
-    if let fn7 : &Function = f7 {
+    if let fn7: &Function = f7 {
         assert(fn7.retType of SliceType, "expected a SliceType");
     } else assert(false, "expected a Function symbol");
 
     let f8 = l.load(json#{"kind" : "function", "name" : "f", "ret_type" : {"kind" : "enum", "name" : "Color", "proxy" : {"kind" : "scalar", "name" : "u8"}}});
-    if let fn8 : &Function = f8 {
+    if let fn8: &Function = f8 {
         assert(fn8.retType of EnumType, "expected an EnumType");
     } else assert(false, "expected a Function symbol");
 
     let f9 = l.load(json#{"kind" : "function", "name" : "f", "ret_type" : {"kind" : "record", "name" : "Foo", "mutability" : "dmut"}});
-    if let fn9 : &Function = f9 {
-        if let ct : &ClassType = fn9.retType {
+    if let fn9: &Function = f9 {
+        if let ct: &ClassType = fn9.retType {
             assert(ct.isRecord && ct.innerMut, "expected a mutable record ClassType");
         } else assert(false, "expected a ClassType");
     } else assert(false, "expected a Function symbol");
 
     // An unrecognized kind falls back to AnyType, named after the "name" key
     let f10 = l.load(json#{"kind" : "function", "name" : "f", "ret_type" : {"kind" : "something-else", "name" : "Weird"}});
-    if let fn10 : &Function = f10 {
+    if let fn10: &Function = f10 {
         assert(fn10.retType of AnyType, "expected an AnyType fallback");
     } else assert(false, "expected a Function symbol");
 }

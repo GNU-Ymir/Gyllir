@@ -18,10 +18,10 @@ __test {
     let dmut t = copy Template("Foo", "", INTERNAL_LOCATION, Protection::PUB);
     t.test = "T != U";
 
-    let params : [&TemplateParam] = copy [copy TemplateAnyParam("T"), copy TemplateVarParam("U", "of i32")];
+    let params: [&TemplateParam] = copy [copy TemplateAnyParam("T"), copy TemplateVarParam("U", "of i32")];
     t.params = params;
 
-    let inner : &Symbol = copy Function("f", "", INTERNAL_LOCATION, Protection::PUB);
+    let inner: &Symbol = copy Function("f", "", INTERNAL_LOCATION, Protection::PUB);
     t.inners = copy [inner];
 
     let dmut stream = copy StringStream();
