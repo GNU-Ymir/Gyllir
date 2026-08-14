@@ -5,6 +5,7 @@ use std::config::{conv, json};
 use std::conv::errors;
 
 pub mod ::command;
+pub mod ::dependency;
 pub mod ::errors;
 pub mod ::url;
 pub mod ::target;

@@ -4,6 +4,7 @@ use gyllir::repo::builder;
 use gyllir::repo::cleaner;
 use gyllir::repo::defaults;
 use gyllir::config::_;
+use gyllir::config::version::filter;
 use gyllir::utils::errors;
 use gyllir::utils::git;
 
@@ -12,6 +13,19 @@ use std::config::json;
 use std::concurrency::process;
 use std::fs::_;
 use std::stream;
+
+/**
+ * The library targets of a package as 'resolveDependency' would compute them: every declared
+ * target that is not an executable one
+ * */
+fn libTargetsOf(cfg: GyllirPackageConfiguration)-> [[c8] => ()] {
+    let dmut res: [[c8] => ()] = copy [];
+    for k, t in cfg.targets() if !t.type.isExecutable() {
+        res[k] = ();
+    }
+
+    res
+}
 
 __test {
     // toVersionList(): dedups, skips "(HEAD detached...)" markers, and parses each entry as a Version
@@ -494,5 +508,128 @@ __test {
 
     assert(links.len == 1us && links[0] == depPath.push("libmylib.a"), "only the library archive should be linked");
     assert(includes.len == 2us, "the root file of the library target and the one of the project should be exported");
+    assert(hasFile(app, "myapp"), "the executable should be produced");
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * ===========================          MULTI-TARGET DEPENDENCIES          ============================
+ * ====================================================================================================
+ * ====================================================================================================
+ * "link-targets" selects which of a multi-target dependency's library targets are actually linked
+ */
+
+__test {
+    // Absent "link-targets", every library target of the dependency is linked: today's behaviour,
+    // unaffected by a package that never uses the new key
+    let lib = mkMultiLibProject();
+    writeToml(lib, mkMultiLibConfig());
+    gitInit(lib);
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkConfigWithDependency("myapp", "executable", "multilib", lib);
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    let (_, links) = RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
+
+    let depPath = app.push(defaults::__DEPENCY_DIR__).push("multilib");
+    assert(sys::isFile(depPath.push("libfoo.a")), "libfoo should be built");
+    assert(sys::isFile(depPath.push("libbar.a")), "libbar should be built");
+    assert(links.len == 2us, "both archives should be linked");
+}
+
+__test {
+    // "link-targets" narrows a dependency down to the named sub-targets: the other one is neither
+    // built nor linked
+    let lib = mkMultiLibProject();
+    writeToml(lib, mkMultiLibConfig());
+    gitInit(lib);
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkConfigWithSelectedDependency("myapp", "executable", "multilib", lib, copy ["foo"]);
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    let (includes, links) = RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
+
+    let depPath = app.push(defaults::__DEPENCY_DIR__).push("multilib");
+    assert(sys::isFile(depPath.push("libfoo.a")), "the selected target should be built");
+    assert(!sys::isFile(depPath.push("libbar.a")), "the target left out of \"link-targets\" should not be built");
+
+    assert(links.len == 1us && links[0] == depPath.push("libfoo.a"), "only the selected archive should be linked");
+    assert(includes.len == 2us, "only the selected target's root file and the project's own should be exported");
+    assert(hasFile(app, "myapp"), "the executable should be produced");
+}
+
+__test {
+    // "selectDependencyTargets" is called directly here rather than driven through
+    // "RepoBuilder.run()" -> "resolveDependency": that call chain wraps a thrown "AssertError" in a
+    // catch that calls "etc::c::process::_yrt_exit(-1)", which would take the test binary down with
+    // it instead of letting the test observe the exception -- the same reason "orderedTargets" and
+    // "linkedTargets" are tested directly for YMI-72's own target-selection errors.
+
+    // An empty selection is left untouched: it is what "absent link-targets" means
+    let mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    let cfg = mkMultiTargetConfig();
+    let libTargets = libTargetsOf(cfg);
+
+    let selected = mgr.selectDependencyTargets("multi", Dependency(VersionFilter(copy ["*"]), Url("local:some/dir")), cfg.targets(), libTargets);
+
+    assert(selected.len == 1us && "mylib" in selected, "an empty selection should keep every library target");
+}
+
+__test {
+    // A "link-targets" naming a target the dependency does not declare is rejected
+    let mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    let cfg = mkMultiTargetConfig();
+    let libTargets = libTargetsOf(cfg);
+    let dep = Dependency(VersionFilter(copy ["*"]), Url("local:some/dir"), targets-> copy ["nope"]);
+
+    let mut msg = "";
+    {
+        mgr.selectDependencyTargets("multi", dep, cfg.targets(), libTargets);
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "dependency 'multi' links the unknown target 'nope', declared targets are 'cli', 'mylib', 'tool'",
+           "unexpected error: " ~ msg);
+}
+
+__test {
+    // A "link-targets" naming an executable target of the dependency is rejected: an executable is
+    // never linked into the package that depends on it
+    let mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    let cfg = mkMultiTargetConfig();
+    let libTargets = libTargetsOf(cfg);
+    let dep = Dependency(VersionFilter(copy ["*"]), Url("local:some/dir"), targets-> copy ["cli"]);
+
+    let mut msg = "";
+    {
+        mgr.selectDependencyTargets("multi", dep, cfg.targets(), libTargets);
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "dependency 'multi' links target 'cli', which is not a library", "unexpected error: " ~ msg);
+}
+
+__test {
+    // A "link-targets" naming the single target of a dependency declaring no "[targets.*]" table
+    // (its synthesized target, named after the package) keeps working exactly as if the key had
+    // been left out
+    let lib = mkLibraryProject("mylib");
+    writeToml(lib, mkConfig("mylib", "library"));
+    gitInit(lib);
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkConfigWithSelectedDependency("myapp", "executable", "mylib", lib, copy ["mylib"]);
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    let (includes, links) = RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
+
+    let depPath = app.push(defaults::__DEPENCY_DIR__).push("mylib");
+    assert(links.len == 1us && links[0] == depPath.push("libmylib.a"), "the synthesized target should still be linked");
+    assert(includes.len == 2us, "both root files should still be exported");
     assert(hasFile(app, "myapp"), "the executable should be produced");
 }
