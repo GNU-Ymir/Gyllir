@@ -82,7 +82,7 @@ pub record RepoPublisher {
         npack:.setVersion(self.incrementVersion());
 
         {
-            let dmut f = File::create(Path(defaults::__GYLLIR_CONFIG_FILENAME__), write-> true);
+            let dmut f = File::create(self._cwd.push(defaults::__GYLLIR_CONFIG_FILENAME__), write-> true);
             f:.write(std::config::toml::dump(npack.serialize()));
             f:.close();
         }

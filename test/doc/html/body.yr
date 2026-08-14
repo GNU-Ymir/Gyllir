@@ -17,10 +17,18 @@ use gyllir::doc::types::_;
 use gyllir::doc::types::scalar;
 use gyllir::doc::types::class_;
 use gyllir::doc::types::enum_;
+use gyllir::doc::types::array;
+use gyllir::doc::types::slice;
+use gyllir::doc::types::map;
+use gyllir::doc::types::tuple;
+use gyllir::doc::types::option;
+use gyllir::doc::types::pointer;
+use gyllir::doc::types::range;
+use gyllir::doc::types::fptr;
 
 use std::stream;
 
-fn dump(mod_ : &Module)-> [c8] {
+fn dump(mod_: &Module)-> [c8] {
     let body = copy HtmlBody("MyProject", mod_);
     let dmut stream = copy StringStream();
     body.dumpHtml(alias stream);
@@ -34,7 +42,7 @@ def MODULE_HEAD = "<div class=\"module description\"><h3 class=\"y_dd_decl_name\
 __test {
     // A function with defaults (no params, no ret_type, no throwers) renders via the "declaration" template
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
-    let f : &Symbol = copy Function("foo", "", INTERNAL_LOCATION, Protection::PUB);
+    let f: &Symbol = copy Function("foo", "", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [f];
 
     assert(dump(mod_) == MODULE_HEAD ~
@@ -51,7 +59,7 @@ __test {
 __test {
     // A Global with the default (empty) type omits the type annotation entirely
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
-    let g : &Symbol = copy Global("MAX", "", INTERNAL_LOCATION, Protection::PUB);
+    let g: &Symbol = copy Global("MAX", "", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [g];
 
     assert(dump(mod_) == MODULE_HEAD ~
@@ -70,7 +78,7 @@ __test {
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let dmut a = copy Aka("MyInt", "", INTERNAL_LOCATION, Protection::PUB);
     a.type = copy ScalarType("i32", "");
-    let a2 : &Symbol = a;
+    let a2: &Symbol = a;
     mod_.childs = copy [a2];
 
     assert(dump(mod_) == MODULE_HEAD ~
@@ -90,7 +98,7 @@ __test {
     let dmut e = copy EnumSymbol("Color", "", INTERNAL_LOCATION, Protection::PUB);
     e.type = copy EnumType("Color", "", copy ScalarType("u8", ""));
     e.fields = copy [("RED", "0", "")];
-    let e2 : &Symbol = e;
+    let e2: &Symbol = e;
     mod_.childs = copy [e2];
 
     assert(dump(mod_) == MODULE_HEAD ~
@@ -115,7 +123,7 @@ __test {
 __test {
     // A macro with no ctors/rules still renders its own declaration wrapper, with an empty member-list
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
-    let m : &Symbol = copy Macro("mymacro", "", INTERNAL_LOCATION, Protection::PUB);
+    let m: &Symbol = copy Macro("mymacro", "", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [m];
 
     assert(dump(mod_) == MODULE_HEAD ~
@@ -146,7 +154,7 @@ __test {
     c.ctors = copy [copy Ctor("self", "", INTERNAL_LOCATION, Protection::PUB)];
     c.methods = copy [copy Method("bar", "", INTERNAL_LOCATION, Protection::PUB)];
 
-    let c2 : &Symbol = c;
+    let c2: &Symbol = c;
     mod_.childs = copy [c2];
     let out = dump(mod_);
 
@@ -169,7 +177,7 @@ __test {
 __test {
     // Two nested modules populate the submodule table, sorted and formatted with an underscore-joined url
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
-    let sub : &Symbol = copy Module("mymod::sub", "docs for sub", INTERNAL_LOCATION, Protection::PUB);
+    let sub: &Symbol = copy Module("mymod::sub", "docs for sub", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [sub];
 
     assert(dump(mod_) == MODULE_HEAD ~
@@ -194,7 +202,7 @@ __test {
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let dmut t = copy TraitSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
     t.methods = copy [copy Method("bar", "", INTERNAL_LOCATION, Protection::PUB)];
-    let t2 : &Symbol = t;
+    let t2: &Symbol = t;
     mod_.childs = copy [t2];
 
     let out = dump(mod_);
@@ -211,8 +219,8 @@ __test {
 __test {
     // Functions are sorted alphabetically by name, regardless of declaration order
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
-    let f1 : &Symbol = copy Function("zeta", "", INTERNAL_LOCATION, Protection::PUB);
-    let f2 : &Symbol = copy Function("alpha", "", INTERNAL_LOCATION, Protection::PUB);
+    let f1: &Symbol = copy Function("zeta", "", INTERNAL_LOCATION, Protection::PUB);
+    let f2: &Symbol = copy Function("alpha", "", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [f1, f2];
 
     let out = dump(mod_);
@@ -229,13 +237,13 @@ __test {
     let dmut tmpl = copy Template("foo", "", INTERNAL_LOCATION, Protection::PUB);
     tmpl.test = "T != U";
 
-    let params : [&TemplateParam] = copy [copy TemplateVarParam("T", "class")];
+    let params: [&TemplateParam] = copy [copy TemplateVarParam("T", "class")];
     tmpl.params = params;
 
-    let f : &Symbol = copy Function("foo", "", INTERNAL_LOCATION, Protection::PUB);
+    let f: &Symbol = copy Function("foo", "", INTERNAL_LOCATION, Protection::PUB);
     tmpl.inners = copy [f];
 
-    let tmplSym : &Symbol = tmpl;
+    let tmplSym: &Symbol = tmpl;
     mod_.childs = copy [tmplSym];
 
     assert(dump(mod_) == MODULE_HEAD ~
@@ -250,7 +258,7 @@ __test {
         "unexpected html for a templated function");
 }
 
-fn findFirst(haystack : [c8], needle : [c8])-> (bool, usize) {
+fn findFirst(haystack: [c8], needle: [c8])-> (bool, usize) {
     if needle.len == 0us || haystack.len < needle.len return (false, 0us);
 
     for i in 0us .. (haystack.len - needle.len + 1us) {
@@ -258,4 +266,274 @@ fn findFirst(haystack : [c8], needle : [c8])-> (bool, usize) {
     }
 
     (false, 0us)
+}
+
+/**
+ * @returns: true iif 'needle' appears in 'haystack'
+ * */
+fn contains(haystack: [c8], needle: [c8])-> bool {
+    findFirst(haystack, needle).0
+}
+
+/**
+ * @returns: the html rendering of a module holding 'sym' alone
+ * */
+fn dumpOne(sym: &Symbol)-> [c8] {
+    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+    mod_.childs = copy [sym];
+
+    dump(mod_)
+}
+
+/**
+ * A parameter of a function/method/constructor
+ * */
+fn mkParam(name: [c8], type: &Type)-> &Variable {
+    let dmut v = copy Variable(name, "", INTERNAL_LOCATION, Protection::PUB);
+    v.type = type;
+
+    v
+}
+
+__test {
+    // Every kind of type is rendered in the signature of the function taking it as a parameter
+    let dmut f = copy Function("everyType", "", INTERNAL_LOCATION, Protection::PUB);
+    f.parameters = copy [
+        mkParam("arr", copy ArrayType("", copy ScalarType("i32", ""), 3us)),
+        mkParam("sli", copy SliceType("", copy ScalarType("u8", ""))),
+        mkParam("map", copy MapType("", copy ScalarType("i32", ""), copy ScalarType("f64", ""))),
+        mkParam("tup", copy TupleType("", copy [copy ScalarType("i32", ""), copy ScalarType("bool", "")])),
+        mkParam("opt", copy OptionType("", copy ScalarType("i32", ""))),
+        mkParam("ptr", copy PointerType("", copy ScalarType("void", ""))),
+        mkParam("rng", copy RangeType("", copy ScalarType("i32", "")))
+    ];
+
+    let out = dumpOne(f);
+
+    assert(contains(out, "arr : [i32 ; 3]"), "unexpected rendering of an array type");
+    assert(contains(out, "sli : [u8]"), "unexpected rendering of a slice type");
+    assert(contains(out, "map : [i32 => f64]"), "unexpected rendering of a map type");
+    assert(contains(out, "tup : (i32,bool)"), "unexpected rendering of a tuple type");
+    assert(contains(out, "opt : (i32)?"), "unexpected rendering of an option type");
+    assert(contains(out, "ptr : *(void)"), "unexpected rendering of a pointer type");
+    assert(contains(out, "rng : ..i32"), "unexpected rendering of a range type");
+}
+
+__test {
+    // Function pointer and delegate types, and the mutability prefix of a type
+    let dmut f = copy Function("pointers", "", INTERNAL_LOCATION, Protection::PUB);
+    f.parameters = copy [
+        mkParam("fptr", copy FuncPtrType("", false, copy [copy ScalarType("i32", "")], copy [false], copy [false], copy ScalarType("bool", ""))),
+        mkParam("dg", copy FuncPtrType("", true, copy [copy ScalarType("i32", ""), copy ScalarType("u8", "")], copy [true, false], copy [false, true], copy ScalarType("void", ""))),
+        mkParam("mutSlice", copy SliceType("mut", copy ScalarType("i32", ""))),
+        mkParam("dmutSlice", copy SliceType("dmut", copy ScalarType("i32", "")))
+    ];
+
+    let out = dumpOne(f);
+
+    assert(contains(out, "fptr : fn (i32)-> bool"), "unexpected rendering of a function pointer type");
+    assert(contains(out, "dg : dg (ref i32, lazy u8)-> void"), "unexpected rendering of a delegate type");
+    assert(contains(out, "mutSlice : mut [i32]"), "a mutable type should be prefixed with \"mut\"");
+    assert(contains(out, "dmutSlice : dmut [i32]"), "a deeply mutable type should be prefixed with \"dmut\"");
+}
+
+__test {
+    // The attributes, the parameter annotations, the return type and the thrown types of a function
+    let dmut f = copy Function("annotated", "", INTERNAL_LOCATION, Protection::PRV);
+    f.isInline = true;
+    f.isUnsafe = true;
+    f.retType = copy ScalarType("i32", "");
+    f.throwers = copy [copy ClassType("core::exception::AssertError", "", false)];
+
+    let dmut byRef = copy Variable("byRef", "", INTERNAL_LOCATION, Protection::PUB);
+    byRef.type = copy ScalarType("i32", "");
+    byRef.isRef = true;
+
+    let dmut byMut = copy Variable("byMut", "", INTERNAL_LOCATION, Protection::PUB);
+    byMut.type = copy ScalarType("i32", "");
+    byMut.isMut = true;
+    byMut.defaultValue = "0";
+
+    f.parameters = copy [byRef, byMut];
+
+    let out = dumpOne(f);
+
+    assert(contains(out, "@{unsafe, inline}"), "a function that is both inline and unsafe should carry both attributes");
+    assert(contains(out, "prv fn"), "the protection of the function should be rendered");
+    assert(contains(out, "ref byRef : i32"), "a reference parameter should be annotated");
+    assert(contains(out, "mut byMut : i32 = 0"), "a mutable parameter and its default value should be rendered");
+    assert(contains(out, "-> i32"), "the return type should be rendered");
+    assert(contains(out, "throws"), "the thrown types should be rendered");
+}
+
+__test {
+    // An inline-only and an unsafe-only function carry a single attribute
+    let dmut inl = copy Function("inl", "", INTERNAL_LOCATION, Protection::PUB);
+    inl.isInline = true;
+    assert(contains(dumpOne(inl), "@inline"), "an inline function should carry the inline attribute");
+
+    let dmut uns = copy Function("uns", "", INTERNAL_LOCATION, Protection::PROT);
+    uns.isUnsafe = true;
+    let out = dumpOne(uns);
+
+    assert(contains(out, "@unsafe"), "an unsafe function should carry the unsafe attribute");
+    assert(contains(out, "prot fn"), "the protection of the function should be rendered");
+}
+
+__test {
+    // A record with an ancestor, an implemented trait, a cte assertion and a documented field
+    let dmut c = copy ClassSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
+    c.isRecord = true;
+    c.ancestor = copy ClassType("mymod::Base", "", false);
+    c.implements = copy [(copy ClassType("std::stream::Streamable", "", false), "")];
+
+    let dmut a = Assertion();
+    a.test = "sizeof(T) > 0";
+    a.msg = "\"a type of its own\"";
+    a.doc = "the type must not be empty";
+    c.asserts = copy [a];
+
+    let dmut field = copy Variable("value", "the wrapped value", INTERNAL_LOCATION, Protection::PRV);
+    field.type = copy ScalarType("i32", "");
+    field.isMut = true;
+    field.defaultValue = "0";
+    c.fields = copy [field];
+
+    let out = dumpOne(c);
+
+    assert(contains(out, "pub record"), "a record should be rendered as a record");
+    assert(contains(out, "over "), "the ancestor of the class should be rendered");
+    assert(contains(out, "impl "), "the implemented traits should be rendered");
+    assert(contains(out, "Assertions"), "the assertions should get a section of their own");
+    assert(contains(out, "cte assert (sizeof(T) > 0, \"a type of its own\")"), "unexpected rendering of a cte assertion");
+    assert(contains(out, "Fields"), "the fields should get a section of their own");
+    assert(contains(out, "prv let mut value : i32 = 0;"), "unexpected rendering of a mutable field with a default value");
+}
+
+__test {
+    // The conditional and templated members of a class each get a section of their own
+    let dmut c = copy ClassSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
+    c.isFinal = true;
+
+    let dmut condField = copy Variable("only", "", INTERNAL_LOCATION, Protection::PUB);
+    condField.type = copy ScalarType("i32", "");
+    c.condFields = copy [(condField, "T == i32")];
+
+    c.condCtors = copy [(copy Ctor("self", "", INTERNAL_LOCATION, Protection::PUB), "T == i32")];
+    c.condMethods = copy [(copy Method("cond", "", INTERNAL_LOCATION, Protection::PUB), "T == i32")];
+
+    let dmut tmplCtor = copy Template("self", "", INTERNAL_LOCATION, Protection::PUB);
+    tmplCtor.test = "U != i32";
+    tmplCtor.params = copy [copy TemplateVarParam("U", "class")];
+    tmplCtor.inners = copy [copy Ctor("self", "", INTERNAL_LOCATION, Protection::PUB)];
+    c.templateCtors = copy [tmplCtor];
+
+    let dmut tmplMethod = copy Template("tmpl", "", INTERNAL_LOCATION, Protection::PUB);
+    tmplMethod.test = "U != i32";
+    tmplMethod.params = copy [copy TemplateVarParam("U", "class")];
+    tmplMethod.inners = copy [copy Method("tmpl", "", INTERNAL_LOCATION, Protection::PUB)];
+    c.templateMethods = copy [tmplMethod];
+
+    let out = dumpOne(c);
+
+    assert(contains(out, "@final"), "a final class should carry the final attribute");
+    assert(contains(out, "Conditional Fields"), "the conditional fields should get a section of their own");
+    assert(contains(out, "Conditional Constructors"), "the conditional constructors should get a section of their own");
+    assert(contains(out, "Conditional Methods"), "the conditional methods should get a section of their own");
+    assert(contains(out, "Template Constructors"), "the template constructors should get a section of their own");
+    assert(contains(out, "Template Methods"), "the template methods should get a section of their own");
+    assert(contains(out, "if (T == i32)"), "the condition of a conditional member should be rendered");
+    assert(contains(out, "if (U != i32)"), "the test of a templated member should be rendered");
+}
+
+__test {
+    // An abstract class, a named constructor and a method carrying several attributes
+    let dmut c = copy ClassSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
+    c.isAbstract = true;
+
+    let dmut ctor = copy Ctor("named", "", INTERNAL_LOCATION, Protection::PROT);
+    ctor.isUnsafe = true;
+    ctor.parameters = copy [mkParam("x", copy ScalarType("i32", ""))];
+    ctor.throwers = copy [copy ClassType("core::exception::AssertError", "", false)];
+    c.ctors = copy [ctor];
+
+    let dmut m = copy Method("size", "", INTERNAL_LOCATION, Protection::PUB);
+    m.isFinal = true;
+    m.isField = true;
+    m.isMutable = true;
+    m.retType = copy ScalarType("usize", "");
+    m.throwers = copy [copy ClassType("core::exception::AssertError", "", false)];
+    m.parameters = copy [mkParam("i", copy ScalarType("i32", ""))];
+    c.methods = copy [m];
+
+    let out = dumpOne(c);
+
+    assert(contains(out, "@abstract"), "an abstract class should carry the abstract attribute");
+    assert(contains(out, "Constructors"), "the constructors should get a section of their own");
+    assert(contains(out, "prot self named ("), "a named constructor should be rendered with its name");
+    assert(contains(out, "@{final, field}"), "a method carrying several attributes should list them all");
+    assert(contains(out, "mut self"), "a mutable method should take a mutable self");
+    assert(contains(out, "-> usize"), "the return type of the method should be rendered");
+}
+
+__test {
+    // A macro with a constructor rule and a rule with skips
+    let dmut m = copy Macro("mymacro", "", INTERNAL_LOCATION, Protection::PUB);
+
+    let dmut ctor = copy MacroRule("self", "", INTERNAL_LOCATION, Protection::PUB);
+    ctor.isCtor = true;
+    ctor.rule = "expr=__expr";
+    m.ctors = copy [ctor];
+
+    let dmut rule = copy MacroRule("run", "", INTERNAL_LOCATION, Protection::PUB);
+    rule.rule = "body=__expr";
+    rule.skips = copy [" ", "\\n"];
+    m.rules = copy [rule];
+
+    let out = dumpOne(m);
+
+    assert(contains(out, "Constructors"), "the constructor rules should get a section of their own");
+    assert(contains(out, "Rules"), "the rules should get a section of their own");
+    assert(contains(out, "pub self ("), "the constructor rule should be rendered as a constructor");
+    assert(contains(out, "pub fn run ("), "a rule should be rendered as a function");
+    assert(contains(out, "skips"), "the skipped tokens of a rule should be rendered");
+}
+
+__test {
+    // A thread local static global, with a type and a value
+    let dmut g = copy Global("COUNTER", "", INTERNAL_LOCATION, Protection::PUB);
+    g.isStatic = true;
+    g.isThreadLocal = true;
+    g.type = copy ScalarType("i32", "");
+    g.value = "0";
+
+    let out = dumpOne(g);
+
+    assert(contains(out, "@thread"), "a thread local global should carry the thread attribute");
+    assert(contains(out, "pub static COUNTER : i32 = 0"), "unexpected rendering of a static global");
+}
+
+__test {
+    // An enum whose values come from another module link to that module's page
+    let dmut e = copy EnumSymbol("Color", "", INTERNAL_LOCATION, Protection::PUB);
+    e.type = copy EnumType("Color", "", copy ClassType("othermod::Shade", "", false));
+    e.fields = copy [("RED", "Shade::RED", "the red shade")];
+
+    let out = dumpOne(e);
+
+    assert(contains(out, "othermod.html#Shade"), "a type of another module should link to that module's page");
+    assert(contains(out, "RED = Shade::RED"), "the value of an enum field should be rendered");
+    assert(contains(out, "the red shade"), "the documentation of an enum field should be rendered");
+}
+
+__test {
+    // The submodule table strips the template instantiation off the name of a templated module
+    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+    let sub: &Symbol = copy Module("mymod::vec!{i32}", "a templated module", INTERNAL_LOCATION, Protection::PUB);
+    mod_.childs = copy [sub];
+
+    let out = dump(mod_);
+
+    assert(contains(out, "Inner modules"), "the submodule table should be rendered");
+    assert(contains(out, "a templated module"), "the documentation of the submodule should be rendered");
 }

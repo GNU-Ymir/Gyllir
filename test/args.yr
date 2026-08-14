@@ -1,6 +1,38 @@
 use gyllir::args;
 use gyllir::config::version;
 
+use std::config::_;
+
+/**
+ * Run the real gyllir command line parser
+ * @info: 'args[0]' is the program name and is always skipped by the parser
+ * */
+fn parse(args: [[c8]])-> &Config {
+    (copy GyllirArgumentParser()).parse(args)
+}
+
+/**
+ * @returns: the sub configuration stored under 'key', asserting it is there
+ * */
+fn sub(cfg: &Config, key: [c8])-> &Config
+    throws AssertError
+{
+    if let Ok(c) = cfg[key]? return c;
+
+    throw copy AssertError("no '" ~ key ~ "' sub command in the parsed configuration");
+}
+
+/**
+ * @returns: the value of the boolean flag 'key', asserting it is there
+ * */
+fn flag(cfg: &Config, key: [c8])-> bool
+    throws AssertError
+{
+    if let Ok(Bool(value-> v)) = cfg[key]? return v;
+
+    throw copy AssertError("no '" ~ key ~ "' flag in the parsed configuration");
+}
+
 __test {
     // The version constant is kept in sync with gyllir.toml by tools/set-version.sh, so it must
     // always be a numbered version and never be left at its "0.0.0" placeholder
@@ -27,4 +59,145 @@ __test {
     // A compiler that cannot be run reports no version rather than failing
     assert(compilerVersion(compiler-> "gyllir-no-such-compiler") == "",
            "an unknown compiler should report an empty version");
+}
+
+__test {
+    // A compiler that can be run reports the first line of its "--version" output
+    // ("echo" stands in for a real compiler, to keep the test independent of the toolchain)
+    let version = compilerVersion(compiler-> "echo");
+
+    assert(version.len > 0us, "a runnable compiler should report a non empty version");
+    for c in version {
+        assert(c != '\n', "only the first line of the compiler output should be reported");
+    }
+}
+
+__test {
+    // 'init' takes no option, but it must be recognized as a sub command
+    let cfg = parse(copy ["gyllir", "init"]);
+
+    assert("init" in cfg, "the init sub command should be parsed");
+}
+
+__test {
+    // 'build' defaults: every flag is inserted, and set to false
+    let build = sub(parse(copy ["gyllir", "build"]), "build");
+
+    assert(!flag(build, "release"), "release should default to false");
+    assert(!flag(build, "verbose"), "verbose should default to false");
+    assert("j" !in build, "an unspecified option should be absent");
+}
+
+__test {
+    // 'build' with every option set, using both the long and the short spelling
+    let build = sub(parse(copy ["gyllir", "build", "--release", "-j", "4", "-v"]), "build");
+
+    assert(flag(build, "release"), "--release should be parsed");
+    assert(flag(build, "verbose"), "-v should be parsed as verbose");
+
+    if let Ok(Int(value-> j)) = build["j"]? {
+        assert(j == 4i64, "-j should be parsed as an integer");
+    } else assert(false, "-j should be parsed");
+}
+
+__test {
+    // 'run' forwards its own arguments verbatim to the executable, as an array of strings
+    let run = sub(parse(copy ["gyllir", "run", "--some-flag", "positional"]), "run");
+
+    if let a: &Array = run {
+        assert(a[].len == 2us, "both arguments should be forwarded");
+        assert(to!{[c8]}(a[][0]) == "--some-flag", "unexpected first forwarded argument");
+        assert(to!{[c8]}(a[][1]) == "positional", "unexpected second forwarded argument");
+    } else assert(false, "the run arguments should be forwarded as an array");
+}
+
+__test {
+    // 'run' without arguments forwards an empty list
+    let run = sub(parse(copy ["gyllir", "run"]), "run");
+
+    if let a: &Array = run {
+        assert(a[].len == 0us, "no argument should be forwarded");
+    } else assert(false, "the run arguments should be forwarded as an array");
+}
+
+__test {
+    // 'publish' with a version increment flag and its mandatory message
+    let publish = sub(parse(copy ["gyllir", "publish", "--minor", "-y", "a release message"]), "publish");
+
+    assert(flag(publish, "minor"), "--minor should be parsed");
+    assert(flag(publish, "yes"), "-y should be parsed as yes");
+    assert(!flag(publish, "major") && !flag(publish, "patch"), "the other increments should be false");
+    assert(!flag(publish, "dry"), "dry should default to false");
+
+    if let Ok(Str(value-> msg)) = publish["message"]? {
+        assert(msg == "a release message", "unexpected publish message");
+    } else assert(false, "the message positional should be parsed");
+}
+
+__test {
+    // 'publish --dry --major' : the exclusivity check only rejects more than one increment
+    let publish = sub(parse(copy ["gyllir", "publish", "--dry", "--major", "m"]), "publish");
+
+    assert(flag(publish, "dry") && flag(publish, "major"), "--dry and --major should be parsed");
+}
+
+__test {
+    // 'clean' defaults to cleaning the outputs only
+    let clean = sub(parse(copy ["gyllir", "clean"]), "clean");
+
+    assert(!flag(clean, "all"), "all should default to false");
+    assert(!flag(clean, "doc"), "doc should default to false");
+}
+
+__test {
+    // 'clean --all' and 'clean --doc' (-a is the short spelling of --all)
+    let all = sub(parse(copy ["gyllir", "clean", "-a"]), "clean");
+    assert(flag(all, "all"), "-a should be parsed as all");
+
+    let doc = sub(parse(copy ["gyllir", "clean", "--doc"]), "clean");
+    assert(flag(doc, "doc") && !flag(doc, "all"), "--doc should be parsed alone");
+}
+
+__test {
+    // 'doc' with an input file and an output directory
+    let doc = sub(parse(copy ["gyllir", "doc", "-i", "gyllir.doc.json", "-o", "/tmp/out", "-v"]), "doc");
+
+    assert(flag(doc, "verbose"), "-v should be parsed as verbose");
+
+    if let Ok(Str(value-> i)) = doc["input"]? {
+        assert(i == "gyllir.doc.json", "unexpected input file");
+    } else assert(false, "-i should be parsed as input");
+
+    if let Ok(Str(value-> o)) = doc["output"]? {
+        assert(o == "/tmp/out", "unexpected output directory");
+    } else assert(false, "-o should be parsed as output");
+}
+
+__test {
+    // 'doc' without option: neither input nor output is set
+    let doc = sub(parse(copy ["gyllir", "doc"]), "doc");
+
+    assert("input" !in doc, "input should be absent by default");
+    assert("output" !in doc, "output should be absent by default");
+}
+
+__test {
+    // 'test' with every option set
+    let test = sub(parse(copy ["gyllir", "test", "--dry", "--release", "-j", "2", "-v"]), "test");
+
+    assert(flag(test, "dry"), "--dry should be parsed");
+    assert(flag(test, "release"), "--release should be parsed");
+    assert(flag(test, "verbose"), "-v should be parsed as verbose");
+
+    if let Ok(Int(value-> j)) = test["j"]? {
+        assert(j == 2i64, "-j should be parsed as an integer");
+    } else assert(false, "-j should be parsed");
+}
+
+__test {
+    // 'test' defaults: the tests are built and run, in debug mode
+    let test = sub(parse(copy ["gyllir", "test"]), "test");
+
+    assert(!flag(test, "dry"), "dry should default to false");
+    assert(!flag(test, "release"), "release should default to false");
 }

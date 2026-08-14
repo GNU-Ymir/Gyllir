@@ -5,7 +5,7 @@ use gyllir::doc::types::scalar;
 use std::stream;
 
 __test {
-    let childs : [&Type] = copy [copy ScalarType("i32", ""), copy ScalarType("[c8]", "")];
+    let childs: [&Type] = copy [copy ScalarType("i32", ""), copy ScalarType("[c8]", "")];
     let t = copy TupleType("", childs);
     let dmut stream = copy StringStream();
     stream:.write(t);

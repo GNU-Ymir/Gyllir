@@ -1,6 +1,14 @@
+use ::repo::fixture;
 use gyllir::repo::manager;
+use gyllir::repo::builder;
+use gyllir::repo::cleaner;
+use gyllir::repo::defaults;
 use gyllir::config::_;
+use gyllir::utils::errors;
+use gyllir::utils::git;
 
+use std::config::_;
+use std::concurrency::process;
 use std::fs::_;
 use std::stream;
 
@@ -40,4 +48,147 @@ __test {
     let mgr = copy GyllirManager(copy ["gyllir", "clean"]);
 
     assert(!mgr.runProcess("this-command-does-not-exist-xyz", []), "a missing command should report failure, not throw");
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * ==================================          INTEGRATION          ===================================
+ * ====================================================================================================
+ * ====================================================================================================
+ * Dependency resolution, driven end to end on the tiny projects materialized by 'repo::fixture'
+ */
+
+__test {
+    // A local dependency is symlinked into ".deps", built, and exported to the dependent project
+    let lib = mkLibraryProject("mylib");
+    writeToml(lib, mkConfig("mylib", "library"));
+    gitInit(lib);
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkConfigWithDependency("myapp", "executable", "mylib", lib);
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    let (includes, links) = RepoBuilder(app, mkBuildArgs(), cfg, forUnitTest-> false).run(alias mgr);
+
+    assert(sys::isLink(app.push(defaults::__DEPENCY_DIR__).push("mylib")), "a local dependency should be symlinked into .deps");
+    assert(hasFile(lib, "libmylib.a"), "the dependency should have been built");
+
+    assert(includes.len == 2us, "both the dependency root file and the project's own should be exported");
+    // the dependency is built through its symlink, so it exports paths rooted in ".deps"
+    let depPath = app.push(defaults::__DEPENCY_DIR__).push("mylib");
+    assert(includes[0] == depPath.push(defaults::__SRC_DIR__).push("mylib").addExtension(defaults::__YMIR_EXTENSION__), "unexpected dependency root file");
+    assert(links.len == 1us && links[0] == depPath.push("libmylib.a"), "the dependency archive should be linked");
+    assert(hasFile(app, "myapp"), "the executable should be produced");
+}
+
+__test {
+    // Resolving the same dependency twice in a row reuses the symlink instead of failing on it
+    let lib = mkLibraryProject("mylib");
+    writeToml(lib, mkConfig("mylib", "library"));
+    gitInit(lib);
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkConfigWithDependency("myapp", "executable", "mylib", lib);
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    RepoBuilder(app, mkBuildArgs(), cfg, forUnitTest-> false).run(alias mgr);
+    RepoBuilder(app, mkBuildArgs(), cfg, forUnitTest-> false).run(alias mgr);
+
+    assert(sys::isLink(app.push(defaults::__DEPENCY_DIR__).push("mylib")), "the dependency symlink should still be there");
+    assert(hasFile(app, "myapp"), "the executable should be produced");
+}
+
+__test {
+    // A dependency cycle is reported instead of being followed forever
+    let lib = mkLibraryProject("selfdep");
+    writeToml(lib, mkConfigWithDependency("selfdep", "library", "selfdep", lib));
+    gitInit(lib);
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkConfigWithDependency("myapp", "executable", "selfdep", lib);
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    let mut threw = false;
+    {
+        RepoBuilder(app, mkBuildArgs(), cfg, forUnitTest-> false).run(alias mgr);
+    } catch {
+        _: &RecursiveDependency => { threw = true; }
+    }
+
+    assert(threw, "a dependency depending on itself should be reported as recursive");
+}
+
+__test {
+    // "clean --all" removes the outputs, the documentation and the resolved dependencies, recursively
+    let lib = mkLibraryProject("mylib");
+    writeToml(lib, mkConfig("mylib", "library"));
+    gitInit(lib);
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkConfigWithDependency("myapp", "executable", "mylib", lib);
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    RepoBuilder(app, mkBuildArgs(), cfg, forUnitTest-> false).run(alias mgr);
+    assert(hasFile(lib, "libmylib.a"), "sanity: the dependency should have been built");
+
+    RepoCleaner(app, mkArgs(copy ["all"]), cfg).run(alias mgr);
+
+    assert(!sys::isDir(app.push(defaults::__CACHE_ALL_DIR__)), "the build cache should be removed");
+    assert(!sys::isDir(app.push(defaults::__DEPENCY_DIR__)), "the resolved dependencies should be removed");
+    assert(!hasFile(app, "myapp"), "the executable should be removed");
+
+    assert(!sys::isDir(lib.push(defaults::__CACHE_ALL_DIR__)), "the cache of the dependency should be cleaned as well");
+    assert(!hasFile(lib, "libmylib.a"), "the outputs of the dependency should be cleaned as well");
+}
+
+__test {
+    // runProcess() in verbose mode logs the command line it runs, and still reports its exit code
+    let mgr = copy GyllirManager(copy ["gyllir", "clean"]);
+
+    assert(mgr.runProcess("true", copy ["an-argument"], verbose-> true), "\"true\" should report success");
+}
+
+__test {
+    // progressBar() renders a partial bar, then a complete one closing the line
+    let mgr = copy GyllirManager(copy ["gyllir", "clean"]);
+
+    mgr.progressBar(0u32, 10u32);
+    mgr.progressBar(5u32, 10u32);
+    mgr.progressBar(10u32, 10u32);
+}
+
+__test {
+    // A dependency whose version filter rejects the branch it sits on is resolved through the tags
+    // fetched from its remote
+    let remote = sys::tempDirectory(prefix-> "gyllir_dep_remote_");
+    let dmut init = copy SubProcess("git", copy ["init", "--bare"], cwd-> remote);
+    init:.start();
+    init:.wait();
+
+    let source = mkLibraryProject("mylib");
+    writeToml(source, mkConfig("mylib", "library"));
+    gitInit(source);
+
+    let sourceGit = GitManager(cwd-> source);
+    let dmut sign = copy SubProcess("git", copy ["config", "tag.gpgsign", "false"], cwd-> source);
+    sign:.start();
+    sign:.wait();
+
+    sourceGit.createTag("v1.0.0");
+    sourceGit.setRemote(remote.toStr());
+    sourceGit.push(copy ["master", "v1.0.0"]);
+
+    // the dependency the project points at is a clone: it has a remote to fetch its tags from
+    let lib = sys::tempDirectory(prefix-> "gyllir_dep_clone_");
+    GitManager(cwd-> lib).clone(remote.toStr());
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkConfigWithDependency("myapp", "executable", "mylib", lib, version-> ">=1.0.0");
+
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    RepoBuilder(app, mkBuildArgs(), cfg, forUnitTest-> false).run(alias mgr);
+
+    assert(hasFile(app, "myapp"), "the executable should be produced");
+    assert(hasFile(lib, "libmylib.a"), "the dependency should have been built");
 }

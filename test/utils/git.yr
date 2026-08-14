@@ -5,7 +5,7 @@ use std::fs::_;
 use std::stream;
 use std::concurrency::process;
 
-fn containsSub(haystack : [c8], needle : [c8])-> bool {
+fn containsSub(haystack: [c8], needle: [c8])-> bool {
     if needle.len == 0us return true;
     if haystack.len < needle.len return false;
 
@@ -43,7 +43,7 @@ fn mkBareRepo()-> Path
     dir
 }
 
-fn writeFile(dir : Path, name : [c8], content : [c8])
+fn writeFile(dir: Path, name: [c8], content: [c8])
     throws FsError
 {
     let filePath = dir.push(name);
@@ -52,7 +52,7 @@ fn writeFile(dir : Path, name : [c8], content : [c8])
     f:.close();
 }
 
-fn commitFile(dir : Path, name : [c8], content : [c8], msg : [c8])
+fn commitFile(dir: Path, name: [c8], content: [c8], msg: [c8])
     throws GitError, FsError
 {
     let mgr = GitManager(cwd-> dir);
@@ -89,8 +89,8 @@ __test {
     {
         mgr.commit("empty commit");
     } catch {
-        _ : &GitError => { threw = true; }
-        _ : &FsError => { threw = true; }
+        _: &GitError => { threw = true; }
+        _: &FsError => { threw = true; }
     }
 
     assert(threw, "committing with nothing staged should throw a GitError");
@@ -105,8 +105,8 @@ __test {
     {
         mgr.add(dir.push("does-not-exist.txt"));
     } catch {
-        _ : &GitError => { threw = true; }
-        _ : &FsError => { threw = true; }
+        _: &GitError => { threw = true; }
+        _: &FsError => { threw = true; }
     }
 
     assert(threw, "adding a non-existent file should throw a GitError");
@@ -122,8 +122,8 @@ __test {
     {
         mgr.checkout("no-such-branch");
     } catch {
-        _ : &GitError => { threw = true; }
-        _ : &FsError => { threw = true; }
+        _: &GitError => { threw = true; }
+        _: &FsError => { threw = true; }
     }
 
     assert(threw, "checking out a non-existent branch should throw a GitError");

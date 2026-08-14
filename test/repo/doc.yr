@@ -1,0 +1,154 @@
+use ::repo::fixture;
+use gyllir::repo::doc;
+use gyllir::repo::builder;
+use gyllir::repo::manager;
+use gyllir::repo::defaults;
+use gyllir::config::_;
+
+use std::config::_;
+use std::fs::_;
+
+/**
+ * @returns: the number of html pages generated in 'dir'
+ * */
+fn nbPages(dir: Path)-> usize
+    throws FsError
+{
+    let mut nb = 0us;
+    for i in sys::readDir(dir) match i {
+        FsEntry(kind-> FsEntryKind::FILE, path-> p) if p.extension() == defaults::__HTML_EXTENSION__ => {
+            nb += 1us;
+        }
+    }
+
+    nb
+}
+
+__test {
+    // A documentation build compiles the project, then renders one html page per module, next to
+    // the static assets the pages refer to
+    let dir = mkExecutableProject("myapp");
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "doc"]);
+
+    RepoDocBuilder(dir, mkBuildArgs(), mkConfig("myapp", "executable")).run(alias mgr);
+
+    let docDir = dir.push(defaults::__DOC_DIR__);
+    assert(sys::isFile(docDir.push("index.html")), "the root module should be rendered as \"index.html\"");
+    assert(sys::isFile(docDir.push("main.html")), "the \"main\" module should be rendered as its own page");
+    assert(sys::isDir(docDir.push("css")) && sys::isDir(docDir.push("js")) && sys::isDir(docDir.push("ico")),
+           "the static assets of the pages should be copied next to them");
+}
+
+__test {
+    // "--output" renders the pages somewhere else than the default "__doc" directory
+    let dir = mkExecutableProject("myapp");
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "doc"]);
+
+    let out = sys::tempDirectory(prefix-> "gyllir_doc_out_");
+    let dmut args = copy Dict();
+    args:["output"] = copy Str(out.toStr());
+    args:["j"] = copy Int(1i64);
+
+    RepoDocBuilder(dir, args, mkConfig("myapp", "executable")).run(alias mgr);
+
+    assert(sys::isFile(out.push("index.html")), "the pages should be rendered in the requested directory");
+    assert(!sys::isDir(dir.push(defaults::__DOC_DIR__)), "the default documentation directory should be left alone");
+}
+
+__test {
+    // "--input" renders the pages from a documentation file produced by a previous compilation,
+    // without a package(and so without a configuration) of its own
+    let dir = mkExecutableProject("myapp");
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "doc"]);
+
+    RepoBuilder(dir, mkBuildArgs(), mkConfig("myapp", "executable"), forUnitTest-> false, forDoc-> true).run(alias mgr);
+    let input = dir.push(defaults::__CACHE_DOC_DIR__).push("myapp").addExtension(defaults::__DOC_EXTENSION__);
+    assert(sys::isFile(input), "sanity: the documentation file should have been produced");
+
+    let out = sys::tempDirectory(prefix-> "gyllir_doc_out_");
+    let dmut args = copy Dict();
+    args:["output"] = copy Str(out.toStr());
+
+    RepoDocBuilder(out, args, GyllirPackageConfiguration::empty(), input-> input.toStr(), fromFile-> true).run(alias mgr);
+
+    assert(sys::isFile(out.push("index.html")), "the pages should be rendered from the input documentation file");
+}
+
+__test {
+    // The pages of a previous run are removed before the new ones are written, so that the module
+    // of a deleted source does not keep a page of its own
+    let dir = mkExecutableProject("myapp");
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "doc"]);
+    let cfg = mkConfig("myapp", "executable");
+
+    RepoDocBuilder(dir, mkBuildArgs(), cfg).run(alias mgr);
+
+    let docDir = dir.push(defaults::__DOC_DIR__);
+    let nb = nbPages(docDir);
+    writeSource(docDir.push("stale").addExtension(defaults::__HTML_EXTENSION__), "<html></html>");
+
+    RepoDocBuilder(dir, mkBuildArgs(), cfg).run(alias mgr);
+
+    assert(!sys::isFile(docDir.push("stale.html")), "an html page left by a previous run should be removed");
+    assert(nbPages(docDir) == nb, "the pages of the modules that are still there should be rendered again");
+}
+
+__test {
+    // A project holding one declaration of about every kind is documented end to end: gyc produces
+    // the documentation file, the loader rebuilds the symbol tree out of it, and every symbol is
+    // rendered on the page of the module declaring it
+    let dir = mkRichProject();
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "doc"]);
+
+    RepoDocBuilder(dir, mkBuildArgs(), mkConfig("rich", "executable")).run(alias mgr);
+
+    let docDir = dir.push(defaults::__DOC_DIR__);
+    assert(sys::isFile(docDir.push("main.html")), "the root module should be rendered");
+    assert(sys::isFile(docDir.push("main_sub.html")), "the sub module should be rendered, on a page of its own");
+
+    let dmut f = File::open(docDir.push("main.html"));
+    let page = f:.readAll();
+    f:.close();
+
+    for needle in copy ["MAX_SIZE",                       // a def
+                        "COUNT",                          // a global
+                        "Color",                          // an enum, and its fields
+                        "RED",
+                        "add",                            // a function, its parameters and its doc
+                        "the first one",
+                        "isIntegral",                     // the test of a templated function
+                        "Printable",                      // a trait
+                        "Foo",                            // a class, its assertion, its ctor and its methods
+                        "always",
+                        "Pair",                           // a record
+                        "skips",                          // the rules of a macro
+                        "types",                          // a function taking every kind of type
+                        "[i32 ; 3]",
+                        "[i32 => f64]",
+                        "(i32,bool)",
+                        "(i32)?",
+                        "*(void)",
+                        "fn (i32)-> bool",
+                        "cte assert",                     // the assertion of a class
+                        "Constructors",                   // the sections of the members of a class
+                        "Methods",
+                        "Inner modules"]                  // the table of the sub modules
+    {
+        assert(findFirst(page, needle).0, "the rendered page does not mention \"" ~ needle ~ "\"");
+    }
+}
+
+/**
+ * @returns:
+ *   - .0: true iif 'needle' appears in 'haystack'
+ *   - .1: the offset it appears at
+ * */
+fn findFirst(haystack: [c8], needle: [c8])-> (bool, usize) {
+    if needle.len == 0us || haystack.len < needle.len return (false, 0us);
+
+    for i in 0us .. (haystack.len - needle.len + 1us) {
+        if haystack[i .. i + needle.len] == needle return (true, i);
+    }
+
+    (false, 0us)
+}

@@ -5,7 +5,7 @@ use gyllir::doc::symbols::template_::any;
 use std::stream;
 
 __test {
-    let content : [&TemplateParam] = copy [copy TemplateAnyParam("T"), copy TemplateAnyParam("U")];
+    let content: [&TemplateParam] = copy [copy TemplateAnyParam("T"), copy TemplateAnyParam("U")];
     let p = copy TemplateAndParam(content);
 
     let dmut stream = copy StringStream();

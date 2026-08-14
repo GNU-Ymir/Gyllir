@@ -6,7 +6,7 @@ use std::stream;
 
 __test {
     let dmut m = copy Module("m", "", INTERNAL_LOCATION, Protection::PUB);
-    let f : &Symbol = copy Function("f", "", INTERNAL_LOCATION, Protection::PUB);
+    let f: &Symbol = copy Function("f", "", INTERNAL_LOCATION, Protection::PUB);
     m.childs = copy [f];
 
     let dmut stream = copy StringStream();
