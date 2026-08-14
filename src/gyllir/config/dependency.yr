@@ -14,9 +14,13 @@ pub record Dependency {
     // The url of the dependency
     let _url: Url;
 
-    pub self (version: VersionFilter, url: Url)
+    // The names of the dependency's targets to link ([] selects every one of its library targets)
+    let _targets: [[c8]];
+
+    pub self (version: VersionFilter, url: Url, targets: [[c8]] = [])
         with _version = version
         , _url = url
+        , _targets = targets
     {}
 
     /*!
@@ -35,6 +39,11 @@ pub record Dependency {
     @field
     pub fn url(self)-> Url {
         self._url
+    }
+
+    @field
+    pub fn targets(self)-> [[c8]] {
+        self._targets
     }
 
 }
@@ -122,6 +131,10 @@ pub class DependencyList {
                 dep:["version"] = d.version.serialize();
                 dep:["url"] = d.url.serialize();
 
+                if (d.targets.len != 0us) {
+                    dep:["link-targets"] = copy Array(copy [copy Str(i) for i in d.targets]);
+                }
+
                 res:[k] = dep;
             }
 
@@ -148,8 +161,9 @@ pub class DependencyList {
             for k, v in cfg[] {
                 let version = VersionFilter(v["version"]);
                 let url = Url(v["url"]);
+                let targets = self.readTargets(v, k);
 
-                self._package[k] = Dependency(version-> version, url);
+                self._package[k] = Dependency(version-> version, url, targets-> targets);
             }
         } catch {
             inE => {
@@ -158,7 +172,34 @@ pub class DependencyList {
         }
     }
 
+    /**
+     * Read the optional "link-targets" entry of a dependency table
+     * @params:
+     *    - cfg: the content of the dependency table
+     *    - name: the name of the dependency, for error reporting
+     * @returns: the names of the dependency's targets to link, [] when the key is absent (meaning
+     *    every one of its library targets)
+     * @throws:
+     *    - AssertError: the key is present but not an array of strings, or an explicitly empty one
+     * */
+    prv fn readTargets(self, cfg: &Config, name: [c8])-> [[c8]]
+        throws AssertError, std::conv::errors::CastFailure
+    {
+        if let Ok(a: &Array) = cfg["link-targets"]? {
+            let targets = copy [std::config::conv::to!{[c8]} (i) for i in a[]];
+            if (targets.len == 0us) {
+                throw copy AssertError("dependency '" ~ name ~ "' declares an empty 'link-targets' list, omit the key to link every target");
+            }
 
+            return targets;
+        }
+
+        else if let Ok(_) = cfg["link-targets"]? {
+            throw copy AssertError("expecting an array of string for 'link-targets' of dependency '" ~ name ~ "'");
+        }
+
+        []
+    }
 
 
 }
