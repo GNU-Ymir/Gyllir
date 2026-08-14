@@ -76,17 +76,30 @@ pub record RepoCleaner {
         }?;
     }
 
+    /**
+     * Remove the build cache of the package, and the artifacts of every one of its targets
+     * */
     pub fn cleanOutputs(self) {
-        let cacheDebug = self._cwd.push(defaults::__CACHE_ALL_DIR__);
-        utils::log::info("Removing", "cache directory ", cacheDebug.toStr());
+        let cacheDir = self._cwd.push(defaults::__CACHE_ALL_DIR__);
+        utils::log::info("Removing", "cache directory ", cacheDir.toStr());
         {
-            fs::sys::removeDir(cacheDebug, recursive-> true);
+            fs::sys::removeDir(cacheDir, recursive-> true);
         }?;
 
-        let outFile = if self._cfg.type.isExecutable() {
-            self._cwd.push(self._cfg.name)
+        for _, t in self._cfg.targets() {
+            self.cleanTargetOutputs(t);
+        }
+    }
+
+    /**
+     * Remove the artifacts of a single target
+     * */
+    prv fn cleanTargetOutputs(self, target: Target) {
+        let output = target.outputName();
+        let outFile = if target.type.isExecutable() {
+            self._cwd.push(output)
         } else {
-            self._cwd.push("lib" ~ self._cfg.name ~ ".a")
+            self._cwd.push("lib" ~ output).addExtension(defaults::__LIBRARY_EXTENSION__)
         };
 
         utils::log::info("Removing", "output file ", outFile.toStr());
@@ -94,7 +107,7 @@ pub record RepoCleaner {
             fs::sys::removeFile(outFile);
         }?;
 
-        let testFile = self._cwd.push(self._cfg.name).addExtension("test");
+        let testFile = self._cwd.push(output).addExtension("test");
         utils::log::info("Removing", "test file ", testFile.toStr());
         {
             fs::sys::removeFile(testFile);
