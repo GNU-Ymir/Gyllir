@@ -533,6 +533,40 @@ pub class GyllirManager {
         stream[]
     }
 
+    /**
+     * Narrow the library targets of a dependency down to the ones it selects
+     * @params:
+     *    - name: the name of the dependency, for error reporting
+     *    - dependency: the dependency declaration, carrying the optional 'link-targets' selection
+     *    - targets: every target the dependency package declares, by name
+     *    - libTargets: the non-executable ones among them, by name
+     * @returns: 'libTargets' narrowed down to 'dependency's selection, or 'libTargets' unchanged
+     *    when it selects none in particular (absent 'link-targets' links every one of them)
+     * @throws:
+     *    - AssertError: 'dependency' selects a target the package does not declare, or one that is
+     *      not a library
+     * */
+    pub fn selectDependencyTargets(self, name: [c8], dependency: Dependency, targets: [[c8] => Target], libTargets: [[c8] => ()])-> [[c8] => ()]
+        throws AssertError
+    {
+        if (dependency.targets.len == 0us) { return libTargets; }
+
+        let dmut res: [[c8] => ()] = copy [];
+        for t in dependency.targets {
+            if (t !in libTargets) {
+                if (t in targets) {
+                    throw copy AssertError("dependency '" ~ name ~ "' links target '" ~ t ~ "', which is not a library");
+                }
+
+                throw copy AssertError("dependency '" ~ name ~ "' links the unknown target '" ~ t ~ "', " ~ self.targetNames(targets));
+            }
+
+            res[t] = ();
+        }
+
+        res
+    }
+
     /*!
      * ====================================================================================================
      * ====================================================================================================
@@ -599,12 +633,14 @@ pub class GyllirManager {
                 panic;
             }
 
+            let selectedTargets = self.selectDependencyTargets(name, dependency, conf.targets(), libTargets);
+
             self._depPackages[dependency.url] = ();
             if (hasCloned) {
                 RepoCleaner(depPath, args, conf).run(alias self);
             }
 
-            let (_, ext, lbs) = self:.buildTargets(depPath, args, conf, libTargets, dry-> dry);
+            let (_, ext, lbs) = self:.buildTargets(depPath, args, conf, selectedTargets, dry-> dry);
 
             self._depPackages:.remove(dependency.url);
             (ext, lbs)
