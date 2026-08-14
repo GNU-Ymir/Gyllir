@@ -285,6 +285,83 @@ pub fn mkMultiTargetConfig()-> GyllirPackageConfiguration
 }
 
 /**
+ * A library project holding two independent library targets over a single source directory: 'foo'
+ * and 'bar' (producing 'libfoo.a'/'libbar.a'), neither linking the other.
+ * @info: target names are deliberately not prefixed with 'lib' themselves -- the artifact naming
+ *   already adds that prefix ('lib' ~ outputName), so a target named 'libfoo' would produce
+ *   'liblibfoo.a'
+ * @returns: the root directory of the created project
+ * */
+pub fn mkMultiLibProject()-> Path
+    throws FsError
+{
+    let dir = sys::tempDirectory(prefix-> "gyllir_it_multilib_");
+    let src = dir.push(defaults::__SRC_DIR__);
+
+    writeSource(src.push("foo").addExtension(defaults::__YMIR_EXTENSION__),
+                "pub fn foo()-> i32 {\n    1\n}\n");
+    writeSource(src.push("bar").addExtension(defaults::__YMIR_EXTENSION__),
+                "pub fn bar()-> i32 {\n    2\n}\n");
+
+    dir
+}
+
+/**
+ * The configuration of a project laid out by 'mkMultiLibProject'
+ * */
+pub fn mkMultiLibConfig()-> GyllirPackageConfiguration
+    throws CastFailure, AssertError
+{
+    GyllirPackageConfiguration(json#{
+        "name" : "multilib",
+        "license" : "MIT",
+        "description" : "an integration test project",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "targets" : {
+            "foo" : {"type" : "library"},
+            "bar" : {"type" : "library"}
+        }
+    })
+}
+
+/**
+ * A configuration declaring a single local dependency, with an explicit "link-targets" selection
+ * over the sub-targets it links
+ * @params:
+ *    - name: the package name
+ *    - type: "executable" or "library"
+ *    - depName: the name of the dependency
+ *    - depPath: the directory holding the dependency
+ *    - targets: the names of the dependency's targets to select
+ * */
+pub fn mkConfigWithSelectedDependency(name: [c8], type: [c8], depName: [c8], depPath: Path, targets: [[c8]])-> GyllirPackageConfiguration
+    throws CastFailure, AssertError
+{
+    let dmut url = copy Dict();
+    url:["local"] = copy Str(depPath.toStr());
+
+    let dmut dep = copy Dict();
+    dep:["version"] = copy Str("*");
+    dep:["url"] = url;
+    dep:["link-targets"] = copy Array(copy [copy Str(t) for t in targets]);
+
+    let dmut deps = copy Dict();
+    deps:[depName] = dep;
+
+    let dmut cfg = copy Dict();
+    cfg:["name"] = copy Str(name);
+    cfg:["license"] = copy Str("MIT");
+    cfg:["description"] = copy Str("an integration test project");
+    cfg:["type"] = copy Str(type);
+    cfg:["version"] = copy Str("1.0.0");
+    cfg:["registry"] = copy Str("local:some/registry");
+    cfg:["dependencies"] = deps;
+
+    GyllirPackageConfiguration(cfg)
+}
+
+/**
  * A configuration declaring targets, and optionally a single local dependency for them to select
  * @params:
  *    - name: the package name

@@ -1,0 +1,110 @@
+use gyllir::config::_;
+use gyllir::config::version::filter;
+
+use std::config::_;
+use std::config::{conv, json};
+use std::conv::errors;
+
+__test {
+    // A dependency built by hand defaults to selecting every target of its own, until told otherwise
+    let d = Dependency(VersionFilter(copy ["*"]), Url("local:../foo"));
+
+    assert(d.targets == [], "a dependency built by hand should default to an empty selection");
+}
+
+__test {
+    // "link-targets" is parsed into the sub-targets a dependency selects to link
+    let lst = copy DependencyList(json#{
+        "foo" : {"version" : "1.0.0", "url" : {"local" : "../foo"}, "link-targets" : ["libfoo", "libbar"]}
+    });
+
+    if let Ok(foo) = lst[]["foo"] {
+        assert(foo.targets == copy ["libfoo", "libbar"], "unexpected selected targets");
+    } else assert(false, "expected a \"foo\" dependency");
+}
+
+__test {
+    // Omitting "link-targets" defaults to selecting every (library) target of the dependency
+    let lst = copy DependencyList(json#{
+        "foo" : {"version" : "1.0.0", "url" : {"local" : "../foo"}}
+    });
+
+    if let Ok(foo) = lst[]["foo"] {
+        assert(foo.targets == [], "an unset \"link-targets\" should default to empty, meaning every target");
+    } else assert(false, "expected a \"foo\" dependency");
+}
+
+__test {
+    // An explicit empty "link-targets" reads like "link nothing", which is not expressible here: a
+    // dependency you link zero targets from should not be declared at all. Omit the key instead to
+    // link every target
+    let mut threw = false;
+    {
+        // built by hand rather than through 'json#{...}': an empty array literal has no element
+        // type for the macro to infer
+        let dmut url = copy Dict();
+        url:["local"] = copy Str("../foo");
+
+        let dmut foo = copy Dict();
+        foo:["version"] = copy Str("1.0.0");
+        foo:["url"] = url;
+        foo:["link-targets"] = copy Array();
+
+        let dmut deps = copy Dict();
+        deps:["foo"] = foo;
+
+        copy DependencyList(deps);
+    } catch {
+        AssertError() => { threw = true; }
+        CastFailure() => { threw = true; }
+    }
+
+    assert(threw, "an explicit empty \"link-targets\" list should be rejected");
+}
+
+__test {
+    // A non array "link-targets" is rejected, like every other string array entry of the config
+    let mut threw = false;
+    {
+        copy DependencyList(json#{
+            "foo" : {"version" : "1.0.0", "url" : {"local" : "../foo"}, "link-targets" : "libfoo"}
+        });
+    } catch {
+        AssertError() => { threw = true; }
+        CastFailure() => { threw = true; }
+    }
+
+    assert(threw, "a non array \"link-targets\" should be rejected");
+}
+
+__test {
+    // Serializing writes "link-targets" only for a dependency that actually declares a selection, so
+    // a dependency that never set it round-trips through "gyllir publish" unchanged
+    let lst = copy DependencyList(json#{
+        "foo" : {"version" : "1.0.0", "url" : {"local" : "../foo"}, "link-targets" : ["libfoo"]},
+        "bar" : {"version" : "1.0.0", "url" : {"local" : "../bar"}}
+    });
+
+    let serialized = lst.serialize();
+
+    if let Ok(foo) = serialized["foo"]? {
+        assert(to!{[[c8]]}(foo["link-targets"]) == copy ["libfoo"], "unexpected serialized selection");
+    } else assert(false, "expected a serialized \"foo\" dependency");
+
+    if let Ok(bar) = serialized["bar"]? {
+        assert("link-targets" !in bar, "a dependency that declared no selection should not gain the key on publish");
+    } else assert(false, "expected a serialized \"bar\" dependency");
+}
+
+__test {
+    // The selection survives a full serialize/parse round trip
+    let lst = copy DependencyList(json#{
+        "foo" : {"version" : "1.0.0", "url" : {"local" : "../foo"}, "link-targets" : ["libfoo", "libbar"]}
+    });
+
+    let back = copy DependencyList(lst.serialize());
+
+    if let Ok(foo) = back[]["foo"] {
+        assert(foo.targets == copy ["libfoo", "libbar"], "the selection should survive the round trip");
+    } else assert(false, "expected a \"foo\" dependency after the round trip");
+}
