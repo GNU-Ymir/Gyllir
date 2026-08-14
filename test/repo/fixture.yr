@@ -1,0 +1,362 @@
+/**
+ * Helpers shared by the integration tests of the 'repo' sub commands: they materialize a real,
+ * tiny gyllir project in a temporary directory, so 'RepoBuilder'/'GyllirManager' & co can be
+ * driven end to end against the real 'gyc' toolchain rather than against mocks.
+ * */
+
+use gyllir::repo::defaults;
+use gyllir::config::_;
+use gyllir::utils::_;
+
+use std::config::_;
+use std::config::toml;
+use std::concurrency::process;
+use std::fs::_;
+use std::conv::errors;
+
+/**
+ * Write 'content' to 'path', creating the parent directory if needed
+ * */
+pub fn writeSource(path: Path, content: [c8])
+    throws FsError
+{
+    if !sys::isDir(path.parent()) {
+        sys::createDir(path.parent(), recursive-> true);
+    }
+
+    let dmut f = File::create(path, write-> true);
+    f:.write(content);
+    f:.close();
+}
+
+/**
+ * A minimal executable project: 'src/main.yr' printing a constant
+ * @params:
+ *    - name: the package name, also the name of the produced executable
+ * @returns: the root directory of the created project
+ * */
+pub fn mkExecutableProject(name: [c8])-> Path
+    throws FsError
+{
+    let dir = sys::tempDirectory(prefix-> "gyllir_it_");
+    writeSource(dir.push(defaults::__SRC_DIR__).push(defaults::__MAIN_FILE__),
+                "use std::io;\n\nfn main() {\n    println(\"hello from " ~ name ~ "\");\n}\n");
+
+    dir
+}
+
+/**
+ * A minimal library project: 'src/<name>.yr' exporting a single function.
+ * The root file is named after the package, which is the naming convention 'findRootSourceFile'
+ * falls back to when no 'package-root' is configured.
+ * @returns: the root directory of the created project
+ * */
+pub fn mkLibraryProject(name: [c8])-> Path
+    throws FsError
+{
+    let dir = sys::tempDirectory(prefix-> "gyllir_it_");
+    writeSource(dir.push(defaults::__SRC_DIR__).push(name).addExtension(defaults::__YMIR_EXTENSION__),
+                "pub mod ::helper;\n\npub fn root()-> i32 {\n    42\n}\n");
+    writeSource(dir.push(defaults::__SRC_DIR__).push(name).push("helper").addExtension(defaults::__YMIR_EXTENSION__),
+                "pub fn helper()-> i32 {\n    1\n}\n");
+
+    dir
+}
+
+/**
+ * Add a 'test/__test__.yr' root holding one always-passing unittest to an existing project
+ * */
+pub fn addUnitTests(dir: Path)
+    throws FsError
+{
+    // the asserted value is read at runtime: gyc rejects an assertion it can prove statically
+    writeSource(dir.push(defaults::__TEST_DIR__).push(defaults::__FST_TEST_FILE__),
+                "use std::env;\n\n__test {\n    assert(currentDir().toStr().len > 0us, \"the fixture unittest should pass\");\n}\n");
+}
+
+/**
+ * A configuration for a project laid out by 'mkExecutableProject'/'mkLibraryProject'
+ * @params:
+ *    - name: the package name
+ *    - type: "executable" or "library"
+ * */
+pub fn mkConfig(name: [c8], type: [c8])-> GyllirPackageConfiguration
+    throws CastFailure
+{
+    GyllirPackageConfiguration(name, "MIT", "an integration test project", BuildType(type),
+                               Url("local:some/registry"), Version(1u32, 0u32, 0u32), [])
+}
+
+/**
+ * @returns: true iif 'dir' contains a readable file at 'rel'
+ * */
+pub fn hasFile(dir: Path, rel: [c8])-> bool {
+    sys::isFile(dir.push(rel))
+}
+
+/**
+ * A command line configuration
+ * @params:
+ *    - flags: the name of the boolean flags to set to true
+ * */
+pub fn mkArgs(flags: [[c8]])-> &Config {
+    let dmut d = copy Dict();
+    for f in flags {
+        d:[f] = copy Bool(true);
+    }
+
+    d
+}
+
+/**
+ * The command line configuration used by the tests that actually compile something: it pins the
+ * compilation to a single thread
+ * @warning: the coverage runtime is not thread safe, it segfaults when the task pool of
+ *   'compileFilesToYIL' hits it from two workers at once, so a covered test run must not spawn more
+ *   than one of them
+ * @params:
+ *    - flags: the name of the boolean flags to set to true
+ * */
+pub fn mkBuildArgs(flags: [[c8]] = [])-> &Config {
+    let dmut d = copy Dict();
+    for f in flags {
+        d:[f] = copy Bool(true);
+    }
+
+    d:["j"] = copy Int(1i64);
+
+    d
+}
+
+/**
+ * Write the 'gyllir.toml' of a project, so that it can be resolved as a dependency
+ * */
+pub fn writeToml(dir: Path, cfg: GyllirPackageConfiguration)
+    throws FsError
+{
+    let dmut f = File::create(dir.push(defaults::__GYLLIR_CONFIG_FILENAME__), write-> true);
+    f:.write(std::config::toml::dump(cfg.serialize()));
+    f:.close();
+}
+
+/**
+ * Turn 'dir' into a git repository, with everything it contains committed on the default branch.
+ * A dependency is always resolved through git, so even a 'local:' one has to be a repository
+ * */
+pub fn gitInit(dir: Path)
+    throws GitError, FsError
+{
+    let git = GitManager(cwd-> dir);
+    git.init();
+
+    // some environments sign commits globally, which fails non interactively
+    let dmut proc = copy SubProcess("git", copy ["config", "commit.gpgsign", "false"], cwd-> dir);
+    proc:.start();
+    proc:.wait();
+
+    git.add(dir.push("."));
+    git.commit("initial commit");
+}
+
+/**
+ * A configuration declaring a single local dependency, whose version filter accepts anything
+ * @params:
+ *    - name: the package name
+ *    - type: "executable" or "library"
+ *    - depName: the name of the dependency
+ *    - depPath: the directory holding the dependency
+ *    - version: the version filter of the dependency, accepting anything by default
+ * */
+pub fn mkConfigWithDependency(name: [c8], type: [c8], depName: [c8], depPath: Path, version: [c8] = "*")-> GyllirPackageConfiguration
+    throws CastFailure, AssertError
+{
+    let dmut url = copy Dict();
+    url:["local"] = copy Str(depPath.toStr());
+
+    let dmut dep = copy Dict();
+    dep:["version"] = copy Str(version);
+    dep:["url"] = url;
+
+    let dmut deps = copy Dict();
+    deps:[depName] = dep;
+
+    let dmut cfg = copy Dict();
+    cfg:["name"] = copy Str(name);
+    cfg:["license"] = copy Str("MIT");
+    cfg:["description"] = copy Str("an integration test project");
+    cfg:["type"] = copy Str(type);
+    cfg:["version"] = copy Str("1.0.0");
+    cfg:["registry"] = copy Str("local:some/registry");
+    cfg:["dependencies"] = deps;
+
+    GyllirPackageConfiguration(cfg)
+}
+
+/**
+ * The sources of a project exercising most of the constructs the documentation generator knows
+ * about: every kind of symbol, every kind of type, and doc comments using the markup of
+ * 'gyllir::doc::comment'
+ * */
+def __RICH_ROOT__ = str#{/**
+ * A module exercising most of the constructs the documentation generator knows about.
+ * */
+
+use std::io;
+
+pub mod ::sub;
+
+/**
+ * A documented alias
+ * */
+pub def MAX_SIZE = 1024;
+
+/**
+ * A lazy global
+ * @warning: it is lazy
+ * */
+pub lazy COUNT: i32 = 0;
+
+/**
+ * An enumeration
+ * */
+pub enum Color: i32
+| RED = 0
+| GREEN = 1;
+
+/**
+ * A documented function
+ * @params:
+ *    - a: the first one
+ *    - b: the second one
+ * @returns: their sum
+ * @throws:
+ *    - AssertError: never
+ * @example:
+ * ```
+ * let x = add(1, 2);
+ * ```
+ * */
+pub fn add(a: i32, b: i32 = 0)-> i32
+    throws AssertError
+{
+    assert(a + b >= a, "no overflow");
+    a + b
+}
+
+/**
+ * A templated function
+ * */
+pub fn if (isIntegral!{T}) generic {T} (x: T)-> T {
+    x
+}
+
+/**
+ * A trait
+ * */
+pub trait Printable {
+    pub fn print(self);
+}
+
+/**
+ * A documented class
+ * */
+@final
+pub class Foo {
+
+    cte assert(true, "always");
+
+    // the wrapped value
+    prv let mut _value: i32 = 0;
+
+    /**
+     * Build a Foo
+     * */
+    pub self (value: i32) with _value = value {}
+
+    /**
+     * @returns: the wrapped value
+     * */
+    @field
+    pub fn value(self)-> i32 {
+        self._value
+    }
+
+    /**
+     * A templated method
+     * */
+    pub fn conv {T} (self)-> T {
+        cast!T (self._value)
+    }
+
+    impl Printable {
+        pub over print(self) {
+            println(self._value);
+        }
+    }
+}
+
+/**
+ * A record with a mutable field
+ * */
+pub record Pair {
+    pub let mut fst: i32 = 0;
+    pub let mut snd: [c8] = "";
+
+    pub self () {}
+}
+
+/**
+ * A macro
+ * */
+pub macro mymacro {
+
+    /**
+     * The constructor rule of the macro
+     * */
+    self (a=(__expr)) skips (" " | "\n") #{ #{a} }
+
+    /**
+     * Another rule of the macro
+     * */
+    fn rule (a=(__expr)) skips (" ") #{ #{a} }
+}
+
+/**
+ * Every kind of type in a single signature
+ * */
+pub fn types(arr: [i32 ; 3], sli: [u8], mp: [i32 => f64], tup: (i32, bool),
+             opt: (i32)?, ptr: *void, fp: fn (i32)-> bool,
+             c: &Foo, e: Color)-> void
+{
+    arr; sli; mp; tup; opt; ptr; fp; c; e;
+}
+
+fn main() {
+    println("hello");
+}
+};
+
+def __RICH_SUB__ = str#{/**
+ * A sub module
+ * */
+
+/**
+ * A function of the sub module
+ * */
+pub fn helper()-> i32 { 1 }
+};
+
+/**
+ * A project whose sources hold one declaration of about every kind, so that 'gyllir doc' can be
+ * driven over a realistic documentation tree
+ * @returns: the root directory of the created project
+ * */
+pub fn mkRichProject()-> Path
+    throws FsError
+{
+    let dir = sys::tempDirectory(prefix-> "gyllir_it_rich_");
+    writeSource(dir.push(defaults::__SRC_DIR__).push(defaults::__MAIN_FILE__), __RICH_ROOT__);
+    writeSource(dir.push(defaults::__SRC_DIR__).push("main").push("sub").addExtension(defaults::__YMIR_EXTENSION__), __RICH_SUB__);
+
+    dir
+}
