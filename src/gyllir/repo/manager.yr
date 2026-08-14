@@ -443,7 +443,7 @@ pub class GyllirManager {
      * @throws:
      *    - AssertError: if the package declares several targets and none was named
      * */
-    prv fn selectRunTarget(self, cfg: GyllirPackageConfiguration, args: &Config)-> (Target, &Config)
+    pub fn selectRunTarget(self, cfg: GyllirPackageConfiguration, args: &Config)-> (Target, &Config)
         throws AssertError
     {
         let targets = cfg.targets();

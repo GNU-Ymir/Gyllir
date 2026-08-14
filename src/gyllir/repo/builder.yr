@@ -352,7 +352,7 @@ pub record RepoBuilder {
      *   - .0: relink, or full link
      *   - .1: the options to pass to the compiler
      * */
-    prv fn createCompileOptions(self, srcPath: Path, cacheDir: Path, depPaths: [Path])-> [[c8]] {
+    pub fn createCompileOptions(self, srcPath: Path, cacheDir: Path, depPaths: [Path])-> [[c8]] {
         let mut options: [[c8]] = copy [srcPath.toStr(), "-fPIC", "-c", "-fdump-deps", cacheDir.toStr()];
         if (self._forUnitTest) {
             options ~= ["-funittest"];
@@ -379,7 +379,7 @@ pub record RepoBuilder {
     /**
      * Build the compile command line option to build documentation file
      * */
-    prv fn createDocCompileOptions(self, srcPath: Path, depPaths: [Path])-> [[c8]] {
+    pub fn createDocCompileOptions(self, srcPath: Path, depPaths: [Path])-> [[c8]] {
         let docDir = self.targetCacheDir(defaults::__CACHE_DOC_DIR__);
         let objectFile = docDir.push(self._target.outputName()).addExtension(defaults::__OBJECT_EXTENSION__).toStr();
         let jsonFile = docDir.push(self._target.outputName()).addExtension(defaults::__DOC_EXTENSION__).toStr();
