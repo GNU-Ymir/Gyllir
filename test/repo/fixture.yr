@@ -9,7 +9,7 @@ use gyllir::config::_;
 use gyllir::utils::_;
 
 use std::config::_;
-use std::config::toml;
+use std::config::{json, toml};
 use std::concurrency::process;
 use std::fs::_;
 use std::conv::errors;
@@ -92,6 +92,51 @@ pub fn mkConfig(name: [c8], type: [c8])-> GyllirPackageConfiguration
  * */
 pub fn hasFile(dir: Path, rel: [c8])-> bool {
     sys::isFile(dir.push(rel))
+}
+
+/**
+ * @returns: true iif the build cache of a target contains a readable file
+ * @params:
+ *    - dir: the root directory of the project
+ *    - target: the name of the target
+ *    - kind: the kind of build, one of the '__CACHE_*_DIR__' sub directories
+ *    - rel: the path of the file, relative to '<dir>/.target/<target>/<kind>'
+ * */
+pub fn hasCacheFile(dir: Path, target: [c8], kind: [c8], rel: [c8])-> bool {
+    sys::isFile(defaults::targetCacheDir(dir, target, kind).push(rel))
+}
+
+/**
+ * The single target of a package declaring no '[targets.<name>]' table, the one synthesized from
+ * its top level fields
+ * @throws:
+ *    - AssertError: if the package declares targets of its own
+ * */
+pub fn soleTarget(cfg: GyllirPackageConfiguration)-> Target
+    throws AssertError
+{
+    if let Ok(t) = cfg.targets()[cfg.name] {
+        return t;
+    }
+
+    throw copy AssertError("the package declares no target named after itself");
+}
+
+/**
+ * @params:
+ *    - cfg: the configuration of a package declaring targets
+ *    - name: the name of one of them
+ * @throws:
+ *    - AssertError: if the package declares no such target
+ * */
+pub fn namedTarget(cfg: GyllirPackageConfiguration, name: [c8])-> Target
+    throws AssertError
+{
+    if let Ok(t) = cfg.targets()[name] {
+        return t;
+    }
+
+    throw copy AssertError("the package declares no target '" ~ name ~ "'");
 }
 
 /**
@@ -188,6 +233,88 @@ pub fn mkConfigWithDependency(name: [c8], type: [c8], depName: [c8], depPath: Pa
     cfg:["version"] = copy Str("1.0.0");
     cfg:["registry"] = copy Str("local:some/registry");
     cfg:["dependencies"] = deps;
+
+    GyllirPackageConfiguration(cfg)
+}
+
+/**
+ * A project holding three targets over a single source directory: a library 'mylib', an executable
+ * 'cli' linking it, and an executable 'tool' linking nothing.
+ * @info: the library is deliberately not named 'core', which collides with the module of the
+ *   runtime and cannot be imported
+ * @returns: the root directory of the created project
+ * */
+pub fn mkMultiTargetProject()-> Path
+    throws FsError
+{
+    let dir = sys::tempDirectory(prefix-> "gyllir_it_multi_");
+    let src = dir.push(defaults::__SRC_DIR__);
+
+    writeSource(src.push("mylib").addExtension(defaults::__YMIR_EXTENSION__),
+                "pub mod ::helper;\n\npub fn root()-> i32 {\n    42\n}\n");
+    writeSource(src.push("mylib").push("helper").addExtension(defaults::__YMIR_EXTENSION__),
+                "pub fn helper()-> i32 {\n    1\n}\n");
+
+    // 'cli' reaches the library through the '-I' of the target it links
+    writeSource(src.push("cli").addExtension(defaults::__YMIR_EXTENSION__),
+                "use std::io;\nuse mylib;\n\nfn main() {\n    println(\"cli says \", mylib::root());\n}\n");
+    writeSource(src.push("tool").addExtension(defaults::__YMIR_EXTENSION__),
+                "use std::io;\n\nfn main() {\n    println(\"tool\");\n}\n");
+
+    dir
+}
+
+/**
+ * The configuration of a project laid out by 'mkMultiTargetProject'
+ * */
+pub fn mkMultiTargetConfig()-> GyllirPackageConfiguration
+    throws CastFailure, AssertError
+{
+    GyllirPackageConfiguration(json#{
+        "name" : "multi",
+        "license" : "MIT",
+        "description" : "an integration test project",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "targets" : {
+            "mylib" : {"type" : "library"},
+            "cli" : {"type" : "executable", "targets" : ["mylib"]},
+            "tool" : {"type" : "executable"}
+        }
+    })
+}
+
+/**
+ * A configuration declaring targets, and optionally a single local dependency for them to select
+ * @params:
+ *    - name: the package name
+ *    - targets: the content of the '[targets.*]' tables
+ *    - depName: the name of the dependency, "" for a package declaring none
+ *    - depPath: the directory holding the dependency
+ * */
+pub fn mkTargetsConfig(name: [c8], targets: &Config, depName: [c8] = "", depPath: Path = Path(""))-> GyllirPackageConfiguration
+    throws CastFailure, AssertError
+{
+    let dmut cfg = copy Dict();
+    cfg:["name"] = copy Str(name);
+    cfg:["license"] = copy Str("MIT");
+    cfg:["description"] = copy Str("an integration test project");
+    cfg:["version"] = copy Str("1.0.0");
+    cfg:["registry"] = copy Str("local:some/registry");
+    cfg:["targets"] = targets;
+
+    if (depName != "") {
+        let dmut url = copy Dict();
+        url:["local"] = copy Str(depPath.toStr());
+
+        let dmut dep = copy Dict();
+        dep:["version"] = copy Str("*");
+        dep:["url"] = url;
+
+        let dmut deps = copy Dict();
+        deps:[depName] = dep;
+        cfg:["dependencies"] = deps;
+    }
 
     GyllirPackageConfiguration(cfg)
 }

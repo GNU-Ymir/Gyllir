@@ -7,6 +7,7 @@ pub mod ::command;
 pub mod ::url;
 pub mod ::version;
 pub mod ::dependency;
+pub mod ::target;
 pub mod ::type;
 pub mod ::errors;
 
@@ -50,8 +51,16 @@ pub record GyllirPackageConfiguration {
     // The list of libraries to link(from C language)
     let mut _libraries: [[c8]] = [];
 
+    // The raw options passed to the compiler when building any target of the package
+    let mut _flags: [[c8]] = [];
+
     // The list of dependencies of the package
     let mut _dependencies: &DependencyList = copy DependencyList();
+
+    // The list of targets declared by the package
+    // @info: empty for a package declaring no '[targets.<name>]' table, 'targets' then
+    //   synthesizes a single target from the top level fields
+    let mut _targets: &TargetList = copy TargetList();
 
     // The list of custom commands to run when building the project
     let mut _commands: &CustomCommandList = copy CustomCommandList();
@@ -87,6 +96,9 @@ pub record GyllirPackageConfiguration {
     {
         if let d: &Dict = cfg {
             self:.parsePackage(d);
+
+            // outside 'parsePackage', whose catch would bury the message inside a CastFailure
+            self.checkTargetExclusivity(d);
         }
 
         else throw copy AssertError("Expecting a dictionnary");
@@ -157,8 +169,46 @@ pub record GyllirPackageConfiguration {
     }
 
     @field
+    pub fn flags(self)-> [[c8]] {
+        self._flags
+    }
+
+    @field
     pub fn dependencies(self)-> &DependencyList {
         self._dependencies
+    }
+
+    /**
+     * The targets built for this package.
+     *
+     * A package declaring '[targets.<name>]' tables has exactly those, and each of them is
+     * self contained: 'checkTargetExclusivity' rejects the package level fields describing an
+     * artifact, so there is nothing for a target to inherit. A package declaring no target has a
+     * single one synthesized from those very fields, named after the package itself.
+     *
+     * @info: the synthesized target is deliberately not stored in '_targets', so that it is not
+     *   written back as a '[targets.<name>]' table by 'serialize' when 'gyllir publish' rewrites
+     *   the configuration file of a package that never declared one
+     * @returns: the targets of the package, by name
+     * */
+    pub fn targets(self)-> [[c8] => Target] {
+        let dmut res: [[c8] => Target] = copy [];
+        if (self._targets.len() != 0us) {
+            for k, t in self._targets[] {
+                res[k] = t;
+            }
+
+            return res;
+        }
+
+        res[self._name] = Target(self._name, self._type,
+                                 packageRoot-> self._packageRoot,
+                                 testRoot-> self._testRoot,
+                                 flags-> self._flags,
+                                 libraries-> self._libraries,
+                                 synthesized-> true);
+
+        res
     }
 
     @field
@@ -196,7 +246,6 @@ pub record GyllirPackageConfiguration {
             d:["name"] = copy Str(self._name);
             d:["license"] = copy Str(self._license);
             d:["description"] = copy Str(self._description);
-            d:["type"] = self._type.serialize();
             d:["registry"] = self._registry.serialize();
             d:["version"] = self._version.serialize();
             d:["dependencies"] = self._dependencies.serialize();
@@ -204,7 +253,31 @@ pub record GyllirPackageConfiguration {
             d:["compiler"] = copy Str(self._compiler);
 
             d:["authors"] = copy Array(copy [copy Str(i) for i in self._authors]);
-            d:["libraries"] = copy Array(copy [copy Str(i) for i in self._libraries]);
+
+            if (self._targets.len() != 0us) {
+                d:["targets"] = self._targets.serialize();
+            }
+
+            // the fields describing a single artifact are exclusive with the target tables: writing
+            // any of them next to a '[targets.*]' would produce a configuration that the next
+            // 'gyllir build' rejects. 'package-root' and 'test-root' are only written when set, so
+            // that a package that never had one does not gain it on the first publish
+            else {
+                d:["type"] = self._type.serialize();
+                d:["libraries"] = copy Array(copy [copy Str(i) for i in self._libraries]);
+
+                if (self._flags.len != 0us) {
+                    d:["flags"] = copy Array(copy [copy Str(i) for i in self._flags]);
+                }
+
+                if (self._packageRoot != "") {
+                    d:["package-root"] = copy Str(self._packageRoot);
+                }
+
+                if (self._testRoot != "") {
+                    d:["test-root"] = copy Str(self._testRoot);
+                }
+            }
 
             d
         }
@@ -219,6 +292,34 @@ pub record GyllirPackageConfiguration {
      */
 
     /**
+     * A package configures a single artifact from its top level fields, or several from
+     * '[targets.<name>]' tables, but never both at once: a top level 'type'/'package-root'/'test-root'
+     * next to a target table would simply go unread, so it is rejected rather than ignored.
+     *
+     * Only the fields describing an artifact are exclusive. The identity of the package(name,
+     * version, license, description, registry, authors, compiler) and what it needs to be
+     * built(dependencies, commands) stay global, they say nothing about what is produced.
+     *
+     * @params:
+     *    - d: the raw configuration, needed to tell a field that was written from one that defaulted
+     * @throws:
+     *    - AssertError: on the first target level field found at the top level of a multi target package
+     * */
+    prv fn checkTargetExclusivity(self, d: &Dict)
+        throws AssertError
+    {
+        if (self._targets.len() == 0us) { return; }
+
+        for k in ["type", "package-root", "test-root", "flags", "libraries"] {
+            if let Ok(_) = d[k]? {
+                throw copy AssertError("'" ~ k ~ "' describes a single artifact, it cannot be declared "
+                                       ~ "at the top level of a package that declares '[targets.*]' tables: "
+                                       ~ "move it into every target that needs it");
+            }
+        }
+    }
+
+    /**
      * Parse a configuration defining a package
      * */
     prv fn parsePackage(mut self, d: &Dict)
@@ -227,8 +328,14 @@ pub record GyllirPackageConfiguration {
         self._name = std::config::conv::to!{[c8]} (d["name"]);
         self._license = std::config::conv::to!{[c8]} (d["license"]);
         self._description = std::config::conv::to!{[c8]} (d["description"]);
-        self._type = std::config::conv::to!{BuildType} (d["type"]);
         self._version = std::config::conv::to!{Version} (d["version"]);
+
+        // optional: a package declaring '[targets.*]' tables must not have one at all, and a package
+        // declaring none defaults to an executable
+        if let Ok(t) = d["type"]? {
+            self._type = std::config::conv::to!{BuildType} (t);
+        }
+
         self._registry = std::config::conv::to!{Url} (d["registry"]);
 
         if let Ok(Str(value-> c)) = d["compiler"]? {
@@ -261,8 +368,18 @@ pub record GyllirPackageConfiguration {
             throw copy AssertError("expecting an array of string for 'libraries'");
         }
 
+        if let Ok(a: &Array) = d["flags"]? {
+            self._flags = copy [std::config::conv::to!{[c8]} (i) for i in a[]];
+        } else if let Ok(_) = d["flags"]? {
+            throw copy AssertError("expecting an array of string for 'flags'");
+        }
+
         if let Ok(x) = d["dependencies"]? {
             self._dependencies = std::config::conv::to!{&DependencyList} (x);
+        }
+
+        if let Ok(x) = d["targets"]? {
+            self._targets = std::config::conv::to!{&TargetList} (x);
         }
 
         if let Ok(x) = d["commands"]? {

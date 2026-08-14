@@ -1,7 +1,9 @@
+use ::repo::fixture;
 use gyllir::repo::cleaner;
 use gyllir::config::_;
 
 use std::config::_;
+use std::config::json;
 use std::fs::_;
 
 __test {
@@ -66,4 +68,48 @@ __test {
     cleaner.cleanOutputs();
 
     assert(!sys::isFile(libPath), "cleanOutputs() should remove the built library archive");
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * =====================================          TARGETS          ====================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+__test {
+    // cleanOutputs() removes the artifact and the unittest executable of every declared target,
+    // whatever "output" named them
+    let dir = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
+    let cfg = mkTargetsConfig("multi", json#{
+        "mylib" : {"type" : "library"},
+        "cli" : {"type" : "executable"},
+        "tool" : {"type" : "executable", "output" : "renamed"}
+    });
+
+    for name in copy ["libmylib.a", "mylib.test", "cli", "cli.test", "renamed", "renamed.test"] {
+        let dmut f = File::create(dir.push(name), write-> true);
+        f:.write("an artifact");
+        f:.close();
+    }
+
+    sys::createDir(dir.push(".target").push("cli"), recursive-> true);
+
+    RepoCleaner(dir, copy Dict(), cfg).cleanOutputs();
+
+    assert(!sys::isDir(dir.push(".target")), "the build cache of every target should be removed");
+    for name in copy ["libmylib.a", "mylib.test", "cli", "cli.test", "renamed", "renamed.test"] {
+        assert(!sys::isFile(dir.push(name)), "the artifact \"" ~ name ~ "\" should have been removed");
+    }
+}
+
+__test {
+    // The artifact of a target that was never built is simply not there, cleaning is not an error
+    let dir = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
+    let cfg = mkTargetsConfig("multi", json#{"cli" : {"type" : "executable"}});
+
+    RepoCleaner(dir, copy Dict(), cfg).cleanOutputs();
+
+    assert(!sys::isFile(dir.push("cli")), "nothing should have been produced by a clean");
 }

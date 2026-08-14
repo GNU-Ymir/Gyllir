@@ -50,12 +50,18 @@ _gyllir() {
 	
 	build)
 	    complete_options="$BUILD_OPTIONS"
+	    complete_words="$(_gyllir_get_targets)"
 	    ;;
 
 	test)
 	    complete_options="$TEST_OPTIONS"
+	    complete_words="$(_gyllir_get_targets)"
 	    ;;
-	
+
+	run)
+	    complete_words="$(_gyllir_get_targets)"
+	    ;;
+
 	clean)
 	    complete_options="$CLEAN_OPTIONS"
 	    ;;
@@ -64,6 +70,7 @@ _gyllir() {
 	    ;;
 	doc)
 	    complete_options="$DOC_OPTIONS"
+	    complete_words="$(_gyllir_get_targets)"
 	    ;;
 	*)
 	    case "${prev}" in
@@ -86,7 +93,22 @@ _gyllir() {
     return 0
 }
 
-# Determines the current plugin optons for RAID0 plugin, 
+# Lists the targets declared by the gyllir.toml of the current directory. A package declaring no
+# '[targets.<name>]' table still has one target, named after the package itself.
+_gyllir_get_targets() {
+    local names
+
+    [[ -f gyllir.toml ]] || return 0
+
+    names=$(sed -n 's/^[[:space:]]*\[targets\.\([^]]*\)\][[:space:]]*$/\1/p' gyllir.toml)
+    if [[ -z $names ]]; then
+	names=$(sed -n 's/^[[:space:]]*name[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p' gyllir.toml | head -1)
+    fi
+
+    echo $names
+}
+
+# Determines the current plugin optons for RAID0 plugin,
 # including sub-options of other plugins
 _sy_plugin_option_words_raid0() {
     local storage1_type storage2_type i

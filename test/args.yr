@@ -201,3 +201,81 @@ __test {
     assert(!flag(test, "dry"), "dry should default to false");
     assert(!flag(test, "release"), "release should default to false");
 }
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * =====================================          TARGETS          ====================================
+ * ====================================================================================================
+ * ====================================================================================================
+ * 'build', 'test' and 'doc' take an optional '<target>', sliced out of the command line before the
+ * std parser sees it: every position it declares would otherwise be mandatory
+ */
+
+/**
+ * @returns: the target named by a parsed sub command, "" when it names none
+ * */
+fn target(cfg: &Config)-> [c8] {
+    if let Ok(Str(value-> v)) = cfg["target"]? return v;
+
+    ""
+}
+
+__test {
+    // A sub command naming no target leaves the entry out entirely
+    for name in copy ["build", "test", "doc"] {
+        let cfg = sub(parse(copy ["gyllir", name]), name);
+        assert("target" !in cfg, "'" ~ name ~ "' should not name a target by default");
+    }
+}
+
+__test {
+    // 'build <target>' names the target to build
+    let build = sub(parse(copy ["gyllir", "build", "cli"]), "build");
+
+    assert(target(build) == "cli", "the target should be parsed");
+    assert(!flag(build, "release"), "the other entries should keep their defaults");
+}
+
+__test {
+    // The target may appear anywhere among the flags, and the value of an option is never mistaken
+    // for it
+    let build = sub(parse(copy ["gyllir", "build", "--release", "-j", "4", "cli", "-v"]), "build");
+
+    assert(target(build) == "cli", "the target should be parsed among the flags");
+    assert(flag(build, "release") && flag(build, "verbose"), "the flags should be parsed");
+
+    if let Ok(Int(value-> j)) = build["j"]? {
+        assert(j == 4i64, "-j should keep its own value");
+    } else assert(false, "-j should be parsed");
+}
+
+__test {
+    // Only the first argument that is not an option is taken as the target
+    let test = sub(parse(copy ["gyllir", "test", "cli", "--dry"]), "test");
+
+    assert(target(test) == "cli", "the target should be parsed");
+    assert(flag(test, "dry"), "--dry should be parsed");
+}
+
+__test {
+    // 'doc' has two valued options, and neither of their values is a target
+    let doc = sub(parse(copy ["gyllir", "doc", "-o", "/tmp/out", "-i", "gyllir.doc.json", "cli"]), "doc");
+
+    assert(target(doc) == "cli", "the target should be parsed");
+
+    if let Ok(Str(value-> o)) = doc["output"]? {
+        assert(o == "/tmp/out", "the output directory should not be taken as the target");
+    } else assert(false, "-o should be parsed as output");
+
+    if let Ok(Str(value-> i)) = doc["input"]? {
+        assert(i == "gyllir.doc.json", "the input file should not be taken as the target");
+    } else assert(false, "-i should be parsed as input");
+}
+
+__test {
+    // The name of the sub command itself is never taken as a target
+    let doc = sub(parse(copy ["gyllir", "doc", "--output", "/tmp/out"]), "doc");
+
+    assert("target" !in doc, "the sub command should not name a target");
+}

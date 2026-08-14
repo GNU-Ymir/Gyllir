@@ -1,0 +1,217 @@
+use gyllir::config::_;
+
+use std::config::_;
+use std::config::{conv, json};
+use std::conv::errors;
+
+__test {
+    // A target only given a name and a type falls back on the name for everything it does not declare
+    let t = Target("cli", BuildType("executable"));
+
+    assert(t.name == "cli", "unexpected target name");
+    assert(t.type.isExecutable(), "unexpected build type");
+    assert(t.sourceDir == "src", "the source directory should default to \"src\"");
+    assert(t.rootModule() == "cli", "the root module should default to the name of the target");
+    assert(t.outputName() == "cli", "the artifact should default to the name of the target");
+    assert(t.packageRoot == "" && t.testRoot == "" && t.output == "", "the unset entries should be empty");
+    assert(t.flags == [] && t.libraries == [] && t.dependencies == [] && t.targets == [] && t.cSources == [],
+           "the unset lists should be empty");
+    assert(!t.synthesized, "a target built by hand is not a synthesized one");
+}
+
+__test {
+    // "package-root" and "output" override the two fallbacks, independently of each other
+    let t = Target("cli", BuildType("executable"), packageRoot-> "main", output-> "gyllir-cli");
+
+    assert(t.rootModule() == "main", "the declared root module should be used");
+    assert(t.outputName() == "gyllir-cli", "the declared output name should be used");
+    assert(t.name == "cli", "the name of the target is neither of them");
+}
+
+__test {
+    // A declared target links exactly the dependencies it lists
+    let t = Target("cli", BuildType("executable"), dependencies-> copy ["midgard"]);
+
+    assert(t.selects("midgard"), "a listed dependency should be selected");
+    assert(!t.selects("balder"), "a dependency that is not listed should not be selected");
+}
+
+__test {
+    // A declared target that lists none links none: an empty selector is not a wildcard
+    let t = Target("tool", BuildType("executable"));
+
+    assert(!t.selects("midgard"), "a declared target with no selector should link no dependency");
+}
+
+__test {
+    // The target synthesized for a package declaring none has no selector to write, so it keeps
+    // linking every dependency the package declares
+    let t = Target("myapp", BuildType("executable"), synthesized-> true);
+
+    assert(t.synthesized, "the synthesized flag should be set");
+    assert(t.selects("midgard") && t.selects("balder"), "a synthesized target should link every dependency");
+}
+
+__test {
+    // Every entry of a "[targets.<name>]" table is parsed
+    let lst = copy TargetList(json#{
+        "cli" : {
+            "type" : "library",
+            "source-dir" : "second_src",
+            "package-root" : "main",
+            "test-root" : "cli_test",
+            "output" : "gyllir-cli",
+            "flags" : ["-fno-inline", "-O0"],
+            "libraries" : ["m"],
+            "dependencies" : ["midgard"],
+            "targets" : ["mylib"],
+            "c-sources" : ["src/glue.c"]
+        }
+    });
+
+    assert(lst.len() == 1us, "expected a single declared target");
+    if let Ok(t) = lst[]["cli"] {
+        assert(t.name == "cli", "the name of a target is the key of its table");
+        assert(t.type.isLibrary(), "unexpected build type");
+        assert(t.sourceDir == "second_src", "unexpected source directory");
+        assert(t.packageRoot == "main", "unexpected package root");
+        assert(t.testRoot == "cli_test", "unexpected test root");
+        assert(t.output == "gyllir-cli", "unexpected output name");
+        assert(t.flags == copy ["-fno-inline", "-O0"], "unexpected flags");
+        assert(t.libraries == copy ["m"], "unexpected libraries");
+        assert(t.dependencies == copy ["midgard"], "unexpected dependencies");
+        assert(t.targets == copy ["mylib"], "unexpected linked targets");
+        assert(t.cSources == copy ["src/glue.c"], "unexpected c sources");
+        assert(!t.synthesized, "a declared target is not a synthesized one");
+    } else assert(false, "expected a \"cli\" target");
+}
+
+__test {
+    // A target table declaring only its type is rooted at a module named after it
+    let lst = copy TargetList(json#{"tool" : {"type" : "executable"}});
+
+    if let Ok(t) = lst[]["tool"] {
+        assert(t.type.isExecutable(), "a target declaring no type should be an executable");
+        assert(t.sourceDir == "src", "a target declaring no source directory should use \"src\"");
+        assert(t.rootModule() == "tool", "a target declaring no package root should be rooted at its own name");
+    } else assert(false, "expected a \"tool\" target");
+}
+
+__test {
+    // Several targets are parsed, each under its own name
+    let lst = copy TargetList(json#{
+        "mylib" : {"type" : "library"},
+        "cli" : {"targets" : ["mylib"]}
+    });
+
+    assert(lst.len() == 2us, "expected two declared targets");
+    if let Ok(t) = lst[]["mylib"] {
+        assert(t.type.isLibrary(), "unexpected build type of the library target");
+    } else assert(false, "expected a \"mylib\" target");
+
+    if let Ok(t) = lst[]["cli"] {
+        assert(t.targets == copy ["mylib"], "the executable target should link the library one");
+    } else assert(false, "expected a \"cli\" target");
+}
+
+__test {
+    // A target table that is not a dictionary of known entries is rejected
+    let mut threw = false;
+    {
+        copy TargetList(json#{"cli" : {"package-root" : 12}});
+    } catch {
+        CastFailure() => { threw = true; }
+        AssertError() => { threw = true; }
+    }
+
+    assert(threw, "a non string \"package-root\" should be rejected");
+}
+
+__test {
+    // A list entry given a scalar instead of an array is rejected
+    let mut threw = false;
+    {
+        copy TargetList(json#{"cli" : {"dependencies" : "midgard"}});
+    } catch {
+        CastFailure() => { threw = true; }
+        AssertError() => { threw = true; }
+    }
+
+    assert(threw, "a non array \"dependencies\" should be rejected");
+}
+
+__test {
+    // A target list built from something else than a dictionary is rejected
+    let mut threw = false;
+    {
+        copy TargetList(copy Str("not-a-dict"));
+    } catch {
+        CastFailure() => { threw = true; }
+        AssertError() => { threw = true; }
+    }
+
+    assert(threw, "a non dictionary target list should be rejected");
+}
+
+__test {
+    // Serializing writes back every declared entry, and nothing else: the entries a target left
+    // to its default must not appear, so that a "gyllir publish" round trip does not grow the file
+    let lst = copy TargetList(json#{
+        "cli" : {
+            "type" : "executable",
+            "package-root" : "main",
+            "flags" : ["-O0"],
+            "dependencies" : ["midgard"],
+            "targets" : ["mylib"]
+        }
+    });
+
+    let serialized = lst.serialize();
+    if let Ok(cli) = serialized["cli"]? {
+        assert(to!{[c8]}(cli["type"]) == "executable", "unexpected serialized type");
+        assert(to!{[c8]}(cli["package-root"]) == "main", "unexpected serialized package root");
+        assert(to!{[[c8]]}(cli["flags"]) == copy ["-O0"], "unexpected serialized flags");
+        assert(to!{[[c8]]}(cli["dependencies"]) == copy ["midgard"], "unexpected serialized dependencies");
+        assert(to!{[[c8]]}(cli["targets"]) == copy ["mylib"], "unexpected serialized linked targets");
+
+        assert("source-dir" !in cli, "a default source directory should not be written back");
+        assert("test-root" !in cli, "an undeclared test root should not be written back");
+        assert("output" !in cli, "an undeclared output name should not be written back");
+        assert("libraries" !in cli, "an empty library list should not be written back");
+        assert("c-sources" !in cli, "an empty c source list should not be written back");
+    } else assert(false, "expected a serialized \"cli\" target");
+}
+
+__test {
+    // The declared entries survive a serialization round trip
+    let lst = copy TargetList(json#{
+        "cli" : {
+            "type" : "library",
+            "source-dir" : "second_src",
+            "test-root" : "cli_test",
+            "output" : "gyllir-cli",
+            "libraries" : ["m"],
+            "c-sources" : ["src/glue.c"]
+        }
+    });
+
+    let back = copy TargetList(lst.serialize());
+    if let Ok(t) = back[]["cli"] {
+        assert(t.type.isLibrary(), "the build type should survive the round trip");
+        assert(t.sourceDir == "second_src", "the source directory should survive the round trip");
+        assert(t.testRoot == "cli_test", "the test root should survive the round trip");
+        assert(t.output == "gyllir-cli", "the output name should survive the round trip");
+        assert(t.libraries == copy ["m"], "the libraries should survive the round trip");
+        assert(t.cSources == copy ["src/glue.c"], "the c sources should survive the round trip");
+    } else assert(false, "expected a \"cli\" target after the round trip");
+}
+
+__test {
+    // An empty target list serializes to an empty dictionary
+    let lst = copy TargetList();
+
+    assert(lst.len() == 0us, "a target list built empty should hold no target");
+    if let d: &Dict = lst.serialize() {
+        assert(d[].len == 0us, "an empty target list should serialize to an empty dictionary");
+    } else assert(false, "a target list should serialize to a dictionary");
+}

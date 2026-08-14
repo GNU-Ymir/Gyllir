@@ -9,15 +9,17 @@ use std::config::json;
 use std::fs::_;
 
 /**
- * Create a cache directory containing a YIL and a deps file for each of the given module names
- * (as they are named on disk: source path flattened with "_")
- * @returns: the cache directory
+ * Create the build cache of a target, containing a YIL and a deps file for each of the given module
+ * names (as they are named on disk: source path flattened with "_")
+ * @returns:
+ *    - .0: the root directory of the project
+ *    - .1: the cache directory of its "myapp" target
  * */
-fn mkCacheDir(names: [[c8]])-> Path
+fn mkCacheDir(names: [[c8]])-> (Path, Path)
     throws FsError
 {
     let dir = sys::tempDirectory(prefix-> "gyllir_builder_test_");
-    let cacheDir = dir.push(defaults::__CACHE_DEBUG_DIR__);
+    let cacheDir = defaults::targetCacheDir(dir, "myapp", defaults::__CACHE_DEBUG_DIR__);
     sys::createDir(cacheDir.push(defaults::__YIL_DIR__), recursive-> true);
 
     for n in names {
@@ -30,11 +32,11 @@ fn mkCacheDir(names: [[c8]])-> Path
         d:.close();
     }
 
-    cacheDir
+    (dir, cacheDir)
 }
 
-fn mkBuilder(cacheDir: Path)-> RepoBuilder {
-    RepoBuilder(cacheDir.parent().parent(), copy Dict(), GyllirPackageConfiguration::empty(), false)
+fn mkBuilder(dir: Path)-> RepoBuilder {
+    RepoBuilder(dir, copy Dict(), GyllirPackageConfiguration::empty(), Target("myapp", BuildType()), false)
 }
 
 fn hasYIL(cacheDir: Path, name: [c8])-> bool {
@@ -45,10 +47,22 @@ fn hasDeps(cacheDir: Path, name: [c8])-> bool {
     sys::isFile(cacheDir.push(name).addExtension(defaults::__DEPS_EXTENSION__))
 }
 
+/**
+ * @returns: the index of the first occurrence of 'needle' in 'haystack', the length of 'haystack'
+ *    when it holds none
+ * */
+fn indexOf(haystack: [[c8]], needle: [c8])-> usize {
+    for i in 0us .. haystack.len {
+        if haystack[i] == needle return i;
+    }
+
+    haystack.len
+}
+
 __test {
     // pruneRemovedModules() drops the YIL and deps files of a module whose source is gone, and keeps the others
-    let cacheDir = mkCacheDir(copy ["main", "gone"]);
-    let builder = mkBuilder(cacheDir);
+    let (dir, cacheDir) = mkCacheDir(copy ["main", "gone"]);
+    let builder = mkBuilder(dir);
 
     let pruned = builder.pruneRemovedModules(cacheDir, copy [Path("main.yr")]);
 
@@ -61,8 +75,8 @@ __test {
 
 __test {
     // Nothing to prune: every cached module still has a source, so the cache is left untouched
-    let cacheDir = mkCacheDir(copy ["main", "sub_other"]);
-    let builder = mkBuilder(cacheDir);
+    let (dir, cacheDir) = mkCacheDir(copy ["main", "sub_other"]);
+    let builder = mkBuilder(dir);
 
     let pruned = builder.pruneRemovedModules(cacheDir, copy [Path("main.yr"), Path("sub/other.yr")]);
 
@@ -74,8 +88,8 @@ __test {
 
 __test {
     // A deps file left without its YIL counterpart is pruned as well
-    let cacheDir = mkCacheDir(copy ["main"]);
-    let builder = mkBuilder(cacheDir);
+    let (dir, cacheDir) = mkCacheDir(copy ["main"]);
+    let builder = mkBuilder(dir);
 
     let dmut d = File::create(cacheDir.push("orphan").addExtension(defaults::__DEPS_EXTENSION__), write-> true);
     d:.write("deps");
@@ -99,16 +113,19 @@ __test {
  */
 
 __test {
-    // An executable project is compiled, and its binary produced at the root of the project
+    // An executable project is compiled, and its binary produced at the root of the project. A
+    // package declaring no target builds the single one synthesized from its top level fields, whose
+    // cache sits under '.target/<target>/'
     let dir = mkExecutableProject("myapp");
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    let cfg = mkConfig("myapp", "executable");
 
-    let (includes, links) = RepoBuilder(dir, mkBuildArgs(), mkConfig("myapp", "executable"), forUnitTest-> false).run(alias mgr);
+    let (includes, links) = RepoBuilder(dir, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
 
     assert(hasFile(dir, "myapp"), "the executable should be produced at the root of the project");
-    assert(hasFile(dir, defaults::__CACHE_DEBUG_DIR__ ~ "/myapp.a"), "the debug object archive should be cached");
-    assert(hasFile(dir, defaults::__CACHE_DEBUG_DIR__ ~ "/yils/main.yil"), "the YIL bytecode of the root module should be cached");
-    assert(hasFile(dir, defaults::__CACHE_DEBUG_DIR__ ~ "/main.deps"), "the dependency file of the root module should be exported");
+    assert(hasCacheFile(dir, "myapp", defaults::__CACHE_DEBUG_DIR__, "myapp.a"), "the debug object archive should be cached");
+    assert(hasCacheFile(dir, "myapp", defaults::__CACHE_DEBUG_DIR__, "yils/main.yil"), "the YIL bytecode of the root module should be cached");
+    assert(hasCacheFile(dir, "myapp", defaults::__CACHE_DEBUG_DIR__, "main.deps"), "the dependency file of the root module should be exported");
     assert(!sys::isDir(dir.push(defaults::__CACHE_TMP_DIR__)), "the temporary compilation directory should be cleaned up");
 
     assert(includes.len == 1us, "the root source file should be exported, for the packages depending on this one");
@@ -122,11 +139,12 @@ __test {
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
     let cfg = mkConfig("myapp", "executable");
 
-    RepoBuilder(dir, mkBuildArgs(), cfg, forUnitTest-> false).run(alias mgr);
-    let yil = dir.push(defaults::__CACHE_DEBUG_DIR__).push(defaults::__YIL_DIR__).push("main").addExtension(defaults::__YIL_EXTENSION__);
+    RepoBuilder(dir, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
+    let yil = defaults::targetCacheDir(dir, "myapp", defaults::__CACHE_DEBUG_DIR__)
+        .push(defaults::__YIL_DIR__).push("main").addExtension(defaults::__YIL_EXTENSION__);
     let fstDate = sys::fileDate(yil);
 
-    RepoBuilder(dir, mkBuildArgs(), cfg, forUnitTest-> false).run(alias mgr);
+    RepoBuilder(dir, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
 
     assert(sys::fileDate(yil) == fstDate, "an unchanged module should not be recompiled");
     assert(hasFile(dir, "myapp"), "the executable should still be there after a no-op build");
@@ -136,11 +154,12 @@ __test {
     // A release build caches its outputs in a directory of its own
     let dir = mkExecutableProject("myapp");
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    let cfg = mkConfig("myapp", "executable");
 
-    RepoBuilder(dir, mkBuildArgs(flags-> copy ["release"]), mkConfig("myapp", "executable"), forUnitTest-> false).run(alias mgr);
+    RepoBuilder(dir, mkBuildArgs(flags-> copy ["release"]), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
 
-    assert(hasFile(dir, defaults::__CACHE_RELEASE_DIR__ ~ "/myapp.a"), "the release object archive should be cached apart from the debug one");
-    assert(!sys::isDir(dir.push(defaults::__CACHE_DEBUG_DIR__)), "a release build should not populate the debug cache");
+    assert(hasCacheFile(dir, "myapp", defaults::__CACHE_RELEASE_DIR__, "myapp.a"), "the release object archive should be cached apart from the debug one");
+    assert(!sys::isDir(defaults::targetCacheDir(dir, "myapp", defaults::__CACHE_DEBUG_DIR__)), "a release build should not populate the debug cache");
     assert(hasFile(dir, "myapp"), "the executable should be produced at the root of the project");
 }
 
@@ -148,11 +167,12 @@ __test {
     // A library project produces an archive, exported to the packages depending on it
     let dir = mkLibraryProject("mylib");
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    let cfg = mkConfig("mylib", "library");
 
-    let (includes, links) = RepoBuilder(dir, mkBuildArgs(), mkConfig("mylib", "library"), forUnitTest-> false).run(alias mgr);
+    let (includes, links) = RepoBuilder(dir, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
 
     assert(hasFile(dir, "libmylib.a"), "the library archive should be produced at the root of the project");
-    assert(hasFile(dir, defaults::__CACHE_DEBUG_DIR__ ~ "/yils/mylib_helper.yil"), "every module of the library should be compiled");
+    assert(hasCacheFile(dir, "mylib", defaults::__CACHE_DEBUG_DIR__, "yils/mylib_helper.yil"), "every module of the library should be compiled");
 
     assert(includes.len == 1us, "the root source file should be exported");
     assert(links.len == 1us && links[0] == dir.push("libmylib.a"), "the produced archive should be exported for linking");
@@ -164,21 +184,23 @@ __test {
     addUnitTests(dir);
 
     let dmut mgr = copy GyllirManager(copy ["gyllir", "test"]);
-    RepoBuilder(dir, mkBuildArgs(), mkConfig("myapp", "executable"), forUnitTest-> true).run(alias mgr);
+    let cfg = mkConfig("myapp", "executable");
+    RepoBuilder(dir, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> true).run(alias mgr);
 
     assert(hasFile(dir, "myapp.test"), "the unittest executable should be produced at the root of the project");
-    assert(hasFile(dir, defaults::__CACHE_UNIT_DEBUG_DIR__ ~ "/myapp.a"), "the sources should be compiled in the unittest cache");
-    assert(hasFile(dir, defaults::__CACHE_TEST_DIR__ ~ "/yils/__test__.yil"), "the test modules should be compiled in the test cache");
+    assert(hasCacheFile(dir, "myapp", defaults::__CACHE_UNIT_DEBUG_DIR__, "myapp.a"), "the sources should be compiled in the unittest cache");
+    assert(hasCacheFile(dir, "myapp", defaults::__CACHE_TEST_DIR__, "yils/__test__.yil"), "the test modules should be compiled in the test cache");
 }
 
 __test {
     // A documentation build produces the json documentation file consumed by 'gyllir doc'
     let dir = mkExecutableProject("myapp");
     let dmut mgr = copy GyllirManager(copy ["gyllir", "doc"]);
+    let cfg = mkConfig("myapp", "executable");
 
-    RepoBuilder(dir, mkBuildArgs(), mkConfig("myapp", "executable"), forUnitTest-> false, forDoc-> true).run(alias mgr);
+    RepoBuilder(dir, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false, forDoc-> true).run(alias mgr);
 
-    assert(hasFile(dir, defaults::__CACHE_DOC_DIR__ ~ "/myapp.doc.json"), "the documentation file should be produced in the doc cache");
+    assert(hasCacheFile(dir, "myapp", defaults::__CACHE_DOC_DIR__, "myapp.doc.json"), "the documentation file should be produced in the doc cache");
     assert(!hasFile(dir, "myapp"), "a documentation build should not link an executable");
 }
 
@@ -200,7 +222,7 @@ __test {
         }
     });
 
-    RepoBuilder(dir, mkBuildArgs(), cfg, forUnitTest-> false).run(alias mgr);
+    RepoBuilder(dir, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
 
     assert(hasFile(dir, "pre.witness"), "the pre build command should have run in the project directory");
     assert(hasFile(dir, "post.witness"), "the post build command should have run in the project directory");
@@ -212,18 +234,18 @@ __test {
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
     let cfg = mkConfig("mylib", "library");
 
-    RepoBuilder(dir, mkBuildArgs(), cfg, forUnitTest-> false).run(alias mgr);
-    assert(hasFile(dir, defaults::__CACHE_DEBUG_DIR__ ~ "/yils/mylib_helper.yil"), "sanity: the helper module should be compiled");
+    RepoBuilder(dir, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
+    assert(hasCacheFile(dir, "mylib", defaults::__CACHE_DEBUG_DIR__, "yils/mylib_helper.yil"), "sanity: the helper module should be compiled");
 
     // drop the module, and the reference to it in the root file
     sys::removeFile(dir.push(defaults::__SRC_DIR__).push("mylib").push("helper").addExtension(defaults::__YMIR_EXTENSION__));
     writeSource(dir.push(defaults::__SRC_DIR__).push("mylib").addExtension(defaults::__YMIR_EXTENSION__),
                 "pub fn root()-> i32 {\n    42\n}\n");
 
-    RepoBuilder(dir, mkBuildArgs(), cfg, forUnitTest-> false).run(alias mgr);
+    RepoBuilder(dir, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
 
-    assert(!hasFile(dir, defaults::__CACHE_DEBUG_DIR__ ~ "/yils/mylib_helper.yil"), "the YIL of the removed module should be pruned");
-    assert(!hasFile(dir, defaults::__CACHE_DEBUG_DIR__ ~ "/mylib_helper.deps"), "the deps of the removed module should be pruned");
+    assert(!hasCacheFile(dir, "mylib", defaults::__CACHE_DEBUG_DIR__, "yils/mylib_helper.yil"), "the YIL of the removed module should be pruned");
+    assert(!hasCacheFile(dir, "mylib", defaults::__CACHE_DEBUG_DIR__, "mylib_helper.deps"), "the deps of the removed module should be pruned");
     assert(hasFile(dir, "libmylib.a"), "the library should have been relinked");
 }
 
@@ -245,9 +267,153 @@ __test {
     });
 
     let dmut mgr = copy GyllirManager(copy ["gyllir", "test"]);
-    RepoBuilder(dir, mkBuildArgs(flags-> copy ["release", "verbose"]), cfg, forUnitTest-> true).run(alias mgr);
+    RepoBuilder(dir, mkBuildArgs(flags-> copy ["release", "verbose"]), cfg, soleTarget(cfg), forUnitTest-> true).run(alias mgr);
 
     assert(hasFile(dir, "myapp.test"), "the unittest executable should be produced");
-    assert(hasFile(dir, defaults::__CACHE_UNIT_RELEASE_DIR__ ~ "/myapp.a"), "a release unittest build should have a cache of its own");
-    assert(!sys::isDir(dir.push(defaults::__CACHE_UNIT_DEBUG_DIR__)), "a release build should not populate the debug cache");
+    assert(hasCacheFile(dir, "myapp", defaults::__CACHE_UNIT_RELEASE_DIR__, "myapp.a"), "a release unittest build should have a cache of its own");
+    assert(!sys::isDir(defaults::targetCacheDir(dir, "myapp", defaults::__CACHE_UNIT_DEBUG_DIR__)), "a release build should not populate the debug cache");
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * =====================================          TARGETS          ====================================
+ * ====================================================================================================
+ * ====================================================================================================
+ * A declared target is self contained: it names its own root module, its own source directory, its
+ * own artifact and its own compiler options, and it caches apart from every other target
+ */
+
+__test {
+    // A declared target is rooted at a module named after it, and caches under its own name
+    let dir = mkMultiTargetProject();
+    let cfg = mkMultiTargetConfig();
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    RepoBuilder(dir, mkBuildArgs(), cfg, namedTarget(cfg, "tool"), forUnitTest-> false).run(alias mgr);
+
+    assert(hasFile(dir, "tool"), "the artifact should be named after the target");
+    assert(hasCacheFile(dir, "tool", defaults::__CACHE_DEBUG_DIR__, "tool.a"), "the target should cache under '.target/<target>'");
+    assert(hasCacheFile(dir, "tool", defaults::__CACHE_DEBUG_DIR__, "yils/tool.yil"), "the root module of the target should be compiled");
+    assert(!sys::isDir(defaults::targetCacheDir(dir, "cli", defaults::__CACHE_DEBUG_DIR__)), "the other targets should be left alone");
+    assert(!hasFile(dir, "cli"), "the artifact of another target should not be produced");
+}
+
+__test {
+    // Two targets of the same package are built out of the same source directory, into two artifacts
+    // and two caches
+    let dir = mkMultiTargetProject();
+    let cfg = mkMultiTargetConfig();
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    RepoBuilder(dir, mkBuildArgs(), cfg, namedTarget(cfg, "mylib"), forUnitTest-> false).run(alias mgr);
+    RepoBuilder(dir, mkBuildArgs(), cfg, namedTarget(cfg, "tool"), forUnitTest-> false).run(alias mgr);
+
+    assert(hasFile(dir, "libmylib.a"), "the library target should produce an archive");
+    assert(hasFile(dir, "tool"), "the executable target should produce a binary");
+    assert(hasCacheFile(dir, "mylib", defaults::__CACHE_DEBUG_DIR__, "mylib.a"), "the library target should have a cache of its own");
+    assert(hasCacheFile(dir, "tool", defaults::__CACHE_DEBUG_DIR__, "tool.a"), "the executable target should have a cache of its own");
+}
+
+__test {
+    // "output" renames the artifact, the cache stays keyed by the name of the target
+    let dir = mkExecutableProject("myapp");
+    let cfg = mkTargetsConfig("myapp", json#{"app" : {"package-root" : "main", "output" : "renamed"}});
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    RepoBuilder(dir, mkBuildArgs(), cfg, namedTarget(cfg, "app"), forUnitTest-> false).run(alias mgr);
+
+    assert(hasFile(dir, "renamed"), "the artifact should be named after \"output\"");
+    assert(!hasFile(dir, "app"), "the artifact should not be named after the target");
+    assert(hasCacheFile(dir, "app", defaults::__CACHE_DEBUG_DIR__, "renamed.a"), "the cache directory is keyed by the target name, the object by the output name");
+}
+
+__test {
+    // "source-dir" moves the whole source tree of a target somewhere else than "src"
+    let dir = mkExecutableProject("myapp");
+    writeSource(dir.push("second_src").push(defaults::__MAIN_FILE__),
+                "use std::io;\n\nfn main() {\n    println(\"hello from the second source tree\");\n}\n");
+
+    let cfg = mkTargetsConfig("myapp", json#{"second" : {"source-dir" : "second_src", "package-root" : "main"}});
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    let (includes, _) = RepoBuilder(dir, mkBuildArgs(), cfg, namedTarget(cfg, "second"), forUnitTest-> false).run(alias mgr);
+
+    assert(hasFile(dir, "second"), "the target should be built out of its own source directory");
+    assert(includes.len == 1us && includes[0] == dir.push("second_src").push(defaults::__MAIN_FILE__),
+           "the exported root file should be the one of the declared source directory");
+}
+
+__test {
+    // The "flags" of a target are appended last on the compiler command line, so that a target can
+    // override the options gyllir picked for it
+    let cfg = mkTargetsConfig("myapp", json#{"app" : {"flags" : ["-fno-inline", "-O0"]}});
+    let builder = RepoBuilder(Path("/project"), mkBuildArgs(), cfg, namedTarget(cfg, "app"), forUnitTest-> false);
+
+    let options = builder.createCompileOptions(Path("/project/src/app.yr"), Path("/project/.target/app/debug"),
+                                               copy [Path("/dep/src/mylib.yr")]);
+
+    assert(options.len > 2us, "unexpected compile command line");
+    assert(options[$ - 2us] == "-fno-inline" && options[$ - 1us] == "-O0", "the flags of the target should come last");
+    assert(indexOf(options, "-g") < options.len - 2us, "the debug flag should come before the ones of the target");
+    assert(indexOf(options, "/dep/src/mylib.yr") < options.len, "the root file of a dependency should be included");
+}
+
+__test {
+    // The same holds for a documentation build, which has a command line of its own
+    let cfg = mkTargetsConfig("myapp", json#{"app" : {"flags" : ["-O0"]}});
+    let builder = RepoBuilder(Path("/project"), mkBuildArgs(), cfg, namedTarget(cfg, "app"), forUnitTest-> false, forDoc-> true);
+
+    let options = builder.createDocCompileOptions(Path("/project/src/app.yr"), []);
+
+    assert(options.len > 1us && options[$ - 1us] == "-O0", "the flags of the target should come last");
+    assert(indexOf(options, "/project/.target/app/doc/app.doc.json") < options.len,
+           "the documentation file should be written in the doc cache of the target");
+}
+
+__test {
+    // A release build asks for the optimizations, a unittest build for the tests
+    let cfg = mkConfig("myapp", "executable");
+    let builder = RepoBuilder(Path("/project"), mkBuildArgs(flags-> copy ["release"]), cfg, soleTarget(cfg), forUnitTest-> true);
+
+    let options = builder.createCompileOptions(Path("/project/src/main.yr"), Path("/project/.target/myapp/unit_release"), []);
+
+    assert(indexOf(options, "-O3") < options.len, "a release build should be optimized");
+    assert(indexOf(options, "-g") == options.len, "a release build should not be a debug one");
+    assert(indexOf(options, "-funittest") < options.len, "a unittest build should compile the tests in");
+}
+
+__test {
+    // A declared target links exactly the dependencies it selects: one that selects none does not
+    // even resolve them
+    let lib = mkLibraryProject("mylib");
+    writeToml(lib, mkConfig("mylib", "library"));
+    gitInit(lib);
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkTargetsConfig("myapp", json#{"app" : {"package-root" : "main"}}, depName-> "mylib", depPath-> lib);
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    RepoBuilder(app, mkBuildArgs(), cfg, namedTarget(cfg, "app"), forUnitTest-> false).run(alias mgr);
+
+    assert(hasFile(app, "app"), "the target should have been built");
+    assert(!sys::isDir(app.push(defaults::__DEPENCY_DIR__)), "a target selecting no dependency should not resolve any");
+}
+
+__test {
+    // A target that selects a declared dependency resolves and links it
+    let lib = mkLibraryProject("mylib");
+    writeToml(lib, mkConfig("mylib", "library"));
+    gitInit(lib);
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkTargetsConfig("myapp", json#{"app" : {"package-root" : "main", "dependencies" : ["mylib"]}},
+                              depName-> "mylib", depPath-> lib);
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    let (_, links) = RepoBuilder(app, mkBuildArgs(), cfg, namedTarget(cfg, "app"), forUnitTest-> false).run(alias mgr);
+
+    assert(sys::isLink(app.push(defaults::__DEPENCY_DIR__).push("mylib")), "the selected dependency should be resolved");
+    assert(links.len == 1us, "the archive of the selected dependency should be linked");
+    assert(hasFile(app, "app"), "the target should have been built");
 }

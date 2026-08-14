@@ -1,0 +1,429 @@
+in target;
+
+use std::{config::_, stream};
+use std::conv::errors;
+
+use gyllir::config::type;
+
+/**
+ * The source directory of a target that does not declare one
+ * */
+pub def __DEFAULT_SOURCE_DIR__ = "src";
+
+/**
+ * A build target, declared by a '[targets.<name>]' table of a gyllir.toml.
+ *
+ * A package declaring no such table still has exactly one target, synthesized from its top level
+ * fields by 'GyllirPackageConfiguration::targets', so the rest of gyllir only ever builds targets
+ * and never has to special case the single target packages.
+ * */
+pub record Target {
+
+    // The name of the target, the key of its '[targets.<name>]' table
+    let _name: [c8];
+
+    // The kind of artifact produced by the target
+    let _type: BuildType;
+
+    // The directory holding the sources of the target, relative to the package directory
+    let _sourceDir: [c8];
+
+    // The root module of the target, relative to '_sourceDir' and without extension
+    // ("" when the target declares none, the name of the target is used instead)
+    let _packageRoot: [c8];
+
+    // The root module of the unittests of the target, relative to the test directory
+    // ("" when the target declares none)
+    let _testRoot: [c8];
+
+    // The name of the produced artifact ("" when the name of the target is used instead)
+    let _output: [c8];
+
+    // The raw options passed to the compiler when building the target
+    let _flags: [[c8]];
+
+    // The C libraries linked into the target
+    let _libraries: [[c8]];
+
+    // The names of the package dependencies linked by the target
+    // ([] selects every dependency declared by the package)
+    let _dependencies: [[c8]];
+
+    // The names of the targets of the same package linked by the target
+    let _targets: [[c8]];
+
+    // The C source files archived into the target
+    // @warning: parsed but not compiled yet, see YMI-72
+    let _cSources: [[c8]];
+
+    // True iif the target was synthesized from the top level fields of a package declaring no
+    // '[targets.<name>]' table, in which case its root module keeps the historical fallback to
+    // 'src/main.yr' that a declared target does not have
+    let _synthesized: bool;
+
+    /**
+     * @params:
+     *    - name: the name of the target
+     *    - type: the kind of artifact it produces
+     *    - sourceDir: the directory holding its sources
+     *    - packageRoot: its root module, relative to 'sourceDir' and without extension
+     *    - testRoot: the root module of its unittests
+     *    - output: the name of the produced artifact
+     *    - flags: the raw options passed to the compiler
+     *    - libraries: the C libraries to link
+     *    - dependencies: the names of the package dependencies to link
+     *    - targets: the names of the targets of the same package to link
+     *    - cSources: the C source files to archive
+     *    - synthesized: true iif the target is not declared by a '[targets.<name>]' table
+     * */
+    pub self (name: [c8], type: BuildType,
+              sourceDir: [c8] = __DEFAULT_SOURCE_DIR__,
+              packageRoot: [c8] = "",
+              testRoot: [c8] = "",
+              output: [c8] = "",
+              flags: [[c8]] = [],
+              libraries: [[c8]] = [],
+              dependencies: [[c8]] = [],
+              targets: [[c8]] = [],
+              cSources: [[c8]] = [],
+              synthesized: bool = false)
+        with _name = name
+        , _type = type
+        , _sourceDir = sourceDir
+        , _packageRoot = packageRoot
+        , _testRoot = testRoot
+        , _output = output
+        , _flags = flags
+        , _libraries = libraries
+        , _dependencies = dependencies
+        , _targets = targets
+        , _cSources = cSources
+        , _synthesized = synthesized
+    {}
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          GETTERS          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    @field
+    pub fn name(self)-> [c8] {
+        self._name
+    }
+
+    @field
+    pub fn type(self)-> BuildType {
+        self._type
+    }
+
+    @field
+    pub fn sourceDir(self)-> [c8] {
+        self._sourceDir
+    }
+
+    @field
+    pub fn packageRoot(self)-> [c8] {
+        self._packageRoot
+    }
+
+    @field
+    pub fn testRoot(self)-> [c8] {
+        self._testRoot
+    }
+
+    @field
+    pub fn output(self)-> [c8] {
+        self._output
+    }
+
+    @field
+    pub fn flags(self)-> [[c8]] {
+        self._flags
+    }
+
+    @field
+    pub fn libraries(self)-> [[c8]] {
+        self._libraries
+    }
+
+    @field
+    pub fn dependencies(self)-> [[c8]] {
+        self._dependencies
+    }
+
+    @field
+    pub fn targets(self)-> [[c8]] {
+        self._targets
+    }
+
+    @field
+    pub fn cSources(self)-> [[c8]] {
+        self._cSources
+    }
+
+    @field
+    pub fn synthesized(self)-> bool {
+        self._synthesized
+    }
+
+    /**
+     * @returns: the root module of the target, the name of the target when it declares none
+     * */
+    pub fn rootModule(self)-> [c8] {
+        if (self._packageRoot != "") { return self._packageRoot; }
+
+        self._name
+    }
+
+    /**
+     * @returns: the name of the artifact produced by the target, the name of the target when it
+     *    declares none
+     * */
+    pub fn outputName(self)-> [c8] {
+        if (self._output != "") { return self._output; }
+
+        self._name
+    }
+
+    /**
+     * @params:
+     *    - name: the name of a dependency declared by the package
+     * @returns: true iif the target links that dependency
+     * @info: a declared target links exactly what it lists, so omitting 'dependencies'(or writing an
+     *    empty one) links none of them. The target synthesized for a package declaring none has no
+     *    selector to write, so it keeps linking everything the package declares.
+     * */
+    pub fn selects(self, name: [c8])-> bool {
+        if (self._synthesized) { return true; }
+
+        for d in self._dependencies if d == name {
+            return true;
+        }
+
+        false
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ======================================          MISC          ======================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    impl Streamable;
+
+}
+
+/**
+ * A target list is a map of Target, that can be serialized into configuration
+ * */
+pub class TargetList {
+
+    // The list of targets, by name
+    let mut _targets: [[c8] => mut Target] = copy [];
+
+    /**
+     * Create an empty target list
+     * */
+    pub self () {}
+
+    /**
+     * Create a target list from a map of Target
+     * */
+    pub self (mut elem: [[c8] => mut Target])
+        with _targets = alias elem
+    {}
+
+    /**
+     * Create a target list from a configuration
+     * This constructor can be used by the std for serialization
+     * */
+    pub self (cfg: &Config)
+        throws AssertError, std::conv::errors::CastFailure
+    {
+        if let d: &Dict = cfg {
+            self:.insert(d);
+        }
+
+        else throw copy AssertError("Expecting a dictionnary"s8);
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          GET/SET          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * @returns: the list of targets
+     * */
+    pub fn opIndex(self)-> [[c8] => Target] {
+        self._targets
+    }
+
+    /**
+     * @returns: the number of declared targets
+     * */
+    pub fn len(self)-> usize {
+        self._targets.len
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ======================================          MISC          ======================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    impl Streamable;
+    impl Serializable {
+        pub over serialize(self)-> &Config {
+            let dmut res = copy Dict();
+            for k, t in self._targets {
+                let dmut trg = copy Dict();
+                trg:["type"] = t.type.serialize();
+
+                if (t.sourceDir != __DEFAULT_SOURCE_DIR__) {
+                    trg:["source-dir"] = copy Str(t.sourceDir);
+                }
+
+                if (t.packageRoot != "") {
+                    trg:["package-root"] = copy Str(t.packageRoot);
+                }
+
+                if (t.testRoot != "") {
+                    trg:["test-root"] = copy Str(t.testRoot);
+                }
+
+                if (t.output != "") {
+                    trg:["output"] = copy Str(t.output);
+                }
+
+                if (t.flags.len != 0us) {
+                    trg:["flags"] = copy Array(copy [copy Str(i) for i in t.flags]);
+                }
+
+                if (t.libraries.len != 0us) {
+                    trg:["libraries"] = copy Array(copy [copy Str(i) for i in t.libraries]);
+                }
+
+                if (t.dependencies.len != 0us) {
+                    trg:["dependencies"] = copy Array(copy [copy Str(i) for i in t.dependencies]);
+                }
+
+                if (t.targets.len != 0us) {
+                    trg:["targets"] = copy Array(copy [copy Str(i) for i in t.targets]);
+                }
+
+                if (t.cSources.len != 0us) {
+                    trg:["c-sources"] = copy Array(copy [copy Str(i) for i in t.cSources]);
+                }
+
+                res:[k] = trg;
+            }
+
+            res
+        }
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          PRIVATE          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Insert the targets from a configuration dictionnary
+     * */
+    prv fn insert(mut self, cfg: &Dict)
+        throws std::conv::errors::CastFailure
+    {
+        {
+            for k, v in cfg[] {
+                self._targets[k] = self.parseTarget(k, v);
+            }
+        } catch {
+            inE => {
+                throw copy std::conv::errors::CastFailure((&Config)::__typeinfo__, Target::__typeinfo__, subError-> (inE)?);
+            }
+        }
+    }
+
+    /**
+     * Parse a single '[targets.<name>]' table
+     * @params:
+     *    - name: the name of the target, the key of its table
+     *    - cfg: the content of its table
+     * */
+    prv fn parseTarget(self, name: [c8], cfg: &Config)-> Target
+        throws AssertError, std::conv::errors::CastFailure
+    {
+        let type = if let Ok(t) = cfg["type"]? {
+            std::config::conv::to!{BuildType} (t)
+        } else { BuildType() };
+
+        Target(name, type,
+               sourceDir-> self.readString(cfg, "source-dir", name, default-> __DEFAULT_SOURCE_DIR__),
+               packageRoot-> self.readString(cfg, "package-root", name),
+               testRoot-> self.readString(cfg, "test-root", name),
+               output-> self.readString(cfg, "output", name),
+               flags-> self.readStringArray(cfg, "flags", name),
+               libraries-> self.readStringArray(cfg, "libraries", name),
+               dependencies-> self.readStringArray(cfg, "dependencies", name),
+               targets-> self.readStringArray(cfg, "targets", name),
+               cSources-> self.readStringArray(cfg, "c-sources", name))
+    }
+
+    /**
+     * Read an optional string entry of a target table
+     * @params:
+     *    - cfg: the content of the target table
+     *    - key: the name of the entry to read
+     *    - target: the name of the target, for error reporting
+     *    - default: the value returned when the entry is absent
+     * */
+    prv fn readString(self, cfg: &Config, key: [c8], target: [c8], default: [c8] = "")-> [c8]
+        throws AssertError
+    {
+        if let Ok(Str(value-> v)) = cfg[key]? {
+            return v;
+        }
+
+        else if let Ok(_) = cfg[key]? {
+            throw copy AssertError("expecting a string for '" ~ key ~ "' of target '" ~ target ~ "'");
+        }
+
+        default
+    }
+
+    /**
+     * Read an optional array of string entry of a target table
+     * @params:
+     *    - cfg: the content of the target table
+     *    - key: the name of the entry to read
+     *    - target: the name of the target, for error reporting
+     * */
+    prv fn readStringArray(self, cfg: &Config, key: [c8], target: [c8])-> [[c8]]
+        throws AssertError, std::conv::errors::CastFailure
+    {
+        if let Ok(a: &Array) = cfg[key]? {
+            return copy [std::config::conv::to!{[c8]} (i) for i in a[]];
+        }
+
+        else if let Ok(_) = cfg[key]? {
+            throw copy AssertError("expecting an array of string for '" ~ key ~ "' of target '" ~ target ~ "'");
+        }
+
+        []
+    }
+
+}

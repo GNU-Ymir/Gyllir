@@ -161,11 +161,12 @@ pub class GyllirArgumentParser {
             :.option!{i32} ("j", comments-> "number of parallel threads to spawn")
             :.flag("verbose", short-> "v", comments-> "verbose mode");
 
+        let (rest, target) = self.extractTarget(args, copy ["j"]);
         return ({
-            parser.parse(args)
+            self.withTarget(parser.parse(rest), target)
         } catch {
             err: &std::config::args::errors::HelpRequestError => {
-                std::io::eprintln(parser.explain(err, usage-> "gyllir build"));
+                std::io::eprintln(parser.explain(err, usage-> "gyllir build [target]"));
                 etc::c::process::_yrt_exit(-1);
                 panic;
             }
@@ -263,11 +264,12 @@ pub class GyllirArgumentParser {
             :.option!{[c8]} ("input", short-> "i", comments-> "input json file already produced by a previous compilation")
             :.option!{[c8]} ("output", short-> "o", comments-> "output directory");
 
+        let (rest, target) = self.extractTarget(args, copy ["input", "i", "output", "o"]);
         return ({
-            parser.parse(args)
+            self.withTarget(parser.parse(rest), target)
         } catch {
             err: &std::config::args::errors::HelpRequestError => {
-                std::io::eprintln(parser.explain(err, usage-> "gyllir doc"));
+                std::io::eprintln(parser.explain(err, usage-> "gyllir doc [target]"));
                 etc::c::process::_yrt_exit(-1);
                 panic;
             }
@@ -288,16 +290,113 @@ pub class GyllirArgumentParser {
             :.flag("release", comments-> "compile tests in release mode (debug by default)")
             :.option!{i32} ("j", comments-> "number of parallel threads to spawn");
 
+        let (rest, target) = self.extractTarget(args, copy ["j"]);
         return ({
-            parser.parse(args)
+            self.withTarget(parser.parse(rest), target)
         } catch {
             err: &std::config::args::errors::HelpRequestError => {
-                std::io::eprintln(parser.explain(err, usage-> "gyllir test"));
+                std::io::eprintln(parser.explain(err, usage-> "gyllir test [target]"));
                 etc::c::process::_yrt_exit(-1);
                 panic;
             }
             e => throw e;
         })?;
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * =====================================          TARGETS          ====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Split the optional '<target>' argument of a sub command out of its arguments.
+     *
+     * The std argument parser has no optional positional argument(every declared position is
+     * mandatory), so the target name is taken out of the command line before parsing, and put back
+     * into the parsed configuration by 'withTarget'.
+     *
+     * @params:
+     *    - args: the arguments of the sub command, 'args[0]' being its name
+     *    - valued: the long and short names of the options of the sub command that take a value, whose
+     *      value must not be mistaken for the target name
+     * @returns:
+     *    - .0: the arguments, without the target name
+     *    - .1: the name of the target, "" if the command line names none
+     * */
+    prv fn extractTarget(self, args: [[c8]], valued: [[c8]])-> ([[c8]], [c8]) {
+        let mut rest: [[c8]] = [];
+        let mut target = "";
+
+        let mut i = 0us;
+        while i < args.len {
+            let a = args[i];
+            rest ~= [a];
+
+            // the sub command name is 'args[0]', and never a target
+            if (i != 0us && a.len > 0us && a[0] == '-') {
+                // '-j 4' passes the value in the next argument, '-j=4' in this one
+                if (i + 1us < args.len && self.isValued(a, valued)) {
+                    i += 1us;
+                    rest ~= [args[i]];
+                }
+            }
+
+            else if (i != 0us && target == "") {
+                target = a;
+                rest = rest[0 .. $ - 1us];
+            }
+
+            i += 1us;
+        }
+
+        (rest, target)
+    }
+
+    /**
+     * @params:
+     *    - arg: a hyphenated argument of the command line
+     *    - valued: the names of the options taking a value
+     * @returns: true iif 'arg' names one of them, and takes its value in the next argument
+     * */
+    prv fn isValued(self, arg: [c8], valued: [[c8]])-> bool {
+        let mut name = arg;
+        while name.len > 0us && name[0] == '-' {
+            name = name[1us .. $];
+        }
+
+        // '--opt=value' carries its value, the next argument is not one
+        for c in name if c == '=' {
+            return false;
+        }
+
+        for v in valued if v == name {
+            return true;
+        }
+
+        false
+    }
+
+    /**
+     * @params:
+     *    - cfg: the configuration parsed for a sub command
+     *    - target: the name of the target extracted from its command line
+     * @returns: 'cfg', with a 'target' entry when the command line named one
+     * */
+    prv fn withTarget(self, cfg: &Config, target: [c8])-> &Config {
+        if (target == "") { return cfg; }
+
+        let dmut res = copy Dict();
+        if let d: &Dict = cfg {
+            for k, v in d[] {
+                res:[k] = v;
+            }
+        }
+
+        res:["target"] = copy Str(target);
+        res
     }
 
 }

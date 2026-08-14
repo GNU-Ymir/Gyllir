@@ -1,5 +1,7 @@
 in defaults;
 
+use std::fs::path;
+
 /**
  * The filename of the configuration
  */
@@ -72,14 +74,35 @@ pub def __YIL_DIR__     = "yils";
 pub def __DEPENCY_DIR__ = ".deps";
 
 
-pub def __CACHE_ALL_DIR__          = ".target/";
-pub def __CACHE_TMP_DIR__          = ".target/tmp";
-pub def __CACHE_RELEASE_DIR__      = ".target/release";
-pub def __CACHE_DEBUG_DIR__        = ".target/debug";
-pub def __CACHE_UNIT_DEBUG_DIR__   = ".target/unit_debug";
-pub def __CACHE_UNIT_RELEASE_DIR__ = ".target/unit_release";
-pub def __CACHE_DOC_DIR__          = ".target/doc";
-pub def __CACHE_TEST_DIR__         = ".target/test";
+/**
+ * The build cache of a package, holding one sub directory per target
+ * @info: '__CACHE_TMP_DIR__' is the only one shared by every target, gyllir builds the targets of
+ *   a package one after the other, so they never write it at the same time
+ */
+pub def __CACHE_ALL_DIR__ = ".target/";
+pub def __CACHE_TMP_DIR__ = ".target/tmp";
+
+/**
+ * The sub directories of '.target/<target>/', one per kind of build
+ */
+pub def __CACHE_RELEASE_DIR__      = "release";
+pub def __CACHE_DEBUG_DIR__        = "debug";
+pub def __CACHE_UNIT_DEBUG_DIR__   = "unit_debug";
+pub def __CACHE_UNIT_RELEASE_DIR__ = "unit_release";
+pub def __CACHE_DOC_DIR__          = "doc";
+pub def __CACHE_TEST_DIR__         = "test";
+
+/**
+ * The build cache of a target
+ * @params:
+ *    - cwd: the root directory of the package the target belongs to
+ *    - target: the name of the target
+ *    - kind: the kind of build, one of the '__CACHE_*_DIR__' sub directories
+ * @returns: '<cwd>/.target/<target>/<kind>'
+ * */
+pub fn targetCacheDir(cwd: Path, target: [c8], kind: [c8])-> Path {
+    cwd.push(__CACHE_ALL_DIR__).push(target).push(kind)
+}
 
 
 pub def __YMIR_EXTENSION__     = "yr";

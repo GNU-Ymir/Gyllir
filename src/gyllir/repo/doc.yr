@@ -16,6 +16,13 @@ pub record RepoDocBuilder {
     // The package configuration
     let _cfg: GyllirPackageConfiguration;
 
+    // The target whose documentation is generated
+    let _target: Target;
+
+    // True iif the documentation of the target goes to a sub directory named after it, which is
+    // what a package declaring more than one target needs to keep the sites apart
+    let _subDir: bool;
+
     // the input file to parse
     let _input: [c8];
 
@@ -27,12 +34,16 @@ pub record RepoDocBuilder {
 
     /**
      * @params:
+     *    - target: the target to document(unused when 'fromFile' is set)
      *    - input: the input file to parse
+     *    - subDir: true iif the pages go to '<output>/<target>' instead of '<output>'
      * */
-    pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration, input: [c8] = "", fromFile: bool = false)
+    pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration, target: Target = Target("", BuildType()), input: [c8] = "", fromFile: bool = false, subDir: bool = false)
         with _cwd = path
         , _args = args
         , _cfg = cfg
+        , _target = target
+        , _subDir = subDir
         , _fromFile = fromFile
         , _input = input
         , _git = GitManager(cwd-> path)
@@ -40,8 +51,11 @@ pub record RepoDocBuilder {
 
     /**
      * Run the build executable
+     * @params:
+     *    - targetIncludes: the root files of the targets of the same package the target links
+     *    - targetLinks: the archives of the targets of the same package the target links
      * */
-    pub fn run(self, dmut context: &GyllirManager)
+    pub fn run(self, dmut context: &GyllirManager, targetIncludes: [Path] = [], targetLinks: [Path] = [])
         throws RecursiveDependency
     {
         let version = if (self._cfg.name == "") {
@@ -51,17 +65,23 @@ pub record RepoDocBuilder {
         } else { "main" };
 
         let inputFile = if (!self._fromFile) {
-            RepoBuilder(self._cwd, self._args, self._cfg, forUnitTest-> false, forDoc-> true).run(alias context);
-            self._cwd.push(defaults::__CACHE_DOC_DIR__).push(self._cfg.name).addExtension(defaults::__DOC_EXTENSION__)
+            RepoBuilder(self._cwd, self._args, self._cfg, self._target, forUnitTest-> false, forDoc-> true)
+                .run(alias context, targetIncludes-> targetIncludes, targetLinks-> targetLinks);
+            defaults::targetCacheDir(self._cwd, self._target.name, defaults::__CACHE_DOC_DIR__)
+                .push(self._target.outputName()).addExtension(defaults::__DOC_EXTENSION__)
         } else {
             Path(self._input)
         };
 
-        let outputDir = if let Ok(Str(value-> dir)) = self._args["output"]? {
+        let baseDir = if let Ok(Str(value-> dir)) = self._args["output"]? {
             Path(dir)
         } else {
             self._cwd.push(defaults::__DOC_DIR__)
         };
+
+        let outputDir = if (self._subDir) {
+            baseDir.push(self._target.name)
+        } else { baseDir };
 
         let docConfig = {
             let dmut file = File::open(inputFile, read-> true);
