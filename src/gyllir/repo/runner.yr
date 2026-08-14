@@ -50,7 +50,7 @@ pub record RepoRunner {
             let dmut subProc = copy SubProcess("./" ~ output ~ ".test", [], cwd-> self._cwd);
             subProc:.start(redirect-> false);
 
-            subProc:.wait()
+            self.exitCode(subProc:.wait())
         } else {
             if !self._target.type.isExecutable() {
                 throw copy AssertError("Run command only usable with executables");
@@ -68,8 +68,26 @@ pub record RepoRunner {
             let dmut subProc = copy SubProcess("./" ~ output, options, cwd-> self._cwd);
             subProc:.start(redirect-> false);
 
-            subProc:.wait()
+            self.exitCode(subProc:.wait())
         }
+    }
+
+    /**
+     * The exit code of a finished process
+     * @params:
+     *    - status: the raw status 'SubProcess::wait' returns, straight out of 'waitpid'
+     * @returns: the code the artifact exited with, or '128 + <signal>' when a signal killed it, the
+     *    way a shell reports it
+     * @info: the exit code sits in the second byte of that status, so passing it as is to 'exit'
+     *    truncates every code to zero and a failing artifact reports a success
+     * */
+    prv fn exitCode(self, status: i32)-> i32 {
+        let signal = status & 0x7f;
+        if (signal != 0) {
+            return 128 + signal;
+        }
+
+        (status >> 8) & 0xff
     }
 
 }
