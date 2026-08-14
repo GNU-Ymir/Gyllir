@@ -168,3 +168,37 @@ __test {
 
     assert(str[] == "[>1.0.0, <2.0.0]", str[]);
 }
+
+__test {
+    // Serializing a single filter keeps the comparator in front of the version
+    for c in copy [(">1.0.0", ">1.0.0"), (">=1.0.0", ">=1.0.0"),
+                   ("<1.0.0", "<1.0.0"), ("<=1.0.0", "<=1.0.0"),
+                   ("1.0.0", "=1.0.0")] {
+        let serialized = to!{[c8]} (VersionFilter(copy [c.0]).serialize());
+        assert(serialized == c.1, "unexpected serialization of the filter " ~ c.0 ~ " : " ~ serialized);
+    }
+}
+
+__test {
+    // An ignore filter serializes without a comparator, since it applies to every version
+    assert(to!{[c8]} (VersionFilter(copy ["*"]).serialize()) == "*", "unexpected serialization of an ignore filter");
+}
+
+__test {
+    // Several filters serialize as an array, one entry each
+    let serialized = VersionFilter(copy [">1.0.0", "<2.0.0"]).serialize();
+
+    if let a: &Array = serialized {
+        assert(a[].len == 2us, "each filter should get an entry of its own");
+        assert(to!{[c8]} (a[][0]) == ">1.0.0", "unexpected serialization of the lower bound");
+        assert(to!{[c8]} (a[][1]) == "<2.0.0", "unexpected serialization of the upper bound");
+    } else assert(false, "several filters should serialize as an array");
+}
+
+__test {
+    // Every comparator has a rendering of its own, and several filters are rendered as a list
+    let dmut stream = copy StringStream();
+    stream:.write(VersionFilter(copy [">1.0.0", ">=1.1.0", "<2.0.0", "<=2.1.0", "3.0.0", "*"]));
+
+    assert(stream[] == "[>1.0.0, >=1.1.0, <2.0.0, <=2.1.0, =3.0.0, *]", "unexpected rendering: " ~ stream[]);
+}
