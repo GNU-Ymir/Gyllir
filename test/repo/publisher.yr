@@ -1,0 +1,151 @@
+use ::repo::fixture;
+use gyllir::repo::publisher;
+use gyllir::repo::manager;
+use gyllir::repo::defaults;
+use gyllir::config::_;
+use gyllir::utils::_;
+
+use std::config::_;
+use std::config::toml;
+use std::fs::_;
+use std::concurrency::process;
+use std::conv::errors;
+use std::syntax::errors;
+
+/**
+ * A project ready to be published: its sources, its 'gyllir.toml' and a git repository holding them
+ * @params:
+ *    - registry: the url the versions are published to
+ * @returns:
+ *    - .0: the root directory of the project
+ *    - .1: its configuration
+ * */
+fn mkPublishableProject(registry: [c8])-> (Path, GyllirPackageConfiguration)
+    throws FsError, GitError, CastFailure
+{
+    let dir = mkExecutableProject("myapp");
+    let cfg = GyllirPackageConfiguration("myapp", "MIT", "an integration test project", BuildType("executable"),
+                                         Url(registry), Version(1u32, 0u32, 0u32), []);
+    writeToml(dir, cfg);
+    gitInit(dir);
+
+    // publishing tags the new version, which fails non interactively when tags are signed globally
+    let dmut proc = copy SubProcess("git", copy ["config", "tag.gpgsign", "false"], cwd-> dir);
+    proc:.start();
+    proc:.wait();
+
+    (dir, cfg)
+}
+
+/**
+ * @returns: the version written in the 'gyllir.toml' of 'dir'
+ * */
+fn readVersion(dir: Path)-> Version
+    throws FsError, AssertError, CastFailure, SyntaxError
+{
+    let dmut f = File::open(dir.push(defaults::__GYLLIR_CONFIG_FILENAME__));
+    let cfg = toml::parse(f:.readAll());
+    f:.close();
+
+    GyllirPackageConfiguration(cfg).version
+}
+
+/**
+ * @returns: true iif 'tag' is one of the tags of the git repository in 'dir'
+ * */
+fn hasTag(dir: Path, tag: [c8])-> bool
+    throws GitError, FsError
+{
+    let tags = GitManager(cwd-> dir).getTagList();
+    if tags.len < tag.len return false;
+
+    for i in 0us .. (tags.len - tag.len + 1us) {
+        if tags[i .. i + tag.len] == tag return true;
+    }
+
+    false
+}
+
+/**
+ * The command line of a publication
+ * @params:
+ *    - increment: "major", "minor" or "patch"
+ * */
+fn mkPublishArgs(increment: [c8])-> &Config {
+    let dmut d = copy Dict();
+    d:[increment] = copy Bool(true);
+    d:["yes"] = copy Bool(true);       // do not ask for a confirmation on the command line
+    d:["dry"] = copy Bool(true);       // do not build nor run the tests of the published project
+    d:["message"] = copy Str("a release message");
+
+    d
+}
+
+__test {
+    // Publishing to a local registry bumps the patch version, tags it, and copies the project there
+    let registry = sys::tempDirectory(prefix-> "gyllir_registry_");
+    sys::removeDir(registry, recursive-> true);
+
+    let (dir, cfg) = mkPublishableProject("local:" ~ registry.toStr());
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "clean"]);
+
+    RepoPublisher(dir, mkPublishArgs("patch"), cfg).run(alias mgr);
+
+    assert(readVersion(dir) == Version(1u32, 0u32, 1u32), "a patch publication should bump the patch number");
+    assert(hasTag(dir, "v1.0.1"), "the published version should be tagged");
+    assert(sys::isFile(registry.push(defaults::__GYLLIR_CONFIG_FILENAME__)), "the project should be copied to the registry");
+    assert(sys::isFile(registry.push(defaults::__SRC_DIR__).push(defaults::__MAIN_FILE__)), "the sources should be copied to the registry");
+}
+
+__test {
+    // "--minor" and "--major" bump the other version numbers
+    let registry = sys::tempDirectory(prefix-> "gyllir_registry_");
+    sys::removeDir(registry, recursive-> true);
+
+    let (minorDir, minorCfg) = mkPublishableProject("local:" ~ registry.toStr());
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "clean"]);
+    RepoPublisher(minorDir, mkPublishArgs("minor"), minorCfg).run(alias mgr);
+
+    assert(readVersion(minorDir) == Version(1u32, 1u32, 0u32), "a minor publication should bump the minor number");
+
+    let (majorDir, majorCfg) = mkPublishableProject("local:" ~ registry.toStr());
+    RepoPublisher(majorDir, mkPublishArgs("major"), majorCfg).run(alias mgr);
+
+    assert(readVersion(majorDir) == Version(2u32, 0u32, 0u32), "a major publication should bump the major number");
+}
+
+__test {
+    // Publishing to a local registry that already holds a version replaces it
+    let registry = sys::tempDirectory(prefix-> "gyllir_registry_");
+    let dmut stale = File::create(registry.push("stale.txt"), write-> true);
+    stale:.write("left by a previous publication");
+    stale:.close();
+
+    let (dir, cfg) = mkPublishableProject("local:" ~ registry.toStr());
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "clean"]);
+
+    RepoPublisher(dir, mkPublishArgs("patch"), cfg).run(alias mgr);
+
+    assert(!sys::isFile(registry.push("stale.txt")), "the previous content of the registry should be replaced");
+    assert(sys::isFile(registry.push(defaults::__GYLLIR_CONFIG_FILENAME__)), "the project should be copied to the registry");
+}
+
+__test {
+    // Publishing to a git registry pushes the new version, and its tag, to the remote
+    let remote = sys::tempDirectory(prefix-> "gyllir_registry_git_");
+    let dmut proc = copy SubProcess("git", copy ["init", "--bare"], cwd-> remote);
+    proc:.start();
+    proc:.wait();
+
+    let (dir, cfg) = mkPublishableProject("git:" ~ remote.toStr());
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "clean"]);
+
+    RepoPublisher(dir, mkPublishArgs("patch"), cfg).run(alias mgr);
+
+    // the published version reaches the remote: a fresh clone of it has the tag, and the bumped toml
+    let clone = sys::tempDirectory(prefix-> "gyllir_registry_clone_");
+    GitManager(cwd-> clone).clone(remote.toStr());
+
+    assert(hasTag(clone, "v1.0.1"), "the tag of the published version should have been pushed");
+    assert(readVersion(clone) == Version(1u32, 0u32, 1u32), "the bumped configuration should have been pushed");
+}

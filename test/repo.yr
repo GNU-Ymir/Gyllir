@@ -4,3 +4,4 @@ pub mod ::cleaner;
 pub mod ::runner;
 pub mod ::manager;
 pub mod ::doc;
+pub mod ::publisher;
