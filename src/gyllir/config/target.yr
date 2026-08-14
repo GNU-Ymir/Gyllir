@@ -56,6 +56,11 @@ pub record Target {
     // @warning: parsed but not compiled yet, see YMI-72
     let _cSources: [[c8]];
 
+    // True iif the target was synthesized from the top level fields of a package declaring no
+    // '[targets.<name>]' table, in which case its root module keeps the historical fallback to
+    // 'src/main.yr' that a declared target does not have
+    let _synthesized: bool;
+
     /**
      * @params:
      *    - name: the name of the target
@@ -69,6 +74,7 @@ pub record Target {
      *    - dependencies: the names of the package dependencies to link
      *    - targets: the names of the targets of the same package to link
      *    - cSources: the C source files to archive
+     *    - synthesized: true iif the target is not declared by a '[targets.<name>]' table
      * */
     pub self (name: [c8], type: BuildType,
               sourceDir: [c8] = __DEFAULT_SOURCE_DIR__,
@@ -79,7 +85,8 @@ pub record Target {
               libraries: [[c8]] = [],
               dependencies: [[c8]] = [],
               targets: [[c8]] = [],
-              cSources: [[c8]] = [])
+              cSources: [[c8]] = [],
+              synthesized: bool = false)
         with _name = name
         , _type = type
         , _sourceDir = sourceDir
@@ -91,6 +98,7 @@ pub record Target {
         , _dependencies = dependencies
         , _targets = targets
         , _cSources = cSources
+        , _synthesized = synthesized
     {}
 
     /*!
@@ -156,6 +164,11 @@ pub record Target {
         self._cSources
     }
 
+    @field
+    pub fn synthesized(self)-> bool {
+        self._synthesized
+    }
+
     /**
      * @returns: the root module of the target, the name of the target when it declares none
      * */
@@ -178,11 +191,13 @@ pub record Target {
     /**
      * @params:
      *    - name: the name of a dependency declared by the package
-     * @returns: true iif the target links that dependency, which every target with no explicit
-     *    selector does
+     * @returns: true iif the target links that dependency
+     * @info: a declared target links exactly what it lists, so omitting 'dependencies'(or writing an
+     *    empty one) links none of them. The target synthesized for a package declaring none has no
+     *    selector to write, so it keeps linking everything the package declares.
      * */
     pub fn selects(self, name: [c8])-> bool {
-        if (self._dependencies.len == 0us) { return true; }
+        if (self._synthesized) { return true; }
 
         for d in self._dependencies if d == name {
             return true;
@@ -198,26 +213,6 @@ pub record Target {
      * ====================================================================================================
      * ====================================================================================================
      */
-
-    /**
-     * @params:
-     *    - flags: the compiler options declared by the package
-     *    - libraries: the C libraries declared by the package
-     * @returns: the same target, prefixed with the options and libraries declared at the package
-     *    level, so that the ones it declares itself come last on the command line
-     * */
-    pub fn inherit(self, flags: [[c8]], libraries: [[c8]])-> Target {
-        Target(self._name, self._type,
-               sourceDir-> self._sourceDir,
-               packageRoot-> self._packageRoot,
-               testRoot-> self._testRoot,
-               output-> self._output,
-               flags-> flags ~ self._flags,
-               libraries-> libraries ~ self._libraries,
-               dependencies-> self._dependencies,
-               targets-> self._targets,
-               cSources-> self._cSources)
-    }
 
     impl Streamable;
 
