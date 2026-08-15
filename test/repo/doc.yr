@@ -48,8 +48,8 @@ __test {
 
     let out = sys::tempDirectory(prefix-> "gyllir_doc_out_");
     let dmut args = copy Dict();
-    args:["output"] = copy Str(out.toStr());
-    args:["j"] = copy Int(1i64);
+    args["output"] = copy Str(out.toStr());
+    args["j"] = copy Int(1i64);
 
     let cfg = mkConfig("myapp", "executable");
     RepoDocBuilder(dir, args, cfg, target-> soleTarget(cfg)).run(alias mgr);
@@ -72,7 +72,7 @@ __test {
 
     let out = sys::tempDirectory(prefix-> "gyllir_doc_out_");
     let dmut args = copy Dict();
-    args:["output"] = copy Str(out.toStr());
+    args["output"] = copy Str(out.toStr());
 
     RepoDocBuilder(out, args, GyllirPackageConfiguration::empty(), input-> input.toStr(), fromFile-> true).run(alias mgr);
 
@@ -178,8 +178,8 @@ __test {
     let dmut mgr = copy GyllirManager(copy ["gyllir", "doc"]);
 
     let dmut args = copy Dict();
-    args:["target"] = copy Str("tool");
-    args:["j"] = copy Int(1i64);
+    args["target"] = copy Str("tool");
+    args["j"] = copy Int(1i64);
 
     let selected = mgr.selectTargets(cfg, args);
     mgr:.buildTargets(dir, args, cfg, selected, forDoc-> true);

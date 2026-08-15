@@ -186,9 +186,9 @@ pub record Url {
             let dmut d = copy Dict();
             match self._type {
                 UrlType::LOCAL => {
-                    d:["local"] = copy Str(self._path.toStr());
+                    d["local"] = copy Str(self._path.toStr());
                 }
-                _ => { d:["git"] = copy Str(self._path.toStr()); }
+                _ => { d["git"] = copy Str(self._path.toStr()); }
             }
 
             d

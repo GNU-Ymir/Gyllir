@@ -73,10 +73,10 @@ fn hasTag(dir: Path, tag: [c8])-> bool
  * */
 fn mkPublishArgs(increment: [c8])-> &Config {
     let dmut d = copy Dict();
-    d:[increment] = copy Bool(true);
-    d:["yes"] = copy Bool(true);       // do not ask for a confirmation on the command line
-    d:["dry"] = copy Bool(true);       // do not build nor run the tests of the published project
-    d:["message"] = copy Str("a release message");
+    d[increment] = copy Bool(true);
+    d["yes"] = copy Bool(true);       // do not ask for a confirmation on the command line
+    d["dry"] = copy Bool(true);       // do not build nor run the tests of the published project
+    d["message"] = copy Str("a release message");
 
     d
 }

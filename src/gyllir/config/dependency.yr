@@ -128,14 +128,14 @@ pub class DependencyList {
             let dmut res = copy Dict();
             for k, d in self._package {
                 let dmut dep = copy Dict();
-                dep:["version"] = d.version.serialize();
-                dep:["url"] = d.url.serialize();
+                dep["version"] = d.version.serialize();
+                dep["url"] = d.url.serialize();
 
                 if (d.targets.len != 0us) {
-                    dep:["link-targets"] = copy Array(copy [copy Str(i) for i in d.targets]);
+                    dep["link-targets"] = copy Array(copy [copy Str(i) for i in d.targets]);
                 }
 
-                res:[k] = dep;
+                res[k] = dep;
             }
 
             res

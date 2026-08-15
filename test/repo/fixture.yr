@@ -147,7 +147,7 @@ pub fn namedTarget(cfg: GyllirPackageConfiguration, name: [c8])-> Target
 pub fn mkArgs(flags: [[c8]])-> &Config {
     let dmut d = copy Dict();
     for f in flags {
-        d:[f] = copy Bool(true);
+        d[f] = copy Bool(true);
     }
 
     d
@@ -165,10 +165,10 @@ pub fn mkArgs(flags: [[c8]])-> &Config {
 pub fn mkBuildArgs(flags: [[c8]] = [])-> &Config {
     let dmut d = copy Dict();
     for f in flags {
-        d:[f] = copy Bool(true);
+        d[f] = copy Bool(true);
     }
 
-    d:["j"] = copy Int(1i64);
+    d["j"] = copy Int(1i64);
 
     d
 }
@@ -216,23 +216,23 @@ pub fn mkConfigWithDependency(name: [c8], type: [c8], depName: [c8], depPath: Pa
     throws CastFailure, AssertError
 {
     let dmut url = copy Dict();
-    url:["local"] = copy Str(depPath.toStr());
+    url["local"] = copy Str(depPath.toStr());
 
     let dmut dep = copy Dict();
-    dep:["version"] = copy Str(version);
-    dep:["url"] = url;
+    dep["version"] = copy Str(version);
+    dep["url"] = url;
 
     let dmut deps = copy Dict();
-    deps:[depName] = dep;
+    deps[depName] = dep;
 
     let dmut cfg = copy Dict();
-    cfg:["name"] = copy Str(name);
-    cfg:["license"] = copy Str("MIT");
-    cfg:["description"] = copy Str("an integration test project");
-    cfg:["type"] = copy Str(type);
-    cfg:["version"] = copy Str("1.0.0");
-    cfg:["registry"] = copy Str("local:some/registry");
-    cfg:["dependencies"] = deps;
+    cfg["name"] = copy Str(name);
+    cfg["license"] = copy Str("MIT");
+    cfg["description"] = copy Str("an integration test project");
+    cfg["type"] = copy Str(type);
+    cfg["version"] = copy Str("1.0.0");
+    cfg["registry"] = copy Str("local:some/registry");
+    cfg["dependencies"] = deps;
 
     GyllirPackageConfiguration(cfg)
 }
@@ -339,24 +339,24 @@ pub fn mkConfigWithSelectedDependency(name: [c8], type: [c8], depName: [c8], dep
     throws CastFailure, AssertError
 {
     let dmut url = copy Dict();
-    url:["local"] = copy Str(depPath.toStr());
+    url["local"] = copy Str(depPath.toStr());
 
     let dmut dep = copy Dict();
-    dep:["version"] = copy Str("*");
-    dep:["url"] = url;
-    dep:["link-targets"] = copy Array(copy [copy Str(t) for t in targets]);
+    dep["version"] = copy Str("*");
+    dep["url"] = url;
+    dep["link-targets"] = copy Array(copy [copy Str(t) for t in targets]);
 
     let dmut deps = copy Dict();
-    deps:[depName] = dep;
+    deps[depName] = dep;
 
     let dmut cfg = copy Dict();
-    cfg:["name"] = copy Str(name);
-    cfg:["license"] = copy Str("MIT");
-    cfg:["description"] = copy Str("an integration test project");
-    cfg:["type"] = copy Str(type);
-    cfg:["version"] = copy Str("1.0.0");
-    cfg:["registry"] = copy Str("local:some/registry");
-    cfg:["dependencies"] = deps;
+    cfg["name"] = copy Str(name);
+    cfg["license"] = copy Str("MIT");
+    cfg["description"] = copy Str("an integration test project");
+    cfg["type"] = copy Str(type);
+    cfg["version"] = copy Str("1.0.0");
+    cfg["registry"] = copy Str("local:some/registry");
+    cfg["dependencies"] = deps;
 
     GyllirPackageConfiguration(cfg)
 }
@@ -373,24 +373,24 @@ pub fn mkTargetsConfig(name: [c8], targets: &Config, depName: [c8] = "", depPath
     throws CastFailure, AssertError
 {
     let dmut cfg = copy Dict();
-    cfg:["name"] = copy Str(name);
-    cfg:["license"] = copy Str("MIT");
-    cfg:["description"] = copy Str("an integration test project");
-    cfg:["version"] = copy Str("1.0.0");
-    cfg:["registry"] = copy Str("local:some/registry");
-    cfg:["targets"] = targets;
+    cfg["name"] = copy Str(name);
+    cfg["license"] = copy Str("MIT");
+    cfg["description"] = copy Str("an integration test project");
+    cfg["version"] = copy Str("1.0.0");
+    cfg["registry"] = copy Str("local:some/registry");
+    cfg["targets"] = targets;
 
     if (depName != "") {
         let dmut url = copy Dict();
-        url:["local"] = copy Str(depPath.toStr());
+        url["local"] = copy Str(depPath.toStr());
 
         let dmut dep = copy Dict();
-        dep:["version"] = copy Str("*");
-        dep:["url"] = url;
+        dep["version"] = copy Str("*");
+        dep["url"] = url;
 
         let dmut deps = copy Dict();
-        deps:[depName] = dep;
-        cfg:["dependencies"] = deps;
+        deps[depName] = dep;
+        cfg["dependencies"] = deps;
     }
 
     GyllirPackageConfiguration(cfg)

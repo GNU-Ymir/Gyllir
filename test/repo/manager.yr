@@ -235,7 +235,7 @@ __test {
     let cfg = mkMultiTargetConfig();
 
     let dmut args = copy Dict();
-    args:["target"] = copy Str("cli");
+    args["target"] = copy Str("cli");
 
     let selected = mgr.selectTargets(cfg, args);
 
@@ -249,7 +249,7 @@ __test {
     let cfg = mkMultiTargetConfig();
 
     let dmut args = copy Dict();
-    args:["target"] = copy Str("nope");
+    args["target"] = copy Str("nope");
 
     let mut msg = "";
     {
@@ -459,8 +459,8 @@ __test {
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
 
     let dmut args = copy Dict();
-    args:["target"] = copy Str("cli");
-    args:["j"] = copy Int(1i64);
+    args["target"] = copy Str("cli");
+    args["j"] = copy Int(1i64);
 
     let selected = mgr.selectTargets(cfg, args);
     let (built, _, _) = mgr:.buildTargets(dir, args, cfg, selected);

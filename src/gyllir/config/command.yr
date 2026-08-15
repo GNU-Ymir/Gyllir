@@ -135,11 +135,11 @@ pub class CustomCommandList {
             let dmut ret = copy Dict();
             for k, c in self._lst {
                 let dmut cmd = copy Dict();
-                cmd:["cmd"] = copy Str(c.cmd);
-                cmd:["post"] = copy Bool(c.isPost());
-                cmd:["cwd"] = copy Str(c.cwd.toStr());
+                cmd["cmd"] = copy Str(c.cmd);
+                cmd["post"] = copy Bool(c.isPost());
+                cmd["cwd"] = copy Str(c.cwd.toStr());
 
-                ret:[k] = cmd;
+                ret[k] = cmd;
             }
 
             ret

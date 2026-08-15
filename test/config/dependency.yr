@@ -43,15 +43,15 @@ __test {
         // built by hand rather than through 'json#{...}': an empty array literal has no element
         // type for the macro to infer
         let dmut url = copy Dict();
-        url:["local"] = copy Str("../foo");
+        url["local"] = copy Str("../foo");
 
         let dmut foo = copy Dict();
-        foo:["version"] = copy Str("1.0.0");
-        foo:["url"] = url;
-        foo:["link-targets"] = copy Array();
+        foo["version"] = copy Str("1.0.0");
+        foo["url"] = url;
+        foo["link-targets"] = copy Array();
 
         let dmut deps = copy Dict();
-        deps:["foo"] = foo;
+        deps["foo"] = foo;
 
         copy DependencyList(deps);
     } catch {
