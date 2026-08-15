@@ -243,19 +243,19 @@ pub record GyllirPackageConfiguration {
     impl Serializable {
         pub over serialize(self)-> &Config {
             let dmut d = copy Dict();
-            d:["name"] = copy Str(self._name);
-            d:["license"] = copy Str(self._license);
-            d:["description"] = copy Str(self._description);
-            d:["registry"] = self._registry.serialize();
-            d:["version"] = self._version.serialize();
-            d:["dependencies"] = self._dependencies.serialize();
-            d:["commands"] = self._commands.serialize();
-            d:["compiler"] = copy Str(self._compiler);
+            d["name"] = copy Str(self._name);
+            d["license"] = copy Str(self._license);
+            d["description"] = copy Str(self._description);
+            d["registry"] = self._registry.serialize();
+            d["version"] = self._version.serialize();
+            d["dependencies"] = self._dependencies.serialize();
+            d["commands"] = self._commands.serialize();
+            d["compiler"] = copy Str(self._compiler);
 
-            d:["authors"] = copy Array(copy [copy Str(i) for i in self._authors]);
+            d["authors"] = copy Array(copy [copy Str(i) for i in self._authors]);
 
             if (self._targets.len() != 0us) {
-                d:["targets"] = self._targets.serialize();
+                d["targets"] = self._targets.serialize();
             }
 
             // the fields describing a single artifact are exclusive with the target tables: writing
@@ -263,19 +263,19 @@ pub record GyllirPackageConfiguration {
             // 'gyllir build' rejects. 'package-root' and 'test-root' are only written when set, so
             // that a package that never had one does not gain it on the first publish
             else {
-                d:["type"] = self._type.serialize();
-                d:["libraries"] = copy Array(copy [copy Str(i) for i in self._libraries]);
+                d["type"] = self._type.serialize();
+                d["libraries"] = copy Array(copy [copy Str(i) for i in self._libraries]);
 
                 if (self._flags.len != 0us) {
-                    d:["flags"] = copy Array(copy [copy Str(i) for i in self._flags]);
+                    d["flags"] = copy Array(copy [copy Str(i) for i in self._flags]);
                 }
 
                 if (self._packageRoot != "") {
-                    d:["package-root"] = copy Str(self._packageRoot);
+                    d["package-root"] = copy Str(self._packageRoot);
                 }
 
                 if (self._testRoot != "") {
-                    d:["test-root"] = copy Str(self._testRoot);
+                    d["test-root"] = copy Str(self._testRoot);
                 }
             }
 

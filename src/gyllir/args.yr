@@ -391,11 +391,11 @@ pub class GyllirArgumentParser {
         let dmut res = copy Dict();
         if let d: &Dict = cfg {
             for k, v in d[] {
-                res:[k] = v;
+                res[k] = v;
             }
         }
 
-        res:["target"] = copy Str(target);
+        res["target"] = copy Str(target);
         res
     }
 

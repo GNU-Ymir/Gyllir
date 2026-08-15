@@ -288,45 +288,45 @@ pub class TargetList {
             let dmut res = copy Dict();
             for k, t in self._targets {
                 let dmut trg = copy Dict();
-                trg:["type"] = t.type.serialize();
+                trg["type"] = t.type.serialize();
 
                 if (t.sourceDir != __DEFAULT_SOURCE_DIR__) {
-                    trg:["source-dir"] = copy Str(t.sourceDir);
+                    trg["source-dir"] = copy Str(t.sourceDir);
                 }
 
                 if (t.packageRoot != "") {
-                    trg:["package-root"] = copy Str(t.packageRoot);
+                    trg["package-root"] = copy Str(t.packageRoot);
                 }
 
                 if (t.testRoot != "") {
-                    trg:["test-root"] = copy Str(t.testRoot);
+                    trg["test-root"] = copy Str(t.testRoot);
                 }
 
                 if (t.output != "") {
-                    trg:["output"] = copy Str(t.output);
+                    trg["output"] = copy Str(t.output);
                 }
 
                 if (t.flags.len != 0us) {
-                    trg:["flags"] = copy Array(copy [copy Str(i) for i in t.flags]);
+                    trg["flags"] = copy Array(copy [copy Str(i) for i in t.flags]);
                 }
 
                 if (t.libraries.len != 0us) {
-                    trg:["libraries"] = copy Array(copy [copy Str(i) for i in t.libraries]);
+                    trg["libraries"] = copy Array(copy [copy Str(i) for i in t.libraries]);
                 }
 
                 if (t.dependencies.len != 0us) {
-                    trg:["dependencies"] = copy Array(copy [copy Str(i) for i in t.dependencies]);
+                    trg["dependencies"] = copy Array(copy [copy Str(i) for i in t.dependencies]);
                 }
 
                 if (t.targets.len != 0us) {
-                    trg:["targets"] = copy Array(copy [copy Str(i) for i in t.targets]);
+                    trg["targets"] = copy Array(copy [copy Str(i) for i in t.targets]);
                 }
 
                 if (t.cSources.len != 0us) {
-                    trg:["c-sources"] = copy Array(copy [copy Str(i) for i in t.cSources]);
+                    trg["c-sources"] = copy Array(copy [copy Str(i) for i in t.cSources]);
                 }
 
-                res:[k] = trg;
+                res[k] = trg;
             }
 
             res

@@ -287,20 +287,20 @@ __test {
     // simply go unread, which is the trap the rule exists to prevent
     for key in copy ["type", "package-root", "test-root", "flags", "libraries"] {
         let dmut d = copy Dict();
-        d:["name"] = copy Str("multi");
-        d:["license"] = copy Str("MIT");
-        d:["description"] = copy Str("d");
-        d:["version"] = copy Str("1.0.0");
-        d:["registry"] = json#{"local" : "some/registry"};
-        d:["targets"] = json#{"cli" : {"type" : "executable"}};
+        d["name"] = copy Str("multi");
+        d["license"] = copy Str("MIT");
+        d["description"] = copy Str("d");
+        d["version"] = copy Str("1.0.0");
+        d["registry"] = json#{"local" : "some/registry"};
+        d["targets"] = json#{"cli" : {"type" : "executable"}};
 
         // a well typed value, so that what rejects it is the exclusivity rule and not the parser
         if (key == "type") {
-            d:[key] = copy Str("executable");
+            d[key] = copy Str("executable");
         } else if (key == "flags" || key == "libraries") {
-            d:[key] = copy Array(copy [copy Str("x")]);
+            d[key] = copy Array(copy [copy Str("x")]);
         } else {
-            d:[key] = copy Str("main");
+            d[key] = copy Str("main");
         }
 
         let mut msg = "";
