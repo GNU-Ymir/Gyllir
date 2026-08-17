@@ -32,6 +32,31 @@ pub class GitError over Exception {
 
 }
 
+/**
+ * A 'GitError' carries what git wrote on its error output, which is several lines long and ends
+ * with a newline. Gyllir reports it as the tail of one of its own error lines, so it is folded
+ * into a single one first
+ * @params:
+ *    - msg: the raw output of a command
+ * @returns: 'msg' with every run of blank characters replaced by a single space, without leading
+ *    or trailing one
+ * */
+pub fn singleLine(msg: [c8])-> [c8] {
+    let mut res: [c8] = [];
+    let mut blank = false;
+    for c in msg {
+        if (c == '\n' || c == '\r' || c == '\t' || c == ' ') {
+            blank = (res.len != 0us);
+        } else {
+            if (blank) { res ~= [' ']; }
+            blank = false;
+            res ~= [c];
+        }
+    }
+
+    res
+}
+
 pub fn to {C of [U], U of c8, T of GitErrorCode} (err: T)-> [c8] {
     match err {
         GitErrorCode::ALREADY_INIT => { "ALREADY_INIT"s8 }

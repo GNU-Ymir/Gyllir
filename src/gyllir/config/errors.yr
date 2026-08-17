@@ -2,6 +2,30 @@ in errors;
 
 use std::stream;
 
+/*!
+ * Every error raised while reading a gyllir.toml is an 'AssertError' whose message is written for
+ * the user: 'GyllirManager::loadToml' prints that message, prefixed by the path of the
+ * configuration file, and nothing else. Such a message therefore names the entry at fault, says
+ * what was expected of it, and shows what a correct one looks like:
+ *
+ *     missing required entry 'name', for example: name = "my-package"
+ *     '[dependencies.foo]', 'version' is invalid: ">x" is not a version filter, ...
+ *
+ * An error carrying no message('CastFailure' and friends) is never thrown by those parsers: it
+ * would reach the user as a class name and a stack trace into the configuration parser, which
+ * says nothing about what has to be fixed.
+ * */
+
+/**
+ * @params:
+ *    - table: the name of a table of the configuration file('dependencies', 'targets', ...)
+ *    - name: the name of one of its entries
+ * @returns: the prefix naming the '[<table>.<name>]' table an error message comes from
+ * */
+pub fn inTable(table: [c8], name: [c8])-> [c8] {
+    "'[" ~ table ~ "." ~ name ~ "]', "
+}
+
 /**
  * Error thrown when a recursive dependency is detected between two gyllir packages
  * */

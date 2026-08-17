@@ -26,24 +26,28 @@ pub record BuildType {
     /**
      * @params:
      *    - type: a string defining the type of the target
+     *    - entry: the name of the configuration entry being read, for error reporting
      * */
-    pub self (type: [c8])
-        throws std::conv::errors::CastFailure
+    pub self (type: [c8], entry: [c8] = "'type'")
+        throws AssertError
     {
-        self:.parseType(type);
+        self:.parseType(type, entry);
     }
 
     /**
      * Transform a configuration into a build type
+     * @params:
+     *    - cfg: the value of the entry declaring the type
+     *    - entry: the name of that entry, for error reporting
      * */
-    pub self (cfg: &Config)
-        throws std::conv::errors::CastFailure, AssertError
+    pub self (cfg: &Config, entry: [c8] = "'type'")
+        throws AssertError
     {
         if let Str(value-> type) = cfg {
-            self:.parseType(type);
+            self:.parseType(type, entry);
         }
 
-        else throw copy AssertError("Expecting a string");
+        else throw copy AssertError(entry ~ " must be a string, one of " ~ typeNames());
     }
 
     /*!
@@ -93,9 +97,12 @@ pub record BuildType {
 
     /**
      * Parse the type from a string
+     * @params:
+     *    - value: the declared type
+     *    - entry: the name of the configuration entry it was read from, for error reporting
      * */
-    prv fn parseType(mut self, value: [c8])
-        throws std::conv::errors::CastFailure
+    prv fn parseType(mut self, value: [c8], entry: [c8])
+        throws AssertError
     {
         for i in BuildTypeEnum::__members__ {
             if i.1 == value {
@@ -104,6 +111,19 @@ pub record BuildType {
             }
         }
 
-        throw copy std::conv::errors::CastFailure(([c8])::__typeinfo__, BuildType::__typeinfo__);
+        throw copy AssertError(entry ~ " is invalid: \"" ~ value ~ "\" is not a build type, expecting one of " ~ typeNames());
     }
+}
+
+/**
+ * @returns: the build types a target can declare, quoted and comma separated, for an error message
+ * */
+pub fn typeNames()-> [c8] {
+    let dmut stream = copy StringStream();
+    for i, m in BuildTypeEnum::__members__ {
+        if (i != 0us) { stream:.write(", "s8); }
+        stream:.write("\""s8):.write(m.1):.write("\""s8);
+    }
+
+    stream[]
 }

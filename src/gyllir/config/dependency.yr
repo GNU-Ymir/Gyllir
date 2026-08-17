@@ -81,13 +81,13 @@ pub class DependencyList {
      * =================
      */
     pub self (cfg: &Config)
-        throws AssertError, std::conv::errors::CastFailure
+        throws AssertError
     {
         if let d: &Dict = cfg {
             self:.insert(d);
         }
 
-        else throw copy AssertError("Expecting a dictionnary"s8);
+        else throw copy AssertError("'dependencies' must be a table, one '[dependencies.<name>]' entry per dependency"s8);
     }
 
     /*!
@@ -155,47 +155,74 @@ pub class DependencyList {
      * Insert the dependencies from a configuration dictionnary
      */
     prv fn insert(mut self, cfg: &Dict)
-        throws std::conv::errors::CastFailure
+        throws AssertError
     {
-        {
-            for k, v in cfg[] {
-                let version = VersionFilter(v["version"]);
-                let url = Url(v["url"]);
-                let targets = self.readTargets(v, k);
-
-                self._package[k] = Dependency(version-> version, url, targets-> targets);
-            }
-        } catch {
-            inE => {
-                throw copy std::conv::errors::CastFailure((&Config)::__typeinfo__, Dependency::__typeinfo__, subError-> (inE)?);
-            }
+        for k, v in cfg[] {
+            self._package[k] = self.parseDependency(k, v);
         }
+    }
+
+    /**
+     * Parse a single '[dependencies.<name>]' table
+     * @params:
+     *    - name: the name of the dependency, the key of its table
+     *    - cfg: the content of its table
+     * @throws:
+     *    - AssertError: on the first entry that is missing, or that does not have the expected
+     *      shape. Its message names the dependency it comes from
+     * */
+    prv fn parseDependency(self, name: [c8], cfg: &Config)-> Dependency
+        throws AssertError
+    {
+        let ctx = gyllir::config::errors::inTable("dependencies", name);
+
+        let version = if let Ok(v) = cfg["version"]? {
+            VersionFilter(v, entry-> ctx ~ "'version'")
+        } else {
+            throw copy AssertError(ctx ~ "missing required entry 'version', for example: version = \">=1.0.0\", or \"*\" for any version");
+        };
+
+        let url = if let Ok(u) = cfg["url"]? {
+            Url(u, entry-> ctx ~ "'url'")
+        } else {
+            throw copy AssertError(ctx ~ "missing required entry 'url', for example: url = \"git:git@github.com:me/" ~ name ~ ".git\"");
+        };
+
+        Dependency(version-> version, url, targets-> self.readTargets(cfg, ctx))
     }
 
     /**
      * Read the optional "link-targets" entry of a dependency table
      * @params:
      *    - cfg: the content of the dependency table
-     *    - name: the name of the dependency, for error reporting
+     *    - ctx: the prefix naming the dependency, for error reporting
      * @returns: the names of the dependency's targets to link, [] when the key is absent (meaning
      *    every one of its library targets)
      * @throws:
      *    - AssertError: the key is present but not an array of strings, or an explicitly empty one
      * */
-    prv fn readTargets(self, cfg: &Config, name: [c8])-> [[c8]]
-        throws AssertError, std::conv::errors::CastFailure
+    prv fn readTargets(self, cfg: &Config, ctx: [c8])-> [[c8]]
+        throws AssertError
     {
         if let Ok(a: &Array) = cfg["link-targets"]? {
-            let targets = copy [std::config::conv::to!{[c8]} (i) for i in a[]];
+            let mut targets: [[c8]] = [];
+            for i in a[] {
+                if let Str(value-> t) = i {
+                    targets ~= [t];
+                } else {
+                    throw copy AssertError(ctx ~ "'link-targets' must be an array of strings, the names of the targets to link");
+                }
+            }
+
             if (targets.len == 0us) {
-                throw copy AssertError("dependency '" ~ name ~ "' declares an empty 'link-targets' list, omit the key to link every target");
+                throw copy AssertError(ctx ~ "'link-targets' is empty, omit the entry to link every target of the dependency");
             }
 
             return targets;
         }
 
         else if let Ok(_) = cfg["link-targets"]? {
-            throw copy AssertError("expecting an array of string for 'link-targets' of dependency '" ~ name ~ "'");
+            throw copy AssertError(ctx ~ "'link-targets' must be an array of strings, the names of the targets to link");
         }
 
         []

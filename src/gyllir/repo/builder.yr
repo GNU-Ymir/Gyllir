@@ -93,8 +93,10 @@ pub record RepoBuilder {
                 (srcPath, cacheDir)
             }
         } catch {
+            // a target whose sources are not where they are declared to be: the message names the
+            // module gyllir looked for, and the entry that decides where it looks
             err: &AssertError => {
-                utils::log::error("Error", "failed to compile project '", self._cfg.name, "' : ", err.msg);
+                utils::log::error("Error", err.msg);
                 etc::c::process::_yrt_exit(-1);
                 panic;
             }
@@ -157,7 +159,7 @@ pub record RepoBuilder {
             let success = self.compileFilesToYIL(alias context, options, sources, changed, yilDir);
 
             if (!success) {
-                utils::log::error("Error", "failed to compile project '", self._cfg.name, "'");
+                self.reportCompilerFailure("failed to compile target");
                 etc::c::process::_yrt_exit(-1);
                 panic;
             }
@@ -215,13 +217,30 @@ pub record RepoBuilder {
             let success = self.compileFilesToYIL(alias context, options, unitSources, unitChanged, yilDir);
 
             if (!success) {
-                utils::log::error("Error", "failed to compile project '", self._cfg.name, "'");
+                self.reportCompilerFailure("failed to compile the unittests of target");
                 etc::c::process::_yrt_exit(-1);
                 panic;
             }
 
             self.buildObject(alias context, objFile, yilDir);
             self.exportDepsFiles(cacheDir);
+        }
+    }
+
+    /**
+     * Report a failure of the compiler
+     * @params:
+     *    - what: what gyllir was asking the compiler to do
+     * @info: a compiler that is not installed at all fails exactly like a source file that does not
+     *   compile, but its own error output is empty, leaving the user with a message about a
+     *   compilation they have nothing to fix, so the two are told apart before printing anything
+     * */
+    prv fn reportCompilerFailure(self, what: [c8]) {
+        if (gyllir::args::compilerVersion(compiler-> self._cfg.compiler) == "") {
+            utils::log::error("Error", "compiler '", self._cfg.compiler, "' could not be run, install it or fix the 'compiler' entry of ",
+                              defaults::__GYLLIR_CONFIG_FILENAME__);
+        } else {
+            utils::log::error("Error", what, " '", self._target.name, "' of '", self._cfg.name, "'");
         }
     }
 
@@ -276,7 +295,7 @@ pub record RepoBuilder {
         let options = self.createDocCompileOptions(srcPath, includes);
         utils::log::info("Compiling", "documentation of ", self._target.name, " for ", self._cfg.name, " v", self._cfg.version[]);
         if !context.runProcess(self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose) {
-            utils::log::error("Error", "failed to compile documentation '", self._cfg.name, "'");
+            self.reportCompilerFailure("failed to generate the documentation of target");
             etc::c::process::_yrt_exit(-1);
             panic;
         }
@@ -466,7 +485,7 @@ pub record RepoBuilder {
 
 
         if (!context.runProcess(self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose)) {
-            utils::log::error("Error", "failed to compile project '", self._cfg.name, "'");
+            self.reportCompilerFailure("failed to assemble the object file of target");
             etc::c::process::_yrt_exit(-1);
             panic;
         }
@@ -542,7 +561,7 @@ pub record RepoBuilder {
         };
 
         if (!context.runProcess(self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose)) {
-            utils::log::error("Error", "failed to compile project '", self._cfg.name, "'");
+            self.reportCompilerFailure("failed to link the unittest executable of target");
             etc::c::process::_yrt_exit(-1);
         }
 
@@ -571,7 +590,7 @@ pub record RepoBuilder {
         };
 
         if (!context.runProcess(self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose)) {
-            utils::log::error("Error", "failed to compile project '", self._cfg.name, "'");
+            self.reportCompilerFailure("failed to link the executable of target");
             etc::c::process::_yrt_exit(-1);
         }
 
@@ -593,7 +612,7 @@ pub record RepoBuilder {
         // existing plain object, so any stale archive from a previous build is cleared first
         if (cObjects.len == 0us) {
             if (!context.runProcess("cp", copy [createdTmp, resultFile.toStr()], cwd-> self._cwd, verbose-> self._verbose)) {
-                utils::log::error("Error", "failed to compile project '", self._cfg.name, "'");
+                utils::log::error("Error", "failed to write the library of target '", self._target.name, "' to '", resultFile.toStr(), "'");
                 etc::c::process::_yrt_exit(-1);
             }
         } else {
@@ -833,7 +852,8 @@ pub record RepoBuilder {
         if let name = self._target.packageRoot && name != "" {
             let mainPath = srcDir.push(name).addExtension(defaults::__YMIR_EXTENSION__);
             if (!fs::sys::isFile(mainPath)) {
-                throw copy AssertError("No package root file found at " ~ mainPath.toStr());
+                throw copy AssertError(self.targetContext() ~ "'package-root' names '" ~ name ~ "', but there is no "
+                                       ~ mainPath.toStr());
             }
 
             return mainPath;
@@ -848,7 +868,8 @@ pub record RepoBuilder {
         // A declared target roots at its own name and nowhere else, only the target synthesized for a
         // package declaring none keeps the historical fallback to 'src/main.yr'
         if (!self._target.synthesized) {
-            throw copy AssertError("No package root file found at " ~ libPath.toStr() ~ " for target '" ~ self._target.name ~ "'");
+            throw copy AssertError(self.targetContext() ~ "no root module, create " ~ libPath.toStr()
+                                   ~ ", or name another one with 'package-root'");
         }
 
         let mainPath = srcDir.push(defaults::__MAIN_FILE__);
@@ -856,7 +877,8 @@ pub record RepoBuilder {
             return mainPath;
         }
 
-        throw copy AssertError("No package root file, " ~ libPath.toStr() ~ " and " ~ mainPath.toStr() ~ " not found");
+        throw copy AssertError(self.targetContext() ~ "no root module, create " ~ libPath.toStr() ~ " or "
+                               ~ mainPath.toStr() ~ ", or name another one with 'package-root'");
     }
 
     /**
@@ -870,7 +892,8 @@ pub record RepoBuilder {
         if let name = self._target.testRoot && name != "" {
             let mainPath = self._cwd.push(self._target.testDir).push(name).addExtension(defaults::__YMIR_EXTENSION__);
             if (!fs::sys::isFile(mainPath)) {
-                throw copy AssertError("No unittest root file found at " ~ mainPath.toStr());
+                throw copy AssertError(self.targetContext() ~ "'test-root' names '" ~ name ~ "', but there is no "
+                                       ~ mainPath.toStr());
             }
 
             return mainPath;
@@ -883,7 +906,15 @@ pub record RepoBuilder {
             return libPath;
         }
 
-        throw copy AssertError("No unittest root file found at " ~ libPath.toStr());
+        throw copy AssertError(self.targetContext() ~ "no unittest root module, create " ~ libPath.toStr()
+                               ~ ", or name another one with 'test-root'");
+    }
+
+    /**
+     * @returns: the prefix naming the target being built, for an error message
+     * */
+    prv fn targetContext(self)-> [c8] {
+        "target '" ~ self._target.name ~ "' of '" ~ self._cfg.name ~ "': "
     }
 
     /**
@@ -931,7 +962,7 @@ pub record RepoBuilder {
     prv fn runCommands(self, dmut context: &GyllirManager, post: bool) {
         let dmut tzer = Tokenizer!c8();
         tzer:.insert(" ", isSkip-> true);
-        for _, c in self._cfg.commands[] {
+        for k, c in self._cfg.commands[] {
             if c.isPost() == post {
                 let cmd = tzer.tokenizeWithoutSkips(c.cmd);
                 let path = if (c.cwd.isAbsolute()) {
@@ -943,7 +974,8 @@ pub record RepoBuilder {
                 } else { false };
 
                 if !succ {
-                    utils::log::error("Error", "failed to compile project '", self._cfg.name, "'");
+                    utils::log::error("Error", "command '", k, "' failed: ", c.cmd, ", declared by '[commands.", k, "]' of ",
+                                      defaults::__GYLLIR_CONFIG_FILENAME__);
                     etc::c::process::_yrt_exit(-1);
                 }
             }

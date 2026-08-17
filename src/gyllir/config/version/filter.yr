@@ -2,7 +2,6 @@ in filter;
 
 use std::{config::_, stream};
 use std::syntax::tokenizer;
-use std::conv::errors;
 
 use gyllir::config::version;
 
@@ -22,28 +21,34 @@ pub record VersionFilter {
 
     /**
      * Construct a version from a string
+     * @params:
+     *    - filters: the declared filters
+     *    - entry: the name of the configuration entry they were read from, for error reporting
      * */
-    pub self (filters: [[c8]])
-        throws CastFailure
+    pub self (filters: [[c8]], entry: [c8] = "'version'")
+        throws AssertError
     {
-        self:.parseFilters(filters);
+        self:.parseFilters(filters, entry);
     }
 
     /**
      * Deserialize a version number
+     * @params:
+     *    - cfg: the value of the entry declaring the filters
+     *    - entry: the name of that entry, for error reporting
      */
-    pub self (cfg: &Config)
-        throws AssertError, CastFailure
+    pub self (cfg: &Config, entry: [c8] = "'version'")
+        throws AssertError
     {
         if let Str(value-> version) = cfg {
-            self:.parseFilter(version, self.createTokenizer());
+            self:.parseFilter(version, self.createTokenizer(), entry);
         }
 
         else if let a: &Array = cfg {
-            self:.parseFilters(a[]);
+            self:.parseFilters(a[], entry);
         }
 
-        else throw copy AssertError("Version must be a string");
+        else throw copy AssertError(entry ~ " must be a version filter, or an array of them, for example: version = \">=1.0.0\"");
     }
 
     /**
@@ -63,8 +68,14 @@ pub record VersionFilter {
 
     /**
      * Select a version that passes the filter
+     * @params:
+     *    - versions: the versions to choose from
+     *    - name: the name of the dependency they were read from, for error reporting
+     * @throws:
+     *    - AssertError: when no version passes the filter. Its message lists the versions that were
+     *      offered, the filter alone leaves the user guessing which ones actually exist
      * */
-    pub fn select(self, versions: [(Version, [c8])])-> (Version, [c8])
+    pub fn select(self, versions: [(Version, [c8])], name: [c8] = "")-> (Version, [c8])
         throws AssertError
     {
         let dmut stream = copy StringStream();
@@ -92,7 +103,18 @@ pub record VersionFilter {
         if hasBest return best;
 
         let dmut msg = copy StringStream();
-        msg:.write("no version matches the filter ", self, " candidates are [", stream[], "]");
+        if (name != "") {
+            msg:.write("dependency '", name, "' has no version matching ", self);
+        } else {
+            msg:.write("no version matching ", self);
+        }
+
+        if (versions.len == 0us) {
+            msg:.write(", it declares no version at all");
+        } else {
+            msg:.write(", available versions are [", stream[], "]");
+        }
+
         throw copy AssertError(msg[]);
     }
 
@@ -223,37 +245,40 @@ pub record VersionFilter {
     /**
      * Parse version from string literals
      * */
-    prv fn parseFilters(mut self, version: [[c8]])
-        throws std::conv::errors::CastFailure
+    prv fn parseFilters(mut self, version: [[c8]], entry: [c8])
+        throws AssertError
     {
         let tzer = self.createTokenizer();
         for v in version {
-            self:.parseFilter(v, tzer);
+            self:.parseFilter(v, tzer, entry);
         }
     }
 
     /**
      * Parse version filters from string configs
      * */
-    prv fn parseFilters(mut self, version: [&Config])
-        throws std::conv::errors::CastFailure
+    prv fn parseFilters(mut self, version: [&Config], entry: [c8])
+        throws AssertError
     {
         let tzer = self.createTokenizer();
         for v in version {
             if let Str(value-> ve) = v {
-                self:.parseFilter(ve, tzer);
+                self:.parseFilter(ve, tzer, entry);
             }
 
-            else throw copy std::conv::errors::CastFailure(([c8])::__typeinfo__, VersionFilter::__typeinfo__,
-                                                            subError-> (copy AssertError("Version filters must be strings"))?);
+            else throw copy AssertError(entry ~ " must be an array of version filter strings, for example: version = [\">=1.0.0\", \"<2.0.0\"]");
         }
     }
 
     /**
      * Parse a version filter from a string
+     * @params:
+     *    - version: the declared filter
+     *    - tzer: the tokenizer splitting the comparator from the version
+     *    - entry: the name of the configuration entry the filter was read from, for error reporting
      * */
-    prv fn parseFilter(mut self, version: [c8], tzer: Tokenizer!{c8})
-        throws std::conv::errors::CastFailure
+    prv fn parseFilter(mut self, version: [c8], tzer: Tokenizer!{c8}, entry: [c8])
+        throws AssertError
     {
         let components = tzer.tokenizeWithoutSkips(version);
         let ver = if components.len == 2 {
@@ -261,15 +286,14 @@ pub record VersionFilter {
         } else if components.len == 1 {
             Version(components[0])
         }  else {
-            throw copy std::conv::errors::CastFailure(([c8])::__typeinfo__, VersionFilter::__typeinfo__,
-                                                       subError-> (copy AssertError("malformed version filter " ~ version))?);
+            throw copy AssertError(self.malformed(entry, version));
         };
 
 
         if (components.len == 2) {
             if !ver.isNumbered() {
-                throw copy std::conv::errors::CastFailure(([c8])::__typeinfo__, VersionFilter::__typeinfo__,
-                                                           subError-> (copy AssertError("version order filter only applies on numbered versions not " ~ version))?);
+                throw copy AssertError(entry ~ " is invalid: \"" ~ version ~ "\" compares against \"" ~ ver[]
+                                       ~ "\", which is not a numbered version, only a version like \"1.0.0\" can be compared");
             }
 
             let kind = match components[0] {
@@ -278,8 +302,7 @@ pub record VersionFilter {
                 "<=" => { FilterKind::INF_EQ }
                 ">=" => { FilterKind::SUP_EQ }
                 _ => {
-                    throw copy std::conv::errors::CastFailure(([c8])::__typeinfo__, VersionFilter::__typeinfo__,
-                                                               subError-> (copy AssertError("malformed version filter " ~ version))?);
+                    throw copy AssertError(self.malformed(entry, version));
                 }
             };
 
@@ -287,6 +310,14 @@ pub record VersionFilter {
         } else {
             self._filters ~= [(FilterKind::EQ, ver)];
         }
+    }
+
+    /**
+     * @returns: the message of a filter that could not be parsed at all
+     * */
+    prv fn malformed(self, entry: [c8], version: [c8])-> [c8] {
+        entry ~ " is invalid: \"" ~ version ~ "\" is not a version filter, expecting a version like \"1.0.0\", "
+            ~ "a name like \"master\", or \"*\" for any of them, optionally prefixed by '>', '>=', '<' or '<='"
     }
 
 }

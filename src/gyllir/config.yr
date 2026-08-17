@@ -1,7 +1,6 @@
 in config;
 
 use std::{config::_, stream};
-use std::conv::errors;
 
 pub mod ::command;
 pub mod ::url;
@@ -95,16 +94,14 @@ pub record GyllirPackageConfiguration {
      * Construct a package configuration from a config
      * */
     pub self (cfg: &Config)
-        throws std::conv::errors::CastFailure, AssertError
+        throws AssertError
     {
         if let d: &Dict = cfg {
             self:.parsePackage(d);
-
-            // outside 'parsePackage', whose catch would bury the message inside a CastFailure
             self.checkTargetExclusivity(d);
         }
 
-        else throw copy AssertError("Expecting a dictionnary");
+        else throw copy AssertError("expecting a table of entries describing the package");
     }
 
     /*!
@@ -334,84 +331,146 @@ pub record GyllirPackageConfiguration {
 
     /**
      * Parse a configuration defining a package
+     * @throws:
+     *    - AssertError: on the first entry that is missing, or that does not have the expected
+     *      shape. Its message is the one printed to the user, so the sub parsers are called
+     *      directly rather than through 'std::config::conv::to', whose CastFailure would bury it
      * */
     prv fn parsePackage(mut self, d: &Dict)
-        throws CastFailure
+        throws AssertError
     {
-        self._name = std::config::conv::to!{[c8]} (d["name"]);
-        self._license = std::config::conv::to!{[c8]} (d["license"]);
-        self._description = std::config::conv::to!{[c8]} (d["description"]);
-        self._version = std::config::conv::to!{Version} (d["version"]);
+        self._name = self.readRequired(d, "name", example-> "name = \"my-package\"");
+        self._license = self.readRequired(d, "license", example-> "license = \"GPL-v3\"");
+        self._description = self.readRequired(d, "description", example-> "description = \"what the package does\"");
+
+        if let Ok(v) = d["version"]? {
+            self._version = Version(v, entry-> "'version'");
+        } else {
+            throw copy AssertError("missing required entry 'version', for example: version = \"0.1.0\"");
+        }
+
+        if let Ok(r) = d["registry"]? {
+            self._registry = Url(r, entry-> "'registry'");
+        } else {
+            throw copy AssertError("missing required entry 'registry', for example: registry = { git = \"git@github.com:me/my-package.git\" }");
+        }
 
         // optional: a package declaring '[targets.*]' tables must not have one at all, and a package
         // declaring none defaults to an executable
         if let Ok(t) = d["type"]? {
-            self._type = std::config::conv::to!{BuildType} (t);
+            self._type = BuildType(t, entry-> "'type'");
         }
 
-        self._registry = std::config::conv::to!{Url} (d["registry"]);
-
-        if let Ok(Str(value-> c)) = d["compiler"]? {
-            self._compiler = c;
-        } else if let Ok(_) = d["compiler"]? {
-            throw copy AssertError("expecting a string for 'compiler'");
-        }
-
-        if let Ok(Str(value-> v)) = d["package-root"]? {
-            self._packageRoot = v;
-        } else if let Ok(_) = d["package-root"]? {
-            throw copy AssertError("expecting a string for 'package-root'");
-        }
-
-        if let Ok(Str(value-> v)) = d["test-root"]? {
-            self._testRoot = v;
-        } else if let Ok(_) = d["test-root"]? {
-            throw copy AssertError("expecting a string for 'test-root'");
-        }
-
-        if let Ok(Bool(value-> v)) = d["tests"]? {
-            self._tests = v;
-        } else if let Ok(_) = d["tests"]? {
-            throw copy AssertError("expecting a boolean for 'tests'");
-        }
+        self._compiler = self.readString(d, "compiler", default-> self._compiler, example-> "compiler = \"gyc\"");
+        self._packageRoot = self.readString(d, "package-root", default-> "", example-> "package-root = \"main\"");
+        self._testRoot = self.readString(d, "test-root", default-> "", example-> "test-root = \"__test__\"");
+        self._tests = self.readBool(d, "tests", default-> true);
 
         if (!self._tests && self._testRoot != "") {
-            throw copy AssertError("'tests' is set to false, it cannot declare 'test-root'");
+            throw copy AssertError("'tests' is set to false, the package declares no unittest, it cannot declare 'test-root'");
         }
 
-        if let Ok(a: &Array) = d["authors"]? {
-            self._authors = copy [std::config::conv::to!{[c8]} (i) for i in a[]];
-        } else if let Ok(_) = d["authors"]? {
-            throw copy AssertError("expecting an array of string for 'authors'");
-        }
-
-        if let Ok(a: &Array) = d["libraries"]? {
-            self._libraries = copy [std::config::conv::to!{[c8]} (i) for i in a[]];
-        } else if let Ok(_) = d["libraries"]? {
-            throw copy AssertError("expecting an array of string for 'libraries'");
-        }
-
-        if let Ok(a: &Array) = d["flags"]? {
-            self._flags = copy [std::config::conv::to!{[c8]} (i) for i in a[]];
-        } else if let Ok(_) = d["flags"]? {
-            throw copy AssertError("expecting an array of string for 'flags'");
-        }
+        self._authors = self.readStringArray(d, "authors", example-> "authors = [\"me <me@example.com>\"]");
+        self._libraries = self.readStringArray(d, "libraries", example-> "libraries = [\"pthread\"]");
+        self._flags = self.readStringArray(d, "flags", example-> "flags = [\"-Wall\"]");
 
         if let Ok(x) = d["dependencies"]? {
-            self._dependencies = std::config::conv::to!{&DependencyList} (x);
+            self._dependencies = copy DependencyList(x);
         }
 
         if let Ok(x) = d["targets"]? {
-            self._targets = std::config::conv::to!{&TargetList} (x);
+            self._targets = copy TargetList(x);
         }
 
         if let Ok(x) = d["commands"]? {
-            self._commands = std::config::conv::to!{&CustomCommandList} (x);
+            self._commands = copy CustomCommandList(x);
         }
-    } catch {
-        inE => {
-            throw copy CastFailure((&Config)::__typeinfo__, GyllirPackageConfiguration::__typeinfo__, subError-> (inE)?);
+    }
+
+    /**
+     * Read a mandatory string entry of the package
+     * @params:
+     *    - d: the top level table of the configuration file
+     *    - key: the name of the entry to read
+     *    - example: a correct declaration of that entry, shown to the user when it is missing
+     * */
+    prv fn readRequired(self, d: &Dict, key: [c8], example: [c8])-> [c8]
+        throws AssertError
+    {
+        if (key !in d) {
+            throw copy AssertError("missing required entry '" ~ key ~ "', for example: " ~ example);
         }
+
+        self.readString(d, key, default-> "", example-> example)
+    }
+
+    /**
+     * Read an optional string entry of the package
+     * @params:
+     *    - d: the top level table of the configuration file
+     *    - key: the name of the entry to read
+     *    - default: the value returned when the entry is absent
+     *    - example: a correct declaration of that entry, shown to the user when it is malformed
+     * */
+    prv fn readString(self, d: &Dict, key: [c8], default: [c8], example: [c8])-> [c8]
+        throws AssertError
+    {
+        if let Ok(Str(value-> v)) = d[key]? {
+            return v;
+        }
+
+        else if let Ok(_) = d[key]? {
+            throw copy AssertError("'" ~ key ~ "' must be a string, for example: " ~ example);
+        }
+
+        default
+    }
+
+    /**
+     * Read an optional boolean entry of the package
+     * */
+    prv fn readBool(self, d: &Dict, key: [c8], default: bool)-> bool
+        throws AssertError
+    {
+        if let Ok(Bool(value-> v)) = d[key]? {
+            return v;
+        }
+
+        else if let Ok(_) = d[key]? {
+            throw copy AssertError("'" ~ key ~ "' must be a boolean, either true or false");
+        }
+
+        default
+    }
+
+    /**
+     * Read an optional array of string entry of the package
+     * @params:
+     *    - d: the top level table of the configuration file
+     *    - key: the name of the entry to read
+     *    - example: a correct declaration of that entry, shown to the user when it is malformed
+     * */
+    prv fn readStringArray(self, d: &Dict, key: [c8], example: [c8])-> [[c8]]
+        throws AssertError
+    {
+        if let Ok(a: &Array) = d[key]? {
+            let mut res: [[c8]] = [];
+            for i in a[] {
+                if let Str(value-> v) = i {
+                    res ~= [v];
+                } else {
+                    throw copy AssertError("'" ~ key ~ "' must be an array of strings, for example: " ~ example);
+                }
+            }
+
+            return res;
+        }
+
+        else if let Ok(_) = d[key]? {
+            throw copy AssertError("'" ~ key ~ "' must be an array of strings, for example: " ~ example);
+        }
+
+        []
     }
 
 }

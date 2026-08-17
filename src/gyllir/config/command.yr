@@ -68,11 +68,11 @@ pub class CustomCommandList {
      * Create a command list from a configuration
      * */
     pub self (cfg: &Config)
-        throws AssertError, ConfigError, std::conv::errors::CastFailure
+        throws AssertError
     {
         if let d: &Dict = cfg {
             self:.insert(d);
-        } else throw copy AssertError("Execpted a dictionnary");
+        } else throw copy AssertError("'commands' must be a table, one '[commands.<name>]' entry per command");
     }
 
     /*!
@@ -100,20 +100,42 @@ pub class CustomCommandList {
 
     /**
      * Insert commands a dictionnary configuration
+     * @throws:
+     *    - AssertError: on the first entry that is missing, or that does not have the expected
+     *      shape. Its message names the command it comes from
      * */
     prv fn insert(mut self, cfg: &Dict)
-        throws ConfigError, std::conv::errors::CastFailure
+        throws AssertError
     {
         for k, v in cfg[] {
-            let cmd = to!{[c8]} (v["cmd"]);
-            let post = if let Ok(Str(value-> "true")) = v["post"]? {
-                true
-            } else if let Ok(Bool(value-> true)) = v["post"]? {
-                true
+            let ctx = gyllir::config::errors::inTable("commands", k);
+
+            let cmd = if let Ok(Str(value-> c)) = v["cmd"]? {
+                c
+            } else if let Ok(_) = v["cmd"]? {
+                throw copy AssertError(ctx ~ "'cmd' must be a string, the command line to run");
+            } else {
+                throw copy AssertError(ctx ~ "missing required entry 'cmd', for example: cmd = \"./tools/" ~ k ~ ".sh\"");
+            };
+
+            // a mistyped 'post' used to be read as a pre build command, silently running it at the
+            // wrong moment, which is worse than refusing the configuration
+            let post = if let Ok(Bool(value-> p)) = v["post"]? {
+                p
+            } else if let Ok(Str(value-> p)) = v["post"]? {
+                if (p != "true" && p != "false") {
+                    throw copy AssertError(ctx ~ "'post' must be a boolean, either true or false");
+                }
+
+                p == "true"
+            } else if let Ok(_) = v["post"]? {
+                throw copy AssertError(ctx ~ "'post' must be a boolean, either true or false");
             } else { false };
 
-            let cwd = if let Ok(s) = v["cwd"]? {
-                Path(to!{[c8]} (s))
+            let cwd = if let Ok(Str(value-> c)) = v["cwd"]? {
+                Path(c)
+            } else if let Ok(_) = v["cwd"]? {
+                throw copy AssertError(ctx ~ "'cwd' must be a string, the directory the command is run from");
             } else { Path(".") };
 
             self._lst[k] = Command(cmd, post, cwd-> cwd);
