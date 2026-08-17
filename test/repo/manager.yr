@@ -272,6 +272,72 @@ __test {
 }
 
 __test {
+    // selectTestTargets() with no target named on the command line selects every testable target,
+    // skipping the ones that opted out
+    let mgr = copy GyllirManager(copy ["gyllir", "test"]);
+    let cfg = mkTargetsConfig("multi", json#{
+        "cli" : {"type" : "executable"},
+        "tool" : {"type" : "executable", "tests" : false}
+    });
+
+    let selected = mgr.selectTestTargets(cfg, copy Dict());
+
+    assert(selected.len == 1us && "cli" in selected, "only the testable target should be selected");
+}
+
+__test {
+    // selectTestTargets() naming a target that opted out of unittesting is rejected
+    let mgr = copy GyllirManager(copy ["gyllir", "test"]);
+    let cfg = mkTargetsConfig("multi", json#{"tool" : {"type" : "executable", "tests" : false}});
+
+    let dmut args = copy Dict();
+    args["target"] = copy Str("tool");
+
+    let mut msg = "";
+    {
+        mgr.selectTestTargets(cfg, args);
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "target 'tool' has 'tests' set to false, it declares no unittest", "unexpected error: " ~ msg);
+}
+
+__test {
+    // selectTestTargets() with no target named, and no testable target at all, is rejected the same way
+    let mgr = copy GyllirManager(copy ["gyllir", "test"]);
+    let cfg = mkTargetsConfig("multi", json#{"tool" : {"type" : "executable", "tests" : false}});
+
+    let mut msg = "";
+    {
+        mgr.selectTestTargets(cfg, copy Dict());
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "no testable target, declared targets are 'tool'", "unexpected error: " ~ msg);
+}
+
+__test {
+    // selectTestTargets() naming a target the package does not declare is rejected, just like
+    // selectTargets()
+    let mgr = copy GyllirManager(copy ["gyllir", "test"]);
+    let cfg = mkMultiTargetConfig();
+
+    let dmut args = copy Dict();
+    args["target"] = copy Str("nope");
+
+    let mut msg = "";
+    {
+        mgr.selectTestTargets(cfg, args);
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "unknown target 'nope', declared targets are 'cli', 'mylib', 'tool'", "unexpected error: " ~ msg);
+}
+
+__test {
     // orderedTargets() puts a target after the ones it links, and orders the independent ones
     // alphabetically, so that the build order never depends on the iteration order of a map
     let mgr = copy GyllirManager(copy ["gyllir", "build"]);

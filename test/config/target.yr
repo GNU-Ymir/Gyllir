@@ -15,6 +15,7 @@ __test {
     assert(t.rootModule() == "cli", "the root module should default to the name of the target");
     assert(t.outputName() == "cli", "the artifact should default to the name of the target");
     assert(t.packageRoot == "" && t.testRoot == "" && t.output == "", "the unset entries should be empty");
+    assert(t.tests, "tests should default to enabled");
     assert(t.flags == [] && t.libraries == [] && t.dependencies == [] && t.targets == [] && t.cSources == [] && t.cFlags == [],
            "the unset lists should be empty");
     assert(!t.synthesized, "a target built by hand is not a synthesized one");
@@ -134,6 +135,61 @@ __test {
 }
 
 __test {
+    // "tests" set to false is parsed, and defaults every other target to enabled
+    let lst = copy TargetList(json#{
+        "cli" : {"type" : "executable", "tests" : false},
+        "tool" : {"type" : "executable"}
+    });
+
+    if let Ok(t) = lst[]["cli"] {
+        assert(!t.tests, "the declared tests flag should be false");
+    } else assert(false, "expected a \"cli\" target");
+
+    if let Ok(t) = lst[]["tool"] {
+        assert(t.tests, "a target declaring no tests flag should default to enabled");
+    } else assert(false, "expected a \"tool\" target");
+}
+
+__test {
+    // "tests" set to false next to a declared "test-dir" is rejected: the two are exclusive
+    let mut threw = false;
+    {
+        copy TargetList(json#{"cli" : {"tests" : false, "test-dir" : "second_test"}});
+    } catch {
+        CastFailure() => { threw = true; }
+        AssertError() => { threw = true; }
+    }
+
+    assert(threw, "'tests' set to false should not be allowed next to a declared 'test-dir'");
+}
+
+__test {
+    // "tests" set to false next to a declared "test-root" is rejected the same way
+    let mut threw = false;
+    {
+        copy TargetList(json#{"cli" : {"tests" : false, "test-root" : "__test__"}});
+    } catch {
+        CastFailure() => { threw = true; }
+        AssertError() => { threw = true; }
+    }
+
+    assert(threw, "'tests' set to false should not be allowed next to a declared 'test-root'");
+}
+
+__test {
+    // A non boolean "tests" is rejected
+    let mut threw = false;
+    {
+        copy TargetList(json#{"cli" : {"tests" : "false"}});
+    } catch {
+        CastFailure() => { threw = true; }
+        AssertError() => { threw = true; }
+    }
+
+    assert(threw, "a non boolean \"tests\" should be rejected");
+}
+
+__test {
     // A list entry given a scalar instead of an array is rejected
     let mut threw = false;
     {
@@ -183,6 +239,7 @@ __test {
         assert("source-dir" !in cli, "a default source directory should not be written back");
         assert("test-dir" !in cli, "a default test directory should not be written back");
         assert("test-root" !in cli, "an undeclared test root should not be written back");
+        assert("tests" !in cli, "tests enabled by default should not be written back");
         assert("output" !in cli, "an undeclared output name should not be written back");
         assert("libraries" !in cli, "an empty library list should not be written back");
         assert("c-sources" !in cli, "an empty c source list should not be written back");
@@ -215,6 +272,21 @@ __test {
         assert(t.libraries == copy ["m"], "the libraries should survive the round trip");
         assert(t.cSources == copy ["src/glue.c"], "the c sources should survive the round trip");
         assert(t.cFlags == copy ["-I."], "the c flags should survive the round trip");
+    } else assert(false, "expected a \"cli\" target after the round trip");
+}
+
+__test {
+    // "tests" set to false survives a serialization round trip
+    let lst = copy TargetList(json#{"cli" : {"type" : "executable", "tests" : false}});
+
+    let serialized = lst.serialize();
+    if let Ok(cli) = serialized["cli"]? {
+        assert(!to!{bool}(cli["tests"]), "the tests flag should be written back as false");
+    } else assert(false, "expected a serialized \"cli\" target");
+
+    let back = copy TargetList(serialized);
+    if let Ok(t) = back[]["cli"] {
+        assert(!t.tests, "the tests flag should survive the round trip");
     } else assert(false, "expected a \"cli\" target after the round trip");
 }
 

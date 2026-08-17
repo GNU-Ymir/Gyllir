@@ -22,6 +22,7 @@ __test {
     assert(cfg.compiler == "gyc", "default compiler should be \"gyc\"");
     assert(cfg.packageRoot == "", "default package-root should be empty");
     assert(cfg.testRoot == "", "default test-root should be empty");
+    assert(cfg.tests, "default tests should be enabled");
     assert(cfg.type.isExecutable(), "default build type should be executable");
     assert(!cfg.registry.isValid(), "default registry should not be a valid url");
     assert(cfg.version == Version(0u32, 0u32, 0u32), "default version should be 0.0.0");
@@ -178,6 +179,48 @@ __test {
 }
 
 __test {
+    // "tests" set to false at the top level is accepted, and disables the synthesized target
+    let cfg = GyllirPackageConfiguration(json#{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "tests" : false
+    });
+
+    assert(!cfg.tests, "the parsed tests flag should be false");
+    if let Ok(t) = cfg.targets()["myapp"] {
+        assert(!t.tests, "the synthesized target should carry the disabled tests flag");
+    } else assert(false, "expected a target named after the package");
+}
+
+__test {
+    // "tests" set to false next to a declared "test-root" is rejected: the two are exclusive
+    let bad = json#{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "test-root" : "__test__",
+        "tests" : false
+    };
+
+    let mut threw = false;
+    {
+        GyllirPackageConfiguration(bad);
+    } catch {
+        AssertError() => { threw = true; }
+        CastFailure() => { threw = true; }
+    }
+
+    assert(threw, "'tests' set to false should not be allowed next to a declared 'test-root'");
+}
+
+__test {
     // A wrongly typed authors field (not an array) is rejected (wrapped as a CastFailure)
     let badAuthors = json#{
         "name" : "my-pkg",
@@ -285,7 +328,7 @@ __test {
 __test {
     // Every field describing a single artifact is rejected next to a "[targets.*]" table: it would
     // simply go unread, which is the trap the rule exists to prevent
-    for key in copy ["type", "package-root", "test-root", "flags", "libraries"] {
+    for key in copy ["type", "package-root", "test-root", "tests", "flags", "libraries"] {
         let dmut d = copy Dict();
         d["name"] = copy Str("multi");
         d["license"] = copy Str("MIT");
@@ -299,6 +342,8 @@ __test {
             d[key] = copy Str("executable");
         } else if (key == "flags" || key == "libraries") {
             d[key] = copy Array(copy [copy Str("x")]);
+        } else if (key == "tests") {
+            d[key] = copy Bool(false);
         } else {
             d[key] = copy Str("main");
         }
@@ -355,7 +400,7 @@ __test {
         } else assert(false, "expected a serialized \"cli\" target");
     } else assert(false, "expected the declared targets to be serialized");
 
-    for key in copy ["type", "package-root", "test-root", "flags", "libraries"] {
+    for key in copy ["type", "package-root", "test-root", "tests", "flags", "libraries"] {
         assert(key !in serialized, "'" ~ key ~ "' must not be written next to a target table");
     }
 }
@@ -401,7 +446,27 @@ __test {
 
     assert("package-root" !in serialized, "an unset package root should not be written back");
     assert("test-root" !in serialized, "an unset test root should not be written back");
+    assert("tests" !in serialized, "an unset tests flag should not be written back");
     assert("flags" !in serialized, "an empty flag list should not be written back");
+}
+
+__test {
+    // "tests" set to false at the top level survives a serialization round trip
+    let cfg = GyllirPackageConfiguration(json#{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "tests" : false
+    });
+
+    let serialized = cfg.serialize();
+    assert(!to!{bool}(serialized["tests"]), "the tests flag should be written back as false");
+
+    let back = GyllirPackageConfiguration(serialized);
+    assert(!back.tests, "the tests flag should survive the round trip");
 }
 
 __test {
