@@ -44,6 +44,10 @@ pub record Target {
     // ("" when the target declares none)
     let _testRoot: [c8];
 
+    // False iif the target opted out of unittesting, in which case it declares neither '_testDir'
+    // nor '_testRoot'
+    let _tests: bool;
+
     // The name of the produced artifact ("" when the name of the target is used instead)
     let _output: [c8];
 
@@ -82,6 +86,7 @@ pub record Target {
      *    - packageRoot: its root module, relative to 'sourceDir' and without extension
      *    - testDir: the directory holding its unittests
      *    - testRoot: the root module of its unittests, relative to 'testDir'
+     *    - tests: false to opt the target out of unittesting
      *    - output: the name of the produced artifact
      *    - flags: the raw options passed to the compiler
      *    - libraries: the C libraries to link
@@ -96,6 +101,7 @@ pub record Target {
               packageRoot: [c8] = "",
               testDir: [c8] = __DEFAULT_TEST_DIR__,
               testRoot: [c8] = "",
+              tests: bool = true,
               output: [c8] = "",
               flags: [[c8]] = [],
               libraries: [[c8]] = [],
@@ -110,6 +116,7 @@ pub record Target {
         , _packageRoot = packageRoot
         , _testDir = testDir
         , _testRoot = testRoot
+        , _tests = tests
         , _output = output
         , _flags = flags
         , _libraries = libraries
@@ -156,6 +163,11 @@ pub record Target {
     @field
     pub fn testRoot(self)-> [c8] {
         self._testRoot
+    }
+
+    @field
+    pub fn tests(self)-> bool {
+        self._tests
     }
 
     @field
@@ -335,6 +347,10 @@ pub class TargetList {
                     trg["test-root"] = copy Str(t.testRoot);
                 }
 
+                if (!t.tests) {
+                    trg["tests"] = copy Bool(false);
+                }
+
                 if (t.output != "") {
                     trg["output"] = copy Str(t.output);
                 }
@@ -408,11 +424,21 @@ pub class TargetList {
             std::config::conv::to!{BuildType} (t)
         } else { BuildType() };
 
+        let tests = self.readBool(cfg, "tests", name, default-> true);
+        if (!tests) {
+            for k in ["test-dir", "test-root"] {
+                if let Ok(_) = cfg[k]? {
+                    throw copy AssertError("target '" ~ name ~ "' has 'tests' set to false, it cannot declare '" ~ k ~ "'");
+                }
+            }
+        }
+
         Target(name, type,
                sourceDir-> self.readString(cfg, "source-dir", name, default-> __DEFAULT_SOURCE_DIR__),
                packageRoot-> self.readString(cfg, "package-root", name),
                testDir-> self.readString(cfg, "test-dir", name, default-> __DEFAULT_TEST_DIR__),
                testRoot-> self.readString(cfg, "test-root", name),
+               tests-> tests,
                output-> self.readString(cfg, "output", name),
                flags-> self.readStringArray(cfg, "flags", name),
                libraries-> self.readStringArray(cfg, "libraries", name),
@@ -439,6 +465,28 @@ pub class TargetList {
 
         else if let Ok(_) = cfg[key]? {
             throw copy AssertError("expecting a string for '" ~ key ~ "' of target '" ~ target ~ "'");
+        }
+
+        default
+    }
+
+    /**
+     * Read an optional boolean entry of a target table
+     * @params:
+     *    - cfg: the content of the target table
+     *    - key: the name of the entry to read
+     *    - target: the name of the target, for error reporting
+     *    - default: the value returned when the entry is absent
+     * */
+    prv fn readBool(self, cfg: &Config, key: [c8], target: [c8], default: bool)-> bool
+        throws AssertError
+    {
+        if let Ok(Bool(value-> v)) = cfg[key]? {
+            return v;
+        }
+
+        else if let Ok(_) = cfg[key]? {
+            throw copy AssertError("expecting a boolean for '" ~ key ~ "' of target '" ~ target ~ "'");
         }
 
         default
