@@ -108,7 +108,9 @@ pub record CSourceBuilder {
             options ~= ["-g"];
         }
 
-        options
+        // last, so that a target can override the options gyllir picked for it, and add its own
+        // include directories or defines
+        options ~ self._target.cFlags
     }
 
     /**
