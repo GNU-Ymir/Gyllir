@@ -11,6 +11,7 @@ __test {
     assert(t.name == "cli", "unexpected target name");
     assert(t.type.isExecutable(), "unexpected build type");
     assert(t.sourceDir == "src", "the source directory should default to \"src\"");
+    assert(t.testDir == "test", "the test directory should default to \"test\"");
     assert(t.rootModule() == "cli", "the root module should default to the name of the target");
     assert(t.outputName() == "cli", "the artifact should default to the name of the target");
     assert(t.packageRoot == "" && t.testRoot == "" && t.output == "", "the unset entries should be empty");
@@ -59,6 +60,7 @@ __test {
             "type" : "library",
             "source-dir" : "second_src",
             "package-root" : "main",
+            "test-dir" : "second_test",
             "test-root" : "cli_test",
             "output" : "gyllir-cli",
             "flags" : ["-fno-inline", "-O0"],
@@ -76,6 +78,7 @@ __test {
         assert(t.type.isLibrary(), "unexpected build type");
         assert(t.sourceDir == "second_src", "unexpected source directory");
         assert(t.packageRoot == "main", "unexpected package root");
+        assert(t.testDir == "second_test", "unexpected test directory");
         assert(t.testRoot == "cli_test", "unexpected test root");
         assert(t.output == "gyllir-cli", "unexpected output name");
         assert(t.flags == copy ["-fno-inline", "-O0"], "unexpected flags");
@@ -95,6 +98,7 @@ __test {
     if let Ok(t) = lst[]["tool"] {
         assert(t.type.isExecutable(), "a target declaring no type should be an executable");
         assert(t.sourceDir == "src", "a target declaring no source directory should use \"src\"");
+        assert(t.testDir == "test", "a target declaring no test directory should use \"test\"");
         assert(t.rootModule() == "tool", "a target declaring no package root should be rooted at its own name");
     } else assert(false, "expected a \"tool\" target");
 }
@@ -177,6 +181,7 @@ __test {
         assert(to!{[[c8]]}(cli["targets"]) == copy ["mylib"], "unexpected serialized linked targets");
 
         assert("source-dir" !in cli, "a default source directory should not be written back");
+        assert("test-dir" !in cli, "a default test directory should not be written back");
         assert("test-root" !in cli, "an undeclared test root should not be written back");
         assert("output" !in cli, "an undeclared output name should not be written back");
         assert("libraries" !in cli, "an empty library list should not be written back");
@@ -191,6 +196,7 @@ __test {
         "cli" : {
             "type" : "library",
             "source-dir" : "second_src",
+            "test-dir" : "second_test",
             "test-root" : "cli_test",
             "output" : "gyllir-cli",
             "libraries" : ["m"],
@@ -203,6 +209,7 @@ __test {
     if let Ok(t) = back[]["cli"] {
         assert(t.type.isLibrary(), "the build type should survive the round trip");
         assert(t.sourceDir == "second_src", "the source directory should survive the round trip");
+        assert(t.testDir == "second_test", "the test directory should survive the round trip");
         assert(t.testRoot == "cli_test", "the test root should survive the round trip");
         assert(t.output == "gyllir-cli", "the output name should survive the round trip");
         assert(t.libraries == copy ["m"], "the libraries should survive the round trip");
