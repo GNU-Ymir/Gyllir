@@ -67,14 +67,42 @@ __test {
 __test {
     // A dictionnary without a "local" or "git" key is rejected as malformed
     let cfg = json#{"unknown" : "some/dir"};
-    let mut threw = false;
+    let mut msg = "";
     {
         Url(cfg);
     } catch {
-        AssertError() => { threw = true; }
+        a: &AssertError => { msg = a.msg; }
     }
 
-    assert(threw, "a dictionnary without \"local\" or \"git\" should be rejected");
+    assert(msg == "'url' is invalid: expecting a string like \"git:<remote>\" or \"local:<path>\", "
+           ~ "or a table declaring a 'git' or a 'local' entry", "unexpected error: " ~ msg);
+}
+
+__test {
+    // A "git" or "local" entry that is not a string names that entry, rather than falling back on
+    // the generic message, which would say nothing about what is actually wrong
+    let mut msg = "";
+    {
+        Url(json#{"git" : 12});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'url' is invalid: 'git' must be a string, the remote of a git repository", "unexpected error: " ~ msg);
+}
+
+__test {
+    // The entry the url was read from is named by the error, a package has one registry and as many
+    // dependency urls as it declares dependencies
+    let mut msg = "";
+    {
+        Url(json#{"unknown" : "some/dir"}, entry-> "'registry'");
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'registry' is invalid: expecting a string like \"git:<remote>\" or \"local:<path>\", "
+           ~ "or a table declaring a 'git' or a 'local' entry", "unexpected error: " ~ msg);
 }
 
 __test {

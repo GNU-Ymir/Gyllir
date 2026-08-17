@@ -57,13 +57,14 @@ __test {
     let v = Version(copy Str("1.2.3"));
     assert(v.isNumbered() && v[] == "1.2.3", "unexpected version parsed from a configuration");
 
-    let mut threw = false;
+    let mut msg = "";
     {
         Version(copy Int(12));
     } catch {
-        AssertError() => { threw = true; }
+        a: &AssertError => { msg = a.msg; }
     }
-    assert(threw, "a non string configuration should be rejected");
+
+    assert(msg == "'version' must be a string, for example: version = \"0.1.0\"", "unexpected error: " ~ msg);
 }
 
 __test {

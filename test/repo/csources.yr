@@ -11,7 +11,7 @@ use std::time::dur;
  * A 'CSourceBuilder' over a target declaring 'cSources', rooted at 'dir'
  * */
 fn mkBuilder(dir: Path, cSources: [[c8]], args: &Config)-> CSourceBuilder
-    throws CastFailure
+    throws AssertError
 {
     CSourceBuilder(GyllirPackageConfiguration::empty(), dir, args, Target("mylib", BuildType("library"), cSources-> cSources), false, 1u32)
 }
@@ -21,7 +21,7 @@ fn mkBuilder(dir: Path, cSources: [[c8]], args: &Config)-> CSourceBuilder
  * line (a debug build)
  * */
 fn mkBuilder(dir: Path, cSources: [[c8]])-> CSourceBuilder
-    throws CastFailure
+    throws AssertError
 {
     mkBuilder(dir, cSources, copy Dict())
 }

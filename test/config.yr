@@ -123,19 +123,19 @@ __test {
 
 __test {
     // A configuration that isn't a dictionary is rejected directly
-    let mut threw = false;
+    let mut msg = "";
     {
         GyllirPackageConfiguration(copy Str("not-a-dict"));
     } catch {
-        AssertError() => { threw = true; }
-        CastFailure() => { threw = true; }
+        a: &AssertError => { msg = a.msg; }
     }
 
-    assert(threw, "a non dictionary configuration should be rejected");
+    assert(msg == "expecting a table of entries describing the package", "unexpected error: " ~ msg);
 }
 
 __test {
-    // A missing mandatory field is rejected (wrapped as a CastFailure)
+    // A missing mandatory entry names that entry, and shows what a correct declaration looks like:
+    // the whole message is what 'gyllir' prints, there is nothing else for the user to go on
     let missingName = json#{
         "license" : "MIT",
         "description" : "d",
@@ -144,19 +144,47 @@ __test {
         "registry" : {"local" : "some/registry"}
     };
 
-    let mut threw = false;
+    let mut msg = "";
     {
         GyllirPackageConfiguration(missingName);
     } catch {
-        CastFailure() => { threw = true; }
-        AssertError() => { threw = true; }
+        a: &AssertError => { msg = a.msg; }
     }
 
-    assert(threw, "a missing mandatory field should be rejected");
+    assert(msg == "missing required entry 'name', for example: name = \"my-package\"", "unexpected error: " ~ msg);
 }
 
 __test {
-    // A wrongly typed optional field is rejected (wrapped as a CastFailure)
+    // Every mandatory entry is checked the same way, and the version and the registry, which are
+    // read by dedicated parsers, are no exception
+    let entries = copy [("name", "missing required entry 'name', for example: name = \"my-package\""),
+                        ("license", "missing required entry 'license', for example: license = \"GPL-v3\""),
+                        ("description", "missing required entry 'description', for example: description = \"what the package does\""),
+                        ("version", "missing required entry 'version', for example: version = \"0.1.0\""),
+                        ("registry", "missing required entry 'registry', for example: registry = { git = \"git@github.com:me/my-package.git\" }")];
+
+    for e in entries {
+        let dmut d = copy Dict();
+        d["name"] = copy Str("my-pkg");
+        d["license"] = copy Str("MIT");
+        d["description"] = copy Str("d");
+        d["version"] = copy Str("1.0.0");
+        d["registry"] = json#{"local" : "some/registry"};
+        d:.remove(e._0);
+
+        let mut msg = "";
+        {
+            GyllirPackageConfiguration(d);
+        } catch {
+            a: &AssertError => { msg = a.msg; }
+        }
+
+        assert(msg == e._1, "unexpected error for a missing \"" ~ e._0 ~ "\": " ~ msg);
+    }
+}
+
+__test {
+    // A wrongly typed optional entry names that entry too
     let badCompiler = json#{
         "name" : "my-pkg",
         "license" : "MIT",
@@ -167,15 +195,14 @@ __test {
         "compiler" : 12
     };
 
-    let mut threw = false;
+    let mut msg = "";
     {
         GyllirPackageConfiguration(badCompiler);
     } catch {
-        CastFailure() => { threw = true; }
-        AssertError() => { threw = true; }
+        a: &AssertError => { msg = a.msg; }
     }
 
-    assert(threw, "a non string compiler should be rejected");
+    assert(msg == "'compiler' must be a string, for example: compiler = \"gyc\"", "unexpected error: " ~ msg);
 }
 
 __test {
@@ -209,19 +236,19 @@ __test {
         "tests" : false
     };
 
-    let mut threw = false;
+    let mut msg = "";
     {
         GyllirPackageConfiguration(bad);
     } catch {
-        AssertError() => { threw = true; }
-        CastFailure() => { threw = true; }
+        a: &AssertError => { msg = a.msg; }
     }
 
-    assert(threw, "'tests' set to false should not be allowed next to a declared 'test-root'");
+    assert(msg == "'tests' is set to false, the package declares no unittest, it cannot declare 'test-root'",
+           "unexpected error: " ~ msg);
 }
 
 __test {
-    // A wrongly typed authors field (not an array) is rejected (wrapped as a CastFailure)
+    // A wrongly typed authors field (not an array) names it, and shows a correct declaration
     let badAuthors = json#{
         "name" : "my-pkg",
         "license" : "MIT",
@@ -232,15 +259,15 @@ __test {
         "authors" : "alice"
     };
 
-    let mut threw = false;
+    let mut msg = "";
     {
         GyllirPackageConfiguration(badAuthors);
     } catch {
-        CastFailure() => { threw = true; }
-        AssertError() => { threw = true; }
+        a: &AssertError => { msg = a.msg; }
     }
 
-    assert(threw, "a non array authors field should be rejected");
+    assert(msg == "'authors' must be an array of strings, for example: authors = [\"me <me@example.com>\"]",
+           "unexpected error: " ~ msg);
 }
 
 __test {
@@ -353,7 +380,6 @@ __test {
             GyllirPackageConfiguration(d);
         } catch {
             a: &AssertError => { msg = a.msg; }
-            _: &CastFailure => { msg = ""; }
         }
 
         assert(msg.len > 0us, "'" ~ key ~ "' should be rejected at the top level of a multi target package");
