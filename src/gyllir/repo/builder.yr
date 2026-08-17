@@ -1,9 +1,10 @@
 in builder;
 
 
-use std::{io, env, stream, config::_};
-use gyllir::{repo::_, utils::_, config::_};
-use std::{fs::_, syntax::tokenizer, time::_};
+use gyllir::{config::_, repo::_, utils::_};
+
+use std::{config::_, env, fs::_, io, stream, time::_};
+use std::syntax::tokenizer;
 
 
 /**
@@ -99,7 +100,8 @@ pub record RepoBuilder {
             }
         };
 
-        let finalLinks = self.finalizeBuild(alias context, cacheDir, links);
+        let cObjects = self.buildCSources(alias context, cacheDir);
+        let finalLinks = self.finalizeBuild(alias context, cacheDir, links, cObjects);
         self.runCommands(alias context, post-> true);
 
         return (context.uniquePaths(includes ~ [srcPath]), context.uniquePaths(finalLinks));
@@ -290,25 +292,36 @@ pub record RepoBuilder {
      *    - libs: the list of libraries to link
      * @returns: the list of libraries to link for further dependencies
      * */
-    prv fn finalizeBuild(self, dmut context: &GyllirManager, cacheDir: Path, links: [Path])-> [Path] {
+    prv fn finalizeBuild(self, dmut context: &GyllirManager, cacheDir: Path, links: [Path], cObjects: [Path])-> [Path] {
         if (self._forDoc) {
             links
         }
 
         else if self._forUnitTest {
-            self.finalizeUnitTest(alias context, cacheDir, links);
+            self.finalizeUnitTest(alias context, cacheDir, links, cObjects);
             links
         }
 
         else if self._target.type.isExecutable() {
-            self.finalizeExecutable(alias context, cacheDir, links);
+            self.finalizeExecutable(alias context, cacheDir, links, cObjects);
             links
         }
 
         else {
-            let res = self.finalizeLibrary(alias context, cacheDir, links);
+            let res = self.finalizeLibrary(alias context, cacheDir, links, cObjects);
             links ~ [res]
         }
+    }
+
+    /**
+     * Compile the 'c-sources' declared by the target into object files
+     * @returns: the list of path to the compiled object files, [] for a doc build, a dry run, or a
+     *   target declaring none
+     * */
+    prv fn buildCSources(self, dmut context: &GyllirManager, cacheDir: Path)-> [Path] {
+        if (self._forDoc || self._dry) { return []; }
+
+        CSourceBuilder(self._cfg, self._cwd, self._args, self._target, self._verbose, self._nbThreads).run(alias context, cacheDir)
     }
 
 
@@ -509,13 +522,14 @@ pub record RepoBuilder {
     /**
      * Finalize the unittest executable
      * */
-    prv fn finalizeUnitTest(self, dmut context: &GyllirManager, cacheDir: Path, dependencyLibs: [Path]) {
+    prv fn finalizeUnitTest(self, dmut context: &GyllirManager, cacheDir: Path, dependencyLibs: [Path], cObjects: [Path]) {
         let output = self._target.outputName();
         let createdTmp = (cacheDir.push(output).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
         let createdUnittests = (self.targetCacheDir(defaults::__CACHE_TEST_DIR__).push(output).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
 
         let mut options = copy ["-fv", "-funittest", createdTmp, createdUnittests, "-o", output ~ ".test"];
         options ~= copy [d.toStr() for d in dependencyLibs];
+        options ~= copy [o.toStr() for o in cObjects];
 
         for k in self._target.libraries {
             options ~= ["-l" ~ k];
@@ -538,12 +552,13 @@ pub record RepoBuilder {
     /**
      * Finalize the executable
      * */
-    prv fn finalizeExecutable(self, dmut context: &GyllirManager, cacheDir: Path, dependencyLibs: [Path]) {
+    prv fn finalizeExecutable(self, dmut context: &GyllirManager, cacheDir: Path, dependencyLibs: [Path], cObjects: [Path]) {
         let output = self._target.outputName();
         let createdTmp = (cacheDir.push(output).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
 
         let mut options = copy ["-fv", createdTmp, "-o", output];
         options ~= copy [d.toStr() for d in dependencyLibs];
+        options ~= copy [o.toStr() for o in cObjects];
 
         for k in self._target.libraries {
             options ~= ["-l" ~ k];
@@ -567,14 +582,32 @@ pub record RepoBuilder {
      * Finalize the library
      * @returns: the result file
      * */
-    prv fn finalizeLibrary(self, dmut context: &GyllirManager, cacheDir: Path, _: [Path])-> Path {
+    prv fn finalizeLibrary(self, dmut context: &GyllirManager, cacheDir: Path, _: [Path], cObjects: [Path])-> Path {
         let output = self._target.outputName();
         let createdTmp = (cacheDir.push(output).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
         let resultFile = self._cwd.push("lib" ~ output).addExtension(defaults::__LIBRARY_EXTENSION__);
 
-        if (!context.runProcess("cp", copy [createdTmp, resultFile.toStr()], cwd-> self._cwd, verbose-> self._verbose)) {
-            utils::log::error("Error", "failed to compile project '", self._cfg.name, "'");
-            etc::c::process::_yrt_exit(-1);
+        // 'createdTmp' is a single relocatable object gathering every compiled module, not a real
+        // 'ar' archive: a target with no C source just wears it under the 'lib*.a' name, one that
+        // has some is combined with them into a real archive, which 'ar' refuses to append onto an
+        // existing plain object, so any stale archive from a previous build is cleared first
+        if (cObjects.len == 0us) {
+            if (!context.runProcess("cp", copy [createdTmp, resultFile.toStr()], cwd-> self._cwd, verbose-> self._verbose)) {
+                utils::log::error("Error", "failed to compile project '", self._cfg.name, "'");
+                etc::c::process::_yrt_exit(-1);
+            }
+        } else {
+            if (sys::isFile(resultFile)) {
+                sys::removeFile(resultFile)?;
+            }
+
+            let mut arOptions = copy ["rcs", resultFile.toStr(), createdTmp];
+            arOptions ~= copy [o.toStr() for o in cObjects];
+
+            if (!context.runProcess(defaults::__AR_COMMAND__, arOptions, cwd-> self._cwd, verbose-> self._verbose)) {
+                utils::log::error("Error", "failed to archive C sources into '", resultFile.toStr(), "'");
+                etc::c::process::_yrt_exit(-1);
+            }
         }
 
         utils::log::info("Produced", "library file ", "lib", output, ".", defaults::__LIBRARY_EXTENSION__);
