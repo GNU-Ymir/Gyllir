@@ -4,14 +4,11 @@
  * driven end to end against the real 'gyc' toolchain rather than against mocks.
  * */
 
+use gyllir::{config::_, utils::_};
 use gyllir::repo::defaults;
-use gyllir::config::_;
-use gyllir::utils::_;
 
-use std::config::_;
-use std::config::{json, toml};
+use std::{config::_, config::json, config::toml, fs::_};
 use std::concurrency::process;
-use std::fs::_;
 use std::conv::errors;
 
 /**
@@ -394,6 +391,50 @@ pub fn mkTargetsConfig(name: [c8], targets: &Config, depName: [c8] = "", depPath
     }
 
     GyllirPackageConfiguration(cfg)
+}
+
+/**
+ * A project holding a library target 'mylib' that compiles a C source through a recursive glob,
+ * bound by a single Ymir module, and an executable target 'cli' linking it and exiting with the
+ * value the C code computes: a passing run with that exact exit code proves the C source was
+ * actually compiled, archived, and linked
+ * @returns: the root directory of the created project
+ * */
+pub fn mkCSourceProject()-> Path
+    throws FsError
+{
+    let dir = sys::tempDirectory(prefix-> "gyllir_it_csrc_");
+    let src = dir.push(defaults::__SRC_DIR__);
+
+    writeSource(src.push("mylib").addExtension(defaults::__YMIR_EXTENSION__),
+                "extern (C) fn c_answer()-> i32;\n\npub fn answer()-> i32 {\n    return c_answer();\n}\n");
+    writeSource(src.push("cli").addExtension(defaults::__YMIR_EXTENSION__),
+                "use mylib;\n\nfn main()-> i32 {\n    return mylib::answer();\n}\n");
+
+    writeSource(dir.push("csrc").push("nested").push("answer").addExtension(defaults::__C_EXTENSION__),
+                "int c_answer(void) {\n    return 42;\n}\n");
+
+    dir
+}
+
+/**
+ * The configuration of a project laid out by 'mkCSourceProject': the library target declares its
+ * C source through the recursive glob under the 'csrc' directory
+ * */
+pub fn mkCSourceConfig()-> GyllirPackageConfiguration
+    throws CastFailure, AssertError
+{
+    GyllirPackageConfiguration(json#{
+        "name" : "csrc-demo",
+        "license" : "MIT",
+        "description" : "an integration test project",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "targets" : {
+            "mylib" : {"type" : "library", "c-sources" : ["csrc/**/*.c"]},
+            "cli" : {"type" : "executable", "targets" : ["mylib"]}
+        }
+    })
 }
 
 /**
