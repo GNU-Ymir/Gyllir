@@ -52,8 +52,9 @@ pub record Target {
     // The names of the targets of the same package linked by the target
     let _targets: [[c8]];
 
-    // The C source files archived into the target
-    // @warning: parsed but not compiled yet, see YMI-72
+    // The C source files compiled and archived into the target. Each entry is either a literal
+    // path, a '<dir>/*.<ext>' non-recursive glob, or a '<dir>/**/*.<ext>' recursive glob, all
+    // relative to the package directory
     let _cSources: [[c8]];
 
     // True iif the target was synthesized from the top level fields of a package declaring no
