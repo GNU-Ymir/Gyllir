@@ -168,6 +168,18 @@ __test {
            "unexpected release C compile options");
 }
 
+__test {
+    // The "c-flags" of a target are appended last, so a target can add its own include
+    // directories or defines, or override the options gyllir picked for it
+    let target = Target("mylib", BuildType("library"), cFlags-> copy ["-I.", "-DFOO"]);
+    let builder = CSourceBuilder(GyllirPackageConfiguration::empty(), Path("/project"), copy Dict(), target, false, 1u32);
+
+    let options = builder.createCompileOptions(Path("/project/csrc/one.c"), Path("/project/.target/mylib/debug/c-objs/csrc_one.o"));
+
+    assert(options == copy ["-c", "-fPIC", "-o", "/project/.target/mylib/debug/c-objs/csrc_one.o", "/project/csrc/one.c", "-g", "-I.", "-DFOO"],
+           "the c-flags of the target should come last, after the debug/release flag");
+}
+
 /*!
  * ====================================================================================================
  * ====================================================================================================

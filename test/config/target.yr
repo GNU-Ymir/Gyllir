@@ -14,7 +14,7 @@ __test {
     assert(t.rootModule() == "cli", "the root module should default to the name of the target");
     assert(t.outputName() == "cli", "the artifact should default to the name of the target");
     assert(t.packageRoot == "" && t.testRoot == "" && t.output == "", "the unset entries should be empty");
-    assert(t.flags == [] && t.libraries == [] && t.dependencies == [] && t.targets == [] && t.cSources == [],
+    assert(t.flags == [] && t.libraries == [] && t.dependencies == [] && t.targets == [] && t.cSources == [] && t.cFlags == [],
            "the unset lists should be empty");
     assert(!t.synthesized, "a target built by hand is not a synthesized one");
 }
@@ -65,7 +65,8 @@ __test {
             "libraries" : ["m"],
             "dependencies" : ["midgard"],
             "targets" : ["mylib"],
-            "c-sources" : ["src/glue.c"]
+            "c-sources" : ["src/glue.c"],
+            "c-flags" : ["-I.", "-DFOO"]
         }
     });
 
@@ -82,6 +83,7 @@ __test {
         assert(t.dependencies == copy ["midgard"], "unexpected dependencies");
         assert(t.targets == copy ["mylib"], "unexpected linked targets");
         assert(t.cSources == copy ["src/glue.c"], "unexpected c sources");
+        assert(t.cFlags == copy ["-I.", "-DFOO"], "unexpected c flags");
         assert(!t.synthesized, "a declared target is not a synthesized one");
     } else assert(false, "expected a \"cli\" target");
 }
@@ -179,6 +181,7 @@ __test {
         assert("output" !in cli, "an undeclared output name should not be written back");
         assert("libraries" !in cli, "an empty library list should not be written back");
         assert("c-sources" !in cli, "an empty c source list should not be written back");
+        assert("c-flags" !in cli, "an empty c flag list should not be written back");
     } else assert(false, "expected a serialized \"cli\" target");
 }
 
@@ -191,7 +194,8 @@ __test {
             "test-root" : "cli_test",
             "output" : "gyllir-cli",
             "libraries" : ["m"],
-            "c-sources" : ["src/glue.c"]
+            "c-sources" : ["src/glue.c"],
+            "c-flags" : ["-I."]
         }
     });
 
@@ -203,6 +207,7 @@ __test {
         assert(t.output == "gyllir-cli", "the output name should survive the round trip");
         assert(t.libraries == copy ["m"], "the libraries should survive the round trip");
         assert(t.cSources == copy ["src/glue.c"], "the c sources should survive the round trip");
+        assert(t.cFlags == copy ["-I."], "the c flags should survive the round trip");
     } else assert(false, "expected a \"cli\" target after the round trip");
 }
 
