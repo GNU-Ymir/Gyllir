@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Publishing — Gyllir handbook</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="favicon-32.png" sizes="32x32">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+    <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="26" height="26">Gyllir</a>
+    <div class="tagline">Build system &amp; package manager for GNU-Ymir</div>
+    <h2>Getting started</h2>
+    <ul>
+        <li><a href="index.html">Overview</a></li>
+        <li><a href="getting-started.html">Your first project</a></li>
+        <li><a href="cli.html">Command reference</a></li>
+    </ul>
+    <h2>Configuration</h2>
+    <ul>
+        <li><a href="manifest.html">gyllir.toml</a></li>
+        <li><a href="targets.html">Targets</a></li>
+        <li><a href="dependencies.html">Dependencies</a></li>
+    </ul>
+    <h2>Going further</h2>
+    <ul>
+        <li><a href="build-model.html">How a build works</a></li>
+        <li><a class="current" href="publishing.html">Publishing</a></li>
+    </ul>
+</nav>
+<main>
+
+<h1>Publishing</h1>
+<p class="lead">Bump the version, tag it, and push it where other packages can depend on it.</p>
+
+<h2>The registry</h2>
+
+<p>Every package declares a <a href="manifest.html#registry"><code>registry</code></a> — the place
+its versions are published to. It takes the same two forms as a dependency
+<a href="manifest.html#urls">URL</a>:</p>
+
+<pre><code>[registry]
+git = "git@github.com:jane/myapp.git"</code></pre>
+
+<pre><code>[registry]
+local = "/home/jane/.local/gyllir/myapp"</code></pre>
+
+<p>A registry is not a server — it is just a git remote, or a directory on your machine. Packages
+depend on it through their own <code>[dependencies.*]</code> tables, so "publishing" means making a
+tagged version reachable from that URL.</p>
+
+<h2>Publishing a version</h2>
+
+<pre><code>gyllir publish "Add the frobnicate option"           # bumps the patch: 1.2.3 -> 1.2.4
+gyllir publish "New API" --minor                     # 1.2.3 -> 1.3.0
+gyllir publish "Breaking rewrite" --major            # 1.2.3 -> 2.0.0</code></pre>
+
+<p>The message is required — it becomes the commit message of the version. The three bump flags are
+mutually exclusive, and a patch bump is the default.</p>
+
+<p>What it does, in order:</p>
+
+<ol>
+    <li>Asks for confirmation, unless <code>-y</code> was given.</li>
+    <li>Builds every target and runs their unit tests. If a test fails, publishing stops with that
+        exit code. <code>--dry</code> skips this verification entirely.</li>
+    <li>Bumps <code>version</code> and rewrites <code>gyllir.toml</code>.</li>
+    <li><code>git add .</code>, commits with your message, and tags the commit
+        <code>v&lt;new version&gt;</code>.</li>
+    <li>Publishes to the registry:
+        <ul>
+            <li><code>local:</code> — the registry directory is removed and replaced by a copy of
+                the package.</li>
+            <li><code>git:</code> — the package is copied to a temporary directory, the registry URL
+                is set as <code>origin</code>, and the new tag and the <code>master</code> branch
+                are pushed.</li>
+        </ul>
+    </li>
+</ol>
+
+<div class="warn">
+<p><strong><code>gyllir.toml</code> is rewritten, not patched.</strong> It is serialized from the
+parsed manifest, so comments and key ordering in the file are not preserved across a publish. Keep
+anything you care about in version control — which the publish commit does for you.</p>
+</div>
+
+<div class="note">
+<p>The git flow pushes the <code>master</code> branch. A package that publishes from another branch
+name needs to push it by hand.</p>
+</div>
+
+<h2>Versions and tags</h2>
+
+<p>The tags are the source of truth: when another package declares a
+<a href="dependencies.html#filters">version filter</a>, Gyllir reads the tag list of your repository
+and picks the highest tag that passes. So a version only becomes usable once its tag is reachable
+at the registry URL.</p>
+
+<p>Tags may be written <code>1.2.0</code> or <code>v1.2.0</code> — <code>gyllir publish</code>
+writes the <code>v</code> form.</p>
+
+<h2>Keeping a version constant in sync</h2>
+
+<p>If your code has to know its own version, do not maintain a second copy by hand — generate it
+from the manifest with a <a href="manifest.html#commands">pre-build command</a>. That is what
+Gyllir itself does:</p>
+
+<pre><code>[commands]
+set-version = { cmd = "./tools/set-version.sh", post = false }</code></pre>
+
+<p>The script reads <code>version</code> out of <code>gyllir.toml</code> and rewrites the constant
+in the sources, before every build.</p>
+
+<h2>Publishing to a local registry</h2>
+
+<p>A local registry is the quickest way to try the whole loop without a remote:</p>
+
+<pre><code>[registry]
+local = "/home/jane/.local/gyllir/mylib"</code></pre>
+
+<pre><code>gyllir publish "First release" --minor -y</code></pre>
+
+<p>Another package then depends on the published copy:</p>
+
+<pre><code>[dependencies.mylib]
+version = "&gt;=0.2.0"
+url = "local:/home/jane/.local/gyllir/mylib"</code></pre>
+
+<div class="next">
+    <span>Back to</span> <a href="index.html">the overview →</a>
+</div>
+
+</main>
+</div>
+</body>
+</html>

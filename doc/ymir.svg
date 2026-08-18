@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64" role="img" aria-label="Ymir">
+  <rect width="64" height="64" rx="14" fill="#2f5d75"/>
+  <polygon fill="#eaf1f5" points="11,12 22,12 32,26 42,12 53,12 36,36 36,54 28,54 28,36"/>
+  <polygon fill="#b9cfdd" points="32,26 42,12 53,12 36,36 36,54 32,54"/>
+</svg>

@@ -1,0 +1,208 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Targets — Gyllir handbook</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="favicon-32.png" sizes="32x32">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+    <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="26" height="26">Gyllir</a>
+    <div class="tagline">Build system &amp; package manager for GNU-Ymir</div>
+    <h2>Getting started</h2>
+    <ul>
+        <li><a href="index.html">Overview</a></li>
+        <li><a href="getting-started.html">Your first project</a></li>
+        <li><a href="cli.html">Command reference</a></li>
+    </ul>
+    <h2>Configuration</h2>
+    <ul>
+        <li><a href="manifest.html">gyllir.toml</a></li>
+        <li><a class="current" href="targets.html">Targets</a></li>
+        <li><a href="dependencies.html">Dependencies</a></li>
+    </ul>
+    <h2>Going further</h2>
+    <ul>
+        <li><a href="build-model.html">How a build works</a></li>
+        <li><a href="publishing.html">Publishing</a></li>
+    </ul>
+</nav>
+<main>
+
+<h1>Targets</h1>
+<p class="lead">A target is one artifact — an executable or a static library — built from one source
+tree. A package builds as many as it declares.</p>
+
+<h2>Every package has targets</h2>
+
+<p>A package that declares no <code>[targets.*]</code> table still has exactly one target,
+synthesized from its top-level keys and named after the package. So <code>gyllir build</code> on a
+plain package builds one target called <code>myapp</code>, producing <code>./myapp</code>. You do
+not have to think about targets until you want a second artifact.</p>
+
+<p>To build several, declare them explicitly. Each <code>[targets.&lt;name&gt;]</code> table is
+self-contained: a target inherits nothing from the package, which is why declaring a target table
+<a href="manifest.html#exclusivity">forbids the artifact keys at the top level</a>.</p>
+
+<pre><code>name = "myapp"
+license = "MIT"
+description = "A library and the CLI that uses it"
+version = "0.1.0"
+
+[registry]
+git = "git@github.com:jane/myapp.git"
+
+[targets.mylib]
+type = "library"
+
+[targets.cli]
+type = "executable"
+targets = ["mylib"]
+output = "myapp"</code></pre>
+
+<p>This builds <code>./libmylib.a</code> and <code>./myapp</code>, in that order.</p>
+
+<h2>Target keys</h2>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr id="type"><td><code>type</code></td><td><code>"executable"</code> / <code>"library"</code></td><td><code>"executable"</code></td><td>The kind of artifact produced.</td></tr>
+    <tr id="source-dir"><td><code>source-dir</code></td><td>string</td><td><code>"src"</code></td><td>Directory holding the sources of the target, relative to the package directory.</td></tr>
+    <tr id="package-root"><td><code>package-root</code></td><td>string</td><td>the target name</td><td>Root module, relative to <code>source-dir</code>, without the <code>.yr</code> extension.</td></tr>
+    <tr id="test-dir"><td><code>test-dir</code></td><td>string</td><td><code>"test"</code></td><td>Directory holding the unit tests of the target.</td></tr>
+    <tr id="test-root"><td><code>test-root</code></td><td>string</td><td><code>"__test__"</code></td><td>Root module of the unit tests, relative to <code>test-dir</code>.</td></tr>
+    <tr id="tests"><td><code>tests</code></td><td>boolean</td><td><code>true</code></td><td><code>false</code> opts the target out of unit testing. It then cannot declare <code>test-dir</code> or <code>test-root</code>.</td></tr>
+    <tr id="output"><td><code>output</code></td><td>string</td><td>the target name</td><td>Name of the produced artifact: <code>./&lt;output&gt;</code>, <code>./lib&lt;output&gt;.a</code>, <code>./&lt;output&gt;.test</code>.</td></tr>
+    <tr id="flags"><td><code>flags</code></td><td>array of strings</td><td><code>[]</code></td><td>Raw compiler options, appended last so they override the ones Gyllir picked.</td></tr>
+    <tr id="libraries"><td><code>libraries</code></td><td>array of strings</td><td><code>[]</code></td><td>C libraries to link, each passed as <code>-l&lt;name&gt;</code>.</td></tr>
+    <tr id="dependencies"><td><code>dependencies</code></td><td>array of strings</td><td><code>[]</code></td><td>Which of the package's <code>[dependencies.*]</code> this target links. See <a href="#selecting">below</a>.</td></tr>
+    <tr id="targets"><td><code>targets</code></td><td>array of strings</td><td><code>[]</code></td><td>Targets of the same package this one links. See <a href="#linking">below</a>.</td></tr>
+    <tr id="c-sources"><td><code>c-sources</code></td><td>array of strings</td><td><code>[]</code></td><td>C source files compiled into the target. See <a href="#c-sources-section">C sources</a>.</td></tr>
+    <tr id="c-flags"><td><code>c-flags</code></td><td>array of strings</td><td><code>[]</code></td><td>Raw options for the C compilation of <code>c-sources</code>, appended last (<code>-I…</code>, <code>-D…</code>).</td></tr>
+</table>
+</div>
+
+<h2 id="root">The root module of a declared target</h2>
+
+<p>A declared target roots at <code>&lt;source-dir&gt;/&lt;name&gt;.yr</code> — the file named
+after the target — unless it declares <code>package-root</code>. It does <em>not</em> fall back to
+<code>main.yr</code> or <code>__lib__.yr</code>; only the target synthesized for a package that
+declares none does that.</p>
+
+<pre><code>[targets.cli]
+source-dir = "src/cli"     # sources under src/cli/
+package-root = "main"      # rooted at src/cli/main.yr</code></pre>
+
+<p>Two targets can share one <code>source-dir</code> as long as they root at different modules,
+or each can have its own directory. Every <code>.yr</code> file under a target's
+<code>source-dir</code> is compiled for that target, so separate directories are usually what you
+want when the two artifacts have little in common.</p>
+
+<div class="warn">
+<p>A <code>package-root</code> naming a file that does not exist is an error, and the message names
+both the module Gyllir looked for and the key that decides where it looks.</p>
+</div>
+
+<h2 id="linking">Linking targets together</h2>
+
+<p><code>targets = [...]</code> lists the targets of the same package this one links against. The
+listed targets are built first — their root modules go on the include path and their archives on
+the link line — and this holds transitively.</p>
+
+<pre><code>[targets.core]
+type = "library"
+
+[targets.plugins]
+type = "library"
+targets = ["core"]
+
+[targets.cli]
+targets = ["core", "plugins"]</code></pre>
+
+<p>Gyllir orders the build itself, so the declaration order in the file does not matter. A target
+that links itself, links a target the package does not declare, or takes part in a cycle is
+rejected before anything is compiled. Building or testing one target automatically builds the
+targets it links, even when the command names only that one target.</p>
+
+<h2 id="selecting">Selecting dependencies per target</h2>
+
+<p>Dependencies are declared once for the whole package, and each target picks the ones it needs:</p>
+
+<pre><code>[dependencies.midgard]
+version = "*"
+url = "git:git@github.com:GNU-Ymir/midgard.git"
+
+[dependencies.somelib]
+version = "&gt;=1.0.0"
+url = "git:https://github.com/example/somelib"
+
+[targets.mylib]
+type = "library"
+dependencies = ["midgard"]
+
+[targets.cli]
+targets = ["mylib"]
+dependencies = ["midgard", "somelib"]</code></pre>
+
+<div class="warn">
+<p><strong>A declared target links exactly what it lists.</strong> Omitting
+<code>dependencies</code> — or writing an empty array — links <em>no</em> dependency at all, not
+all of them. The single target synthesized for a package that declares no target table has no such
+list to write, so it keeps linking everything the package declares.</p>
+</div>
+
+<p>A target that links another target does not automatically inherit its dependency selection at
+the manifest level, but it does get everything that target already put on the link line, so the
+artifacts still resolve.</p>
+
+<h2 id="c-sources-section">C sources</h2>
+
+<p>A target can compile C files and fold them into its artifact — for a library, they are archived
+into the produced <code>lib&lt;output&gt;.a</code>; for an executable, they go on its link line.</p>
+
+<pre><code>[targets.mylib]
+type = "library"
+c-sources = ["c/glue.c", "c/vendor/*.c", "c/deep/**/*.c"]
+c-flags = ["-Ic/include", "-DWITH_GLUE=1"]</code></pre>
+
+<p>Each entry is one of three forms, all relative to the package directory:</p>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Form</th><th>Matches</th></tr>
+    <tr><td><code>c/glue.c</code></td><td>A literal path.</td></tr>
+    <tr><td><code>c/vendor/*.c</code></td><td>Every <code>.c</code> file directly in <code>c/vendor/</code>, not in its sub-directories.</td></tr>
+    <tr><td><code>c/deep/**/*.c</code></td><td>Every <code>.c</code> file under <code>c/deep/</code>, recursively.</td></tr>
+</table>
+</div>
+
+<p>Object files land in <code>.target/&lt;target&gt;/&lt;kind&gt;/c-objs/</code> and are
+recompiled only when the source is newer than the object. They are compiled with the same
+<code>compiler</code> binary as the Ymir sources, with <code>-g</code> or <code>-O3</code> to match
+the build mode, and <code>c-flags</code> appended last.</p>
+
+<h2>Working with several targets</h2>
+
+<pre><code>gyllir build              # every target, in dependency order
+gyllir build cli          # cli, and the targets it links
+gyllir test               # tests every target that did not opt out
+gyllir test mylib         # tests only mylib
+gyllir run cli -- --help  # runs the cli target, forwards --help
+gyllir doc                # one site per target, under __doc/&lt;target&gt;/</code></pre>
+
+<p><code>gyllir run</code> is the one command that needs a target name whenever the package
+declares more than one — it will not pick for you.</p>
+
+<div class="next">
+    <span>Next:</span> <a href="dependencies.html">Dependencies →</a>
+</div>
+
+</main>
+</div>
+</body>
+</html>

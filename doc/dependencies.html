@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dependencies — Gyllir handbook</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="favicon-32.png" sizes="32x32">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+    <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="26" height="26">Gyllir</a>
+    <div class="tagline">Build system &amp; package manager for GNU-Ymir</div>
+    <h2>Getting started</h2>
+    <ul>
+        <li><a href="index.html">Overview</a></li>
+        <li><a href="getting-started.html">Your first project</a></li>
+        <li><a href="cli.html">Command reference</a></li>
+    </ul>
+    <h2>Configuration</h2>
+    <ul>
+        <li><a href="manifest.html">gyllir.toml</a></li>
+        <li><a href="targets.html">Targets</a></li>
+        <li><a class="current" href="dependencies.html">Dependencies</a></li>
+    </ul>
+    <h2>Going further</h2>
+    <ul>
+        <li><a href="build-model.html">How a build works</a></li>
+        <li><a href="publishing.html">Publishing</a></li>
+    </ul>
+</nav>
+<main>
+
+<h1>Dependencies</h1>
+<p class="lead">Other Gyllir packages your package builds against, fetched from a git remote or a
+local path and built before yours.</p>
+
+<h2>Declaring one</h2>
+
+<p>One <code>[dependencies.&lt;name&gt;]</code> table per dependency. The name is yours to choose —
+it is the directory the dependency is resolved into, and the name targets use to select it.</p>
+
+<pre><code>[dependencies.somelib]
+version = "&gt;=1.2.0"
+url = "git:https://github.com/example/somelib"
+
+[dependencies.midgard]
+version = "*"
+url = "local:/home/jane/ymir/midgard"</code></pre>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Key</th><th>Type</th><th>Required</th><th>Description</th></tr>
+    <tr><td><code>version</code></td><td>string or array</td><td>yes</td><td>The <a href="#filters">version filter</a> deciding which version is checked out.</td></tr>
+    <tr><td><code>url</code></td><td>string or table</td><td>yes</td><td>Where to get it: <code>git:&lt;remote&gt;</code> or <code>local:&lt;path&gt;</code>, see <a href="manifest.html#urls">URLs</a>.</td></tr>
+    <tr><td><code>link-targets</code></td><td>array of strings</td><td>no</td><td>Which of the dependency's library targets to link. Omit to link all of them; it cannot be empty.</td></tr>
+</table>
+</div>
+
+<h2 id="filters">Version filters</h2>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Filter</th><th>Selects</th></tr>
+    <tr><td><code>"*"</code></td><td>Any version — the highest one available.</td></tr>
+    <tr><td><code>"1.2.0"</code></td><td>Exactly that version.</td></tr>
+    <tr><td><code>"&gt;=1.2.0"</code></td><td>The highest version at least <code>1.2.0</code>. <code>&gt;</code>, <code>&lt;</code> and <code>&lt;=</code> work the same way.</td></tr>
+    <tr><td><code>["&gt;=1.2.0", "&lt;2.0.0"]</code></td><td>An array is a conjunction: every filter must pass.</td></tr>
+    <tr><td><code>"master"</code></td><td>A name — a branch or a non-numbered tag — matched literally.</td></tr>
+</table>
+</div>
+
+<p>Versions come from the git tags of the dependency, and a tag may be written either
+<code>1.2.0</code> or <code>v1.2.0</code>. Among the tags that pass the filter, the highest one
+wins. Comparators only make sense against a numbered version: <code>"&gt;=master"</code> is
+rejected when the manifest is read.</p>
+
+<p>When no version matches, the error lists the versions the dependency actually offers, so you can
+see whether the filter or the remote is at fault.</p>
+
+<h2>How resolution works</h2>
+
+<p>On every build, for each dependency, Gyllir:</p>
+
+<ol>
+    <li>Places it under <code>.deps/&lt;name&gt;</code> — a <code>local:</code> dependency becomes a
+        symlink to the given path (recreated each time), a <code>git:</code> one is cloned there the
+        first time and reused afterwards.</li>
+    <li>Picks a version: if the branch currently checked out already passes the filter, it is kept
+        as is — that is what makes local, in-progress dependencies usable. Otherwise the tags are
+        fetched and the matching version is checked out.</li>
+    <li>Reads the dependency's own <code>gyllir.toml</code> and resolves <em>its</em> dependencies,
+        recursively.</li>
+    <li>Builds its library targets, and puts their root modules on your include path and their
+        archives on your link line.</li>
+</ol>
+
+<div class="note">
+<p>A dependency is checked out by version, so even a <code>local:</code> one has to be a git
+repository. If it is not, the error says so explicitly.</p>
+</div>
+
+<h2>What gets linked</h2>
+
+<p>Only the <strong>library</strong> targets of a dependency are of any use to you: an executable it
+also declares is never linked into your package. A dependency that declares no library target at
+all is an error.</p>
+
+<p>By default every library target of the dependency is linked. <code>link-targets</code> narrows
+that down:</p>
+
+<pre><code>[dependencies.toolkit]
+version = "&gt;=2.0.0"
+url = "git:git@github.com:example/toolkit.git"
+link-targets = ["core"]        # ignore the other libraries it ships</code></pre>
+
+<p>Naming a target the dependency does not declare, or one that is an executable, is an error that
+lists what it does declare.</p>
+
+<p>On your side, each <a href="targets.html#selecting">target selects which dependencies it
+links</a> — and remember that a declared target links exactly the ones it lists.</p>
+
+<h2>Cycles</h2>
+
+<p>A dependency graph that comes back to a package already being resolved is rejected with a
+<code>RecursiveDependency</code> error naming the chain. The same applies to
+<a href="targets.html#linking">targets linking each other</a> inside one package.</p>
+
+<h2>Keeping the tree clean</h2>
+
+<pre><code>gyllir clean --all        # removes .deps/ as well as the build outputs</code></pre>
+
+<p><code>.deps/</code> is in the <code>.gitignore</code> that <code>gyllir init</code> writes, and
+should stay untracked: it is entirely reconstructible from the manifest.</p>
+
+<h2>Example: a library and its user</h2>
+
+<p>In <code>~/ymir/mylib/gyllir.toml</code>:</p>
+
+<pre><code>name = "mylib"
+license = "MIT"
+description = "A small library"
+version = "1.0.0"
+type = "library"
+
+[registry]
+local = "/home/jane/.local/gyllir/mylib"</code></pre>
+
+<pre><code>cd ~/ymir/mylib
+gyllir build              # produces libmylib.a
+git tag v1.0.0            # versions come from tags</code></pre>
+
+<p>In the package that uses it:</p>
+
+<pre><code>[dependencies.mylib]
+version = "&gt;=1.0.0"
+url = "local:/home/jane/ymir/mylib"</code></pre>
+
+<pre><code>gyllir build              # resolves .deps/mylib, builds it, then builds this package</code></pre>
+
+<p>Your sources then <code>use</code> the modules of <code>mylib</code> as if they were part of the
+project.</p>
+
+<div class="next">
+    <span>Next:</span> <a href="build-model.html">How a build works →</a>
+</div>
+
+</main>
+</div>
+</body>
+</html>

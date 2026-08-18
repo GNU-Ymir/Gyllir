@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Command reference — Gyllir handbook</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="favicon-32.png" sizes="32x32">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+    <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="26" height="26">Gyllir</a>
+    <div class="tagline">Build system &amp; package manager for GNU-Ymir</div>
+    <h2>Getting started</h2>
+    <ul>
+        <li><a href="index.html">Overview</a></li>
+        <li><a href="getting-started.html">Your first project</a></li>
+        <li><a class="current" href="cli.html">Command reference</a></li>
+    </ul>
+    <h2>Configuration</h2>
+    <ul>
+        <li><a href="manifest.html">gyllir.toml</a></li>
+        <li><a href="targets.html">Targets</a></li>
+        <li><a href="dependencies.html">Dependencies</a></li>
+    </ul>
+    <h2>Going further</h2>
+    <ul>
+        <li><a href="build-model.html">How a build works</a></li>
+        <li><a href="publishing.html">Publishing</a></li>
+    </ul>
+</nav>
+<main>
+
+<h1>Command reference</h1>
+<p class="lead">Every sub-command, its flags, and what it produces. All commands run in the package
+directory — the one holding <code>gyllir.toml</code>.</p>
+
+<h2>Global options</h2>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Option</th><th>Effect</th></tr>
+    <tr><td><code>-h</code>, <code>--help</code></td><td>Print the usage of Gyllir, or of a sub-command when given after its name.</td></tr>
+    <tr><td><code>-V</code>, <code>--version</code></td><td>Print the version of Gyllir, followed by the version of the compiler it drives.</td></tr>
+</table>
+</div>
+
+<p>Running <code>gyllir</code> with no sub-command prints the usage and exits with a failure.</p>
+
+<h2 id="target-argument">The <code>[target]</code> argument</h2>
+
+<p><code>build</code>, <code>test</code>, <code>doc</code> and <code>run</code> accept the name of a
+<a href="targets.html">target</a> as an optional first argument. A package that declares no
+<code>[targets.*]</code> table has exactly one target, named after the package itself, so you can
+ignore this until you need several artifacts.</p>
+
+<pre><code>gyllir build              # every target of the package
+gyllir build mylib        # only the target named "mylib"</code></pre>
+
+<p>Naming a target the package does not declare is an error, and the message lists the ones it
+does.</p>
+
+<h2 id="init">gyllir init</h2>
+
+<pre><code>gyllir init</code></pre>
+
+<p>Interactively creates a package in the current directory: writes <code>gyllir.toml</code>,
+<code>src/</code> with a root module, <code>test/__test__.yr</code>, a <code>.gitignore</code>,
+then runs <code>git init</code> and commits. It refuses to run if a <code>gyllir.toml</code>
+already exists. See <a href="getting-started.html">Your first project</a> for the questions it
+asks.</p>
+
+<h2 id="build">gyllir build</h2>
+
+<pre><code>gyllir build [target] [--release] [-j N] [-v]</code></pre>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Flag</th><th>Effect</th></tr>
+    <tr><td><code>--release</code></td><td>Compile with <code>-O3</code> instead of <code>-g</code>, into the <code>release</code> cache.</td></tr>
+    <tr><td><code>-j N</code></td><td>Number of compilation threads. Defaults to the number of processors.</td></tr>
+    <tr><td><code>-v</code>, <code>--verbose</code></td><td>Print every command line Gyllir runs, and pass <code>-fv</code> to the compiler.</td></tr>
+</table>
+</div>
+
+<p>Resolves and builds dependencies first, then the targets, in an order where a target is always
+built after the targets it links. Produces <code>./&lt;output&gt;</code> for an executable target
+and <code>./lib&lt;output&gt;.a</code> for a library target.</p>
+
+<h2 id="run">gyllir run</h2>
+
+<pre><code>gyllir run [target] [-- args...]
+gyllir run [target] [args...]</code></pre>
+
+<p>Builds the target (always in debug mode) and executes its binary from the package directory.
+Everything after the target name is forwarded to your program untouched; use <code>--</code> when
+the first argument might otherwise be read as a target name, or starts with a dash.</p>
+
+<p>The exit code of Gyllir is the exit code of your program, or <code>128 + signal</code> if a
+signal killed it.</p>
+
+<div class="note">
+<p>With several targets declared, <code>gyllir run</code> needs a target name — it will not guess.
+Running a library target is an error.</p>
+</div>
+
+<h2 id="test">gyllir test</h2>
+
+<pre><code>gyllir test [target] [--release] [--dry] [-j N] [-v]</code></pre>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Flag</th><th>Effect</th></tr>
+    <tr><td><code>--dry</code></td><td>Compile the test binary but do not run it.</td></tr>
+    <tr><td><code>--release</code></td><td>Compile the tests with <code>-O3</code>.</td></tr>
+    <tr><td><code>-j N</code></td><td>Number of compilation threads.</td></tr>
+    <tr><td><code>-v</code>, <code>--verbose</code></td><td>Verbose mode.</td></tr>
+</table>
+</div>
+
+<p>Compiles the target together with its <code>test/</code> tree and links
+<code>./&lt;output&gt;.test</code>. Without a target name it tests every target that has not opted
+out with <a href="targets.html#tests"><code>tests = false</code></a>, running the binaries one
+after the other; the exit code is that of the first one that failed. Naming a target that opted out
+is an error, and so is running <code>gyllir test</code> on a package where no target is
+testable.</p>
+
+<h2 id="clean">gyllir clean</h2>
+
+<pre><code>gyllir clean [--doc] [-a|--all]</code></pre>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Form</th><th>Removes</th></tr>
+    <tr><td><code>gyllir clean</code></td><td><code>.target/</code>, and the artifacts of every target (<code>./&lt;output&gt;</code> or <code>./lib&lt;output&gt;.a</code>, and <code>./&lt;output&gt;.test</code>).</td></tr>
+    <tr><td><code>gyllir clean --doc</code></td><td>Only the <code>__doc/</code> directory.</td></tr>
+    <tr><td><code>gyllir clean --all</code></td><td>All of the above, plus <code>.deps/</code> — cleaning local dependencies recursively before removing the directory.</td></tr>
+</table>
+</div>
+
+<h2 id="doc">gyllir doc</h2>
+
+<pre><code>gyllir doc [target] [-o outputDir] [-i input.doc.json] [-v]</code></pre>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Flag</th><th>Effect</th></tr>
+    <tr><td><code>-o</code>, <code>--output</code></td><td>Directory to write the site into. Defaults to <code>__doc/</code>.</td></tr>
+    <tr><td><code>-i</code>, <code>--input</code></td><td>Render a <code>.doc.json</code> file produced by an earlier run instead of recompiling the sources.</td></tr>
+    <tr><td><code>-v</code>, <code>--verbose</code></td><td>Verbose mode.</td></tr>
+</table>
+</div>
+
+<p>Compiles the sources for documentation only (no linking), then renders a static HTML site. For a
+package with several targets, each target gets its own sub-directory:
+<code>__doc/&lt;target&gt;/</code>. The intermediate <code>.doc.json</code> is kept in the build
+cache at <code>.target/&lt;target&gt;/doc/&lt;output&gt;.doc.json</code>, which is what
+<code>-i</code> expects.</p>
+
+<h2 id="publish">gyllir publish</h2>
+
+<pre><code>gyllir publish &lt;message&gt; [--major|--minor|--patch] [--dry] [-y]</code></pre>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Flag</th><th>Effect</th></tr>
+    <tr><td><code>&lt;message&gt;</code></td><td>Required. The commit message of the published version.</td></tr>
+    <tr><td><code>--major</code> / <code>--minor</code> / <code>--patch</code></td><td>Which component to bump. Mutually exclusive; a patch bump is the default.</td></tr>
+    <tr><td><code>--dry</code></td><td>Skip the verification build and test run before publishing.</td></tr>
+    <tr><td><code>-y</code>, <code>--yes</code></td><td>Do not ask for confirmation.</td></tr>
+</table>
+</div>
+
+<p>Builds and tests the package, bumps <code>version</code> in <code>gyllir.toml</code>, commits,
+tags the commit <code>v&lt;version&gt;</code>, and pushes to the configured
+<a href="publishing.html">registry</a>.</p>
+
+<div class="next">
+    <span>Next:</span> <a href="manifest.html">The manifest →</a>
+</div>
+
+</main>
+</div>
+</body>
+</html>

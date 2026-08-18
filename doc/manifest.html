@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>gyllir.toml — Gyllir handbook</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="favicon-32.png" sizes="32x32">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+    <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="26" height="26">Gyllir</a>
+    <div class="tagline">Build system &amp; package manager for GNU-Ymir</div>
+    <h2>Getting started</h2>
+    <ul>
+        <li><a href="index.html">Overview</a></li>
+        <li><a href="getting-started.html">Your first project</a></li>
+        <li><a href="cli.html">Command reference</a></li>
+    </ul>
+    <h2>Configuration</h2>
+    <ul>
+        <li><a class="current" href="manifest.html">gyllir.toml</a></li>
+        <li><a href="targets.html">Targets</a></li>
+        <li><a href="dependencies.html">Dependencies</a></li>
+    </ul>
+    <h2>Going further</h2>
+    <ul>
+        <li><a href="build-model.html">How a build works</a></li>
+        <li><a href="publishing.html">Publishing</a></li>
+    </ul>
+</nav>
+<main>
+
+<h1>The manifest: <code>gyllir.toml</code></h1>
+<p class="lead">One TOML file describes the package: who it is, what it produces, what it needs, and
+where it is published.</p>
+
+<pre><code>name = "myapp"
+license = "GPL-v3"
+description = "An example package"
+version = "0.1.0"
+authors = ["Jane Doe &lt;jane@example.com&gt;"]
+compiler = "gyc"
+type = "executable"
+libraries = ["m"]
+flags = ["-Wall"]
+
+[registry]
+git = "git@github.com:jane/myapp.git"
+
+[dependencies.somelib]
+version = "&gt;=1.2.0"
+url = "git:https://github.com/example/somelib"
+
+[commands]
+set-version = { cmd = "./tools/set-version.sh", post = false }</code></pre>
+
+<h2>Package identity</h2>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Key</th><th>Type</th><th>Required</th><th>Description</th></tr>
+    <tr id="name"><td><code>name</code></td><td>string</td><td>yes</td><td>Name of the package. Also the name of its single target, and therefore of the artifact it produces, when it declares no <a href="targets.html"><code>[targets.*]</code></a> table.</td></tr>
+    <tr id="license"><td><code>license</code></td><td>string</td><td>yes</td><td>Free-form license string, e.g. <code>"GPL-v3"</code>.</td></tr>
+    <tr id="description"><td><code>description</code></td><td>string</td><td>yes</td><td>One line describing the package.</td></tr>
+    <tr id="version"><td><code>version</code></td><td>string</td><td>yes</td><td>Version of the package, <code>"major.minor.patch"</code>. Rewritten by <a href="publishing.html"><code>gyllir publish</code></a>.</td></tr>
+    <tr id="registry"><td><code>registry</code></td><td>string or table</td><td>yes</td><td>Where <code>gyllir publish</code> pushes versions. See <a href="#urls">URLs</a>.</td></tr>
+    <tr id="authors"><td><code>authors</code></td><td>array of strings</td><td>no</td><td>The authors of the package.</td></tr>
+    <tr id="compiler"><td><code>compiler</code></td><td>string</td><td>no</td><td>The compiler binary Gyllir drives, looked up on <code>PATH</code>. Defaults to <code>"gyc"</code>.</td></tr>
+</table>
+</div>
+
+<h2>What the package produces</h2>
+
+<p>These keys describe a single artifact. A package that declares
+<a href="targets.html"><code>[targets.*]</code></a> tables must not use them at the top level — see
+<a href="#exclusivity">the exclusivity rule</a> below.</p>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr id="type"><td><code>type</code></td><td><code>"executable"</code> or <code>"library"</code></td><td><code>"executable"</code></td><td>An executable is linked into <code>./&lt;name&gt;</code>; a library is archived into <code>./lib&lt;name&gt;.a</code>.</td></tr>
+    <tr id="package-root"><td><code>package-root</code></td><td>string</td><td>—</td><td>Root module of the sources, relative to <code>src/</code> and without the <code>.yr</code> extension. Without it, an executable roots at <code>src/main.yr</code> and a library at <code>src/__lib__.yr</code>. A declared root that does not exist is an error, never a fallback.</td></tr>
+    <tr id="test-root"><td><code>test-root</code></td><td>string</td><td>—</td><td>Root module of the unit tests, relative to <code>test/</code>. Defaults to <code>test/__test__.yr</code>.</td></tr>
+    <tr id="tests"><td><code>tests</code></td><td>boolean</td><td><code>true</code></td><td>Set to <code>false</code> to opt the package out of unit testing. It then cannot declare <code>test-root</code>.</td></tr>
+    <tr id="libraries"><td><code>libraries</code></td><td>array of strings</td><td><code>[]</code></td><td>C libraries to link, each passed as <code>-l&lt;name&gt;</code>.</td></tr>
+    <tr id="flags"><td><code>flags</code></td><td>array of strings</td><td><code>[]</code></td><td>Raw options appended to every compiler invocation, last — so they override the ones Gyllir picked (<code>-g</code>, <code>-O3</code>, …).</td></tr>
+</table>
+</div>
+
+<h2 id="exclusivity">Single artifact, or targets — never both</h2>
+
+<p>A package produces one artifact described by the keys above, <em>or</em> several described by
+<a href="targets.html"><code>[targets.&lt;name&gt;]</code></a> tables. Writing
+<code>type</code>, <code>package-root</code>, <code>test-root</code>, <code>tests</code>,
+<code>flags</code> or <code>libraries</code> at the top level of a package that also declares a
+target table is rejected with an explicit error rather than silently ignored — a target inherits
+nothing, so those keys would simply go unread.</p>
+
+<p>The keys that stay at the top level in a multi-target package are the ones that say nothing
+about what is produced: the identity of the package (<code>name</code>, <code>version</code>,
+<code>license</code>, <code>description</code>, <code>registry</code>, <code>authors</code>,
+<code>compiler</code>) and what it needs to be built (<code>[dependencies]</code>,
+<code>[commands]</code>).</p>
+
+<h2 id="urls">URLs</h2>
+
+<p>Both <code>registry</code> and a dependency's <code>url</code> take the same form. Either a
+prefixed string:</p>
+
+<pre><code>registry = "local:/home/jane/.local/gyllir/myapp"
+registry = "git:git@github.com:jane/myapp.git"</code></pre>
+
+<p>or a table with a single <code>local</code> or <code>git</code> key, which is what Gyllir writes
+when it rewrites the file itself:</p>
+
+<pre><code>[registry]
+git = "git@github.com:jane/myapp.git"</code></pre>
+
+<p>A bare string with neither prefix is read as a git remote.</p>
+
+<h2 id="dependencies">[dependencies]</h2>
+
+<p>One <code>[dependencies.&lt;name&gt;]</code> table per dependency, each declaring a
+<code>version</code> filter and a <code>url</code>. The <a href="dependencies.html">Dependencies</a>
+page covers them in full.</p>
+
+<pre><code>[dependencies.midgard]
+version = "&gt;=1.0.0"
+url = "git:git@github.com:GNU-Ymir/midgard.git"</code></pre>
+
+<h2 id="targets">[targets]</h2>
+
+<p>One <code>[targets.&lt;name&gt;]</code> table per artifact, for packages that build more than
+one. See <a href="targets.html">Targets</a>.</p>
+
+<h2 id="commands">[commands]</h2>
+
+<p>Custom command lines run around each target build. One
+<code>[commands.&lt;name&gt;]</code> table per command:</p>
+
+<pre><code>[commands]
+set-version = { cmd = "./tools/set-version.sh", post = false }
+strip       = { cmd = "strip myapp", post = true, cwd = "." }</code></pre>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr>
+    <tr><td><code>cmd</code></td><td>string</td><td>required</td><td>The command line to run. It is split on spaces and executed directly — this is not a shell, so pipes, globs and quoting do not apply. Put anything more involved in a script.</td></tr>
+    <tr><td><code>post</code></td><td>boolean</td><td><code>false</code></td><td><code>false</code> runs the command before the build, <code>true</code> after it.</td></tr>
+    <tr><td><code>cwd</code></td><td>string</td><td><code>"."</code></td><td>Directory the command runs from. A relative path is resolved against the package directory.</td></tr>
+</table>
+</div>
+
+<p>Commands belong to the package, not to a target: in a multi-target package each command runs
+once per target being built. A command that exits non-zero aborts the build, and the error names
+the <code>[commands.&lt;name&gt;]</code> table it came from.</p>
+
+<div class="warn">
+<p><strong>Watch the <code>post</code> value.</strong> It must be a real boolean (or the strings
+<code>"true"</code> / <code>"false"</code>). Anything else is refused rather than being read as a
+pre-build command, which would run it at the wrong moment.</p>
+</div>
+
+<h2>Error messages</h2>
+
+<p>Gyllir validates the whole manifest before doing any work, and every message names the entry to
+fix — for example <code>'[targets.cli]', 'type' is invalid: "app" is not a build type, expecting
+one of "executable", "library"</code>. A file that is not even valid TOML is reported with the line
+and column the parser choked on.</p>
+
+<div class="next">
+    <span>Next:</span> <a href="targets.html">Targets →</a>
+</div>
+
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>How a build works — Gyllir handbook</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="favicon-32.png" sizes="32x32">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+    <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="26" height="26">Gyllir</a>
+    <div class="tagline">Build system &amp; package manager for GNU-Ymir</div>
+    <h2>Getting started</h2>
+    <ul>
+        <li><a href="index.html">Overview</a></li>
+        <li><a href="getting-started.html">Your first project</a></li>
+        <li><a href="cli.html">Command reference</a></li>
+    </ul>
+    <h2>Configuration</h2>
+    <ul>
+        <li><a href="manifest.html">gyllir.toml</a></li>
+        <li><a href="targets.html">Targets</a></li>
+        <li><a href="dependencies.html">Dependencies</a></li>
+    </ul>
+    <h2>Going further</h2>
+    <ul>
+        <li><a class="current" href="build-model.html">How a build works</a></li>
+        <li><a href="publishing.html">Publishing</a></li>
+    </ul>
+</nav>
+<main>
+
+<h1>How a build works</h1>
+<p class="lead">What Gyllir does between <code>gyllir build</code> and the artifact appearing —
+useful when a rebuild does too much, too little, or fails in a way the compiler message alone does
+not explain.</p>
+
+<h2>The pipeline</h2>
+
+<ol>
+    <li><strong>Read the manifest.</strong> The whole <code>gyllir.toml</code> is validated first;
+        a bad entry stops the build before anything is compiled.</li>
+    <li><strong>Order the targets.</strong> Selected targets, plus every target they link,
+        transitively, sorted so a target is always built after the ones it links.</li>
+    <li>For each target: <strong>resolve its dependencies</strong>
+        (<a href="dependencies.html">clone/symlink, check out, build recursively</a>), which yields
+        the include paths and archives it builds against.</li>
+    <li><strong>Run the pre-build <a href="manifest.html#commands">commands</a></strong>
+        (<code>post = false</code>).</li>
+    <li><strong>Compile the changed modules</strong> to YIL bytecode, in parallel, then assemble
+        every YIL file of the target into one object.</li>
+    <li><strong>Compile the <a href="targets.html#c-sources-section">C sources</a></strong>, if the
+        target declares any.</li>
+    <li><strong>Finalize</strong>: link the executable, or write the library archive.</li>
+    <li><strong>Run the post-build commands</strong> (<code>post = true</code>).</li>
+</ol>
+
+<h2 id="root-modules">Where the sources come from</h2>
+
+<p>Everything under a target's <code>source-dir</code> with a <code>.yr</code> extension is
+compiled, recursively. One of those files is the <em>root module</em>, the entry point of the
+package tree:</p>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Case</th><th>Root module</th></tr>
+    <tr><td><code>package-root</code> declared</td><td><code>&lt;source-dir&gt;/&lt;package-root&gt;.yr</code>. It must exist — no fallback.</td></tr>
+    <tr><td>Package with no <code>[targets.*]</code>, executable</td><td><code>src/main.yr</code></td></tr>
+    <tr><td>Package with no <code>[targets.*]</code>, library</td><td><code>src/__lib__.yr</code></td></tr>
+    <tr><td>Declared target</td><td><code>&lt;source-dir&gt;/&lt;target name&gt;.yr</code></td></tr>
+</table>
+</div>
+
+<p>A module that is compiled but not reachable from the root module produces
+<code>warning: source module &lt;file&gt; not attached to package</code>. It contributes nothing to
+the artifact — usually it means a <code>mod</code> declaration is missing somewhere up the tree.</p>
+
+<h2>The build cache</h2>
+
+<p>Every intermediate file lives under <code>.target/</code>, one directory per target, one
+sub-directory per kind of build:</p>
+
+<pre><code>.target/
+├── tmp/                       shared scratch space, emptied as it is used
+└── &lt;target&gt;/
+    ├── debug/                 gyllir build
+    │   ├── yils/              one .yil bytecode file per module
+    │   ├── *.deps             which modules each module depends on
+    │   ├── c-objs/            objects compiled from c-sources
+    │   └── &lt;output&gt;.a         every module, assembled into one object
+    ├── release/               gyllir build --release
+    ├── unit_debug/            gyllir test
+    ├── unit_release/          gyllir test --release
+    ├── test/                  the compiled test/ tree
+    └── doc/                   &lt;output&gt;.doc.json, the input of the HTML generator</code></pre>
+
+<p>Debug and release results never overwrite each other, so switching modes does not force a full
+rebuild of the other one.</p>
+
+<h2>Incremental rebuilds</h2>
+
+<p>For each module Gyllir keeps a <code>.deps</code> file listing what that module depends on, and a
+<code>.yil</code> bytecode file. A module is recompiled when its source is newer than its cached
+result, or when something it depends on has been recompiled. The surviving YIL files are then
+assembled into the target's object, and only that step is repeated when nothing else changed.</p>
+
+<p>Deleting a source file is handled too: modules that no longer exist are pruned from the cache
+(<code>Removing obsolete module …</code>) and the target is relinked without them.</p>
+
+<p>If the cache ever gets out of step with reality, <code>gyllir clean</code> is the reset button —
+it only removes generated files.</p>
+
+<h2>Compiler options</h2>
+
+<p>Gyllir builds the compiler command line in this order:</p>
+
+<ol>
+    <li>The root module, and <code>-c -fPIC</code>, plus the internal bookkeeping options
+        (<code>-fdump-deps</code>, <code>-fmodule</code>, <code>-fyil</code>).</li>
+    <li><code>-funittest</code> for a test build.</li>
+    <li><code>-fv</code> when <code>-v</code> was given.</li>
+    <li><code>-I &lt;path&gt;</code> for every dependency and linked target.</li>
+    <li><code>-O3</code> for <code>--release</code>, <code>-g</code> otherwise.</li>
+    <li>Last, the target's <a href="targets.html#flags"><code>flags</code></a> — so they win over
+        everything Gyllir picked.</li>
+</ol>
+
+<p>At link time, the archives of dependencies and linked targets are added, then
+<code>-l&lt;name&gt;</code> for each entry of <a href="targets.html#libraries"><code>libraries</code></a>,
+then the C objects. Duplicate paths are removed, so a diamond in the dependency graph does not put
+the same archive on the line twice.</p>
+
+<p>Compilation is parallel: modules are split across <code>-j N</code> threads, defaulting to the
+number of processors.</p>
+
+<h2>Artifacts</h2>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Target</th><th>Produces</th></tr>
+    <tr><td>executable</td><td><code>./&lt;output&gt;</code></td></tr>
+    <tr><td>library</td><td><code>./lib&lt;output&gt;.a</code></td></tr>
+    <tr><td>either, with <code>gyllir test</code></td><td><code>./&lt;output&gt;.test</code></td></tr>
+    <tr><td>either, with <code>gyllir doc</code></td><td><code>__doc/</code>, or <code>__doc/&lt;target&gt;/</code> when the package has several targets</td></tr>
+</table>
+</div>
+
+<p><code>&lt;output&gt;</code> is the target's <a href="targets.html#output"><code>output</code></a>
+key, defaulting to the target name — which for a single-target package is the package name.</p>
+
+<h2>Troubleshooting</h2>
+
+<h3><code>no root module, create src/main.yr, or name another one with 'package-root'</code></h3>
+<p>The target has no entry point where Gyllir looks. Either create that file, or point
+<code>package-root</code> at the module you meant. See
+<a href="#root-modules">Where the sources come from</a> for the exact rule per case.</p>
+
+<h3><code>undefined reference to 'main'</code> at link time</h3>
+<p>The executable was rooted at a module that does not define <code>main</code> — typically a file
+named after the package was picked up while your entry point sits elsewhere. Set
+<code>package-root</code> to the module that defines <code>main</code>.</p>
+
+<h3><code>compiler 'gyc' could not be run</code></h3>
+<p>The compiler is not installed, or not on <code>PATH</code>. Check <code>gyc --version</code>, or
+fix the <a href="manifest.html#compiler"><code>compiler</code></a> key. Gyllir tells this apart
+from a genuine compilation failure so you are not sent looking for a bug in your code.</p>
+
+<h3><code>warning: source module … not attached to package</code></h3>
+<p>The module is not reachable from the root module. Nothing it contains ends up in the
+artifact.</p>
+
+<h3>A change is not picked up</h3>
+<p>Run with <code>-v</code> to see exactly which command lines are issued, and
+<code>gyllir clean</code> to drop the cache entirely.</p>
+
+<div class="next">
+    <span>Next:</span> <a href="publishing.html">Publishing →</a>
+</div>
+
+</main>
+</div>
+</body>
+</html>
