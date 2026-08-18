@@ -629,7 +629,7 @@ pub record RepoBuilder {
      *    - .1: the list of path to modules files that have to be recompiled
      * */
     prv fn listUnittestChangedFiles(self, changedSources: [Path])-> ([Path], [Path]) {
-        let rootDir = self._cwd.push(defaults::__TEST_DIR__);
+        let rootDir = self._cwd.push(self._target.testDir);
         let cacheDir = self.targetCacheDir(defaults::__CACHE_TEST_DIR__);
         let sources = self.listFilesInDir(rootDir, rootDir, extension-> defaults::__YMIR_EXTENSION__);
         let results = self.lookupDependencies(rootDir, cacheDir, sources, true, changedSources);
@@ -868,7 +868,7 @@ pub record RepoBuilder {
     {
         // Overriden by configuration file
         if let name = self._target.testRoot && name != "" {
-            let mainPath = self._cwd.push(defaults::__TEST_DIR__).push(name).addExtension(defaults::__YMIR_EXTENSION__);
+            let mainPath = self._cwd.push(self._target.testDir).push(name).addExtension(defaults::__YMIR_EXTENSION__);
             if (!fs::sys::isFile(mainPath)) {
                 throw copy AssertError("No unittest root file found at " ~ mainPath.toStr());
             }
@@ -878,7 +878,7 @@ pub record RepoBuilder {
 
 
         // Searching for default root file __test__.yr
-        let libPath = self._cwd.push(defaults::__TEST_DIR__).push(defaults::__FST_TEST_FILE__);
+        let libPath = self._cwd.push(self._target.testDir).push(defaults::__FST_TEST_FILE__);
         if (fs::sys::isFile(libPath)) {
             return libPath;
         }

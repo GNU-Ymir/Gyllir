@@ -36,6 +36,9 @@ pub record GyllirPackageConfiguration {
     // The test root file
     let mut _testRoot: [c8] = "";
 
+    // False iif the package opted out of unittesting, in which case it declares no test root
+    let mut _tests: bool = true;
+
     // The type of the target
     let mut _type: BuildType = BuildType();
 
@@ -149,6 +152,11 @@ pub record GyllirPackageConfiguration {
     }
 
     @field
+    pub fn tests(self)-> bool {
+        self._tests
+    }
+
+    @field
     pub fn registry(self)-> Url {
         self._registry
     }
@@ -204,6 +212,7 @@ pub record GyllirPackageConfiguration {
         res[self._name] = Target(self._name, self._type,
                                  packageRoot-> self._packageRoot,
                                  testRoot-> self._testRoot,
+                                 tests-> self._tests,
                                  flags-> self._flags,
                                  libraries-> self._libraries,
                                  synthesized-> true);
@@ -277,6 +286,10 @@ pub record GyllirPackageConfiguration {
                 if (self._testRoot != "") {
                     d["test-root"] = copy Str(self._testRoot);
                 }
+
+                if (!self._tests) {
+                    d["tests"] = copy Bool(false);
+                }
             }
 
             d
@@ -310,7 +323,7 @@ pub record GyllirPackageConfiguration {
     {
         if (self._targets.len() == 0us) { return; }
 
-        for k in ["type", "package-root", "test-root", "flags", "libraries"] {
+        for k in ["type", "package-root", "test-root", "tests", "flags", "libraries"] {
             if let Ok(_) = d[k]? {
                 throw copy AssertError("'" ~ k ~ "' describes a single artifact, it cannot be declared "
                                        ~ "at the top level of a package that declares '[targets.*]' tables: "
@@ -354,6 +367,16 @@ pub record GyllirPackageConfiguration {
             self._testRoot = v;
         } else if let Ok(_) = d["test-root"]? {
             throw copy AssertError("expecting a string for 'test-root'");
+        }
+
+        if let Ok(Bool(value-> v)) = d["tests"]? {
+            self._tests = v;
+        } else if let Ok(_) = d["tests"]? {
+            throw copy AssertError("expecting a boolean for 'tests'");
+        }
+
+        if (!self._tests && self._testRoot != "") {
+            throw copy AssertError("'tests' is set to false, it cannot declare 'test-root'");
         }
 
         if let Ok(a: &Array) = d["authors"]? {

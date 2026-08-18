@@ -62,7 +62,7 @@ pub class GyllirManager {
         else if let Ok(c) = self._args["test"]? {
             let cwd = env::currentDir();
             let cfg = self.loadToml(cwd);
-            let (built, _, _) = self:.buildTargets(cwd, c, cfg, self.selectTargets(cfg, c), forUnitTest-> true);
+            let (built, _, _) = self:.buildTargets(cwd, c, cfg, self.selectTestTargets(cfg, c), forUnitTest-> true);
             if let Ok(Bool(value-> _ = false)) = c["dry"]? {
                 etc::c::process::_yrt_exit(self.runUnitTests(cwd, cfg, built));
             }
@@ -263,6 +263,46 @@ pub class GyllirManager {
 
         for k, _ in targets {
             res[k] = ();
+        }
+
+        res
+    }
+
+    /**
+     * The targets of a package to test, according to the command line
+     * @params:
+     *    - cfg: the configuration of the package
+     *    - args: the configuration of the sub command
+     * @returns: the target named by the command line, or every testable target when it names none
+     * @throws:
+     *    - AssertError: if the command line names a target the package does not declare, names a
+     *      target that opted out of unittesting, or names none while the package has no testable
+     *      target at all
+     * */
+    pub fn selectTestTargets(self, cfg: GyllirPackageConfiguration, args: &Config)-> [[c8] => ()]
+        throws AssertError
+    {
+        let targets = cfg.targets();
+
+        if let Ok(Str(value-> name)) = args["target"]? {
+            if (name !in targets) {
+                throw copy AssertError("unknown target '" ~ name ~ "', " ~ self.targetNames(targets));
+            }
+
+            if let Ok(t) = targets[name] && !t.tests {
+                throw copy AssertError("target '" ~ name ~ "' has 'tests' set to false, it declares no unittest");
+            }
+
+            return copy [name => ()];
+        }
+
+        let dmut res: [[c8] => ()] = copy [];
+        for k, t in targets if t.tests {
+            res[k] = ();
+        }
+
+        if (res.len == 0us) {
+            throw copy AssertError("no testable target, " ~ self.targetNames(targets));
         }
 
         res

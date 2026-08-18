@@ -345,6 +345,21 @@ __test {
 }
 
 __test {
+    // "test-dir" moves the unittest tree of a target somewhere else than "test", independently of
+    // the sources: a multi target package can give each target its own unittest directory
+    let dir = mkExecutableProject("myapp");
+    writeSource(dir.push("second_test").push(defaults::__FST_TEST_FILE__),
+                "use std::env;\n\n__test {\n    assert(currentDir().toStr().len > 0us, \"the fixture unittest should pass\");\n}\n");
+
+    let cfg = mkTargetsConfig("myapp", json#{"second" : {"package-root" : "main", "test-dir" : "second_test"}});
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "test"]);
+
+    RepoBuilder(dir, mkBuildArgs(), cfg, namedTarget(cfg, "second"), forUnitTest-> true).run(alias mgr);
+
+    assert(hasFile(dir, "second.test"), "the unittest executable should be built out of the declared test directory");
+}
+
+__test {
     // The "flags" of a target are appended last on the compiler command line, so that a target can
     // override the options gyllir picked for it
     let cfg = mkTargetsConfig("myapp", json#{"app" : {"flags" : ["-fno-inline", "-O0"]}});
