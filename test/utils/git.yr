@@ -63,13 +63,13 @@ fn commitFile(dir: Path, name: [c8], content: [c8], msg: [c8])
     mgr.commit(msg);
 }
 
-__test {
+__test init_creates_git_directory {
     // init() creates a ".git" directory
     let dir = mkScratchRepo();
     assert(sys::isDir(dir.push(".git")), "init() should create a .git directory");
 }
 
-__test {
+__test add_commit_succeed_and_branch_visible {
     // add()+commit() succeed, and the resulting branch is visible via getCurrentBranchName()
     let dir = mkScratchRepo();
     commitFile(dir, "a.txt", "hello", "first commit");
@@ -80,7 +80,7 @@ __test {
     assert(branch == "master", "unexpected default branch name");
 }
 
-__test {
+__test commit_with_nothing_staged_fails {
     // commit() with nothing staged fails
     let dir = mkScratchRepo();
     let mgr = GitManager(cwd-> dir);
@@ -96,7 +96,7 @@ __test {
     assert(threw, "committing with nothing staged should throw a GitError");
 }
 
-__test {
+__test add_missing_file_fails {
     // add() on a file that doesn't exist fails
     let dir = mkScratchRepo();
     let mgr = GitManager(cwd-> dir);
@@ -112,7 +112,7 @@ __test {
     assert(threw, "adding a non-existent file should throw a GitError");
 }
 
-__test {
+__test checkout_missing_branch_fails {
     // checkout() to a branch that doesn't exist fails
     let dir = mkScratchRepo();
     commitFile(dir, "a.txt", "hello", "first commit");
@@ -129,7 +129,7 @@ __test {
     assert(threw, "checking out a non-existent branch should throw a GitError");
 }
 
-__test {
+__test branch_create_checkout_delete_round_trip {
     // createBranch()/checkout()/deleteBranch() round trip; getTagList() surfaces branch names too
     let dir = mkScratchRepo();
     commitFile(dir, "a.txt", "hello", "first commit");
@@ -148,7 +148,7 @@ __test {
     assert(!containsSub(mgr.getTagList(), "feature"), "the deleted branch should no longer be listed");
 }
 
-__test {
+__test tag_create_delete_round_trip {
     // createTag()/deleteTag() round trip, surfaced through getTagList()
     let dir = mkScratchRepo();
     commitFile(dir, "a.txt", "hello", "first commit");
@@ -161,7 +161,7 @@ __test {
     assert(!containsSub(mgr.getTagList(), "v1.0.0"), "the deleted tag should no longer be listed");
 }
 
-__test {
+__test clone_copies_local_repository {
     // clone() copies the full history/content of a local repository
     let src = mkScratchRepo();
     commitFile(src, "a.txt", "hello from source", "first commit");
@@ -173,7 +173,7 @@ __test {
     assert(sys::isFile(dst.push("a.txt")), "clone() should bring the source's committed files along");
 }
 
-__test {
+__test pushed_tag_visible_after_fetch {
     // setRemote()+push()+fetchTags(): a tag pushed to a bare "remote" is visible after fetching it into a fresh clone
     let src = mkScratchRepo();
     commitFile(src, "a.txt", "hello", "first commit");
@@ -191,7 +191,7 @@ __test {
     assert(containsSub(dstMgr.getTagList(), "v2.0.0"), "a tag pushed to the remote should be present right after cloning it");
 }
 
-__test {
+__test pull_brings_in_pushed_commits {
     // pull() brings in commits pushed to the shared remote by another clone
     let src = mkScratchRepo();
     commitFile(src, "a.txt", "v1", "first commit");

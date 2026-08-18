@@ -2,12 +2,12 @@ use gyllir::utils::errors;
 
 use std::stream;
 
-__test {
+__test git_error_code_to_string {
     assert(errors::to![c8] (GitErrorCode::ALREADY_INIT) == "ALREADY_INIT", "unexpected string for ALREADY_INIT");
     assert(errors::to![c8] (GitErrorCode::UNKNOWN) == "UNKNOWN", "unexpected string for UNKNOWN");
 }
 
-__test {
+__test git_error_already_init_fields {
     let e = copy GitError(GitErrorCode::ALREADY_INIT, "already initialized");
 
     assert(e.code == GitErrorCode::ALREADY_INIT, "unexpected code");
@@ -24,7 +24,7 @@ __test {
            "unexpected rendering prefix for a GitError");
 }
 
-__test {
+__test git_error_unknown_rendering {
     let e = copy GitError(GitErrorCode::UNKNOWN, "boom");
 
     let dmut stream = copy StringStream();
@@ -35,7 +35,7 @@ __test {
            "unexpected rendering prefix for an UNKNOWN GitError");
 }
 
-__test {
+__test single_line_collapses_git_output {
     // git writes several lines, gyllir reports them as the tail of one of its own error lines
     assert(errors::singleLine("fatal: not a git repository\n") == "fatal: not a git repository",
            "a trailing newline should be dropped");
