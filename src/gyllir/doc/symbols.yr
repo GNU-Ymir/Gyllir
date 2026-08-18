@@ -13,7 +13,7 @@ pub mod ::template_;
 pub mod ::trait_;
 pub mod ::enum_;
 pub mod ::global;
-pub mod ::aka;
+pub mod ::def_;
 pub mod ::macro_;
 pub mod ::assertion;
 

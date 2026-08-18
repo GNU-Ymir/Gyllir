@@ -28,7 +28,7 @@ pub record SymbolLoader {
                 Str(value-> "trait") => { return self.loadTrait(d); }
                 Str(value-> "enum") => { return self.loadEnum(d); }
                 Str(value-> "global") => { return self.loadGlobal(d); }
-                Str(value-> "def") => { return self.loadAka(d); }
+                Str(value-> "def") => { return self.loadDef(d); }
                 Str(value-> "macro") => { return self.loadMacro(d); }
                 Str(value-> kind) => {
                     utils::log::warn("Warning", "undefined symbol kind: '", kind, "'");
@@ -451,22 +451,22 @@ pub record SymbolLoader {
     /*!
      * ====================================================================================================
      * ====================================================================================================
-     * ======================================          AKA          =======================================
+     * ======================================          DEF          =======================================
      * ====================================================================================================
      * ====================================================================================================
      */
 
     /**
-     * Load the configuration of the documentation of an aka symbol
+     * Load the configuration of the documentation of a def symbol
      * */
-    fn loadAka(self, aka: &Dict)-> &Aka {
-        let (name, doc, loc, protect) = self.loadStandard(aka);
-        let dmut result = copy Aka(name, doc, loc, protect);
+    fn loadDef(self, def_: &Dict)-> &Def {
+        let (name, doc, loc, protect) = self.loadStandard(def_);
+        let dmut result = copy Def(name, doc, loc, protect);
 
-        if let Ok(Str(value-> value)) = aka["value"]? {
+        if let Ok(Str(value-> value)) = def_["value"]? {
             result.isValue = true;
             result.value = value;
-        } else if let Ok(ty: &Dict) = aka["type"]? {
+        } else if let Ok(ty: &Dict) = def_["type"]? {
             result.isValue = false;
             result.type = self.loadType(ty);
         }

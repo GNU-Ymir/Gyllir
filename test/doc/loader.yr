@@ -233,26 +233,26 @@ __test global_flags_type_value {
     } else assert(false, "expected a Global symbol");
 }
 
-__test aka_with_literal_value {
-    // A "def" (aka) with a literal value
+__test def_with_literal_value {
+    // A "def" with a literal value
     let l = SymbolLoader();
-    let a = l.load(json#{"kind" : "def", "name" : "MAX", "value" : "42"});
-    if let a_: &Aka = a {
-        assert(a_.isValue && a_.value == "42", "unexpected value-form aka");
-    } else assert(false, "expected an Aka symbol");
+    let d = l.load(json#{"kind" : "def", "name" : "MAX", "value" : "42"});
+    if let d_: &Def = d {
+        assert(d_.isValue && d_.value == "42", "unexpected value-form def");
+    } else assert(false, "expected a Def symbol");
 }
 
-__test aka_with_type {
-    // A "def" (aka) with a type
+__test def_with_type {
+    // A "def" with a type
     let l = SymbolLoader();
-    let a = l.load(json#{"kind" : "def", "name" : "MyInt", "type" : {"kind" : "scalar", "name" : "i32"}});
-    if let a_: &Aka = a {
-        assert(!a_.isValue, "unexpected value-form flag on a type aka");
+    let d = l.load(json#{"kind" : "def", "name" : "MyInt", "type" : {"kind" : "scalar", "name" : "i32"}});
+    if let d_: &Def = d {
+        assert(!d_.isValue, "unexpected value-form flag on a type def");
 
         let dmut typeStream = copy StringStream();
-        typeStream:.write(a_.type);
-        assert(typeStream[] == "Scalar (i32)", "unexpected aka type");
-    } else assert(false, "expected an Aka symbol");
+        typeStream:.write(d_.type);
+        assert(typeStream[] == "Scalar (i32)", "unexpected def type");
+    } else assert(false, "expected a Def symbol");
 }
 
 __test macro_ctor_and_normal_rules {

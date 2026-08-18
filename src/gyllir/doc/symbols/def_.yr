@@ -1,4 +1,4 @@
-in aka;
+in def_;
 
 
 use std::stream;
@@ -7,7 +7,7 @@ use gyllir::doc::{symbols::{variable, method, ctor},
                   types::any};
 
 @final
-pub class Aka over Symbol {
+pub class Def over Symbol {
     pub let mut isValue: bool = false;
     pub let mut type: &Type = EMPTY_ANY;
     pub let mut value: [c8] = [];
@@ -18,7 +18,7 @@ pub class Aka over Symbol {
 
     impl Streamable {
         pub over toStream(self, dmut stream: &StringStream) {
-            stream:.write("Aka ", self.name, " => ", self.loc, "\n");
+            stream:.write("Def ", self.name, " => ", self.loc, "\n");
             stream:.entabing();
             if self.isValue {
                 stream:.write(" = ", self.value);

@@ -27,7 +27,7 @@ pub class HtmlBody over HtmlNode {
     // The path of the current module
     let _path: Path;
 
-    let mut _akas: [mut &Symbol] = [];
+    let mut _defs: [mut &Symbol] = [];
     let mut _classes: [mut &Symbol] = [];
     let mut _traits: [mut &Symbol] = [];
     let mut _enums: [mut &Symbol] = [];
@@ -68,7 +68,7 @@ pub class HtmlBody over HtmlNode {
 
         self.dumpSubModuleTable(alias stream);
 
-        for a in self._akas self.dumpContent(alias stream, a);
+        for d in self._defs self.dumpContent(alias stream, d);
         for a in self._enums self.dumpContent(alias stream, a);
         for a in self._globals self.dumpContent(alias stream, a);
         for a in self._macros self.dumpContent(alias stream, a);
@@ -161,7 +161,7 @@ pub class HtmlBody over HtmlNode {
      */
     fn dumpContent(self, dmut stream: &StringStream, sym: &Symbol, templates: [&TemplateParam] = [], templateTest: [c8] = []) {
         match sym {
-            a: &Aka => self.dumpAka(alias stream, a, templates-> templates, templateTest-> templateTest);
+            d: &Def => self.dumpDef(alias stream, d, templates-> templates, templateTest-> templateTest);
             c: &ClassSymbol => self.dumpClass(alias stream, c, templates-> templates, templateTest-> templateTest);
             t: &TraitSymbol => self.dumpTrait(alias stream, t, templates-> templates, templateTest-> templateTest);
             e: &EnumSymbol => self.dumpEnum(alias stream, e, templates-> templates, templateTest-> templateTest);
@@ -177,23 +177,23 @@ pub class HtmlBody over HtmlNode {
     }
 
     /**
-     * Dump an aka to html
+     * Dump a def to html
      * @params:
      *    - stream: the stream to populate
-     *    - a: the aka to dump
+     *    - d: the def to dump
      */
-    fn dumpAka(self, dmut stream: &StringStream, a: &Aka, templateTest: [c8] = "", templates: [&TemplateParam] = []) {
-        let p = Path(a.name, sep-> "::");
+    fn dumpDef(self, dmut stream: &StringStream, d: &Def, templateTest: [c8] = "", templates: [&TemplateParam] = []) {
+        let p = Path(d.name, sep-> "::");
         let dmut innerStream = copy StringStream();
 
-        let (token, end) = if a.isValue { ("=", a.value) } else { (":", self.dumpType(a.type)) };
+        let (token, end) = if d.isValue { ("=", d.value) } else { (":", self.dumpType(d.type)) };
 
 
         let dmut codeStream = copy StringStream();
         let tempFormat = self.dumpTemplates(templates);
         let tempTest = self.dumpTemplateTest(templateTest);
 
-        let pr = self.dumpProtection(a.protect);
+        let pr = self.dumpProtection(d.protect);
         codeStream:.write(pr, " def");
         codeStream:.entabing(txt-> std::format::format("{: <*}", pr.len + 4, " "));
         codeStream:.write(tempTest);
@@ -204,7 +204,7 @@ pub class HtmlBody over HtmlNode {
                                                 token, end));
 
         formatter::format(alias innerStream, ressources::INLINE_CODE, copy ["Code" => codeStream[]]);
-        innerStream:.write(self.dumpCommonSymbol(a));
+        innerStream:.write(self.dumpCommonSymbol(d));
 
         formatter::format(alias stream, ressources::DECLARATION, copy ["Kind" => "def",
                                                                         "Name" => p.file(),
@@ -1148,7 +1148,7 @@ pub class HtmlBody over HtmlNode {
         }
 
         sort(alias self._modules, |x, y| => { x.name < y.name });
-        sort(alias self._akas, |x, y| => { x.name < y.name });
+        sort(alias self._defs, |x, y| => { x.name < y.name });
         sort(alias self._classes, |x, y| => { x.name < y.name });
         sort(alias self._traits, |x, y| => { x.name < y.name });
         sort(alias self._enums, |x, y| => { x.name < y.name });
@@ -1163,7 +1163,7 @@ pub class HtmlBody over HtmlNode {
     fn loadElement(mut self, root: &Symbol, element: &Symbol) {
         match element {
             Module() => { self._modules ~= [root]; }
-            Aka() => { self._akas ~= [root]; }
+            Def() => { self._defs ~= [root]; }
             ClassSymbol() => { self._classes ~= [root]; }
             TraitSymbol() => { self._traits ~= [root]; }
             EnumSymbol() => { self._enums ~= [root]; }
