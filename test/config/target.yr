@@ -4,7 +4,7 @@ use std::config::_;
 use std::config::{conv, json};
 use std::conv::errors;
 
-__test {
+__test target_defaults_fall_back_to_name {
     // A target only given a name and a type falls back on the name for everything it does not declare
     let t = Target("cli", BuildType("executable"));
 
@@ -21,7 +21,7 @@ __test {
     assert(!t.synthesized, "a target built by hand is not a synthesized one");
 }
 
-__test {
+__test package_root_and_output_override_fallbacks {
     // "package-root" and "output" override the two fallbacks, independently of each other
     let t = Target("cli", BuildType("executable"), packageRoot-> "main", output-> "gyllir-cli");
 
@@ -30,7 +30,7 @@ __test {
     assert(t.name == "cli", "the name of the target is neither of them");
 }
 
-__test {
+__test declared_target_links_listed_dependencies {
     // A declared target links exactly the dependencies it lists
     let t = Target("cli", BuildType("executable"), dependencies-> copy ["midgard"]);
 
@@ -38,14 +38,14 @@ __test {
     assert(!t.selects("balder"), "a dependency that is not listed should not be selected");
 }
 
-__test {
+__test empty_selector_links_no_dependency {
     // A declared target that lists none links none: an empty selector is not a wildcard
     let t = Target("tool", BuildType("executable"));
 
     assert(!t.selects("midgard"), "a declared target with no selector should link no dependency");
 }
 
-__test {
+__test synthesized_target_links_every_dependency {
     // The target synthesized for a package declaring none has no selector to write, so it keeps
     // linking every dependency the package declares
     let t = Target("myapp", BuildType("executable"), synthesized-> true);
@@ -54,7 +54,7 @@ __test {
     assert(t.selects("midgard") && t.selects("balder"), "a synthesized target should link every dependency");
 }
 
-__test {
+__test every_target_table_entry_parsed {
     // Every entry of a "[targets.<name>]" table is parsed
     let lst = copy TargetList(json#{
         "cli" : {
@@ -92,7 +92,7 @@ __test {
     } else assert(false, "expected a \"cli\" target");
 }
 
-__test {
+__test target_declaring_only_type_rooted_at_own_name {
     // A target table declaring only its type is rooted at a module named after it
     let lst = copy TargetList(json#{"tool" : {"type" : "executable"}});
 
@@ -104,7 +104,7 @@ __test {
     } else assert(false, "expected a \"tool\" target");
 }
 
-__test {
+__test several_targets_parsed_under_own_names {
     // Several targets are parsed, each under its own name
     let lst = copy TargetList(json#{
         "mylib" : {"type" : "library"},
@@ -121,7 +121,7 @@ __test {
     } else assert(false, "expected a \"cli\" target");
 }
 
-__test {
+__test non_dict_target_table_rejected_names_target {
     // A target table that is not a dictionary of known entries is rejected, and the error names
     // the target it comes from, there may well be several of them
     let mut msg = "";
@@ -134,7 +134,7 @@ __test {
     assert(msg == "'[targets.cli]', 'package-root' must be a string", "unexpected error: " ~ msg);
 }
 
-__test {
+__test unknown_target_field_rejected {
     // An entry that is not a known field of a target table is rejected rather than ignored
     let mut msg = "";
     {
@@ -146,7 +146,7 @@ __test {
     assert(msg == "'[targets.cli]', 'sources' is not a known entry", "unexpected error: " ~ msg);
 }
 
-__test {
+__test unknown_build_type_rejected_names_target {
     // A target declaring an unknown build type is rejected by the same message as a package
     // declaring one, prefixed by the name of the target
     let mut msg = "";
@@ -160,7 +160,7 @@ __test {
            "unexpected error: " ~ msg);
 }
 
-__test {
+__test tests_false_defaults_others_to_enabled {
     // "tests" set to false is parsed, and defaults every other target to enabled
     let lst = copy TargetList(json#{
         "cli" : {"type" : "executable", "tests" : false},
@@ -176,7 +176,7 @@ __test {
     } else assert(false, "expected a \"tool\" target");
 }
 
-__test {
+__test tests_false_with_test_dir_rejected {
     // "tests" set to false next to a declared "test-dir" is rejected: the two are exclusive
     let mut msg = "";
     {
@@ -189,7 +189,7 @@ __test {
            "unexpected error: " ~ msg);
 }
 
-__test {
+__test tests_false_with_test_root_rejected {
     // "tests" set to false next to a declared "test-root" is rejected the same way
     let mut msg = "";
     {
@@ -202,7 +202,7 @@ __test {
            "unexpected error: " ~ msg);
 }
 
-__test {
+__test non_boolean_tests_rejected {
     // A non boolean "tests" is rejected
     let mut msg = "";
     {
@@ -214,7 +214,7 @@ __test {
     assert(msg == "'[targets.cli]', 'tests' must be a boolean, either true or false", "unexpected error: " ~ msg);
 }
 
-__test {
+__test scalar_instead_of_array_rejected {
     // A list entry given a scalar instead of an array is rejected
     let mut msg = "";
     {
@@ -226,7 +226,7 @@ __test {
     assert(msg == "'[targets.cli]', 'dependencies' must be an array of strings", "unexpected error: " ~ msg);
 }
 
-__test {
+__test array_with_non_string_element_rejected {
     // A list entry holding something else than strings is rejected the same way
     let mut msg = "";
     {
@@ -238,7 +238,7 @@ __test {
     assert(msg == "'[targets.cli]', 'flags' must be an array of strings", "unexpected error: " ~ msg);
 }
 
-__test {
+__test non_dict_target_list_rejected {
     // A target list built from something else than a dictionary is rejected
     let mut msg = "";
     {
@@ -250,7 +250,7 @@ __test {
     assert(msg == "'targets' must be a table, one '[targets.<name>]' entry per target", "unexpected error: " ~ msg);
 }
 
-__test {
+__test serialize_writes_only_declared_entries {
     // Serializing writes back every declared entry, and nothing else: the entries a target left
     // to its default must not appear, so that a "gyllir publish" round trip does not grow the file
     let lst = copy TargetList(json#{
@@ -282,7 +282,7 @@ __test {
     } else assert(false, "expected a serialized \"cli\" target");
 }
 
-__test {
+__test declared_entries_survive_round_trip {
     // The declared entries survive a serialization round trip
     let lst = copy TargetList(json#{
         "cli" : {
@@ -310,7 +310,7 @@ __test {
     } else assert(false, "expected a \"cli\" target after the round trip");
 }
 
-__test {
+__test tests_false_survives_round_trip {
     // "tests" set to false survives a serialization round trip
     let lst = copy TargetList(json#{"cli" : {"type" : "executable", "tests" : false}});
 
@@ -325,7 +325,7 @@ __test {
     } else assert(false, "expected a \"cli\" target after the round trip");
 }
 
-__test {
+__test empty_target_list_serializes_empty {
     // An empty target list serializes to an empty dictionary
     let lst = copy TargetList();
 
