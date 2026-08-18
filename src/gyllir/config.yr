@@ -385,6 +385,10 @@ pub record GyllirPackageConfiguration {
         if let Ok(x) = d["commands"]? {
             self._commands = copy CustomCommandList(x);
         }
+
+        gyllir::config::errors::rejectUnknown(d, "", "name", "license", "description", "compiler",
+            "package-root", "test-root", "tests", "type", "registry", "version", "authors",
+            "libraries", "flags", "dependencies", "targets", "commands");
     }
 
     /**

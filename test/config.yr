@@ -271,6 +271,28 @@ __test {
 }
 
 __test {
+    // An entry that is not a known field of the package is rejected rather than silently ignored
+    let typo = json#{
+        "name" : "my-pkg",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "author" : "alice"
+    };
+
+    let mut msg = "";
+    {
+        GyllirPackageConfiguration(typo);
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'author' is not a known entry", "unexpected error: " ~ msg);
+}
+
+__test {
     // setVersion() mutates the version in place
     let dmut cfg = GyllirPackageConfiguration::empty();
     cfg:.setVersion(Version(2u32, 0u32, 0u32));

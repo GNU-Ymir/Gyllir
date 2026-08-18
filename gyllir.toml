@@ -1,6 +1,6 @@
 compiler = "gyc"
 license = "GPL-v3"
-author = "Emile Cadorel <ecadorel@gmail.com>"
+authors = ["Emile Cadorel <ecadorel@gmail.com>"]
 libraries = []
 type = "executable"
 description = "Ymir package manager, and builder"

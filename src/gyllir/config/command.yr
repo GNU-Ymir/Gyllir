@@ -138,6 +138,10 @@ pub class CustomCommandList {
                 throw copy AssertError(ctx ~ "'cwd' must be a string, the directory the command is run from");
             } else { Path(".") };
 
+            if let vd: &Dict = v {
+                gyllir::config::errors::rejectUnknown(vd, ctx, "cmd", "post", "cwd");
+            }
+
             self._lst[k] = Command(cmd, post, cwd-> cwd);
         }
     }

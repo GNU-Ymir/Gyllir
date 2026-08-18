@@ -106,6 +106,18 @@ __test {
 }
 
 __test {
+    // A "local" or "git" table declaring an extra entry is rejected rather than ignoring it
+    let mut msg = "";
+    {
+        Url(json#{"local" : "some/dir", "branch" : "main"});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'url' 'branch' is not a known entry", "unexpected error: " ~ msg);
+}
+
+__test {
     // Equality only holds when path, type and validity all match
     let a = Url("local:some/dir");
     let b = Url("local:some/dir");

@@ -135,6 +135,18 @@ __test {
 }
 
 __test {
+    // An entry that is not a known field of a target table is rejected rather than ignored
+    let mut msg = "";
+    {
+        copy TargetList(json#{"cli" : {"type" : "executable", "sources" : "src"}});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[targets.cli]', 'sources' is not a known entry", "unexpected error: " ~ msg);
+}
+
+__test {
     // A target declaring an unknown build type is rejected by the same message as a package
     // declaring one, prefixed by the name of the target
     let mut msg = "";

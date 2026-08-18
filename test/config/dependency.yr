@@ -132,6 +132,20 @@ __test {
 }
 
 __test {
+    // An entry that is not a known field of a dependency table is rejected rather than ignored
+    let mut msg = "";
+    {
+        copy DependencyList(json#{
+            "foo" : {"version" : "1.0.0", "url" : {"local" : "../foo"}, "branch" : "main"}
+        });
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[dependencies.foo]', 'branch' is not a known entry", "unexpected error: " ~ msg);
+}
+
+__test {
     // A dependency list built from something else than a table is rejected
     let mut msg = "";
     {

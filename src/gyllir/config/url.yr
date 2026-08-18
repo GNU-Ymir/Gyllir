@@ -70,12 +70,20 @@ pub record Url {
         throws AssertError
     {
         if let Ok(Str(value-> url)) = cfg["local"]? {
+            if let d: &Dict = cfg {
+                gyllir::config::errors::rejectUnknown(d, entry ~ " ", "local");
+            }
+
             self._path = Path(url);
             self._type = UrlType::LOCAL;
             self._valid = true;
         }
 
         else if let Ok(Str(value-> url)) = cfg["git"]? {
+            if let d: &Dict = cfg {
+                gyllir::config::errors::rejectUnknown(d, entry ~ " ", "git");
+            }
+
             self._path = Path(url);
             self._type = UrlType::GIT;
             self._valid = true;

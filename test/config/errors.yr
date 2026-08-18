@@ -1,6 +1,6 @@
 use gyllir::config::errors;
 
-use std::stream;
+use std::{config::_, stream};
 
 __test {
     // Without a sub error, only the message is printed
@@ -19,4 +19,47 @@ __test {
     str:.write(e);
 
     assert(str[] == "Recursive dependencies: pkgA\n => \tRecursive dependencies: pkgB", str[]);
+}
+
+__test {
+    // rejectUnknown accepts a table whose entries are all known, single or several
+    let dmut d = copy Dict();
+    d["name"] = copy Str("foo");
+    rejectUnknown(d, "", "name");
+
+    let dmut d2 = copy Dict();
+    d2["name"] = copy Str("foo");
+    d2["version"] = copy Str("1.0.0");
+    rejectUnknown(d2, "", "name", "version");
+}
+
+__test {
+    // rejectUnknown throws on the first entry that is not in the known list, naming it
+    let dmut d = copy Dict();
+    d["name"] = copy Str("foo");
+    d["typo"] = copy Str("bar");
+
+    let mut msg = "";
+    {
+        rejectUnknown(d, "", "name");
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'typo' is not a known entry", "unexpected error: " ~ msg);
+}
+
+__test {
+    // the context prefix is prepended to the error message
+    let dmut d = copy Dict();
+    d["typo"] = copy Str("bar");
+
+    let mut msg = "";
+    {
+        rejectUnknown(d, inTable("dependencies", "foo"), "version");
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[dependencies.foo]', 'typo' is not a known entry", "unexpected error: " ~ msg);
 }
