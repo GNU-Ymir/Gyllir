@@ -43,18 +43,18 @@ pub fn mkExecutableProject(name: [c8])-> Path
 }
 
 /**
- * A minimal library project: 'src/<name>.yr' exporting a single function.
- * The root file is named after the package, which is the naming convention 'findRootSourceFile'
- * falls back to when no 'package-root' is configured.
+ * A minimal library project: 'src/__lib__.yr' exporting a single function.
+ * '__lib__.yr' is the naming convention 'findRootSourceFile' falls back to for a library when no
+ * 'package-root' is configured, regardless of the package name.
  * @returns: the root directory of the created project
  * */
-pub fn mkLibraryProject(name: [c8])-> Path
+pub fn mkLibraryProject()-> Path
     throws FsError
 {
     let dir = sys::tempDirectory(prefix-> "gyllir_it_");
-    writeSource(dir.push(defaults::__SRC_DIR__).push(name).addExtension(defaults::__YMIR_EXTENSION__),
-                "pub mod ::helper;\n\npub fn root()-> i32 {\n    42\n}\n");
-    writeSource(dir.push(defaults::__SRC_DIR__).push(name).push("helper").addExtension(defaults::__YMIR_EXTENSION__),
+    writeSource(dir.push(defaults::__SRC_DIR__).push(defaults::__LIB_FILE__),
+                "pub mod helper;\n\npub fn root()-> i32 {\n    42\n}\n");
+    writeSource(dir.push(defaults::__SRC_DIR__).push("helper").addExtension(defaults::__YMIR_EXTENSION__),
                 "pub fn helper()-> i32 {\n    1\n}\n");
 
     dir

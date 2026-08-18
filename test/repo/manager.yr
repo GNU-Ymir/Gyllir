@@ -76,7 +76,7 @@ __test {
 
 __test {
     // A local dependency is symlinked into ".deps", built, and exported to the dependent project
-    let lib = mkLibraryProject("mylib");
+    let lib = mkLibraryProject();
     writeToml(lib, mkConfig("mylib", "library"));
     gitInit(lib);
 
@@ -92,14 +92,14 @@ __test {
     assert(includes.len == 2us, "both the dependency root file and the project's own should be exported");
     // the dependency is built through its symlink, so it exports paths rooted in ".deps"
     let depPath = app.push(defaults::__DEPENCY_DIR__).push("mylib");
-    assert(includes[0] == depPath.push(defaults::__SRC_DIR__).push("mylib").addExtension(defaults::__YMIR_EXTENSION__), "unexpected dependency root file");
+    assert(includes[0] == depPath.push(defaults::__SRC_DIR__).push(defaults::__LIB_FILE__), "unexpected dependency root file");
     assert(links.len == 1us && links[0] == depPath.push("libmylib.a"), "the dependency archive should be linked");
     assert(hasFile(app, "myapp"), "the executable should be produced");
 }
 
 __test {
     // Resolving the same dependency twice in a row reuses the symlink instead of failing on it
-    let lib = mkLibraryProject("mylib");
+    let lib = mkLibraryProject();
     writeToml(lib, mkConfig("mylib", "library"));
     gitInit(lib);
 
@@ -116,7 +116,7 @@ __test {
 
 __test {
     // A dependency cycle is reported instead of being followed forever
-    let lib = mkLibraryProject("selfdep");
+    let lib = mkLibraryProject();
     writeToml(lib, mkConfigWithDependency("selfdep", "library", "selfdep", lib));
     gitInit(lib);
 
@@ -137,7 +137,7 @@ __test {
 
 __test {
     // "clean --all" removes the outputs, the documentation and the resolved dependencies, recursively
-    let lib = mkLibraryProject("mylib");
+    let lib = mkLibraryProject();
     writeToml(lib, mkConfig("mylib", "library"));
     gitInit(lib);
 
@@ -182,7 +182,7 @@ __test {
     init:.start();
     init:.wait();
 
-    let source = mkLibraryProject("mylib");
+    let source = mkLibraryProject();
     writeToml(source, mkConfig("mylib", "library"));
     gitInit(source);
 
@@ -684,7 +684,7 @@ __test {
     // A "link-targets" naming the single target of a dependency declaring no "[targets.*]" table
     // (its synthesized target, named after the package) keeps working exactly as if the key had
     // been left out
-    let lib = mkLibraryProject("mylib");
+    let lib = mkLibraryProject();
     writeToml(lib, mkConfig("mylib", "library"));
     gitInit(lib);
 

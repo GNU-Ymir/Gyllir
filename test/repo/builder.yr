@@ -165,17 +165,34 @@ __test {
 
 __test {
     // A library project produces an archive, exported to the packages depending on it
-    let dir = mkLibraryProject("mylib");
+    let dir = mkLibraryProject();
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
     let cfg = mkConfig("mylib", "library");
 
     let (includes, links) = RepoBuilder(dir, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
 
     assert(hasFile(dir, "libmylib.a"), "the library archive should be produced at the root of the project");
-    assert(hasCacheFile(dir, "mylib", defaults::__CACHE_DEBUG_DIR__, "yils/mylib_helper.yil"), "every module of the library should be compiled");
+    assert(hasCacheFile(dir, "mylib", defaults::__CACHE_DEBUG_DIR__, "yils/helper.yil"), "every module of the library should be compiled");
 
     assert(includes.len == 1us, "the root source file should be exported");
     assert(links.len == 1us && links[0] == dir.push("libmylib.a"), "the produced archive should be exported for linking");
+}
+
+__test {
+    // YMI-65: an executable package that also has a module named after the package (the library
+    // naming convention) still roots at "src/main.yr", the module named after the package stays a
+    // regular module
+    let dir = mkExecutableProject("myapp");
+    writeSource(dir.push(defaults::__SRC_DIR__).push("myapp").addExtension(defaults::__YMIR_EXTENSION__),
+                "pub fn helper()-> i32 {\n    1\n}\n");
+
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    let cfg = mkConfig("myapp", "executable");
+
+    RepoBuilder(dir, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
+
+    assert(hasFile(dir, "myapp"), "the executable should still link against 'main.yr'");
+    assert(hasCacheFile(dir, "myapp", defaults::__CACHE_DEBUG_DIR__, "yils/main.yil"), "the root module should be 'main', not the module named after the package");
 }
 
 __test {
@@ -230,22 +247,22 @@ __test {
 
 __test {
     // A module removed from the sources is dropped from the cache, and the target relinked without it
-    let dir = mkLibraryProject("mylib");
+    let dir = mkLibraryProject();
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
     let cfg = mkConfig("mylib", "library");
 
     RepoBuilder(dir, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
-    assert(hasCacheFile(dir, "mylib", defaults::__CACHE_DEBUG_DIR__, "yils/mylib_helper.yil"), "sanity: the helper module should be compiled");
+    assert(hasCacheFile(dir, "mylib", defaults::__CACHE_DEBUG_DIR__, "yils/helper.yil"), "sanity: the helper module should be compiled");
 
     // drop the module, and the reference to it in the root file
-    sys::removeFile(dir.push(defaults::__SRC_DIR__).push("mylib").push("helper").addExtension(defaults::__YMIR_EXTENSION__));
-    writeSource(dir.push(defaults::__SRC_DIR__).push("mylib").addExtension(defaults::__YMIR_EXTENSION__),
+    sys::removeFile(dir.push(defaults::__SRC_DIR__).push("helper").addExtension(defaults::__YMIR_EXTENSION__));
+    writeSource(dir.push(defaults::__SRC_DIR__).push(defaults::__LIB_FILE__),
                 "pub fn root()-> i32 {\n    42\n}\n");
 
     RepoBuilder(dir, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
 
-    assert(!hasCacheFile(dir, "mylib", defaults::__CACHE_DEBUG_DIR__, "yils/mylib_helper.yil"), "the YIL of the removed module should be pruned");
-    assert(!hasCacheFile(dir, "mylib", defaults::__CACHE_DEBUG_DIR__, "mylib_helper.deps"), "the deps of the removed module should be pruned");
+    assert(!hasCacheFile(dir, "mylib", defaults::__CACHE_DEBUG_DIR__, "yils/helper.yil"), "the YIL of the removed module should be pruned");
+    assert(!hasCacheFile(dir, "mylib", defaults::__CACHE_DEBUG_DIR__, "helper.deps"), "the deps of the removed module should be pruned");
     assert(hasFile(dir, "libmylib.a"), "the library should have been relinked");
 }
 
@@ -401,7 +418,7 @@ __test {
 __test {
     // A declared target links exactly the dependencies it selects: one that selects none does not
     // even resolve them
-    let lib = mkLibraryProject("mylib");
+    let lib = mkLibraryProject();
     writeToml(lib, mkConfig("mylib", "library"));
     gitInit(lib);
 
@@ -417,7 +434,7 @@ __test {
 
 __test {
     // A target that selects a declared dependency resolves and links it
-    let lib = mkLibraryProject("mylib");
+    let lib = mkLibraryProject();
     writeToml(lib, mkConfig("mylib", "library"));
     gitInit(lib);
 
