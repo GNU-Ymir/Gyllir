@@ -3,6 +3,7 @@ in repo;
 pub mod ::manager;
 pub mod ::init;
 pub mod ::builder;
+pub mod ::csources;
 pub mod ::defaults;
 pub mod ::runner;
 pub mod ::cleaner;

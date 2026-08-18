@@ -1,0 +1,265 @@
+use gyllir::config::_;
+use gyllir::repo::{csources, defaults, manager, runner};
+
+use ::repo::fixture;
+
+use std::{config::_, fs::_};
+use std::conv::errors;
+use std::time::dur;
+
+/**
+ * A 'CSourceBuilder' over a target declaring 'cSources', rooted at 'dir'
+ * */
+fn mkBuilder(dir: Path, cSources: [[c8]], args: &Config)-> CSourceBuilder
+    throws CastFailure
+{
+    CSourceBuilder(GyllirPackageConfiguration::empty(), dir, args, Target("mylib", BuildType("library"), cSources-> cSources), false, 1u32)
+}
+
+/**
+ * A 'CSourceBuilder' over a target declaring 'cSources', rooted at 'dir', with an empty command
+ * line (a debug build)
+ * */
+fn mkBuilder(dir: Path, cSources: [[c8]])-> CSourceBuilder
+    throws CastFailure
+{
+    mkBuilder(dir, cSources, copy Dict())
+}
+
+/**
+ * @returns: true iif one of 'paths' ends with 'suffix'
+ * */
+fn hasSuffix(paths: [Path], suffix: [c8])-> bool {
+    for p in paths {
+        let s = p.toStr();
+        if (s.len >= suffix.len && s[$ - suffix.len .. $] == suffix) { return true; }
+    }
+
+    false
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * =====================================          PATTERNS          ===================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+__test {
+    // A literal entry is resolved as-is, relative to the package directory, without checking that it exists
+    let dir = sys::tempDirectory(prefix-> "gyllir_csrc_test_");
+    let builder = mkBuilder(dir, copy ["glue.c"]);
+
+    assert(builder.resolvePatterns() == copy [dir.push("glue.c")], "a literal path should resolve to itself");
+}
+
+__test {
+    // A non recursive glob only lists the C sources directly inside the named directory
+    let dir = sys::tempDirectory(prefix-> "gyllir_csrc_test_");
+    writeSource(dir.push("csrc").push("one").addExtension(defaults::__C_EXTENSION__), "int one(void) { return 1; }\n");
+    writeSource(dir.push("csrc").push("two").addExtension(defaults::__C_EXTENSION__), "int two(void) { return 2; }\n");
+    writeSource(dir.push("csrc").push("readme").addExtension("txt"), "not a C source\n");
+    writeSource(dir.push("csrc").push("nested").push("three").addExtension(defaults::__C_EXTENSION__), "int three(void) { return 3; }\n");
+
+    let sources = mkBuilder(dir, copy ["csrc/*.c"]).resolvePatterns();
+
+    assert(sources.len == 2us, "only the top level C sources should be resolved");
+    assert(hasSuffix(sources, "one.c") && hasSuffix(sources, "two.c"), "both top level sources should be found");
+    assert(!hasSuffix(sources, "three.c"), "a non recursive glob should not descend into sub directories");
+}
+
+__test {
+    // A recursive glob lists the C sources found at any depth under the named directory
+    let dir = sys::tempDirectory(prefix-> "gyllir_csrc_test_");
+    writeSource(dir.push("csrc").push("one").addExtension(defaults::__C_EXTENSION__), "int one(void) { return 1; }\n");
+    writeSource(dir.push("csrc").push("nested").push("deep").push("two").addExtension(defaults::__C_EXTENSION__), "int two(void) { return 2; }\n");
+    writeSource(dir.push("csrc").push("readme").addExtension("txt"), "not a C source\n");
+
+    let sources = mkBuilder(dir, copy ["csrc/**/*.c"]).resolvePatterns();
+
+    assert(sources.len == 2us, "every C source under the directory should be resolved, at any depth");
+    assert(hasSuffix(sources, "one.c") && hasSuffix(sources, "deep/two.c"), "sources at every depth should be found");
+}
+
+__test {
+    // Several patterns declared by the same target are all resolved, one after the other
+    let dir = sys::tempDirectory(prefix-> "gyllir_csrc_test_");
+    writeSource(dir.push("csrc").push("one").addExtension(defaults::__C_EXTENSION__), "int one(void) { return 1; }\n");
+    writeSource(dir.push("extra").push("two").addExtension(defaults::__C_EXTENSION__), "int two(void) { return 2; }\n");
+
+    let sources = mkBuilder(dir, copy ["csrc/*.c", "extra/two.c"]).resolvePatterns();
+
+    assert(sources.len == 2us, "every declared pattern should contribute its sources");
+}
+
+__test {
+    // A glob naming a directory that does not exist resolves to no source, instead of throwing
+    let dir = sys::tempDirectory(prefix-> "gyllir_csrc_test_");
+
+    assert(mkBuilder(dir, copy ["nope/*.c"]).resolvePatterns() == [], "a missing directory should resolve to no source");
+    assert(mkBuilder(dir, copy ["nope/**/*.c"]).resolvePatterns() == [], "a missing directory should resolve to no source, recursive glob too");
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * ==================================          RECOMPILATION          =================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+__test {
+    // A missing object file always needs a (re)compile
+    let dir = sys::tempDirectory(prefix-> "gyllir_csrc_test_");
+    let builder = mkBuilder(dir, []);
+    writeSource(dir.push("src.c"), "int x(void) { return 0; }\n");
+
+    assert(builder.needsRecompile(dir.push("src.c"), dir.push("obj.o")), "a missing object file should need a compile");
+}
+
+__test {
+    // An object file newer than its source is up to date
+    let dir = sys::tempDirectory(prefix-> "gyllir_csrc_test_");
+    let builder = mkBuilder(dir, []);
+    writeSource(dir.push("src.c"), "int x(void) { return 0; }\n");
+    sleep(seconds(1u64));
+    writeSource(dir.push("obj.o"), "not a real object, only its date matters here\n");
+
+    assert(!builder.needsRecompile(dir.push("src.c"), dir.push("obj.o")), "an object newer than its source should not need a recompile");
+}
+
+__test {
+    // A source touched after its object needs a recompile
+    let dir = sys::tempDirectory(prefix-> "gyllir_csrc_test_");
+    let builder = mkBuilder(dir, []);
+    writeSource(dir.push("obj.o"), "not a real object, only its date matters here\n");
+    sleep(seconds(1u64));
+    writeSource(dir.push("src.c"), "int x(void) { return 0; }\n");
+
+    assert(builder.needsRecompile(dir.push("src.c"), dir.push("obj.o")), "a source newer than its object should need a recompile");
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * ===================================          COMMAND LINE          =================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+__test {
+    // The C compile options ask for position independent code, and a debug build asks for "-g"
+    let builder = mkBuilder(Path("/project"), []);
+
+    let options = builder.createCompileOptions(Path("/project/csrc/one.c"), Path("/project/.target/mylib/debug/c-objs/csrc_one.o"));
+
+    assert(options == copy ["-c", "-fPIC", "-o", "/project/.target/mylib/debug/c-objs/csrc_one.o", "/project/csrc/one.c", "-g"],
+           "unexpected debug C compile options");
+}
+
+__test {
+    // A release build passes "-O3" instead of "-g", like the Ymir compile options do
+    let builder = mkBuilder(Path("/project"), [], mkArgs(copy ["release"]));
+
+    let options = builder.createCompileOptions(Path("/project/csrc/one.c"), Path("/project/.target/mylib/release/c-objs/csrc_one.o"));
+
+    assert(options == copy ["-c", "-fPIC", "-o", "/project/.target/mylib/release/c-objs/csrc_one.o", "/project/csrc/one.c", "-O3"],
+           "unexpected release C compile options");
+}
+
+__test {
+    // The "c-flags" of a target are appended last, so a target can add its own include
+    // directories or defines, or override the options gyllir picked for it
+    let target = Target("mylib", BuildType("library"), cFlags-> copy ["-I.", "-DFOO"]);
+    let builder = CSourceBuilder(GyllirPackageConfiguration::empty(), Path("/project"), copy Dict(), target, false, 1u32);
+
+    let options = builder.createCompileOptions(Path("/project/csrc/one.c"), Path("/project/.target/mylib/debug/c-objs/csrc_one.o"));
+
+    assert(options == copy ["-c", "-fPIC", "-o", "/project/.target/mylib/debug/c-objs/csrc_one.o", "/project/csrc/one.c", "-g", "-I.", "-DFOO"],
+           "the c-flags of the target should come last, after the debug/release flag");
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * =====================================          RUN()          ======================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+__test {
+    // run() short circuits before touching the filesystem when the target declares no C source
+    let dir = sys::tempDirectory(prefix-> "gyllir_csrc_test_");
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    let builder = mkBuilder(dir, []);
+
+    let objs = builder.run(alias mgr, dir.push(".target").push("mylib").push("debug"));
+
+    assert(objs == [], "a target declaring no C source should produce no object file");
+    assert(!sys::isDir(dir.push(".target")), "no cache directory should be created when there is nothing to compile");
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * ==================================          INTEGRATION          ===================================
+ * ====================================================================================================
+ * ====================================================================================================
+ * Those tests drive 'GyllirManager::buildTargets' end to end against the real 'gyc' and 'cc'
+ * toolchains, on the tiny project materialized by 'repo::fixture::mkCSourceProject'. Building "cli"
+ * through the manager, rather than instantiating 'RepoBuilder' directly, is what makes it link the
+ * "mylib" target it names in "targets": the manager is the one gathering a linked target's
+ * includes/archives before handing them to the one that links it.
+ */
+
+__test {
+    // A library target compiling a C source archives its object alongside the Ymir one, and an
+    // executable target linking it actually calls into the compiled C code
+    let dir = mkCSourceProject();
+    let cfg = mkCSourceConfig();
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    mgr:.buildTargets(dir, mkBuildArgs(), cfg, copy ["cli" => ()]);
+
+    assert(hasFile(dir, "libmylib.a"), "the library archive should be produced");
+    assert(hasCacheFile(dir, "mylib", defaults::__CACHE_DEBUG_DIR__, "c-objs/csrc_nested_answer.o"), "the C source should be compiled into the C object cache");
+    assert(hasFile(dir, "cli"), "the executable should be produced");
+    assert(RepoRunner(dir, copy Dict(), cfg, namedTarget(cfg, "cli"), false).run() == 42,
+           "the executable should exit with the value the compiled C code computes");
+}
+
+__test {
+    // Building twice in a row recompiles no C source: the second build finds an up to date cache
+    let dir = mkCSourceProject();
+    let cfg = mkCSourceConfig();
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    mgr:.buildTargets(dir, mkBuildArgs(), cfg, copy ["mylib" => ()]);
+    let objFile = defaults::targetCacheDir(dir, "mylib", defaults::__CACHE_DEBUG_DIR__)
+        .push(defaults::__CACHE_C_DIR__).push("csrc_nested_answer").addExtension(defaults::__OBJECT_EXTENSION__);
+    let fstDate = sys::fileDate(objFile);
+
+    mgr:.buildTargets(dir, mkBuildArgs(), cfg, copy ["mylib" => ()]);
+
+    assert(sys::fileDate(objFile) == fstDate, "an unchanged C source should not be recompiled");
+}
+
+__test {
+    // Changing a C source recompiles it, and the executable linking the library reflects the change
+    let dir = mkCSourceProject();
+    let cfg = mkCSourceConfig();
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    mgr:.buildTargets(dir, mkBuildArgs(), cfg, copy ["cli" => ()]);
+    assert(RepoRunner(dir, copy Dict(), cfg, namedTarget(cfg, "cli"), false).run() == 42, "sanity: the initial C source should compute 42");
+
+    sleep(seconds(1u64));
+    writeSource(dir.push("csrc").push("nested").push("answer").addExtension(defaults::__C_EXTENSION__),
+                "int c_answer(void) {\n    return 7;\n}\n");
+
+    mgr:.buildTargets(dir, mkBuildArgs(), cfg, copy ["cli" => ()]);
+
+    assert(RepoRunner(dir, copy Dict(), cfg, namedTarget(cfg, "cli"), false).run() == 7,
+           "the executable should reflect the changed C source after a rebuild");
+}

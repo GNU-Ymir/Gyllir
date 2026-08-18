@@ -1,0 +1,239 @@
+in csources;
+
+use gyllir::{config::_, repo::_, utils::_};
+
+use std::{config::_, env, fs::_, io, time::_};
+
+/**
+ * Compiles the 'c-sources' declared by a target into object files, ready to be archived into its
+ * produced static library, or linked directly into its executable
+ * */
+pub record CSourceBuilder {
+
+    // The root directory of the package the target belongs to
+    let _cwd: Path;
+
+    // The package configuration
+    let _cfg: GyllirPackageConfiguration;
+
+    // The command line options
+    let _args: &Config;
+
+    // The target whose 'c-sources' are compiled
+    let _target: Target;
+
+    // True if the builder has to print verbose messages
+    let _verbose: bool;
+
+    // The number of threads to spawn in the task pool
+    let _nbThreads: u32;
+
+    pub self (cfg: GyllirPackageConfiguration, cwd: Path, args: &Config, target: Target, verbose: bool, nbThreads: u32)
+        with _cfg = cfg
+        , _cwd = cwd
+        , _args = args
+        , _target = target
+        , _verbose = verbose
+        , _nbThreads = nbThreads
+    {}
+
+    /**
+     * Compile the 'c-sources' declared by the target into object files
+     * @params:
+     *    - context: the context of the compilation
+     *    - cacheDir: the build cache directory of the target, holding the object files under its
+     *      '__CACHE_C_DIR__' sub directory
+     * @returns: the list of path to the compiled object files, [] when the target declares none
+     * */
+    pub fn run(self, dmut context: &GyllirManager, cacheDir: Path)-> [Path] {
+        if (self._target.cSources.len == 0us) { return []; }
+
+        let sources = self.resolvePatterns();
+        if (sources.len == 0us) { return []; }
+
+        let objDir = cacheDir.push(defaults::__CACHE_C_DIR__);
+        if (!sys::isDir(objDir)) {
+            sys::createDir(objDir, recursive-> true);
+        }
+
+        let mut objs: [Path] = [];
+        let mut changedSrcs: [Path] = [];
+        let mut changedObjs: [Path] = [];
+        for src in sources {
+            let objFile = objDir.push(src.removePrefix(self._cwd).stripExtension().toStr(sep-> "_")).addExtension(defaults::__OBJECT_EXTENSION__);
+            objs ~= [objFile];
+
+            if (self.needsRecompile(src, objFile)) {
+                changedSrcs ~= [src];
+                changedObjs ~= [objFile];
+            }
+        }
+
+        if (changedSrcs.len != 0us) {
+            self.compile(alias context, changedSrcs, changedObjs);
+        }
+
+        objs
+    } catch {
+        err => {
+            utils::log::error("Error", "failed to compile C sources of target '", self._target.name, "' : ", err);
+            etc::c::process::_yrt_exit(-1);
+            panic;
+        }
+    }
+
+    /**
+     * @returns: true iif 'objFile' does not exist yet, or is older than 'src'
+     * */
+    pub fn needsRecompile(self, src: Path, objFile: Path)-> bool {
+        if (!sys::isFile(objFile)) { return true; }
+
+        if let Ok(Instant(sec-> srcDate)) = sys::fileDate(src)? {
+            if let Ok(Instant(sec-> objDate)) = sys::fileDate(objFile)? {
+                return srcDate > objDate;
+            }
+        }
+
+        true
+    }
+
+    /**
+     * Build the compile command line options to compile a single C source file
+     * */
+    pub fn createCompileOptions(self, src: Path, objFile: Path)-> [[c8]] {
+        let mut options: [[c8]] = copy ["-c", "-fPIC", "-o", objFile.toStr(), src.toStr()];
+        if let Ok(Bool(value-> _ = true)) = self._args["release"]? {
+            options ~= ["-O3"];
+        } else {
+            options ~= ["-g"];
+        }
+
+        // last, so that a target can override the options gyllir picked for it, and add its own
+        // include directories or defines
+        options ~ self._target.cFlags
+    }
+
+    /**
+     * Resolve the 'c-sources' patterns declared by the target into actual source files
+     * */
+    pub fn resolvePatterns(self)-> [Path] {
+        let mut result: [Path] = [];
+        for pattern in self._target.cSources {
+            result ~= self.resolvePattern(pattern);
+        }
+
+        result
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          PRIVATE          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Launch the compile commands of the changed C source files, in parallel
+     * */
+    prv fn compile(self, dmut context: &GyllirManager, srcs: [Path], objs: [Path]) {
+        utils::log::info("Compiling", srcs.len, " C source(s) of ", self._target.name);
+
+        let dmut pool = copy std::concurrency::task::TaskPool(nbThreads-> self._nbThreads);
+        let dmut success = copy [0us];
+        for i in 0us .. srcs.len {
+            let src = srcs[i];
+            let objFile = objs[i];
+            pool:.submit(copy || => {
+                let options = self.createCompileOptions(src, objFile);
+                if (!context.runProcess(self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose)) {
+                    pool:.clear();
+                } else {
+                    atomic { success[0] += 1us; }
+                }
+            });
+        }
+        pool:.join();
+
+        if (success[0] != cast!usize(srcs.len)) {
+            utils::log::error("Error", "failed to compile C sources of target '", self._target.name, "'");
+            etc::c::process::_yrt_exit(-1);
+            panic;
+        }
+    }
+
+    /**
+     * Resolve a single 'c-sources' pattern into actual source files, relative to the package
+     * directory: a literal path, a non recursive single-directory glob, or a recursive glob (see
+     * 'CSourceBuilder' header for the exact glob syntax)
+     * */
+    prv fn resolvePattern(self, pattern: [c8])-> [Path] {
+        let recursiveMarker = "/**/*."s8;
+        if let Ok(idx) = self.findSubstring(pattern, recursiveMarker) {
+            let dir = self._cwd.push(pattern[0us .. idx]);
+            let ext = pattern[idx + recursiveMarker.len .. $];
+            return copy [dir.push(f) for f in self.listFilesInDir(dir, dir, ext)];
+        }
+
+        let flatMarker = "/*."s8;
+        if let Ok(idx) = self.findSubstring(pattern, flatMarker) {
+            let dir = self._cwd.push(pattern[0us .. idx]);
+            let ext = pattern[idx + flatMarker.len .. $];
+            let mut result: [Path] = [];
+            {
+                for entry in sys::readDir(dir) match entry {
+                    FsEntry(path-> p, kind-> FsEntryKind::FILE) if (p.extension() == ext) => {
+                        result ~= [p];
+                    }
+                }
+            } catch { _ => {} }
+
+            return result;
+        }
+
+        // a literal path, relative to the package directory
+        copy [self._cwd.push(pattern)]
+    }
+
+    /**
+     * List the source files that can be found in the directory 'root' (recursively)
+     * */
+    prv fn listFilesInDir(self, root: Path, curr: Path, extension: [c8])-> [Path] {
+        let dmut result: [Path] = [];
+        {
+            for entry in sys::readDir(curr) {
+                match entry {
+                    FsEntry(path-> p, kind-> FsEntryKind::DIR) => {
+                        result ~= self.listFilesInDir(root, p, extension);
+                    }
+                    FsEntry(path-> p, kind-> FsEntryKind::FILE) if (p.extension() == extension) => {
+                        result ~= [p.removePrefix(root)];
+                    }
+                }
+            }
+        } catch {
+            _ => {}
+        }
+
+        result
+    }
+
+    /**
+     * @returns: the index of the first occurrence of 'needle' in 'hay', none if it does not appear
+     * */
+    prv fn findSubstring(self, hay: [c8], needle: [c8])-> (usize)? {
+        if (needle.len == 0us || hay.len < needle.len) { return none; }
+
+        for i in 0us .. (hay.len - needle.len + 1us) {
+            let mut matched = true;
+            for j in 0us .. needle.len {
+                if hay[i + j] != needle[j] { matched = false; break; }
+            }
+
+            if matched { return (i)?; }
+        }
+
+        none
+    }
+
+}

@@ -114,3 +114,16 @@ pub def __DOC_EXTENSION__      = "doc.json";
 pub def __MARKDOWN_EXTENSION__ = "md";
 pub def __LIBRARY_EXTENSION__  = "a";
 pub def __HTML_EXTENSION__     = "html";
+pub def __C_EXTENSION__        = "c";
+
+/**
+ * The sub directory of a target's build cache holding the object files compiled from its
+ * 'c-sources'
+ */
+pub def __CACHE_C_DIR__ = "c-objs";
+
+/**
+ * The archiver invoked to add the object files compiled from a target's 'c-sources' into its
+ * produced static library
+ */
+pub def __AR_COMMAND__ = "ar";

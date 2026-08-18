@@ -52,9 +52,14 @@ pub record Target {
     // The names of the targets of the same package linked by the target
     let _targets: [[c8]];
 
-    // The C source files archived into the target
-    // @warning: parsed but not compiled yet, see YMI-72
+    // The C source files compiled and archived into the target. Each entry is either a literal
+    // path, a '<dir>/*.<ext>' non-recursive glob, or a '<dir>/**/*.<ext>' recursive glob, all
+    // relative to the package directory
     let _cSources: [[c8]];
+
+    // The raw options passed to the C compiler when building 'cSources', appended last so a
+    // target can add its own include directories or defines (e.g. "-I", "-D...")
+    let _cFlags: [[c8]];
 
     // True iif the target was synthesized from the top level fields of a package declaring no
     // '[targets.<name>]' table, in which case its root module keeps the historical fallback to
@@ -74,6 +79,7 @@ pub record Target {
      *    - dependencies: the names of the package dependencies to link
      *    - targets: the names of the targets of the same package to link
      *    - cSources: the C source files to archive
+     *    - cFlags: the raw options passed to the C compiler when building 'cSources'
      *    - synthesized: true iif the target is not declared by a '[targets.<name>]' table
      * */
     pub self (name: [c8], type: BuildType,
@@ -86,6 +92,7 @@ pub record Target {
               dependencies: [[c8]] = [],
               targets: [[c8]] = [],
               cSources: [[c8]] = [],
+              cFlags: [[c8]] = [],
               synthesized: bool = false)
         with _name = name
         , _type = type
@@ -98,6 +105,7 @@ pub record Target {
         , _dependencies = dependencies
         , _targets = targets
         , _cSources = cSources
+        , _cFlags = cFlags
         , _synthesized = synthesized
     {}
 
@@ -162,6 +170,11 @@ pub record Target {
     @field
     pub fn cSources(self)-> [[c8]] {
         self._cSources
+    }
+
+    @field
+    pub fn cFlags(self)-> [[c8]] {
+        self._cFlags
     }
 
     @field
@@ -326,6 +339,10 @@ pub class TargetList {
                     trg["c-sources"] = copy Array(copy [copy Str(i) for i in t.cSources]);
                 }
 
+                if (t.cFlags.len != 0us) {
+                    trg["c-flags"] = copy Array(copy [copy Str(i) for i in t.cFlags]);
+                }
+
                 res[k] = trg;
             }
 
@@ -380,7 +397,8 @@ pub class TargetList {
                libraries-> self.readStringArray(cfg, "libraries", name),
                dependencies-> self.readStringArray(cfg, "dependencies", name),
                targets-> self.readStringArray(cfg, "targets", name),
-               cSources-> self.readStringArray(cfg, "c-sources", name))
+               cSources-> self.readStringArray(cfg, "c-sources", name),
+               cFlags-> self.readStringArray(cfg, "c-flags", name))
     }
 
     /**
