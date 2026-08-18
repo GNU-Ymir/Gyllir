@@ -3,7 +3,7 @@ use gyllir::doc::types::scalar;
 
 use std::stream;
 
-__test {
+__test option_type_renders_inner_type {
     let o = copy OptionType("", copy ScalarType("i32", ""));
     let dmut stream = copy StringStream();
     stream:.write(o);

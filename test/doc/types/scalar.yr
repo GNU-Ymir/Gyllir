@@ -2,7 +2,7 @@ use gyllir::doc::types::scalar;
 
 use std::stream;
 
-__test {
+__test scalar_type_renders_name_and_mutability {
     let s = copy ScalarType("i32", "mut");
     let dmut stream = copy StringStream();
     stream:.write(s);
