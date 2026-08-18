@@ -431,6 +431,12 @@ pub class TargetList {
             }
         }
 
+        if let d: &Dict = cfg {
+            gyllir::config::errors::rejectUnknown(d, ctx, "type", "tests", "source-dir", "package-root",
+                "test-dir", "test-root", "output", "flags", "libraries", "dependencies", "targets",
+                "c-sources", "c-flags");
+        }
+
         Target(name, type,
                sourceDir-> self.readString(cfg, "source-dir", ctx, default-> __DEFAULT_SOURCE_DIR__),
                packageRoot-> self.readString(cfg, "package-root", ctx),
