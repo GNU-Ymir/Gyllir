@@ -23,15 +23,30 @@ __test {
 }
 
 __test {
-    // An unknown string is rejected
-    let mut threw = false;
+    // An unknown string is rejected, and the error names the types a target may declare
+    let mut msg = "";
     {
         BuildType("unknown");
     } catch {
-        CastFailure() => { threw = true; }
+        a: &AssertError => { msg = a.msg; }
     }
 
-    assert(threw, "an unknown build type string should be rejected");
+    assert(msg == "'type' is invalid: \"unknown\" is not a build type, expecting one of \"executable\", \"library\"",
+           "unexpected error: " ~ msg);
+}
+
+__test {
+    // The entry the type was read from is named by the error, so that a target table says which
+    // of its types is at fault
+    let mut msg = "";
+    {
+        BuildType("unknown", entry-> "'[targets.cli]', 'type'");
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[targets.cli]', 'type' is invalid: \"unknown\" is not a build type, expecting one of \"executable\", \"library\"",
+           "unexpected error: " ~ msg);
 }
 
 __test {
@@ -45,15 +60,14 @@ __test {
 
 __test {
     // A non string configuration is rejected
-    let mut threw = false;
+    let mut msg = "";
     {
         BuildType(copy Int(12));
     } catch {
-        AssertError() => { threw = true; }
-        CastFailure() => { threw = true; }
+        a: &AssertError => { msg = a.msg; }
     }
 
-    assert(threw, "a non string configuration should be rejected");
+    assert(msg == "'type' must be a string, one of \"executable\", \"library\"", "unexpected error: " ~ msg);
 }
 
 __test {

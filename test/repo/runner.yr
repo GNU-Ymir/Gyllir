@@ -35,15 +35,16 @@ __test {
 
     let runner = RepoRunner(Path("."), copy Dict(), cfg, soleTarget(cfg), false);
 
-    let mut threw = false;
+    let mut msg = "";
     {
         runner.run();
     } catch {
-        _: &AssertError => { threw = true; }
-        _: &FsError => { threw = false; }
+        a: &AssertError => { msg = a.msg; }
+        _: &FsError => { msg = ""; }
     }
 
-    assert(threw, "running a library target (non unit-test mode) should throw an AssertError");
+    assert(msg == "target 'mylib' is a library, 'gyllir run' only runs an executable target",
+           "unexpected error: " ~ msg);
 }
 
 __test {

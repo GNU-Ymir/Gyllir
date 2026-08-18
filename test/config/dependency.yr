@@ -38,7 +38,7 @@ __test {
     // An explicit empty "link-targets" reads like "link nothing", which is not expressible here: a
     // dependency you link zero targets from should not be declared at all. Omit the key instead to
     // link every target
-    let mut threw = false;
+    let mut msg = "";
     {
         // built by hand rather than through 'json#{...}': an empty array literal has no element
         // type for the macro to infer
@@ -55,26 +55,93 @@ __test {
 
         copy DependencyList(deps);
     } catch {
-        AssertError() => { threw = true; }
-        CastFailure() => { threw = true; }
+        a: &AssertError => { msg = a.msg; }
     }
 
-    assert(threw, "an explicit empty \"link-targets\" list should be rejected");
+    assert(msg == "'[dependencies.foo]', 'link-targets' is empty, omit the entry to link every target of the dependency",
+           "unexpected error: " ~ msg);
 }
 
 __test {
     // A non array "link-targets" is rejected, like every other string array entry of the config
-    let mut threw = false;
+    let mut msg = "";
     {
         copy DependencyList(json#{
             "foo" : {"version" : "1.0.0", "url" : {"local" : "../foo"}, "link-targets" : "libfoo"}
         });
     } catch {
-        AssertError() => { threw = true; }
-        CastFailure() => { threw = true; }
+        a: &AssertError => { msg = a.msg; }
     }
 
-    assert(threw, "a non array \"link-targets\" should be rejected");
+    assert(msg == "'[dependencies.foo]', 'link-targets' must be an array of strings, the names of the targets to link",
+           "unexpected error: " ~ msg);
+}
+
+__test {
+    // A dependency declaring no version says what one looks like: an unversioned dependency has no
+    // tag to check out, it is not a shorthand for "any version"
+    let mut msg = "";
+    {
+        copy DependencyList(json#{"foo" : {"url" : {"local" : "../foo"}}});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[dependencies.foo]', missing required entry 'version', for example: version = \">=1.0.0\", or \"*\" for any version",
+           "unexpected error: " ~ msg);
+}
+
+__test {
+    // A dependency declaring no url is named by the error, and the example is written for it
+    let mut msg = "";
+    {
+        copy DependencyList(json#{"foo" : {"version" : "1.0.0"}});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[dependencies.foo]', missing required entry 'url', for example: url = \"git:git@github.com:me/foo.git\"",
+           "unexpected error: " ~ msg);
+}
+
+__test {
+    // A malformed url is reported against the dependency that declares it, not as a bare "malformed url"
+    let mut msg = "";
+    {
+        copy DependencyList(json#{"foo" : {"version" : "1.0.0", "url" : 12}});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[dependencies.foo]', 'url' is invalid: expecting a string like \"git:<remote>\" or \"local:<path>\", "
+           ~ "or a table declaring a 'git' or a 'local' entry", "unexpected error: " ~ msg);
+}
+
+__test {
+    // A malformed version filter is reported the same way
+    let mut msg = "";
+    {
+        copy DependencyList(json#{"foo" : {"version" : ">master", "url" : {"local" : "../foo"}}});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[dependencies.foo]', 'version' is invalid: \">master\" compares against \"master\", "
+           ~ "which is not a numbered version, only a version like \"1.0.0\" can be compared",
+           "unexpected error: " ~ msg);
+}
+
+__test {
+    // A dependency list built from something else than a table is rejected
+    let mut msg = "";
+    {
+        copy DependencyList(copy Str("not-a-dict"));
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'dependencies' must be a table, one '[dependencies.<name>]' entry per dependency",
+           "unexpected error: " ~ msg);
 }
 
 __test {

@@ -53,7 +53,7 @@ pub record RepoRunner {
             self.exitCode(subProc:.wait())
         } else {
             if !self._target.type.isExecutable() {
-                throw copy AssertError("Run command only usable with executables");
+                throw copy AssertError("target '" ~ self._target.name ~ "' is a library, 'gyllir run' only runs an executable target");
             }
 
             let mut options: [[c8]] = [];

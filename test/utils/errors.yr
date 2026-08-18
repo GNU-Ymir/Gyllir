@@ -34,3 +34,18 @@ __test {
     assert(stream[].len >= expected.len && stream[][0 .. expected.len] == expected,
            "unexpected rendering prefix for an UNKNOWN GitError");
 }
+
+__test {
+    // git writes several lines, gyllir reports them as the tail of one of its own error lines
+    assert(errors::singleLine("fatal: not a git repository\n") == "fatal: not a git repository",
+           "a trailing newline should be dropped");
+
+    assert(errors::singleLine("Cloning into 'foo'...\nfatal: could not read\n") == "Cloning into 'foo'... fatal: could not read",
+           "an inner newline should become a single space");
+
+    assert(errors::singleLine("\n  hint:\t stopping \n\n") == "hint: stopping",
+           "runs of blanks should collapse, leading and trailing ones should go");
+
+    assert(errors::singleLine("") == "", "an empty output should stay empty");
+    assert(errors::singleLine(" \n\t ") == "", "a blank only output should render as nothing");
+}

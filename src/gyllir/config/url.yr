@@ -56,6 +56,9 @@ pub record Url {
     /**
      * Create an url from a configuration
      * This constructor can be used by the std for deserialization
+     * @params:
+     *    - cfg: the value of the entry declaring the url
+     *    - entry: the name of that entry, for error reporting
      * @example:
      * ====================
      * fn getConfiguration()-> &Config;
@@ -63,7 +66,7 @@ pub record Url {
      * let dmut list = getConfiguration().to!{&Url} ();
      * ====================
      */
-    pub self (cfg: &Config)
+    pub self (cfg: &Config, entry: [c8] = "'url'")
         throws AssertError
     {
         if let Ok(Str(value-> url)) = cfg["local"]? {
@@ -84,7 +87,18 @@ pub record Url {
             self._valid = true;
         }
 
-        else throw copy AssertError("malformed url");
+        // a table declaring the right key, but not with a string, otherwise falls in the generic
+        // message below, which says nothing about the key that is actually at fault
+        else if let Ok(_) = cfg["local"]? {
+            throw copy AssertError(entry ~ " is invalid: 'local' must be a string, the path of a local package");
+        }
+
+        else if let Ok(_) = cfg["git"]? {
+            throw copy AssertError(entry ~ " is invalid: 'git' must be a string, the remote of a git repository");
+        }
+
+        else throw copy AssertError(entry ~ " is invalid: expecting a string like \"git:<remote>\" or \"local:<path>\", "
+                                    ~ "or a table declaring a 'git' or a 'local' entry");
     }
 
     /*!

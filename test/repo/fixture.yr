@@ -78,7 +78,7 @@ pub fn addUnitTests(dir: Path)
  *    - type: "executable" or "library"
  * */
 pub fn mkConfig(name: [c8], type: [c8])-> GyllirPackageConfiguration
-    throws CastFailure
+    throws AssertError
 {
     GyllirPackageConfiguration(name, "MIT", "an integration test project", BuildType(type),
                                Url("local:some/registry"), Version(1u32, 0u32, 0u32), [])
@@ -210,7 +210,7 @@ pub fn gitInit(dir: Path)
  *    - version: the version filter of the dependency, accepting anything by default
  * */
 pub fn mkConfigWithDependency(name: [c8], type: [c8], depName: [c8], depPath: Path, version: [c8] = "*")-> GyllirPackageConfiguration
-    throws CastFailure, AssertError
+    throws AssertError
 {
     let dmut url = copy Dict();
     url["local"] = copy Str(depPath.toStr());
@@ -265,7 +265,7 @@ pub fn mkMultiTargetProject()-> Path
  * The configuration of a project laid out by 'mkMultiTargetProject'
  * */
 pub fn mkMultiTargetConfig()-> GyllirPackageConfiguration
-    throws CastFailure, AssertError
+    throws AssertError
 {
     GyllirPackageConfiguration(json#{
         "name" : "multi",
@@ -307,7 +307,7 @@ pub fn mkMultiLibProject()-> Path
  * The configuration of a project laid out by 'mkMultiLibProject'
  * */
 pub fn mkMultiLibConfig()-> GyllirPackageConfiguration
-    throws CastFailure, AssertError
+    throws AssertError
 {
     GyllirPackageConfiguration(json#{
         "name" : "multilib",
@@ -333,7 +333,7 @@ pub fn mkMultiLibConfig()-> GyllirPackageConfiguration
  *    - targets: the names of the dependency's targets to select
  * */
 pub fn mkConfigWithSelectedDependency(name: [c8], type: [c8], depName: [c8], depPath: Path, targets: [[c8]])-> GyllirPackageConfiguration
-    throws CastFailure, AssertError
+    throws AssertError
 {
     let dmut url = copy Dict();
     url["local"] = copy Str(depPath.toStr());
@@ -367,7 +367,7 @@ pub fn mkConfigWithSelectedDependency(name: [c8], type: [c8], depName: [c8], dep
  *    - depPath: the directory holding the dependency
  * */
 pub fn mkTargetsConfig(name: [c8], targets: &Config, depName: [c8] = "", depPath: Path = Path(""))-> GyllirPackageConfiguration
-    throws CastFailure, AssertError
+    throws AssertError
 {
     let dmut cfg = copy Dict();
     cfg["name"] = copy Str(name);
@@ -422,7 +422,7 @@ pub fn mkCSourceProject()-> Path
  * C source through the recursive glob under the 'csrc' directory
  * */
 pub fn mkCSourceConfig()-> GyllirPackageConfiguration
-    throws CastFailure, AssertError
+    throws AssertError
 {
     GyllirPackageConfiguration(json#{
         "name" : "csrc-demo",

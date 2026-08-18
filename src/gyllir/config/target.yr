@@ -1,7 +1,6 @@
 in target;
 
 use std::{config::_, stream};
-use std::conv::errors;
 
 use gyllir::config::type;
 
@@ -284,13 +283,13 @@ pub class TargetList {
      * This constructor can be used by the std for serialization
      * */
     pub self (cfg: &Config)
-        throws AssertError, std::conv::errors::CastFailure
+        throws AssertError
     {
         if let d: &Dict = cfg {
             self:.insert(d);
         }
 
-        else throw copy AssertError("Expecting a dictionnary"s8);
+        else throw copy AssertError("'targets' must be a table, one '[targets.<name>]' entry per target"s8);
     }
 
     /*!
@@ -398,16 +397,10 @@ pub class TargetList {
      * Insert the targets from a configuration dictionnary
      * */
     prv fn insert(mut self, cfg: &Dict)
-        throws std::conv::errors::CastFailure
+        throws AssertError
     {
-        {
-            for k, v in cfg[] {
-                self._targets[k] = self.parseTarget(k, v);
-            }
-        } catch {
-            inE => {
-                throw copy std::conv::errors::CastFailure((&Config)::__typeinfo__, Target::__typeinfo__, subError-> (inE)?);
-            }
+        for k, v in cfg[] {
+            self._targets[k] = self.parseTarget(k, v);
         }
     }
 
@@ -416,36 +409,41 @@ pub class TargetList {
      * @params:
      *    - name: the name of the target, the key of its table
      *    - cfg: the content of its table
+     * @throws:
+     *    - AssertError: on the first entry that does not have the expected shape. Its message names
+     *      the target it comes from
      * */
     prv fn parseTarget(self, name: [c8], cfg: &Config)-> Target
-        throws AssertError, std::conv::errors::CastFailure
+        throws AssertError
     {
+        let ctx = gyllir::config::errors::inTable("targets", name);
+
         let type = if let Ok(t) = cfg["type"]? {
-            std::config::conv::to!{BuildType} (t)
+            BuildType(t, entry-> ctx ~ "'type'")
         } else { BuildType() };
 
-        let tests = self.readBool(cfg, "tests", name, default-> true);
+        let tests = self.readBool(cfg, "tests", ctx, default-> true);
         if (!tests) {
             for k in ["test-dir", "test-root"] {
                 if let Ok(_) = cfg[k]? {
-                    throw copy AssertError("target '" ~ name ~ "' has 'tests' set to false, it cannot declare '" ~ k ~ "'");
+                    throw copy AssertError(ctx ~ "'tests' is set to false, the target declares no unittest, it cannot declare '" ~ k ~ "'");
                 }
             }
         }
 
         Target(name, type,
-               sourceDir-> self.readString(cfg, "source-dir", name, default-> __DEFAULT_SOURCE_DIR__),
-               packageRoot-> self.readString(cfg, "package-root", name),
-               testDir-> self.readString(cfg, "test-dir", name, default-> __DEFAULT_TEST_DIR__),
-               testRoot-> self.readString(cfg, "test-root", name),
+               sourceDir-> self.readString(cfg, "source-dir", ctx, default-> __DEFAULT_SOURCE_DIR__),
+               packageRoot-> self.readString(cfg, "package-root", ctx),
+               testDir-> self.readString(cfg, "test-dir", ctx, default-> __DEFAULT_TEST_DIR__),
+               testRoot-> self.readString(cfg, "test-root", ctx),
                tests-> tests,
-               output-> self.readString(cfg, "output", name),
-               flags-> self.readStringArray(cfg, "flags", name),
-               libraries-> self.readStringArray(cfg, "libraries", name),
-               dependencies-> self.readStringArray(cfg, "dependencies", name),
-               targets-> self.readStringArray(cfg, "targets", name),
-               cSources-> self.readStringArray(cfg, "c-sources", name),
-               cFlags-> self.readStringArray(cfg, "c-flags", name))
+               output-> self.readString(cfg, "output", ctx),
+               flags-> self.readStringArray(cfg, "flags", ctx),
+               libraries-> self.readStringArray(cfg, "libraries", ctx),
+               dependencies-> self.readStringArray(cfg, "dependencies", ctx),
+               targets-> self.readStringArray(cfg, "targets", ctx),
+               cSources-> self.readStringArray(cfg, "c-sources", ctx),
+               cFlags-> self.readStringArray(cfg, "c-flags", ctx))
     }
 
     /**
@@ -453,10 +451,10 @@ pub class TargetList {
      * @params:
      *    - cfg: the content of the target table
      *    - key: the name of the entry to read
-     *    - target: the name of the target, for error reporting
+     *    - ctx: the prefix naming the target, for error reporting
      *    - default: the value returned when the entry is absent
      * */
-    prv fn readString(self, cfg: &Config, key: [c8], target: [c8], default: [c8] = "")-> [c8]
+    prv fn readString(self, cfg: &Config, key: [c8], ctx: [c8], default: [c8] = "")-> [c8]
         throws AssertError
     {
         if let Ok(Str(value-> v)) = cfg[key]? {
@@ -464,7 +462,7 @@ pub class TargetList {
         }
 
         else if let Ok(_) = cfg[key]? {
-            throw copy AssertError("expecting a string for '" ~ key ~ "' of target '" ~ target ~ "'");
+            throw copy AssertError(ctx ~ "'" ~ key ~ "' must be a string");
         }
 
         default
@@ -475,10 +473,10 @@ pub class TargetList {
      * @params:
      *    - cfg: the content of the target table
      *    - key: the name of the entry to read
-     *    - target: the name of the target, for error reporting
+     *    - ctx: the prefix naming the target, for error reporting
      *    - default: the value returned when the entry is absent
      * */
-    prv fn readBool(self, cfg: &Config, key: [c8], target: [c8], default: bool)-> bool
+    prv fn readBool(self, cfg: &Config, key: [c8], ctx: [c8], default: bool)-> bool
         throws AssertError
     {
         if let Ok(Bool(value-> v)) = cfg[key]? {
@@ -486,7 +484,7 @@ pub class TargetList {
         }
 
         else if let Ok(_) = cfg[key]? {
-            throw copy AssertError("expecting a boolean for '" ~ key ~ "' of target '" ~ target ~ "'");
+            throw copy AssertError(ctx ~ "'" ~ key ~ "' must be a boolean, either true or false");
         }
 
         default
@@ -497,17 +495,26 @@ pub class TargetList {
      * @params:
      *    - cfg: the content of the target table
      *    - key: the name of the entry to read
-     *    - target: the name of the target, for error reporting
+     *    - ctx: the prefix naming the target, for error reporting
      * */
-    prv fn readStringArray(self, cfg: &Config, key: [c8], target: [c8])-> [[c8]]
-        throws AssertError, std::conv::errors::CastFailure
+    prv fn readStringArray(self, cfg: &Config, key: [c8], ctx: [c8])-> [[c8]]
+        throws AssertError
     {
         if let Ok(a: &Array) = cfg[key]? {
-            return copy [std::config::conv::to!{[c8]} (i) for i in a[]];
+            let mut res: [[c8]] = [];
+            for i in a[] {
+                if let Str(value-> v) = i {
+                    res ~= [v];
+                } else {
+                    throw copy AssertError(ctx ~ "'" ~ key ~ "' must be an array of strings");
+                }
+            }
+
+            return res;
         }
 
         else if let Ok(_) = cfg[key]? {
-            throw copy AssertError("expecting an array of string for '" ~ key ~ "' of target '" ~ target ~ "'");
+            throw copy AssertError(ctx ~ "'" ~ key ~ "' must be an array of strings");
         }
 
         []

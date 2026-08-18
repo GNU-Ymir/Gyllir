@@ -2,7 +2,6 @@ in version;
 
 use std::{config::_, stream};
 use std::syntax::tokenizer;
-use std::conv::errors;
 
 pub mod ::filter;
 
@@ -48,15 +47,18 @@ pub record Version {
 
     /**
      * Deserialize a version from config
+     * @params:
+     *    - cfg: the value of the entry declaring the version
+     *    - entry: the name of that entry, for error reporting
      * */
-    pub self (cfg: &Config)
+    pub self (cfg: &Config, entry: [c8] = "'version'")
         throws AssertError
     {
         if let Str(value-> version) = cfg {
             self:.parseVersion(version);
         }
 
-        else throw copy AssertError("version must be a string");
+        else throw copy AssertError(entry ~ " must be a string, for example: version = \"0.1.0\"");
     }
 
     /*!

@@ -21,7 +21,7 @@ use std::syntax::errors;
  *    - .1: its configuration
  * */
 fn mkPublishableProject(registry: [c8])-> (Path, GyllirPackageConfiguration)
-    throws FsError, GitError, CastFailure
+    throws FsError, GitError, AssertError
 {
     let dir = mkExecutableProject("myapp");
     let cfg = GyllirPackageConfiguration("myapp", "MIT", "an integration test project", BuildType("executable"),
@@ -41,7 +41,7 @@ fn mkPublishableProject(registry: [c8])-> (Path, GyllirPackageConfiguration)
  * @returns: the version written in the 'gyllir.toml' of 'dir'
  * */
 fn readVersion(dir: Path)-> Version
-    throws FsError, AssertError, CastFailure, SyntaxError
+    throws FsError, AssertError, SyntaxError
 {
     let dmut f = File::open(dir.push(defaults::__GYLLIR_CONFIG_FILENAME__));
     let cfg = toml::parse(f:.readAll());

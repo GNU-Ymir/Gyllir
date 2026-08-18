@@ -39,14 +39,44 @@ __test {
 
 __test {
     // A comparator filter only makes sense on a numbered version
-    let mut threw = false;
+    let mut msg = "";
     {
         VersionFilter(copy [">master"]);
     } catch {
-        CastFailure() => { threw = true; }
+        a: &AssertError => { msg = a.msg; }
     }
 
-    assert(threw, "a comparator filter on a named version should be rejected");
+    assert(msg == "'version' is invalid: \">master\" compares against \"master\", which is not a numbered version, "
+           ~ "only a version like \"1.0.0\" can be compared", "unexpected error: " ~ msg);
+}
+
+__test {
+    // A filter that is not even a comparator followed by a version says what one looks like
+    let mut msg = "";
+    {
+        VersionFilter(copy ["><1.0.0"]);
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'version' is invalid: \"><1.0.0\" is not a version filter, expecting a version like \"1.0.0\", "
+           ~ "a name like \"master\", or \"*\" for any of them, optionally prefixed by '>', '>=', '<' or '<='",
+           "unexpected error: " ~ msg);
+}
+
+__test {
+    // The entry the filter was read from is named by the error, so that a dependency table says
+    // which of its versions is at fault
+    let mut msg = "";
+    {
+        VersionFilter(copy [">master"], entry-> "'[dependencies.foo]', 'version'");
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[dependencies.foo]', 'version' is invalid: \">master\" compares against \"master\", "
+           ~ "which is not a numbered version, only a version like \"1.0.0\" can be compared",
+           "unexpected error: " ~ msg);
 }
 
 __test {
@@ -72,28 +102,28 @@ __test {
     let dmut arr = copy Array();
     arr:.push(copy Int(12));
 
-    let mut threw = false;
+    let mut msg = "";
     {
         VersionFilter(arr);
     } catch {
-        CastFailure() => { threw = true; }
-        AssertError() => { threw = true; }
+        a: &AssertError => { msg = a.msg; }
     }
 
-    assert(threw, "a non string filter inside an array configuration should be rejected");
+    assert(msg == "'version' must be an array of version filter strings, for example: version = [\">=1.0.0\", \"<2.0.0\"]",
+           "unexpected error: " ~ msg);
 }
 
 __test {
     // A configuration that is neither a string nor an array is rejected
-    let mut threw = false;
+    let mut msg = "";
     {
         VersionFilter(copy Int(12));
     } catch {
-        AssertError() => { threw = true; }
-        CastFailure() => { threw = true; }
+        a: &AssertError => { msg = a.msg; }
     }
 
-    assert(threw, "a non string/array configuration should be rejected");
+    assert(msg == "'version' must be a version filter, or an array of them, for example: version = \">=1.0.0\"",
+           "unexpected error: " ~ msg);
 }
 
 __test {
@@ -128,18 +158,51 @@ __test {
 }
 
 __test {
-    // select() rejects when no candidate passes every filter
+    // select() rejects when no candidate passes every filter, and lists what was offered: the
+    // filter alone leaves the user guessing which versions the dependency actually publishes
     let vf = VersionFilter(copy [">1.0.0"]);
     let candidates = copy [(Version(0u32, 1u32, 0u32), "too-old")];
 
-    let mut threw = false;
+    let mut msg = "";
     {
         vf.select(candidates);
     } catch {
-        AssertError() => { threw = true; }
+        a: &AssertError => { msg = a.msg; }
     }
 
-    assert(threw, "select() should reject when no candidate passes");
+    assert(msg == "no version matching [>1.0.0], available versions are [0.1.0]", "unexpected error: " ~ msg);
+}
+
+__test {
+    // Named, the rejection says which dependency could not be resolved
+    let vf = VersionFilter(copy [">1.0.0"]);
+    let candidates = copy [(Version(0u32, 1u32, 0u32), "too-old")];
+
+    let mut msg = "";
+    {
+        vf.select(candidates, name-> "foo");
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "dependency 'foo' has no version matching [>1.0.0], available versions are [0.1.0]",
+           "unexpected error: " ~ msg);
+}
+
+__test {
+    // A dependency that publishes nothing at all is a different problem than one that publishes
+    // only versions the filter rejects, and reads as one
+    let vf = VersionFilter(copy [">1.0.0"]);
+
+    let mut msg = "";
+    {
+        vf.select([], name-> "foo");
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "dependency 'foo' has no version matching [>1.0.0], it declares no version at all",
+           "unexpected error: " ~ msg);
 }
 
 __test {

@@ -3,7 +3,7 @@ in manager;
 use std::{config::_, fs::_, io, stream};
 use gyllir::{config::_, args, args::_, utils::_};
 use gyllir::repo::_;
-use std::{algorithm::sorting, concurrency::process, syntax::tokenizer};
+use std::{algorithm::sorting, concurrency::process, syntax::errors, syntax::tokenizer};
 
 extern (C) fn printf(c: *c8, ...);
 extern (C) fn fflush(i: *void);
@@ -112,22 +112,47 @@ pub class GyllirManager {
         GyllirPackageConfiguration(cfg)
     } catch {
         FsError() => {
-            utils::log::error("Error", "failed to read configuration file gyllir.toml");
+            if (!fs::sys::isFile(path.push(defaults::__GYLLIR_CONFIG_FILENAME__))) {
+                utils::log::error("Error", "no ", defaults::__GYLLIR_CONFIG_FILENAME__, " in '", path.toStr(),
+                                  "', run 'gyllir init' to create a package there");
+            } else {
+                utils::log::error("Error", "failed to read '", self.configFile(path), "'");
+            }
+
             etc::c::process::_yrt_exit(-1);
             panic;
         }
-        // a malformed gyllir.toml: the message names what the user has to fix, a stack trace into
-        // the configuration parser would only bury it
+        // a gyllir.toml that is not even TOML: the parser locates the character it choked on, which
+        // is all the user needs, a stack trace into the parser is noise
+        s: &SyntaxError => {
+            utils::log::error("Error", "'", self.configFile(path), "' is not valid TOML, line ", s.line,
+                              " column ", s.col, ": ", s.msg);
+            etc::c::process::_yrt_exit(-1);
+            panic;
+        }
+        // a malformed gyllir.toml: the message names the entry the user has to fix, a stack trace
+        // into the configuration parser would only bury it
         a: &AssertError => {
-            utils::log::error("Error", "in gyllir.toml, ", a.msg);
+            utils::log::error("Error", "in '", self.configFile(path), "', ", a.msg);
             etc::c::process::_yrt_exit(-1);
             panic;
         }
-        err => {
-            utils::log::error("Error", err);
-            etc::c::process::_yrt_exit(-1);
-            panic;
+    }
+
+    /**
+     * @returns: the path of the configuration file of a package, as it is named in an error
+     *    message: relative to the current directory for the package being built, absolute for a
+     *    dependency resolved somewhere else, so that an error never leaves the user wondering which
+     *    of the two configuration files it comes from
+     * */
+    prv fn configFile(self, path: Path)-> [c8] {
+        let file = path.push(defaults::__GYLLIR_CONFIG_FILENAME__);
+        let cwd = env::currentDir();
+        if (cwd.isPrefix(file)) {
+            return file.removePrefix(cwd).toStr();
         }
+
+        file.toStr()
     }
 
     /**
@@ -657,7 +682,7 @@ pub class GyllirManager {
                 false
             };
 
-            self:.selectDependencyVersion(gM, dependency);
+            self:.selectDependencyVersion(gM, dependency, name-> name);
             let conf = self.loadToml(depPath);
 
             // only the library targets of a dependency are of any use here, an executable it also
@@ -668,7 +693,8 @@ pub class GyllirManager {
             }
 
             if (libTargets.len == 0us) {
-                utils::log::error("Resolving", "dependency ", name, " in ", dependency.url, " is not a library.");
+                utils::log::error("Resolving", "dependency '", name, "' at '", dependency.url.path.toStr(),
+                                  "' declares no library target, only a library can be linked into a package");
                 etc::c::process::_yrt_exit(-1);
                 panic;
             }
@@ -685,14 +711,31 @@ pub class GyllirManager {
             self._depPackages:.remove(dependency.url);
             (ext, lbs)
         } catch {
-            GitError() => {
+            // git said no: report what it actually refused to do. A failure here is a clone that
+            // never happened, a directory that is no git repository, or a version that could not
+            // be checked out, and telling the user the wrong one of the three sends them looking
+            // in the wrong place
+            g: &GitError => {
                 let versions = {
                     self.toVersionList(GitManager(cwd-> depPath).getTagList())
                 } catch { _ => [] };
 
-                utils::log::error("Resolving", "dependency ", name, " has no version ", dependency.version);
                 if (versions.len != 0us) {
-                    utils::log::info("", "Available versions are: ", copy [c._0[] for c in versions]);
+                    utils::log::error("Resolving", "dependency '", name, "' could not be checked out at ",
+                                      dependency.version, ": ", utils::errors::singleLine(g.msg));
+                    utils::log::info("", "available versions are: ", copy [c._0[] for c in versions]);
+                }
+
+                else if (dependency.url.type == UrlType::LOCAL) {
+                    utils::log::error("Resolving", "dependency '", name, "' at '", dependency.url.path.toStr(),
+                                      "' is not a usable git repository: ", utils::errors::singleLine(g.msg));
+                    utils::log::info("", "a local dependency is checked out at the version matching ",
+                                     dependency.version, ", so it has to be a git repository");
+                }
+
+                else {
+                    utils::log::error("Resolving", "dependency '", name, "' could not be fetched from '",
+                                      dependency.url.path.toStr(), "': ", utils::errors::singleLine(g.msg));
                 }
 
                 etc::c::process::_yrt_exit(-1);
@@ -702,13 +745,14 @@ pub class GyllirManager {
             r: &RecursiveDependency => {
                 throw copy RecursiveDependency(name ~ ":"s8 ~ dependency.url.path.toStr(), subError-> (r)?);
             }
+            // every message thrown from here already names the dependency it comes from
             a: &AssertError => {
-                utils::log::error("Resolving", "dependency ", name, " failure, ", a.msg);
+                utils::log::error("Resolving", a.msg);
                 etc::c::process::_yrt_exit(-1);
                 panic;
             }
             x => {
-                utils::log::error("Resolving", "dependency ", name, " failure, ", x);
+                utils::log::error("Resolving", "dependency '", name, "' could not be resolved: ", x);
                 etc::c::process::_yrt_exit(-1);
                 panic;
             }
@@ -717,8 +761,12 @@ pub class GyllirManager {
 
     /**
      * Select the version in the git repository
+     * @params:
+     *    - gM: the git repository of the dependency
+     *    - dependency: the declaration of the dependency
+     *    - name: the name of the dependency, for error reporting
      * */
-    fn selectDependencyVersion(mut self, gM: GitManager, dependency: Dependency)
+    fn selectDependencyVersion(mut self, gM: GitManager, dependency: Dependency, name: [c8] = "")
         throws GitError, FsError, AssertError
     {
         // No need to fetch or swith if current branch pass the dependency version filter
@@ -728,7 +776,7 @@ pub class GyllirManager {
         }
 
         gM.fetchTags();
-        let version = dependency.version.select(self.toVersionList(gM.getTagList()));
+        let version = dependency.version.select(self.toVersionList(gM.getTagList()), name-> name);
         if (version._0).isIgnore() {
             gM.checkout(version._1);
             if (dependency.url.type == UrlType::GIT) {
