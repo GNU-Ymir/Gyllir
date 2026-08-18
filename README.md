@@ -100,7 +100,7 @@ type = "executable"      # or "library"
 version = "0.1.0"
 authors = ["Jane Doe"]
 compiler = "gyc"          # optional, defaults to "gyc" on PATH
-package-root = "main"     # optional, root module under src/ (defaults to src/<name>.yr, then src/main.yr)
+package-root = "main"     # optional, root module under src/ (defaults to src/__lib__.yr for a library, src/main.yr for an executable)
 test-root = "__test__"    # optional, root module under test/ (defaults to test/__test__.yr)
 registry = "local:/home/jane/.local/gyllir/my-project"
 

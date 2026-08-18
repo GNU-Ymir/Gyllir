@@ -850,35 +850,38 @@ pub record RepoBuilder {
 
         // Overriden by configuration file, a declared root that does not exist is an error, never a fallback
         if let name = self._target.packageRoot && name != "" {
-            let mainPath = srcDir.push(name).addExtension(defaults::__YMIR_EXTENSION__);
-            if (!fs::sys::isFile(mainPath)) {
+            let rootPath = srcDir.push(name).addExtension(defaults::__YMIR_EXTENSION__);
+            if (!fs::sys::isFile(rootPath)) {
                 throw copy AssertError(self.targetContext() ~ "'package-root' names '" ~ name ~ "', but there is no "
-                                       ~ mainPath.toStr());
+                                       ~ rootPath.toStr());
             }
 
-            return mainPath;
+            return rootPath;
         }
 
-        // Otherwise the root module is named after the target
-        let libPath = srcDir.push(self._target.rootModule()).addExtension(defaults::__YMIR_EXTENSION__);
-        if (fs::sys::isFile(libPath)) {
-            return libPath;
-        }
+        // The target synthesized for a package declaring no '[targets.<name>]' table roots at the
+        // file matching its type ('__lib__.yr' for a library, 'main.yr' for an executable), never
+        // at a module named after the package, so a module of that name stays a regular module and
+        // never conflicts with this resolution
+        if (self._target.synthesized) {
+            let fileName = if (self._target.type.isExecutable()) { defaults::__MAIN_FILE__ } else { defaults::__LIB_FILE__ };
+            let rootPath = srcDir.push(fileName);
+            if (fs::sys::isFile(rootPath)) {
+                return rootPath;
+            }
 
-        // A declared target roots at its own name and nowhere else, only the target synthesized for a
-        // package declaring none keeps the historical fallback to 'src/main.yr'
-        if (!self._target.synthesized) {
-            throw copy AssertError(self.targetContext() ~ "no root module, create " ~ libPath.toStr()
+            throw copy AssertError(self.targetContext() ~ "no root module, create " ~ rootPath.toStr()
                                    ~ ", or name another one with 'package-root'");
         }
 
-        let mainPath = srcDir.push(defaults::__MAIN_FILE__);
-        if (fs::sys::isFile(mainPath)) {
-            return mainPath;
+        // A declared target roots at its own name and nowhere else
+        let rootPath = srcDir.push(self._target.rootModule()).addExtension(defaults::__YMIR_EXTENSION__);
+        if (fs::sys::isFile(rootPath)) {
+            return rootPath;
         }
 
-        throw copy AssertError(self.targetContext() ~ "no root module, create " ~ libPath.toStr() ~ " or "
-                               ~ mainPath.toStr() ~ ", or name another one with 'package-root'");
+        throw copy AssertError(self.targetContext() ~ "no root module, create " ~ rootPath.toStr()
+                               ~ ", or name another one with 'package-root'");
     }
 
     /**

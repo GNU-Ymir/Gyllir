@@ -9,7 +9,7 @@ use std::{io, stream, concurrency::process};
  * @info: kept in sync with the 'version' field of gyllir.toml by 'tools/set-version.sh',
  *   declared as a pre build command in the '[commands]' table of gyllir.toml.
  * */
-pub def __GYLLIR_VERSION__ = "1.4.0";
+pub def __GYLLIR_VERSION__ = "1.4.1";
 
 /**
  * Format the version banner of gyllir
