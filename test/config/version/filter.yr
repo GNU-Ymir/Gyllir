@@ -6,14 +6,14 @@ use std::config::conv;
 use std::conv::errors;
 use std::stream;
 
-__test {
+__test plain_versions_are_equality_filters {
     // Plain versions (no comparator) are equality filters
     let vf = VersionFilter(copy ["1.2.3"]);
     assert(vf.pass(Version(1u32, 2u32, 3u32)), "1.2.3 should pass an equality filter on 1.2.3");
     assert(!vf.pass(Version(1u32, 2u32, 4u32)), "1.2.4 should not pass an equality filter on 1.2.3");
 }
 
-__test {
+__test comparator_filters_and_combining_several {
     // Comparator filters, and combining several of them (all must pass)
     let vf = VersionFilter(copy [">1.0.0", "<2.0.0"]);
     assert(vf.pass(Version(1u32, 5u32, 0u32)), "1.5.0 should be within (1.0.0, 2.0.0)");
@@ -21,7 +21,7 @@ __test {
     assert(!vf.pass(Version(2u32, 0u32, 0u32)), "2.0.0 should fail the < 2.0.0 bound");
 }
 
-__test {
+__test inclusive_comparators {
     // Inclusive comparators
     let vf = VersionFilter(copy [">=1.0.0", "<=2.0.0"]);
     assert(vf.pass(Version(1u32, 0u32, 0u32)), "1.0.0 should pass >= 1.0.0");
@@ -30,14 +30,14 @@ __test {
     assert(!vf.pass(Version(2u32, 0u32, 1u32)), "2.0.1 should fail <= 2.0.0");
 }
 
-__test {
+__test star_filter_accepts_any_version {
     // A "*" filter accepts any version, whatever the comparator would otherwise mean
     let vf = VersionFilter(copy ["*"]);
     assert(vf.pass(Version(0u32, 0u32, 1u32)), "an ignore filter should accept any numbered version");
     assert(vf.pass(Version("master")), "an ignore filter should accept any named version too");
 }
 
-__test {
+__test comparator_requires_numbered_version {
     // A comparator filter only makes sense on a numbered version
     let mut msg = "";
     {
@@ -50,7 +50,7 @@ __test {
            ~ "only a version like \"1.0.0\" can be compared", "unexpected error: " ~ msg);
 }
 
-__test {
+__test filter_not_comparator_plus_version_rejected {
     // A filter that is not even a comparator followed by a version says what one looks like
     let mut msg = "";
     {
@@ -64,7 +64,7 @@ __test {
            "unexpected error: " ~ msg);
 }
 
-__test {
+__test entry_the_filter_was_read_from_is_named {
     // The entry the filter was read from is named by the error, so that a dependency table says
     // which of its versions is at fault
     let mut msg = "";
@@ -79,14 +79,14 @@ __test {
            "unexpected error: " ~ msg);
 }
 
-__test {
+__test deserialize_single_filter_from_string {
     // Deserializing a single filter from a raw string configuration node
     let vf = VersionFilter(copy Str(">=1.0.0"));
     assert(vf.pass(Version(1u32, 0u32, 0u32)), "expected the deserialized filter to accept 1.0.0");
     assert(!vf.pass(Version(0u32, 9u32, 0u32)), "expected the deserialized filter to reject 0.9.0");
 }
 
-__test {
+__test deserialize_several_filters_from_array {
     // Deserializing several filters from an array configuration node
     let dmut arr = copy Array();
     arr:.push(copy Str(">1.0.0"));
@@ -97,7 +97,7 @@ __test {
     assert(!vf.pass(Version(2u32, 5u32, 0u32)), "expected the deserialized filters to reject 2.5.0");
 }
 
-__test {
+__test non_string_array_element_rejected {
     // A non string element inside the array configuration is rejected
     let dmut arr = copy Array();
     arr:.push(copy Int(12));
@@ -113,7 +113,7 @@ __test {
            "unexpected error: " ~ msg);
 }
 
-__test {
+__test non_string_non_array_config_rejected {
     // A configuration that is neither a string nor an array is rejected
     let mut msg = "";
     {
@@ -126,7 +126,7 @@ __test {
            "unexpected error: " ~ msg);
 }
 
-__test {
+__test select_returns_highest_passing_candidate {
     // select() returns the most recent (highest) candidate that passes every filter,
     // not just the first one that happens to pass
     let vf = VersionFilter(copy [">1.0.0"]);
@@ -141,7 +141,7 @@ __test {
     assert(selected == Version(2u32, 0u32, 0u32), "unexpected selected version");
 }
 
-__test {
+__test select_order_of_candidates_does_not_matter {
     // The order of the candidate list must not matter: the highest passing version wins
     // even when it isn't the last (or first) one in the list
     let vf = VersionFilter(copy [">1.0.0"]);
@@ -157,7 +157,7 @@ __test {
     assert(selected == Version(3u32, 0u32, 0u32), "unexpected selected version");
 }
 
-__test {
+__test select_rejects_when_no_candidate_passes {
     // select() rejects when no candidate passes every filter, and lists what was offered: the
     // filter alone leaves the user guessing which versions the dependency actually publishes
     let vf = VersionFilter(copy [">1.0.0"]);
@@ -173,7 +173,7 @@ __test {
     assert(msg == "no version matching [>1.0.0], available versions are [0.1.0]", "unexpected error: " ~ msg);
 }
 
-__test {
+__test named_select_rejection_names_dependency {
     // Named, the rejection says which dependency could not be resolved
     let vf = VersionFilter(copy [">1.0.0"]);
     let candidates = copy [(Version(0u32, 1u32, 0u32), "too-old")];
@@ -189,7 +189,7 @@ __test {
            "unexpected error: " ~ msg);
 }
 
-__test {
+__test select_rejection_when_no_version_at_all {
     // A dependency that publishes nothing at all is a different problem than one that publishes
     // only versions the filter rejects, and reads as one
     let vf = VersionFilter(copy [">1.0.0"]);
@@ -205,7 +205,7 @@ __test {
            "unexpected error: " ~ msg);
 }
 
-__test {
+__test serialize_single_filter_round_trips {
     // Serializing a single filter round-trips into a string configuration node
     let vf = VersionFilter(copy [">1.0.0"]);
     assert(to!{[c8]}(vf.serialize()) == ">1.0.0", "unexpected serialized single filter");
@@ -214,7 +214,7 @@ __test {
     assert(to!{[c8]}(anyVf.serialize()) == "*", "unexpected serialized ignore filter");
 }
 
-__test {
+__test textual_representation_of_single_filter {
     // A textual representation of a single filter
     let vf = VersionFilter(copy [">1.0.0"]);
     let dmut str = copy StringStream();
@@ -223,7 +223,7 @@ __test {
     assert(str[] == "[>1.0.0]", str[]);
 }
 
-__test {
+__test textual_representation_of_several_filters {
     // A textual representation of several filters, comma separated
     let vf = VersionFilter(copy [">1.0.0", "<2.0.0"]);
     let dmut str = copy StringStream();
@@ -232,7 +232,7 @@ __test {
     assert(str[] == "[>1.0.0, <2.0.0]", str[]);
 }
 
-__test {
+__test serialize_keeps_comparator_in_front {
     // Serializing a single filter keeps the comparator in front of the version
     for c in copy [(">1.0.0", ">1.0.0"), (">=1.0.0", ">=1.0.0"),
                    ("<1.0.0", "<1.0.0"), ("<=1.0.0", "<=1.0.0"),
@@ -242,12 +242,12 @@ __test {
     }
 }
 
-__test {
+__test ignore_filter_serializes_without_comparator {
     // An ignore filter serializes without a comparator, since it applies to every version
     assert(to!{[c8]} (VersionFilter(copy ["*"]).serialize()) == "*", "unexpected serialization of an ignore filter");
 }
 
-__test {
+__test several_filters_serialize_as_array {
     // Several filters serialize as an array, one entry each
     let serialized = VersionFilter(copy [">1.0.0", "<2.0.0"]).serialize();
 
@@ -258,7 +258,7 @@ __test {
     } else assert(false, "several filters should serialize as an array");
 }
 
-__test {
+__test every_comparator_has_its_own_rendering {
     // Every comparator has a rendering of its own, and several filters are rendered as a list
     let dmut stream = copy StringStream();
     stream:.write(VersionFilter(copy [">1.0.0", ">=1.1.0", "<2.0.0", "<=2.1.0", "3.0.0", "*"]));

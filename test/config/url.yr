@@ -3,7 +3,7 @@ use gyllir::config::url;
 use std::config::_;
 use std::config::{conv, json};
 
-__test {
+__test default_url_is_empty_local_invalid {
     // A default-constructed url is empty, of type LOCAL, and invalid
     let u = Url();
     assert(u.path.toStr() == "", "default url should have an empty path");
@@ -11,7 +11,7 @@ __test {
     assert(!u.isValid(), "default url should not be valid");
 }
 
-__test {
+__test local_prefix_parsed_and_stripped {
     // A "local:" prefix is parsed as a local url, and stripped from the path
     let u = Url("local:some/dir");
     assert(u.type == UrlType::LOCAL, "expected a LOCAL url type");
@@ -19,7 +19,7 @@ __test {
     assert(u.isValid(), "a well formed url should be valid");
 }
 
-__test {
+__test git_prefix_parsed_and_stripped {
     // A "git:" prefix is parsed as a git url, and stripped from the path
     let u = Url("git:some/repo");
     assert(u.type == UrlType::GIT, "expected a GIT url type");
@@ -27,7 +27,7 @@ __test {
     assert(u.isValid(), "a well formed url should be valid");
 }
 
-__test {
+__test unprefixed_url_defaults_to_git {
     // Without a known prefix, the url is treated as a raw(git) remote, kept as-is
     let u = Url("git@host.com:org/repo.git");
     assert(u.type == UrlType::GIT, "unprefixed urls should default to GIT");
@@ -35,7 +35,7 @@ __test {
     assert(u.isValid(), "a well formed url should be valid");
 }
 
-__test {
+__test deserialize_from_local_key {
     // Deserializing from a configuration containing a "local" key
     let cfg = json#{"local" : "some/dir"};
     let u = Url(cfg);
@@ -45,7 +45,7 @@ __test {
     assert(u.isValid(), "a well formed url should be valid");
 }
 
-__test {
+__test deserialize_from_git_key {
     // Deserializing from a configuration containing a "git" key
     let cfg = json#{"git" : "some/repo"};
     let u = Url(cfg);
@@ -55,7 +55,7 @@ __test {
     assert(u.isValid(), "a well formed url should be valid");
 }
 
-__test {
+__test deserialize_from_raw_string_node {
     // Deserializing directly from a raw string configuration node falls back to string parsing
     let u = Url(copy Str("local:some/dir"));
 
@@ -64,7 +64,7 @@ __test {
     assert(u.isValid(), "a well formed url should be valid");
 }
 
-__test {
+__test dict_without_local_or_git_key_rejected {
     // A dictionnary without a "local" or "git" key is rejected as malformed
     let cfg = json#{"unknown" : "some/dir"};
     let mut msg = "";
@@ -78,7 +78,7 @@ __test {
            ~ "or a table declaring a 'git' or a 'local' entry", "unexpected error: " ~ msg);
 }
 
-__test {
+__test non_string_entry_names_the_entry {
     // A "git" or "local" entry that is not a string names that entry, rather than falling back on
     // the generic message, which would say nothing about what is actually wrong
     let mut msg = "";
@@ -91,7 +91,7 @@ __test {
     assert(msg == "'url' is invalid: 'git' must be a string, the remote of a git repository", "unexpected error: " ~ msg);
 }
 
-__test {
+__test entry_the_url_was_read_from_is_named {
     // The entry the url was read from is named by the error, a package has one registry and as many
     // dependency urls as it declares dependencies
     let mut msg = "";
@@ -105,7 +105,7 @@ __test {
            ~ "or a table declaring a 'git' or a 'local' entry", "unexpected error: " ~ msg);
 }
 
-__test {
+__test extra_entry_rejected {
     // A "local" or "git" table declaring an extra entry is rejected rather than ignoring it
     let mut msg = "";
     {
@@ -117,7 +117,7 @@ __test {
     assert(msg == "'url' 'branch' is not a known entry", "unexpected error: " ~ msg);
 }
 
-__test {
+__test equality_requires_path_type_and_validity {
     // Equality only holds when path, type and validity all match
     let a = Url("local:some/dir");
     let b = Url("local:some/dir");
@@ -129,7 +129,7 @@ __test {
     assert(a != d, "urls with different types should not be equal");
 }
 
-__test {
+__test serialize_local_and_git_urls {
     // Serializing a local url produces a "local" entry, a git url a "git" entry
     let localUrl = Url("local:some/dir");
     let gitUrl = Url("git:some/repo");

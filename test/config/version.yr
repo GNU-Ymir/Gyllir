@@ -5,7 +5,7 @@ use std::config::conv;
 
 pub mod ::filter;
 
-__test {
+__test construct_from_explicit_numbers {
     // Construction from explicit numbers
     let v = Version(1u32, 2u32, 3u32);
     assert(v.isNumbered(), "explicit numbers should produce a numbered version");
@@ -13,7 +13,7 @@ __test {
     assert(v[] == "1.2.3", "unexpected string representation");
 }
 
-__test {
+__test parse_numbered_string_with_leading_v {
     // Parsing a numbered string, with and without a leading 'v' (as used for git tags)
     let a = Version("1.2.3");
     assert(a.isNumbered() && a[] == "1.2.3", "unexpected parse of \"1.2.3\"");
@@ -26,7 +26,7 @@ __test {
     assert(c.isNumbered() && c[] == "1.2.0", "unexpected parse of \"1.2\"");
 }
 
-__test {
+__test non_dotted_numbers_kept_as_named_version {
     // Anything that isn't 2 or 3 dot separated numbers is kept as a named version
     let noDots = Version("master");
     assert(!noDots.isNumbered(), "\"master\" should not be numbered");
@@ -41,7 +41,7 @@ __test {
     assert(notNumeric[] == "foo.bar.baz", "unexpected string representation");
 }
 
-__test {
+__test star_and_ignore_produce_any_version {
     // "*" and the ignore() named constructor both produce an "any version" marker
     let star = Version("*");
     assert(star.isIgnore(), "\"*\" should be parsed as an ignored version");
@@ -52,7 +52,7 @@ __test {
     assert(ignored[] == "*", "unexpected string representation for an ignored version");
 }
 
-__test {
+__test deserialize_from_configuration {
     // Deserializing from a configuration
     let v = Version(copy Str("1.2.3"));
     assert(v.isNumbered() && v[] == "1.2.3", "unexpected version parsed from a configuration");
@@ -67,7 +67,7 @@ __test {
     assert(msg == "'version' must be a string, for example: version = \"0.1.0\"", "unexpected error: " ~ msg);
 }
 
-__test {
+__test increment_numbered_version {
     // Incrementing a numbered version
     let v = Version(1u32, 2u32, 3u32);
 
@@ -80,7 +80,7 @@ __test {
     assert(named.increment(true, true) == named, "incrementing a named version should be a no-op");
 }
 
-__test {
+__test equality_and_ordering {
     // Equality and ordering
     let a = Version(1u32, 2u32, 3u32);
     let b = Version("1.2.3");
@@ -97,7 +97,7 @@ __test {
     assert(Version(1u32, 3u32, 0u32) > Version(1u32, 2u32, 9u32), "minor should take precedence over patch");
 }
 
-__test {
+__test serialize_round_trips_to_string {
     // Serializing round-trips into a string configuration node
     let numbered = Version("1.2.3");
     let named = Version("master");

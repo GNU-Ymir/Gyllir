@@ -1,31 +1,31 @@
 use gyllir::doc::comment::utf;
 
-__test {
+__test plain_text_left_untouched {
     // Content with no stars or escape sequences is left untouched
     assert(escapeChars("hello world") == "hello world", "unexpected result for plain text");
 }
 
-__test {
+__test leading_star_stripped {
     // A "*" at the very start of the content is the doc-comment continuation marker, and is stripped
     assert(escapeChars("* text") == " text", "a leading star should be stripped");
 }
 
-__test {
+__test leading_spaces_before_star_kept {
     // Leading spaces before the star are kept, only the star itself is removed
     assert(escapeChars("   * text") == "    text", "leading spaces should be kept, only the star removed");
 }
 
-__test {
+__test only_first_star_of_run_stripped {
     // Only the first star of a run is stripped, further stars on the same line are kept
     assert(escapeChars("** text") == "* text", "only the first leading star should be stripped");
 }
 
-__test {
+__test star_not_at_line_start_kept {
     // A star that isn't at the start of a line (i.e. preceded by non-space content) is kept as-is
     assert(escapeChars("abc*def") == "abc*def", "a star in the middle of a line should not be stripped");
 }
 
-__test {
+__test each_line_resets_star_state {
     // Each line is considered independently: a newline resets the "start of line" state
     assert(escapeChars("one\n * two") == "one\n  two", "a star at the start of a subsequent line should also be stripped");
 
@@ -33,7 +33,7 @@ __test {
     assert(escapeChars("a*\n*b") == "a*\nb", "unexpected result across a line boundary");
 }
 
-__test {
+__test known_escape_sequences_converted {
     // Known escape sequences are converted to their real control character
     assert(escapeChars("\\n") == "\n", "\\n should escape to a real line feed");
     assert(escapeChars("\\t") == "\t", "\\t should escape to a real tab");
@@ -49,17 +49,17 @@ __test {
     assert(escapeChars("\\v") == "\u{11}", "\\v should escape to a real vertical tab character");
 }
 
-__test {
+__test unknown_escape_sequence_kept {
     // A backslash followed by a character that has no known escape mapping is kept as-is
     assert(escapeChars("\\z") == "\\z", "an unknown escape sequence should be kept unmodified");
 }
 
-__test {
+__test trailing_lone_backslash_kept {
     // A lone trailing backslash (nothing left to escape) is kept as-is, and doesn't crash
     assert(escapeChars("abc\\") == "abc\\", "a trailing lone backslash should be kept unmodified");
 }
 
-__test {
+__test escaped_newline_resets_star_state {
     // Escaping and star stripping compose: an escaped newline also resets the star-stripping state
     assert(escapeChars("one\\n * two") == "one\n  two", "an escaped newline should reset the star-stripping state");
 }

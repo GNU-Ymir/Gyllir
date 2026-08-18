@@ -1,14 +1,14 @@
 use gyllir::doc::symbols::_;
 use gyllir::doc::symbols::none_;
 
-__test {
+__test none_default_values {
     let n = copy None();
     assert(n.name == "", "None should have an empty name");
     assert(n.doc == "", "None should have an empty doc");
     assert(n.protect == Protection::PRV, "None should default to PRV protection");
 }
 
-__test {
+__test none_symbol_default_values {
     assert(NONE_SYMBOL.name == "", "NONE_SYMBOL should have an empty name");
     assert(NONE_SYMBOL.protect == Protection::PRV, "NONE_SYMBOL should default to PRV protection");
 }

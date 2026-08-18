@@ -24,7 +24,7 @@ fn nbPages(dir: Path)-> usize
     nb
 }
 
-__test {
+__test doc_build_renders_page_per_module {
     // A documentation build compiles the project, then renders one html page per module, next to
     // the static assets the pages refer to
     let dir = mkExecutableProject("myapp");
@@ -41,7 +41,7 @@ __test {
            "the static assets of the pages should be copied next to them");
 }
 
-__test {
+__test doc_output_flag_changes_render_directory {
     // "--output" renders the pages somewhere else than the default "__doc" directory
     let dir = mkExecutableProject("myapp");
     let dmut mgr = copy GyllirManager(copy ["gyllir", "doc"]);
@@ -58,7 +58,7 @@ __test {
     assert(!sys::isDir(dir.push(defaults::__DOC_DIR__)), "the default documentation directory should be left alone");
 }
 
-__test {
+__test doc_input_flag_renders_from_doc_file {
     // "--input" renders the pages from a documentation file produced by a previous compilation,
     // without a package(and so without a configuration) of its own
     let dir = mkExecutableProject("myapp");
@@ -79,7 +79,7 @@ __test {
     assert(sys::isFile(out.push("index.html")), "the pages should be rendered from the input documentation file");
 }
 
-__test {
+__test doc_build_removes_stale_pages {
     // The pages of a previous run are removed before the new ones are written, so that the module
     // of a deleted source does not keep a page of its own
     let dir = mkExecutableProject("myapp");
@@ -98,7 +98,7 @@ __test {
     assert(nbPages(docDir) == nb, "the pages of the modules that are still there should be rendered again");
 }
 
-__test {
+__test doc_build_renders_every_symbol_kind {
     // A project holding one declaration of about every kind is documented end to end: gyc produces
     // the documentation file, the loader rebuilds the symbol tree out of it, and every symbol is
     // rendered on the page of the module declaring it
@@ -152,7 +152,7 @@ __test {
  * ====================================================================================================
  */
 
-__test {
+__test doc_multi_target_renders_separate_sites {
     // A package producing several artifacts documents each of them under a sub directory of its own,
     // so that the sites do not overwrite each other
     let dir = mkMultiTargetProject();
@@ -171,7 +171,7 @@ __test {
     assert(nbPages(docDir.push("cli")) > 0us, "the pages of a target should sit in its own directory");
 }
 
-__test {
+__test doc_target_uses_own_doc_cache {
     // The documentation of a target is compiled in the doc cache of that target
     let dir = mkMultiTargetProject();
     let cfg = mkMultiTargetConfig();

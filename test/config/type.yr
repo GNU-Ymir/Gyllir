@@ -4,14 +4,14 @@ use std::config::_;
 use std::config::conv;
 use std::conv::errors;
 
-__test {
+__test default_build_type_is_executable {
     // Default construction targets an executable
     let t = BuildType();
     assert(t.isExecutable(), "default build type should be executable");
     assert(!t.isLibrary(), "default build type should not be a library");
 }
 
-__test {
+__test parse_build_type_from_string {
     // Parsing from a string
     let exe = BuildType("executable");
     assert(exe.isExecutable(), "\"executable\" should parse as an executable build type");
@@ -22,7 +22,7 @@ __test {
     assert(!lib.isExecutable(), "\"library\" should not parse as an executable build type");
 }
 
-__test {
+__test unknown_string_rejected {
     // An unknown string is rejected, and the error names the types a target may declare
     let mut msg = "";
     {
@@ -35,7 +35,7 @@ __test {
            "unexpected error: " ~ msg);
 }
 
-__test {
+__test unknown_type_error_names_entry {
     // The entry the type was read from is named by the error, so that a target table says which
     // of its types is at fault
     let mut msg = "";
@@ -49,7 +49,7 @@ __test {
            "unexpected error: " ~ msg);
 }
 
-__test {
+__test parse_build_type_from_config_node {
     // Parsing from a configuration node
     let lib = BuildType(copy Str("library"));
     assert(lib.isLibrary(), "expected a library build type");
@@ -58,7 +58,7 @@ __test {
     assert(exe.isExecutable(), "expected an executable build type");
 }
 
-__test {
+__test non_string_config_rejected {
     // A non string configuration is rejected
     let mut msg = "";
     {
@@ -70,7 +70,7 @@ __test {
     assert(msg == "'type' must be a string, one of \"executable\", \"library\"", "unexpected error: " ~ msg);
 }
 
-__test {
+__test serialize_round_trips_type {
     // Serializing round-trips the type back into its string representation
     let exe = BuildType("executable");
     let lib = BuildType("library");

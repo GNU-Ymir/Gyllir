@@ -6,7 +6,7 @@ use gyllir::doc::types::scalar;
 
 use std::stream;
 
-__test {
+__test unsafe_function_with_thrower {
     let loc = Location("foo.yr", 3u64, 5u64);
     let dmut f = copy Function("bar", "docs", loc, Protection::PUB);
     f.retType = copy ScalarType("i32", "");
@@ -24,7 +24,7 @@ __test {
            "unexpected rendering for an unsafe function with a thrower");
 }
 
-__test {
+__test inline_unsafe_function {
     // isInline and isUnsafe together produce a combined attribute list; no throwers means no "throws" block
     let dmut f = copy Function("baz", "", INTERNAL_LOCATION, Protection::PUB);
     f.isUnsafe = true;
@@ -37,7 +37,7 @@ __test {
            "unexpected rendering for an inline+unsafe function");
 }
 
-__test {
+__test function_default_fields {
     let name = "bar";
     let doc = "some documentation";
     let loc = Location("foo.yr", 1u64, 1u64);

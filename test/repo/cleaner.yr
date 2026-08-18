@@ -6,7 +6,7 @@ use std::config::_;
 use std::config::json;
 use std::fs::_;
 
-__test {
+__test clean_doc_removes_doc_directory {
     // cleanDoc() removes the "__doc" directory under the repo's cwd
     let dir = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
     let docDir = dir.push("__doc");
@@ -24,7 +24,7 @@ __test {
     assert(!sys::isDir(docDir), "cleanDoc() should remove the __doc directory");
 }
 
-__test {
+__test clean_outputs_removes_target_and_executable {
     // cleanOutputs() removes .target, and the built executable/test file named after the config
     let dir = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
     let targetDir = dir.push(".target");
@@ -52,7 +52,7 @@ __test {
     assert(!sys::isFile(testPath), "cleanOutputs() should remove the built test executable");
 }
 
-__test {
+__test clean_outputs_removes_library_archive {
     // For a library config, cleanOutputs() removes "lib<name>.a" instead of a bare executable
     let dir = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
     let cfg = GyllirPackageConfiguration(
@@ -78,7 +78,7 @@ __test {
  * ====================================================================================================
  */
 
-__test {
+__test clean_outputs_removes_all_target_artifacts {
     // cleanOutputs() removes the artifact and the unittest executable of every declared target,
     // whatever "output" named them
     let dir = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
@@ -104,7 +104,7 @@ __test {
     }
 }
 
-__test {
+__test clean_outputs_missing_artifact_is_not_error {
     // The artifact of a target that was never built is simply not there, cleaning is not an error
     let dir = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
     let cfg = mkTargetsConfig("multi", json#{"cli" : {"type" : "executable"}});

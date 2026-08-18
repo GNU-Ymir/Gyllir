@@ -7,7 +7,7 @@ use std::config::_;
 use std::config::json;
 use std::stream;
 
-__test {
+__test unknown_kind_loads_as_none {
     // An unrecognized "kind" (or a missing/malformed config) loads as a None symbol
     let l = SymbolLoader();
 
@@ -21,7 +21,7 @@ __test {
     assert(notDict of none_::None, "a non-dict config should load as None");
 }
 
-__test {
+__test load_standard_fields {
     // loadStandard(): name/doc/location/protection are all read from their respective keys
     let l = SymbolLoader();
     let f = l.load(json#{
@@ -43,7 +43,7 @@ __test {
     } else assert(false, "expected a Function symbol");
 }
 
-__test {
+__test protection_defaults_to_prv {
     // Protection defaults to PRV when "protect" is missing or unrecognized
     let l = SymbolLoader();
     let f = l.load(json#{"kind" : "function", "name" : "foo"});
@@ -52,7 +52,7 @@ __test {
     } else assert(false, "expected a Function symbol");
 }
 
-__test {
+__test function_params_attrs_throwers {
     // A function: params (with a fptr-typed param exercising the refs/lazys arrays), attributes, throwers, ret_type
     let l = SymbolLoader();
     let f = l.load(json#{
@@ -91,7 +91,7 @@ __test {
     } else assert(false, "expected a Function symbol");
 }
 
-__test {
+__test ctor_unsafe_and_params {
     // A ctor: unsafe attribute and parameters
     let l = SymbolLoader();
     let c = l.load(json#{
@@ -107,7 +107,7 @@ __test {
     } else assert(false, "expected a Ctor symbol");
 }
 
-__test {
+__test method_mutable_self_and_attrs {
     // A method: mutable self, field/final attributes, ret_type
     let l = SymbolLoader();
     let m = l.load(json#{
@@ -124,7 +124,7 @@ __test {
     } else assert(false, "expected a Method symbol");
 }
 
-__test {
+__test class_fields_ctor_method_assert {
     // A class: fields (one plain, one conditional), a ctor, a method, an assert, an implements, an ancestor
     let l = SymbolLoader();
     let c = l.load(json#{
@@ -159,7 +159,7 @@ __test {
     } else assert(false, "expected a ClassSymbol");
 }
 
-__test {
+__test entity_and_record_flags {
     // "entity"/"record" kinds set the corresponding flags on the same ClassSymbol
     let l = SymbolLoader();
     let e = l.load(json#{"kind" : "entity", "name" : "Foo"});
@@ -173,7 +173,7 @@ __test {
     } else assert(false, "expected a ClassSymbol");
 }
 
-__test {
+__test trait_methods_and_asserts {
     // A trait: methods (one conditional) and asserts
     let l = SymbolLoader();
     let t = l.load(json#{
@@ -193,7 +193,7 @@ __test {
     } else assert(false, "expected a TraitSymbol");
 }
 
-__test {
+__test enum_proxy_type_and_fields {
     // An enum: proxy type and fields (name, value, doc)
     let l = SymbolLoader();
     let e = l.load(json#{
@@ -214,7 +214,7 @@ __test {
     } else assert(false, "expected an EnumSymbol");
 }
 
-__test {
+__test global_flags_type_value {
     // A global: thread_local/static flags, mutability, type, value
     let l = SymbolLoader();
     let g = l.load(json#{
@@ -233,7 +233,7 @@ __test {
     } else assert(false, "expected a Global symbol");
 }
 
-__test {
+__test aka_with_literal_value {
     // A "def" (aka) with a literal value
     let l = SymbolLoader();
     let a = l.load(json#{"kind" : "def", "name" : "MAX", "value" : "42"});
@@ -242,7 +242,7 @@ __test {
     } else assert(false, "expected an Aka symbol");
 }
 
-__test {
+__test aka_with_type {
     // A "def" (aka) with a type
     let l = SymbolLoader();
     let a = l.load(json#{"kind" : "def", "name" : "MyInt", "type" : {"kind" : "scalar", "name" : "i32"}});
@@ -255,7 +255,7 @@ __test {
     } else assert(false, "expected an Aka symbol");
 }
 
-__test {
+__test macro_ctor_and_normal_rules {
     // A macro: ctor rules and normal rules, each with a rule string and skip alternatives
     let l = SymbolLoader();
     let m = l.load(json#{
@@ -272,7 +272,7 @@ __test {
     } else assert(false, "expected a Macro symbol");
 }
 
-__test {
+__test module_loads_children {
     // A module recursively loads its children, dropping any that fall back to None
     let l = SymbolLoader();
     let m = l.load(json#{
@@ -290,7 +290,7 @@ __test {
     } else assert(false, "expected a Module symbol");
 }
 
-__test {
+__test template_params_and_content {
     // A template: params of every kind, a test condition, and inner content
     let l = SymbolLoader();
     let t = l.load(json#{
@@ -318,7 +318,7 @@ __test {
     } else assert(false, "expected a Template symbol");
 }
 
-__test {
+__test load_type_every_kind {
     // loadType(): every type kind maps to its corresponding Type class
     let l = SymbolLoader();
 

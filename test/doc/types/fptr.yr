@@ -4,7 +4,7 @@ use gyllir::doc::types::scalar;
 
 use std::stream;
 
-__test {
+__test plain_fptr_two_params_one_ref {
     // A plain function pointer with two parameters, one passed by ref
     let params: [&Type] = copy [copy ScalarType("i32", ""), copy ScalarType("[c8]", "")];
     let refs = copy [true, false];
@@ -17,7 +17,7 @@ __test {
     assert(stream[] == "Fptr (ref Scalar (i32), Scalar ([c8]))-> Scalar (bool)", "unexpected rendering for a fptr type");
 }
 
-__test {
+__test delegate_with_no_parameters {
     // A delegate with a lazy parameter, and no parameters at all
     let f = copy FuncPtrType("", true, [], [], [], copy ScalarType("void", ""));
 
@@ -27,7 +27,7 @@ __test {
     assert(stream[] == "Delegate ()-> Scalar (void)", "unexpected rendering for an empty delegate type");
 }
 
-__test {
+__test fptr_with_lazy_parameter {
     let params: [&Type] = copy [copy ScalarType("i32", "")];
     let f = copy FuncPtrType("", false, params, copy [false], copy [true], copy ScalarType("void", ""));
 

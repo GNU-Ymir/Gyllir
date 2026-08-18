@@ -81,7 +81,7 @@ fn mkPublishArgs(increment: [c8])-> &Config {
     d
 }
 
-__test {
+__test publish_local_bumps_patch_and_tags {
     // Publishing to a local registry bumps the patch version, tags it, and copies the project there
     let registry = sys::tempDirectory(prefix-> "gyllir_registry_");
     sys::removeDir(registry, recursive-> true);
@@ -97,7 +97,7 @@ __test {
     assert(sys::isFile(registry.push(defaults::__SRC_DIR__).push(defaults::__MAIN_FILE__)), "the sources should be copied to the registry");
 }
 
-__test {
+__test minor_and_major_bump_versions {
     // "--minor" and "--major" bump the other version numbers
     let registry = sys::tempDirectory(prefix-> "gyllir_registry_");
     sys::removeDir(registry, recursive-> true);
@@ -114,7 +114,7 @@ __test {
     assert(readVersion(majorDir) == Version(2u32, 0u32, 0u32), "a major publication should bump the major number");
 }
 
-__test {
+__test publish_replaces_existing_registry_version {
     // Publishing to a local registry that already holds a version replaces it
     let registry = sys::tempDirectory(prefix-> "gyllir_registry_");
     let dmut stale = File::create(registry.push("stale.txt"), write-> true);
@@ -130,7 +130,7 @@ __test {
     assert(sys::isFile(registry.push(defaults::__GYLLIR_CONFIG_FILENAME__)), "the project should be copied to the registry");
 }
 
-__test {
+__test publish_git_pushes_version_and_tag {
     // Publishing to a git registry pushes the new version, and its tag, to the remote
     let remote = sys::tempDirectory(prefix-> "gyllir_registry_git_");
     let dmut proc = copy SubProcess("git", copy ["init", "--bare"], cwd-> remote);

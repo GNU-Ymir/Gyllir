@@ -2,7 +2,7 @@ use gyllir::doc::types::class_;
 
 use std::stream;
 
-__test {
+__test default_class_renders_as_class {
     // Default (not an entity, not a record) renders as "Class"
     let c = copy ClassType("foo::Bar", "", false);
     let dmut stream = copy StringStream();
@@ -13,7 +13,7 @@ __test {
     assert(!c.innerMut, "innerMut should be kept as given");
 }
 
-__test {
+__test entity_renders_as_entity {
     // An entity renders as "Entity"
     let c = copy ClassType("foo::Bar", "", true, isEntity-> true);
     let dmut stream = copy StringStream();
@@ -24,7 +24,7 @@ __test {
     assert(c.innerMut, "innerMut should be kept as given");
 }
 
-__test {
+__test record_renders_as_record {
     // A record renders as "Record"
     let c = copy ClassType("foo::Bar", "", false, isRecord-> true);
     let dmut stream = copy StringStream();
@@ -34,7 +34,7 @@ __test {
     assert(!c.isClass, "a record should not be isClass()");
 }
 
-__test {
+__test template_instantiation_kept_attached_class {
     // A template instantiation is kept attached to the base name
     let c = copy ClassType("mod::Vec!{i32}", "", false);
     let dmut stream = copy StringStream();

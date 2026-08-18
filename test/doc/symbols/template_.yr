@@ -12,7 +12,7 @@ use gyllir::doc::symbols::function;
 
 use std::stream;
 
-__test {
+__test template_with_params_and_inner {
     // Params are rendered inside "{...}", after an optional "if <test> " condition;
     // inner symbols are rendered below, each with their own (compounding) indentation
     let dmut t = copy Template("Foo", "", INTERNAL_LOCATION, Protection::PUB);
@@ -31,7 +31,7 @@ __test {
            "unexpected rendering for a template with params and an inner symbol");
 }
 
-__test {
+__test bare_template_rendering {
     let t = copy Template("Bare", "", INTERNAL_LOCATION, Protection::PUB);
 
     let dmut stream = copy StringStream();

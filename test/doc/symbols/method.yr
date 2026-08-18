@@ -6,7 +6,7 @@ use gyllir::doc::types::scalar;
 
 use std::stream;
 
-__test {
+__test bare_method_rendering {
     // No attributes, immutable self, no parameters, default (Any) return type
     let m = copy Method("foo", "", INTERNAL_LOCATION, Protection::PUB);
 
@@ -16,7 +16,7 @@ __test {
     assert(stream[] == "Method foo => :(0,0)\n\tfn (self)-> Any ()\n", "unexpected rendering for a bare method");
 }
 
-__test {
+__test method_multiple_attributes {
     // Two attributes are joined in a "@{a, b}" block
     let dmut m = copy Method("foo", "", INTERNAL_LOCATION, Protection::PUB);
     m.isField = true;
@@ -29,7 +29,7 @@ __test {
            "unexpected rendering for a method with multiple attributes");
 }
 
-__test {
+__test mutable_unsafe_method_with_thrower {
     // A single attribute uses the shorter "@attr" form; mut self, a parameter, a return type and a thrower
     let dmut m = copy Method("foo", "", INTERNAL_LOCATION, Protection::PUB);
     m.isUnsafe = true;

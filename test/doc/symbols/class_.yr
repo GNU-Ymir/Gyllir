@@ -9,7 +9,7 @@ use gyllir::doc::types::scalar;
 
 use std::stream;
 
-__test {
+__test class_with_field_ctor_method {
     // Rendering nests fields, ctors and methods, each doubly-indented under "class {" itself indented once;
     // note each ctor/method entry is followed by a tab-only blank line (an artefact of the trailing "\n" write)
     let dmut c = copy ClassSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
@@ -31,7 +31,7 @@ __test {
            "unexpected rendering for a class with a field, a ctor and a method");
 }
 
-__test {
+__test record_and_entity_rendering {
     // isRecord/isEntity switch the opening keyword; isClass() (from types::class_) isn't involved here,
     // ClassSymbol just has its own plain bool flags
     let dmut r = copy ClassSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);

@@ -2,7 +2,7 @@ use gyllir::config::errors;
 
 use std::{config::_, stream};
 
-__test {
+__test no_sub_error_prints_message_only {
     // Without a sub error, only the message is printed
     let e = copy RecursiveDependency("pkgA");
     let dmut str = copy StringStream();
@@ -11,7 +11,7 @@ __test {
     assert(str[] == "Recursive dependencies: pkgA", str[]);
 }
 
-__test {
+__test sub_error_chained_on_indented_line {
     // A sub error is chained on a new indented line
     let sub = copy RecursiveDependency("pkgB");
     let e = copy RecursiveDependency("pkgA", subError-> (sub)?);
@@ -21,7 +21,7 @@ __test {
     assert(str[] == "Recursive dependencies: pkgA\n => \tRecursive dependencies: pkgB", str[]);
 }
 
-__test {
+__test reject_unknown_accepts_known_entries {
     // rejectUnknown accepts a table whose entries are all known, single or several
     let dmut d = copy Dict();
     d["name"] = copy Str("foo");
@@ -33,7 +33,7 @@ __test {
     rejectUnknown(d2, "", "name", "version");
 }
 
-__test {
+__test reject_unknown_throws_on_first_unknown_entry {
     // rejectUnknown throws on the first entry that is not in the known list, naming it
     let dmut d = copy Dict();
     d["name"] = copy Str("foo");
@@ -49,7 +49,7 @@ __test {
     assert(msg == "'typo' is not a known entry", "unexpected error: " ~ msg);
 }
 
-__test {
+__test reject_unknown_prepends_context_prefix {
     // the context prefix is prepended to the error message
     let dmut d = copy Dict();
     d["typo"] = copy Str("bar");

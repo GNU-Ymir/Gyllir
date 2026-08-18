@@ -39,7 +39,7 @@ fn dump(mod_: &Module)-> [c8] {
 // module page, regardless of its content
 def MODULE_HEAD = "<div class=\"module description\"><h3 class=\"y_dd_decl_name\">Description</h3><span class=\"module-closing\" id=\"mod-desc-closing\">[−]</span><div class=\"inner\"><div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div></div>\n";
 
-__test {
+__test bare_function_declaration {
     // A function with defaults (no params, no ret_type, no throwers) renders via the "declaration" template
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let f: &Symbol = copy Function("foo", "", INTERNAL_LOCATION, Protection::PUB);
@@ -56,7 +56,7 @@ __test {
         "unexpected html for a bare function");
 }
 
-__test {
+__test global_default_type {
     // A Global with the default (empty) type omits the type annotation entirely
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let g: &Symbol = copy Global("MAX", "", INTERNAL_LOCATION, Protection::PUB);
@@ -73,7 +73,7 @@ __test {
         "unexpected html for a global with no type");
 }
 
-__test {
+__test type_alias_aka {
     // An aka (type alias)
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let dmut a = copy Aka("MyInt", "", INTERNAL_LOCATION, Protection::PUB);
@@ -92,7 +92,7 @@ __test {
         "unexpected html for a type aka");
 }
 
-__test {
+__test enum_self_referential_type {
     // An enum: EnumSymbol.type must itself hold an EnumType (self-referential) for the proxy to render
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let dmut e = copy EnumSymbol("Color", "", INTERNAL_LOCATION, Protection::PUB);
@@ -120,7 +120,7 @@ __test {
         "unexpected html for an enum with a field");
 }
 
-__test {
+__test empty_macro {
     // A macro with no ctors/rules still renders its own declaration wrapper, with an empty member-list
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let m: &Symbol = copy Macro("mymacro", "", INTERNAL_LOCATION, Protection::PUB);
@@ -138,7 +138,7 @@ __test {
         "unexpected html for an empty macro");
 }
 
-__test {
+__test class_field_module_links {
     // A class with a field whose type lives in the same module (a "#Name" link) and one in
     // another module ("othermod.html#Name"), a ctor and a method
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
@@ -174,7 +174,7 @@ __test {
     assert(foundOther, "expected a cross-module class type to link to \"othermod.html#Baz\"");
 }
 
-__test {
+__test submodule_table {
     // Two nested modules populate the submodule table, sorted and formatted with an underscore-joined url
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let sub: &Symbol = copy Module("mymod::sub", "docs for sub", INTERNAL_LOCATION, Protection::PUB);
@@ -197,7 +197,7 @@ __test {
         "unexpected html for a submodule table");
 }
 
-__test {
+__test trait_with_method {
     // A trait with a method
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let dmut t = copy TraitSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
@@ -216,7 +216,7 @@ __test {
     assert(found, "expected the trait declaration header to appear");
 }
 
-__test {
+__test functions_sorted_alphabetically {
     // Functions are sorted alphabetically by name, regardless of declaration order
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let f1: &Symbol = copy Function("zeta", "", INTERNAL_LOCATION, Protection::PUB);
@@ -231,7 +231,7 @@ __test {
     assert(alphaPos.1 < zetaPos.1, "alpha should be rendered before zeta, alphabetically");
 }
 
-__test {
+__test templated_function {
     // A function wrapped in a Template renders with the template's test condition and params
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let dmut tmpl = copy Template("foo", "", INTERNAL_LOCATION, Protection::PUB);
@@ -295,7 +295,7 @@ fn mkParam(name: [c8], type: &Type)-> &Variable {
     v
 }
 
-__test {
+__test every_type_rendered {
     // Every kind of type is rendered in the signature of the function taking it as a parameter
     let dmut f = copy Function("everyType", "", INTERNAL_LOCATION, Protection::PUB);
     f.parameters = copy [
@@ -319,7 +319,7 @@ __test {
     assert(contains(out, "rng : ..i32"), "unexpected rendering of a range type");
 }
 
-__test {
+__test function_pointer_and_delegate_types {
     // Function pointer and delegate types, and the mutability prefix of a type
     let dmut f = copy Function("pointers", "", INTERNAL_LOCATION, Protection::PUB);
     f.parameters = copy [
@@ -337,7 +337,7 @@ __test {
     assert(contains(out, "dmutSlice : dmut [i32]"), "a deeply mutable type should be prefixed with \"dmut\"");
 }
 
-__test {
+__test function_attributes_and_params {
     // The attributes, the parameter annotations, the return type and the thrown types of a function
     let dmut f = copy Function("annotated", "", INTERNAL_LOCATION, Protection::PRV);
     f.isInline = true;
@@ -366,7 +366,7 @@ __test {
     assert(contains(out, "throws"), "the thrown types should be rendered");
 }
 
-__test {
+__test single_attribute_functions {
     // An inline-only and an unsafe-only function carry a single attribute
     let dmut inl = copy Function("inl", "", INTERNAL_LOCATION, Protection::PUB);
     inl.isInline = true;
@@ -380,7 +380,7 @@ __test {
     assert(contains(out, "prot fn"), "the protection of the function should be rendered");
 }
 
-__test {
+__test record_with_ancestor {
     // A record with an ancestor, an implemented trait, a cte assertion and a documented field
     let dmut c = copy ClassSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
     c.isRecord = true;
@@ -410,7 +410,7 @@ __test {
     assert(contains(out, "prv let mut value : i32 = 0;"), "unexpected rendering of a mutable field with a default value");
 }
 
-__test {
+__test conditional_and_templated_members {
     // The conditional and templated members of a class each get a section of their own
     let dmut c = copy ClassSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
     c.isFinal = true;
@@ -446,7 +446,7 @@ __test {
     assert(contains(out, "if (U != i32)"), "the test of a templated member should be rendered");
 }
 
-__test {
+__test abstract_class_named_ctor {
     // An abstract class, a named constructor and a method carrying several attributes
     let dmut c = copy ClassSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
     c.isAbstract = true;
@@ -476,7 +476,7 @@ __test {
     assert(contains(out, "-> usize"), "the return type of the method should be rendered");
 }
 
-__test {
+__test macro_ctor_rule_with_skips {
     // A macro with a constructor rule and a rule with skips
     let dmut m = copy Macro("mymacro", "", INTERNAL_LOCATION, Protection::PUB);
 
@@ -499,7 +499,7 @@ __test {
     assert(contains(out, "skips"), "the skipped tokens of a rule should be rendered");
 }
 
-__test {
+__test thread_local_static_global {
     // A thread local static global, with a type and a value
     let dmut g = copy Global("COUNTER", "", INTERNAL_LOCATION, Protection::PUB);
     g.isStatic = true;
@@ -513,7 +513,7 @@ __test {
     assert(contains(out, "pub static COUNTER : i32 = 0"), "unexpected rendering of a static global");
 }
 
-__test {
+__test enum_cross_module_link {
     // An enum whose values come from another module link to that module's page
     let dmut e = copy EnumSymbol("Color", "", INTERNAL_LOCATION, Protection::PUB);
     e.type = copy EnumType("Color", "", copy ClassType("othermod::Shade", "", false));
@@ -526,7 +526,7 @@ __test {
     assert(contains(out, "the red shade"), "the documentation of an enum field should be rendered");
 }
 
-__test {
+__test submodule_table_strips_template {
     // The submodule table strips the template instantiation off the name of a templated module
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let sub: &Symbol = copy Module("mymod::vec!{i32}", "a templated module", INTERNAL_LOCATION, Protection::PUB);

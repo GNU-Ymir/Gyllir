@@ -2,7 +2,7 @@ use gyllir::doc::symbols::template_::any;
 
 use std::stream;
 
-__test {
+__test raw_template_param_rendering {
     let p = copy TemplateAnyParam("T");
     let dmut stream = copy StringStream();
     stream:.write(p);

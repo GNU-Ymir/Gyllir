@@ -2,7 +2,7 @@ use gyllir::doc::comment::parser;
 
 use std::stream;
 
-__test {
+__test plain_text_no_markup {
     // Plain text with no markup is kept as-is, and bubbles up through dumpTextShort()
     let p = copy CommentParser("hello world");
     let dmut stream = copy StringStream();
@@ -12,7 +12,7 @@ __test {
     assert(p.dumpTextShort() == "hello world", "unexpected short text for plain text");
 }
 
-__test {
+__test leading_star_stripped_per_line {
     // A leading "*" on a line (the doc-comment continuation marker) is stripped, once per line
     let p = copy CommentParser(" * line one\n * line two");
     let dmut stream = copy StringStream();
@@ -22,7 +22,7 @@ __test {
     assert(p.dumpTextShort() == "  line one\n  line two", "unexpected short text with leading stars");
 }
 
-__test {
+__test empty_input_parses_empty_root {
     // An empty input parses to an empty root node
     let p = copy CommentParser("");
     let dmut stream = copy StringStream();
@@ -32,7 +32,7 @@ __test {
     assert(p.dumpTextShort() == "", "unexpected short text for empty content");
 }
 
-__test {
+__test escape_sequences_converted {
     // Escape sequences (e.g. "\n") are converted to their real character
     let p = copy CommentParser("a \\n b");
     let dmut stream = copy StringStream();
@@ -42,7 +42,7 @@ __test {
     assert(p.dumpTextShort() == "a \n b", "unexpected short text for an escaped newline");
 }
 
-__test {
+__test head_section_parsed_into_subnode {
     // An "@head:" section is parsed into its own sub node, excluded from the short text
     let p = copy CommentParser("@params: some text");
     let dmut stream = copy StringStream();
@@ -53,7 +53,7 @@ __test {
     assert(p.dumpTextShort() == "", "an \"@head\" section should not contribute to the short text");
 }
 
-__test {
+__test head_section_without_colon {
     // The trailing ":" of a "@head" is optional; without it, no leading space is kept
     let p = copy CommentParser("@custom no colon text");
     let dmut stream = copy StringStream();
@@ -63,7 +63,7 @@ __test {
            "unexpected html for a \"@head\" section without a colon");
 }
 
-__test {
+__test fenced_code_block_becomes_code_node {
     // A fenced code block becomes a CommentCode child, excluded from the short text
     let p = copy CommentParser("before\n```\nlet x = 1;\n```\nafter");
     let dmut stream = copy StringStream();
@@ -74,7 +74,7 @@ __test {
     assert(p.dumpTextShort() == "before\nafter", "code block content should be excluded from the short text");
 }
 
-__test {
+__test dash_prefixed_lines_become_list {
     // "-" prefixed lines become <li> items wrapped in a <ul>
     let p = copy CommentParser("- item one\n- item two");
     let dmut stream = copy StringStream();
@@ -85,7 +85,7 @@ __test {
     assert(p.dumpTextShort() == " item one\n item two", "unexpected short text for a \"-\" list");
 }
 
-__test {
+__test plus_marker_equivalent_list {
     // "+" is an equivalent list item marker
     let p = copy CommentParser("+ plus one\n+ plus two");
     let dmut stream = copy StringStream();
@@ -95,7 +95,7 @@ __test {
            "unexpected html for a \"+\" list");
 }
 
-__test {
+__test inline_style_markers_parsed {
     // "**"/"__" (bold), "_"/"*" (italic) and "`" (inline code) markers are parsed into styled spans
     let p = copy CommentParser("a **bold** and _italic_ and `code`");
     let dmut stream = copy StringStream();
@@ -107,7 +107,7 @@ __test {
     assert(p.dumpTextShort() == expected, "unexpected short text for inline styles");
 }
 
-__test {
+__test style_marker_requires_whitespace {
     // A style marker is only recognized when it follows whitespace, not in the middle of a word
     let p = copy CommentParser("a__b");
     let dmut stream = copy StringStream();
@@ -117,7 +117,7 @@ __test {
     assert(p.dumpTextShort() == "a__b", "unexpected short text for a mid-word marker");
 }
 
-__test {
+__test styles_parsed_inside_head_section {
     // Inline styles are also parsed inside the body of an "@head" section
     let p = copy CommentParser("@example:\n a **bold** word");
     let dmut stream = copy StringStream();
@@ -127,7 +127,7 @@ __test {
            "unexpected html for a styled \"@head\" section");
 }
 
-__test {
+__test nested_list_reusing_marker {
     // An item indented deeper than the enclosing one opens a sub list, even when it reuses
     // the marker of its parent, and a dedented item closes that sub list
     let p = copy CommentParser("- outer\n  - nested\n- outer2");
@@ -139,7 +139,7 @@ __test {
     assert(p.dumpTextShort() == " outer\n   nested\n outer2", "unexpected short text for a nested list");
 }
 
-__test {
+__test nested_list_switching_marker {
     // Nesting does not depend on the marker character: switching it gives the same tree
     let p = copy CommentParser("- outer\n  + nested\n- outer2");
     let dmut stream = copy StringStream();
@@ -149,7 +149,7 @@ __test {
            "unexpected html for a nested list switching to the \"+\" marker");
 }
 
-__test {
+__test dedent_picks_up_enclosing_list {
     // Dedenting picks the enclosing list back up at the matching indentation level
     let p = copy CommentParser("- a\n  - b\n    - c\n  - d\n- e");
     let dmut stream = copy StringStream();

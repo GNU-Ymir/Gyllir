@@ -2,25 +2,25 @@ use gyllir::doc::comment::{node, node::_};
 
 use std::stream;
 
-__test {
+__test head_lowercased_and_recapitalized {
     // The head is lowercased at construction, and capitalizedHead() re-capitalizes it
     let n = copy CommentNode("PARAM");
     assert(n.capitalizedHead() == "Param", "the head should be lowercased then capitalized");
 }
 
-__test {
+__test capitalized_head_multiple_words {
     // capitalizedHead() capitalizes the first letter of every whitespace separated token
     let n = copy CommentNode("hello world");
     assert(n.capitalizedHead() == "Hello World", "unexpected capitalized head");
 }
 
-__test {
+__test empty_head_capitalizes_empty {
     // An empty head capitalizes to an empty string
     let n = copy CommentNode("");
     assert(n.capitalizedHead() == "", "an empty head should capitalize to an empty string");
 }
 
-__test {
+__test root_node_concatenates_short_text {
     // A root node (empty head) concatenates the short text of its children
     let dmut root = copy CommentNode("");
     root:.addChild(copy CommentText("Hello "));
@@ -29,7 +29,7 @@ __test {
     assert(root.dumpTextShort() == "Hello World", "unexpected short text dump");
 }
 
-__test {
+__test non_empty_head_excluded_from_short_text {
     // A node with a non-empty head never contributes to the short text dump, even with children
     let dmut n = copy CommentNode("param");
     n:.addChild(copy CommentText("some text"));
@@ -37,7 +37,7 @@ __test {
     assert(n.dumpTextShort() == "", "a node with a non-empty head should not produce short text");
 }
 
-__test {
+__test empty_description_produces_no_html {
     // An empty "description" node produces no html at all
     let n = copy CommentNode("description");
     let dmut stream = copy StringStream();
@@ -46,7 +46,7 @@ __test {
     assert(stream[] == "", "an empty description node should not write anything");
 }
 
-__test {
+__test description_skipped_only_when_empty {
     // A "description" node is only skipped when it has no children
     let dmut n = copy CommentNode("description");
     n:.addChild(copy CommentText("some text"));
@@ -58,7 +58,7 @@ __test {
            "unexpected html for a non-empty description node");
 }
 
-__test {
+__test known_heads_rendered_with_titles {
     // Known heads are rendered with their dedicated titles
     let dmut param = copy CommentNode("param");
     param:.addChild(copy CommentText("x"));
@@ -79,7 +79,7 @@ __test {
     assert(streamLic[] == "<dt class=\"head\">License</dt><dd>MIT</dd>", "unexpected html for a \"license\" node");
 }
 
-__test {
+__test unknown_head_falls_back_capitalized {
     // An unknown head falls back to its capitalized form
     let dmut n = copy CommentNode("custom section");
     n:.addChild(copy CommentText("x"));
@@ -90,7 +90,7 @@ __test {
     assert(stream[] == "<dt class=\"head\">Custom Section</dt><dd>x</dd>", "unexpected html for an unknown head");
 }
 
-__test {
+__test nested_children_wrapped_in_dt_dd {
     // Nested children are dumped and wrapped by their own dt/dd pair
     let dmut child = copy CommentNode("warning");
     child:.addChild(copy CommentText("careful"));
@@ -105,7 +105,7 @@ __test {
            "unexpected nested html dump");
 }
 
-__test {
+__test long_content_adds_closing_toggle {
     // A long enough inner content adds a closing toggle span before the title
     let mut longText = "";
     for _ in 0 .. 300 {

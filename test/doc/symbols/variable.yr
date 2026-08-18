@@ -5,7 +5,7 @@ use gyllir::doc::types::scalar;
 
 use std::stream;
 
-__test {
+__test bare_variable_rendering {
     // Defaults: no mut/ref/lazy, no default value, and an empty type
     let v = copy Variable("x", "", INTERNAL_LOCATION, Protection::PUB);
     let dmut stream = copy StringStream();
@@ -14,7 +14,7 @@ __test {
     assert(stream[] == "x : Any ()", "unexpected rendering for a bare variable");
 }
 
-__test {
+__test typed_variable_rendering {
     let dmut v = copy Variable("x", "", INTERNAL_LOCATION, Protection::PUB);
     v.type = copy ScalarType("i32", "");
 
@@ -24,7 +24,7 @@ __test {
     assert(stream[] == "x : Scalar (i32)", "unexpected rendering for a typed variable");
 }
 
-__test {
+__test mut_ref_lazy_prefixes {
     // mut/ref/lazy prefixes are written in that fixed order
     let dmut v = copy Variable("x", "", INTERNAL_LOCATION, Protection::PUB);
     v.type = copy ScalarType("i32", "");
@@ -38,7 +38,7 @@ __test {
     assert(stream[] == "mut ref lazy x : Scalar (i32)", "unexpected rendering for mut/ref/lazy prefixes");
 }
 
-__test {
+__test variable_with_default_value {
     // A non-empty default value is appended
     let dmut v = copy Variable("x", "", INTERNAL_LOCATION, Protection::PUB);
     v.type = copy ScalarType("i32", "");

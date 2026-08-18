@@ -33,7 +33,7 @@ fn flag(cfg: &Config, key: [c8])-> bool
     throw copy AssertError("no '" ~ key ~ "' flag in the parsed configuration");
 }
 
-__test {
+__test version_constant_is_numbered {
     // The version constant is kept in sync with gyllir.toml by tools/set-version.sh, so it must
     // always be a numbered version and never be left at its "0.0.0" placeholder
     let v = Version(__GYLLIR_VERSION__);
@@ -42,26 +42,26 @@ __test {
     assert(v != Version(0u32, 0u32, 0u32), "__GYLLIR_VERSION__ was left at its placeholder value");
 }
 
-__test {
+__test banner_without_compiler_version {
     // Without a compiler version, the banner is a single line naming the tool and its version
     let banner = versionString();
     assert(banner == "gyllir " ~ __GYLLIR_VERSION__, "unexpected version banner: " ~ banner);
 }
 
-__test {
+__test banner_with_compiler_version {
     // The compiler version, when known, is appended on a second line
     let banner = versionString(compiler-> "Ymir version 1.2.2 20260811");
     assert(banner == "gyllir " ~ __GYLLIR_VERSION__ ~ "\nYmir version 1.2.2 20260811",
            "unexpected version banner: " ~ banner);
 }
 
-__test {
+__test unknown_compiler_reports_no_version {
     // A compiler that cannot be run reports no version rather than failing
     assert(compilerVersion(compiler-> "gyllir-no-such-compiler") == "",
            "an unknown compiler should report an empty version");
 }
 
-__test {
+__test runnable_compiler_reports_first_line {
     // A compiler that can be run reports the first line of its "--version" output
     // ("echo" stands in for a real compiler, to keep the test independent of the toolchain)
     let version = compilerVersion(compiler-> "echo");
@@ -72,14 +72,14 @@ __test {
     }
 }
 
-__test {
+__test init_recognized_as_sub_command {
     // 'init' takes no option, but it must be recognized as a sub command
     let cfg = parse(copy ["gyllir", "init"]);
 
     assert("init" in cfg, "the init sub command should be parsed");
 }
 
-__test {
+__test build_flag_defaults {
     // 'build' defaults: every flag is inserted, and set to false
     let build = sub(parse(copy ["gyllir", "build"]), "build");
 
@@ -88,7 +88,7 @@ __test {
     assert("j" !in build, "an unspecified option should be absent");
 }
 
-__test {
+__test build_with_every_option {
     // 'build' with every option set, using both the long and the short spelling
     let build = sub(parse(copy ["gyllir", "build", "--release", "-j", "4", "-v"]), "build");
 
@@ -100,7 +100,7 @@ __test {
     } else assert(false, "-j should be parsed");
 }
 
-__test {
+__test run_forwards_arguments {
     // 'run' forwards its own arguments verbatim to the executable, as an array of strings
     let run = sub(parse(copy ["gyllir", "run", "--some-flag", "positional"]), "run");
 
@@ -111,7 +111,7 @@ __test {
     } else assert(false, "the run arguments should be forwarded as an array");
 }
 
-__test {
+__test run_without_arguments_forwards_empty_list {
     // 'run' without arguments forwards an empty list
     let run = sub(parse(copy ["gyllir", "run"]), "run");
 
@@ -120,7 +120,7 @@ __test {
     } else assert(false, "the run arguments should be forwarded as an array");
 }
 
-__test {
+__test publish_with_increment_and_message {
     // 'publish' with a version increment flag and its mandatory message
     let publish = sub(parse(copy ["gyllir", "publish", "--minor", "-y", "a release message"]), "publish");
 
@@ -134,14 +134,14 @@ __test {
     } else assert(false, "the message positional should be parsed");
 }
 
-__test {
+__test publish_dry_and_major_together {
     // 'publish --dry --major' : the exclusivity check only rejects more than one increment
     let publish = sub(parse(copy ["gyllir", "publish", "--dry", "--major", "m"]), "publish");
 
     assert(flag(publish, "dry") && flag(publish, "major"), "--dry and --major should be parsed");
 }
 
-__test {
+__test clean_defaults_to_outputs_only {
     // 'clean' defaults to cleaning the outputs only
     let clean = sub(parse(copy ["gyllir", "clean"]), "clean");
 
@@ -149,7 +149,7 @@ __test {
     assert(!flag(clean, "doc"), "doc should default to false");
 }
 
-__test {
+__test clean_all_and_doc_flags {
     // 'clean --all' and 'clean --doc' (-a is the short spelling of --all)
     let all = sub(parse(copy ["gyllir", "clean", "-a"]), "clean");
     assert(flag(all, "all"), "-a should be parsed as all");
@@ -158,7 +158,7 @@ __test {
     assert(flag(doc, "doc") && !flag(doc, "all"), "--doc should be parsed alone");
 }
 
-__test {
+__test doc_with_input_and_output {
     // 'doc' with an input file and an output directory
     let doc = sub(parse(copy ["gyllir", "doc", "-i", "gyllir.doc.json", "-o", "/tmp/out", "-v"]), "doc");
 
@@ -173,7 +173,7 @@ __test {
     } else assert(false, "-o should be parsed as output");
 }
 
-__test {
+__test doc_without_options_leaves_both_unset {
     // 'doc' without option: neither input nor output is set
     let doc = sub(parse(copy ["gyllir", "doc"]), "doc");
 
@@ -181,7 +181,7 @@ __test {
     assert("output" !in doc, "output should be absent by default");
 }
 
-__test {
+__test test_with_every_option {
     // 'test' with every option set
     let test = sub(parse(copy ["gyllir", "test", "--dry", "--release", "-j", "2", "-v"]), "test");
 
@@ -194,7 +194,7 @@ __test {
     } else assert(false, "-j should be parsed");
 }
 
-__test {
+__test test_defaults_to_debug_run {
     // 'test' defaults: the tests are built and run, in debug mode
     let test = sub(parse(copy ["gyllir", "test"]), "test");
 
@@ -221,7 +221,7 @@ fn target(cfg: &Config)-> [c8] {
     ""
 }
 
-__test {
+__test sub_command_without_target_leaves_entry_out {
     // A sub command naming no target leaves the entry out entirely
     for name in copy ["build", "test", "doc"] {
         let cfg = sub(parse(copy ["gyllir", name]), name);
@@ -229,7 +229,7 @@ __test {
     }
 }
 
-__test {
+__test build_target_is_parsed {
     // 'build <target>' names the target to build
     let build = sub(parse(copy ["gyllir", "build", "cli"]), "build");
 
@@ -237,7 +237,7 @@ __test {
     assert(!flag(build, "release"), "the other entries should keep their defaults");
 }
 
-__test {
+__test target_may_appear_among_flags {
     // The target may appear anywhere among the flags, and the value of an option is never mistaken
     // for it
     let build = sub(parse(copy ["gyllir", "build", "--release", "-j", "4", "cli", "-v"]), "build");
@@ -250,7 +250,7 @@ __test {
     } else assert(false, "-j should be parsed");
 }
 
-__test {
+__test only_first_non_option_is_target {
     // Only the first argument that is not an option is taken as the target
     let test = sub(parse(copy ["gyllir", "test", "cli", "--dry"]), "test");
 
@@ -258,7 +258,7 @@ __test {
     assert(flag(test, "dry"), "--dry should be parsed");
 }
 
-__test {
+__test doc_option_values_are_not_target {
     // 'doc' has two valued options, and neither of their values is a target
     let doc = sub(parse(copy ["gyllir", "doc", "-o", "/tmp/out", "-i", "gyllir.doc.json", "cli"]), "doc");
 
@@ -273,7 +273,7 @@ __test {
     } else assert(false, "-i should be parsed as input");
 }
 
-__test {
+__test sub_command_name_not_target {
     // The name of the sub command itself is never taken as a target
     let doc = sub(parse(copy ["gyllir", "doc", "--output", "/tmp/out"]), "doc");
 

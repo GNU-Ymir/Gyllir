@@ -59,7 +59,7 @@ fn indexOf(haystack: [[c8]], needle: [c8])-> usize {
     haystack.len
 }
 
-__test {
+__test prune_removed_modules_drops_stale_cache {
     // pruneRemovedModules() drops the YIL and deps files of a module whose source is gone, and keeps the others
     let (dir, cacheDir) = mkCacheDir(copy ["main", "gone"]);
     let builder = mkBuilder(dir);
@@ -73,7 +73,7 @@ __test {
     assert(!hasDeps(cacheDir, "gone"), "the deps of a deleted module should be removed");
 }
 
-__test {
+__test prune_removed_modules_nothing_to_prune {
     // Nothing to prune: every cached module still has a source, so the cache is left untouched
     let (dir, cacheDir) = mkCacheDir(copy ["main", "sub_other"]);
     let builder = mkBuilder(dir);
@@ -86,7 +86,7 @@ __test {
     assert(hasDeps(cacheDir, "sub_other"), "the deps of a live nested module should be kept");
 }
 
-__test {
+__test prune_removed_modules_orphan_deps_file {
     // A deps file left without its YIL counterpart is pruned as well
     let (dir, cacheDir) = mkCacheDir(copy ["main"]);
     let builder = mkBuilder(dir);
@@ -112,7 +112,7 @@ __test {
  * materialized by 'repo::fixture'
  */
 
-__test {
+__test executable_project_compiles_and_produces_binary {
     // An executable project is compiled, and its binary produced at the root of the project. A
     // package declaring no target builds the single one synthesized from its top level fields, whose
     // cache sits under '.target/<target>/'
@@ -133,7 +133,7 @@ __test {
     assert(links.len == 0us, "an executable exports no library to link");
 }
 
-__test {
+__test rebuild_skips_up_to_date_cache {
     // Building twice in a row recompiles nothing: the second build finds an up to date cache
     let dir = mkExecutableProject("myapp");
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
@@ -150,7 +150,7 @@ __test {
     assert(hasFile(dir, "myapp"), "the executable should still be there after a no-op build");
 }
 
-__test {
+__test release_build_uses_separate_cache_dir {
     // A release build caches its outputs in a directory of its own
     let dir = mkExecutableProject("myapp");
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
@@ -163,7 +163,7 @@ __test {
     assert(hasFile(dir, "myapp"), "the executable should be produced at the root of the project");
 }
 
-__test {
+__test library_project_produces_exported_archive {
     // A library project produces an archive, exported to the packages depending on it
     let dir = mkLibraryProject();
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
@@ -178,7 +178,7 @@ __test {
     assert(links.len == 1us && links[0] == dir.push("libmylib.a"), "the produced archive should be exported for linking");
 }
 
-__test {
+__test executable_roots_at_main_despite_named_module {
     // YMI-65: an executable package that also has a module named after the package (the library
     // naming convention) still roots at "src/main.yr", the module named after the package stays a
     // regular module
@@ -195,7 +195,7 @@ __test {
     assert(hasCacheFile(dir, "myapp", defaults::__CACHE_DEBUG_DIR__, "yils/main.yil"), "the root module should be 'main', not the module named after the package");
 }
 
-__test {
+__test unittest_build_produces_test_executable {
     // Building the unittests of a project produces a "<name>.test" executable, from a cache of its own
     let dir = mkExecutableProject("myapp");
     addUnitTests(dir);
@@ -209,7 +209,7 @@ __test {
     assert(hasCacheFile(dir, "myapp", defaults::__CACHE_TEST_DIR__, "yils/__test__.yil"), "the test modules should be compiled in the test cache");
 }
 
-__test {
+__test doc_build_produces_json_documentation_file {
     // A documentation build produces the json documentation file consumed by 'gyllir doc'
     let dir = mkExecutableProject("myapp");
     let dmut mgr = copy GyllirManager(copy ["gyllir", "doc"]);
@@ -221,7 +221,7 @@ __test {
     assert(!hasFile(dir, "myapp"), "a documentation build should not link an executable");
 }
 
-__test {
+__test custom_commands_run_before_and_after_build {
     // The custom commands of the configuration run before and after the compilation
     let dir = mkExecutableProject("myapp");
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
@@ -245,7 +245,7 @@ __test {
     assert(hasFile(dir, "post.witness"), "the post build command should have run in the project directory");
 }
 
-__test {
+__test removed_module_dropped_and_target_relinked {
     // A module removed from the sources is dropped from the cache, and the target relinked without it
     let dir = mkLibraryProject();
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
@@ -266,7 +266,7 @@ __test {
     assert(hasFile(dir, "libmylib.a"), "the library should have been relinked");
 }
 
-__test {
+__test package_root_and_test_root_name_explicit_files {
     // "package-root"/"test-root" name the root files of the project explicitly, instead of falling
     // back on the package name; a release unittest build caches its outputs apart from the debug one
     let dir = mkExecutableProject("myapp");
@@ -301,7 +301,7 @@ __test {
  * own artifact and its own compiler options, and it caches apart from every other target
  */
 
-__test {
+__test declared_target_rooted_at_named_module {
     // A declared target is rooted at a module named after it, and caches under its own name
     let dir = mkMultiTargetProject();
     let cfg = mkMultiTargetConfig();
@@ -316,7 +316,7 @@ __test {
     assert(!hasFile(dir, "cli"), "the artifact of another target should not be produced");
 }
 
-__test {
+__test two_targets_share_source_directory {
     // Two targets of the same package are built out of the same source directory, into two artifacts
     // and two caches
     let dir = mkMultiTargetProject();
@@ -332,7 +332,7 @@ __test {
     assert(hasCacheFile(dir, "tool", defaults::__CACHE_DEBUG_DIR__, "tool.a"), "the executable target should have a cache of its own");
 }
 
-__test {
+__test output_renames_artifact_cache_keyed_by_target {
     // "output" renames the artifact, the cache stays keyed by the name of the target
     let dir = mkExecutableProject("myapp");
     let cfg = mkTargetsConfig("myapp", json#{"app" : {"package-root" : "main", "output" : "renamed"}});
@@ -345,7 +345,7 @@ __test {
     assert(hasCacheFile(dir, "app", defaults::__CACHE_DEBUG_DIR__, "renamed.a"), "the cache directory is keyed by the target name, the object by the output name");
 }
 
-__test {
+__test source_dir_moves_target_source_tree {
     // "source-dir" moves the whole source tree of a target somewhere else than "src"
     let dir = mkExecutableProject("myapp");
     writeSource(dir.push("second_src").push(defaults::__MAIN_FILE__),
@@ -361,7 +361,7 @@ __test {
            "the exported root file should be the one of the declared source directory");
 }
 
-__test {
+__test test_dir_moves_unittest_tree {
     // "test-dir" moves the unittest tree of a target somewhere else than "test", independently of
     // the sources: a multi target package can give each target its own unittest directory
     let dir = mkExecutableProject("myapp");
@@ -376,7 +376,7 @@ __test {
     assert(hasFile(dir, "second.test"), "the unittest executable should be built out of the declared test directory");
 }
 
-__test {
+__test target_flags_appended_last {
     // The "flags" of a target are appended last on the compiler command line, so that a target can
     // override the options gyllir picked for it
     let cfg = mkTargetsConfig("myapp", json#{"app" : {"flags" : ["-fno-inline", "-O0"]}});
@@ -391,7 +391,7 @@ __test {
     assert(indexOf(options, "/dep/src/mylib.yr") < options.len, "the root file of a dependency should be included");
 }
 
-__test {
+__test doc_build_command_line_of_its_own {
     // The same holds for a documentation build, which has a command line of its own
     let cfg = mkTargetsConfig("myapp", json#{"app" : {"flags" : ["-O0"]}});
     let builder = RepoBuilder(Path("/project"), mkBuildArgs(), cfg, namedTarget(cfg, "app"), forUnitTest-> false, forDoc-> true);
@@ -403,7 +403,7 @@ __test {
            "the documentation file should be written in the doc cache of the target");
 }
 
-__test {
+__test release_and_unittest_build_flags {
     // A release build asks for the optimizations, a unittest build for the tests
     let cfg = mkConfig("myapp", "executable");
     let builder = RepoBuilder(Path("/project"), mkBuildArgs(flags-> copy ["release"]), cfg, soleTarget(cfg), forUnitTest-> true);
@@ -415,7 +415,7 @@ __test {
     assert(indexOf(options, "-funittest") < options.len, "a unittest build should compile the tests in");
 }
 
-__test {
+__test target_selecting_no_dependency_links_nothing {
     // A declared target links exactly the dependencies it selects: one that selects none does not
     // even resolve them
     let lib = mkLibraryProject();
@@ -432,7 +432,7 @@ __test {
     assert(!sys::isDir(app.push(defaults::__DEPENCY_DIR__)), "a target selecting no dependency should not resolve any");
 }
 
-__test {
+__test target_selecting_dependency_resolves_and_links {
     // A target that selects a declared dependency resolves and links it
     let lib = mkLibraryProject();
     writeToml(lib, mkConfig("mylib", "library"));

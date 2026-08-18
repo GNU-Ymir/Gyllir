@@ -3,13 +3,13 @@ use gyllir::config::command;
 use std::config::_;
 use std::config::{conv, json};
 
-__test {
+__test default_constructor_empty_list {
     // The default constructor produces an empty command list
     let lst = copy CustomCommandList();
     assert(lst[].len == 0us, "expected an empty command list");
 }
 
-__test {
+__test parse_post_and_cwd_branches {
     // Building from a configuration exercises every branch of the post/cwd parsing:
     // "post" as a Str("true"), as a Bool(true), and absent(defaulting to false), and
     // "cwd" both present and absent(defaulting to ".")
@@ -45,7 +45,7 @@ __test {
     assert(seenStrPost && seenBoolPost && seenNoPost, "not every declared command was visited");
 }
 
-__test {
+__test unknown_command_field_rejected {
     // An entry that is not a known field of a command table is rejected rather than ignored
     let mut msg = "";
     {
@@ -59,7 +59,7 @@ __test {
     assert(msg == "'[commands.typo]', 'pre' is not a known entry", "unexpected error: " ~ msg);
 }
 
-__test {
+__test serialize_command_list_round_trips {
     // Serializing a command list back into a configuration round-trips every field
     let cfg = json#{
         "serialize_me" : {"cmd" : "echo serialize", "post" : true, "cwd" : "/tmp"}

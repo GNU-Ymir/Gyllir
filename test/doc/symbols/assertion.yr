@@ -2,7 +2,7 @@ use gyllir::doc::symbols::assertion;
 
 use std::stream;
 
-__test {
+__test assertion_without_condition {
     let mut a = Assertion();
     a.test = "x > 0";
     a.msg = "x must be positive";
@@ -13,7 +13,7 @@ __test {
     assert(stream[] == "Assert (x > 0, x must be positive)\n", "unexpected rendering without a condition");
 }
 
-__test {
+__test assertion_with_condition {
     // A non-empty condition is prefixed with "if <condition> "
     let mut a = Assertion();
     a.test = "x > 0";

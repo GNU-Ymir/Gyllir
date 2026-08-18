@@ -3,7 +3,7 @@ use gyllir::doc::types::scalar;
 
 use std::stream;
 
-__test {
+__test rendering_shows_module_qualified_name {
     // Rendering shows the module-qualified name; the underlying proxy type is not part of it
     let e = copy EnumType("foo::Color", "", copy ScalarType("u8", ""));
     let dmut stream = copy StringStream();
@@ -12,7 +12,7 @@ __test {
     assert(stream[] == "Enum (foo::Color)", "unexpected rendering for an enum");
 }
 
-__test {
+__test proxy_type_kept_accessible {
     // The proxy type is kept accessible even though it isn't rendered
     let e = copy EnumType("Color", "", copy ScalarType("u8", ""));
     let dmut proxyStream = copy StringStream();
@@ -21,7 +21,7 @@ __test {
     assert(proxyStream[] == "Scalar (u8)", "unexpected proxy type");
 }
 
-__test {
+__test template_instantiation_kept_attached_enum {
     // A template instantiation is kept attached to the base name
     let e = copy EnumType("mod::Wrapped!{i32}", "", copy ScalarType("i32", ""));
     let dmut stream = copy StringStream();

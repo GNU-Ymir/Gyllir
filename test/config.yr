@@ -12,7 +12,7 @@ pub mod ::target;
 pub mod ::type;
 pub mod ::version;
 
-__test {
+__test empty_configuration_defaults {
     // Defaults of an empty configuration
     let cfg = GyllirPackageConfiguration::empty();
 
@@ -32,7 +32,7 @@ __test {
     assert(cfg.commands[].len == 0us, "default commands should be empty");
 }
 
-__test {
+__test explicit_constructor_sets_given_fields {
     // The explicit constructor only sets the fields it is given, the rest keep their defaults
     let cfg = GyllirPackageConfiguration(
         "my-pkg", "MIT", "a test package",
@@ -55,7 +55,7 @@ __test {
     assert(cfg.commands[].len == 0us, "commands should keep its default");
 }
 
-__test {
+__test deserialize_full_configuration {
     // Deserializing every field from a full configuration dictionary
     let fullCfg = json#{
         "name" : "my-pkg",
@@ -99,7 +99,7 @@ __test {
     } else assert(false, "expected a \"build-hook\" command");
 }
 
-__test {
+__test deserialize_minimal_configuration {
     // Only name/license/description/type/version/registry are mandatory, everything else defaults
     let minimalCfg = json#{
         "name" : "minimal",
@@ -121,7 +121,7 @@ __test {
     assert(cfg.commands[].len == 0us, "commands should default to empty");
 }
 
-__test {
+__test non_dict_configuration_rejected {
     // A configuration that isn't a dictionary is rejected directly
     let mut msg = "";
     {
@@ -133,7 +133,7 @@ __test {
     assert(msg == "expecting a table of entries describing the package", "unexpected error: " ~ msg);
 }
 
-__test {
+__test missing_mandatory_entry_names_it {
     // A missing mandatory entry names that entry, and shows what a correct declaration looks like:
     // the whole message is what 'gyllir' prints, there is nothing else for the user to go on
     let missingName = json#{
@@ -154,7 +154,7 @@ __test {
     assert(msg == "missing required entry 'name', for example: name = \"my-package\"", "unexpected error: " ~ msg);
 }
 
-__test {
+__test every_mandatory_entry_checked {
     // Every mandatory entry is checked the same way, and the version and the registry, which are
     // read by dedicated parsers, are no exception
     let entries = copy [("name", "missing required entry 'name', for example: name = \"my-package\""),
@@ -183,7 +183,7 @@ __test {
     }
 }
 
-__test {
+__test wrongly_typed_optional_entry_names_it {
     // A wrongly typed optional entry names that entry too
     let badCompiler = json#{
         "name" : "my-pkg",
@@ -205,7 +205,7 @@ __test {
     assert(msg == "'compiler' must be a string, for example: compiler = \"gyc\"", "unexpected error: " ~ msg);
 }
 
-__test {
+__test tests_false_disables_synthesized_target {
     // "tests" set to false at the top level is accepted, and disables the synthesized target
     let cfg = GyllirPackageConfiguration(json#{
         "name" : "myapp",
@@ -223,7 +223,7 @@ __test {
     } else assert(false, "expected a target named after the package");
 }
 
-__test {
+__test tests_false_with_test_root_rejected {
     // "tests" set to false next to a declared "test-root" is rejected: the two are exclusive
     let bad = json#{
         "name" : "myapp",
@@ -247,7 +247,7 @@ __test {
            "unexpected error: " ~ msg);
 }
 
-__test {
+__test wrongly_typed_authors_field_rejected {
     // A wrongly typed authors field (not an array) names it, and shows a correct declaration
     let badAuthors = json#{
         "name" : "my-pkg",
@@ -270,7 +270,7 @@ __test {
            "unexpected error: " ~ msg);
 }
 
-__test {
+__test unknown_entry_rejected {
     // An entry that is not a known field of the package is rejected rather than silently ignored
     let typo = json#{
         "name" : "my-pkg",
@@ -292,7 +292,7 @@ __test {
     assert(msg == "'author' is not a known entry", "unexpected error: " ~ msg);
 }
 
-__test {
+__test set_version_mutates_in_place {
     // setVersion() mutates the version in place
     let dmut cfg = GyllirPackageConfiguration::empty();
     cfg:.setVersion(Version(2u32, 0u32, 0u32));
@@ -308,7 +308,7 @@ __test {
  * ====================================================================================================
  */
 
-__test {
+__test no_targets_table_synthesizes_one {
     // A package declaring no "[targets.*]" table still has exactly one target, synthesized from its
     // top level fields and named after the package
     let cfg = GyllirPackageConfiguration(json#{
@@ -338,7 +338,7 @@ __test {
     } else assert(false, "expected a target named after the package");
 }
 
-__test {
+__test declared_targets_exclude_package_name {
     // A package declaring targets has exactly those, and none named after the package itself
     let cfg = GyllirPackageConfiguration(json#{
         "name" : "multi",
@@ -361,7 +361,7 @@ __test {
     } else assert(false, "expected a declared \"cli\" target");
 }
 
-__test {
+__test type_defaults_to_executable {
     // "type" is optional at the package level, and defaults to an executable
     let cfg = GyllirPackageConfiguration(json#{
         "name" : "myapp",
@@ -374,7 +374,7 @@ __test {
     assert(cfg.type.isExecutable(), "a package declaring no type should be an executable");
 }
 
-__test {
+__test single_target_fields_rejected_with_targets_table {
     // Every field describing a single artifact is rejected next to a "[targets.*]" table: it would
     // simply go unread, which is the trap the rule exists to prevent
     for key in copy ["type", "package-root", "test-root", "tests", "flags", "libraries"] {
@@ -409,7 +409,7 @@ __test {
     }
 }
 
-__test {
+__test single_target_fields_accepted_without_targets_table {
     // The same fields are accepted at the top level of a package declaring no target
     let cfg = GyllirPackageConfiguration(json#{
         "name" : "myapp",
@@ -428,7 +428,7 @@ __test {
     assert(cfg.libraries == copy ["m"], "unexpected package libraries");
 }
 
-__test {
+__test serialize_targets_omits_top_level_fields {
     // Serializing a package that declares targets writes them back, and none of the fields that
     // would be rejected on the next read
     let cfg = GyllirPackageConfiguration(json#{
@@ -453,7 +453,7 @@ __test {
     }
 }
 
-__test {
+__test serialize_no_targets_writes_top_level_fields {
     // Serializing a package that declares no target writes its top level fields, and no target
     // table: "gyllir publish" rewrites the whole file, and must not inject the synthesized target
     let cfg = GyllirPackageConfiguration(json#{
@@ -479,7 +479,7 @@ __test {
     assert(to!{[[c8]]}(serialized["libraries"]) == copy ["m"], "unexpected serialized libraries");
 }
 
-__test {
+__test serialize_omits_unset_optional_fields {
     // A package that never declared a package root, a test root or flags does not gain them either
     let cfg = GyllirPackageConfiguration(json#{
         "name" : "myapp",
@@ -498,7 +498,7 @@ __test {
     assert("flags" !in serialized, "an empty flag list should not be written back");
 }
 
-__test {
+__test tests_false_survives_round_trip {
     // "tests" set to false at the top level survives a serialization round trip
     let cfg = GyllirPackageConfiguration(json#{
         "name" : "myapp",
@@ -517,7 +517,7 @@ __test {
     assert(!back.tests, "the tests flag should survive the round trip");
 }
 
-__test {
+__test targets_survive_round_trip {
     // A configuration holding targets survives a serialization round trip
     let cfg = GyllirPackageConfiguration(json#{
         "name" : "multi",
@@ -541,7 +541,7 @@ __test {
     } else assert(false, "expected a \"cli\" target after the round trip");
 }
 
-__test {
+__test serialize_round_trips_every_field {
     // Serializing round-trips every field written by serialize()
     let fullCfg = json#{
         "name" : "my-pkg",
