@@ -27,7 +27,7 @@ fn mkArtifact(dir: Path, name: [c8], code: [c8])
     proc:.wait();
 }
 
-__test {
+__test reject_library_target_run {
     // run() on a library target (not forUnitTest) rejects before doing anything else
     let cfg = GyllirPackageConfiguration(
         "mylib", "MIT", "d", BuildType("library"), Url("local:some/registry"), Version(1u32, 0u32, 0u32), []
@@ -47,7 +47,7 @@ __test {
            "unexpected error: " ~ msg);
 }
 
-__test {
+__test run_returns_artifact_exit_code {
     // The runner returns the exit code of the artifact instead of exiting itself, so that
     // 'gyllir test' can run the tests of every target before failing on the first one that did not pass
     let dir = sys::tempDirectory(prefix-> "gyllir_runner_test_");
@@ -60,7 +60,7 @@ __test {
     assert(RepoRunner(dir, copy Dict(), cfg, soleTarget(cfg), false).run() == 3, "the exit code of the artifact should be reported");
 }
 
-__test {
+__test unittest_run_executes_test_binary {
     // A unittest run executes "<output>.test", not the artifact itself
     let dir = sys::tempDirectory(prefix-> "gyllir_runner_test_");
     let cfg = mkConfig("myapp", "executable");
@@ -70,7 +70,7 @@ __test {
     assert(RepoRunner(dir, copy Dict(), cfg, soleTarget(cfg), true).run() == 0, "the unittest executable should be the one run");
 }
 
-__test {
+__test run_executes_renamed_output_artifact {
     // The runner executes the artifact of the target, which "output" may have renamed
     let dir = sys::tempDirectory(prefix-> "gyllir_runner_test_");
     let cfg = mkTargetsConfig("myapp", json#{"app" : {"output" : "renamed"}});
@@ -80,7 +80,7 @@ __test {
            "the runner should execute the artifact named by \"output\"");
 }
 
-__test {
+__test library_target_unittest_runs_normally {
     // A library target is only a library for 'gyllir run': its unittest executable is run like any other
     let dir = sys::tempDirectory(prefix-> "gyllir_runner_test_");
     let cfg = mkTargetsConfig("multi", json#{"mylib" : {"type" : "library"}});
