@@ -115,10 +115,16 @@ pub record RepoInitializer {
         {
             let dmut f = File::create(Path(defaults::__GITIGNORE_FILENAME__), write-> true);
             f:.write(defaults::__GITIGNORE_CONTENT__);
-            f:.write(cfg.name ~ ".a\n");
-            f:.write(cfg.name ~ ".so\n");
-            f:.write(cfg.name ~ "\n");
-            f:.write(cfg.name ~ ".test\n");
+
+            // anchored, so that a package named like one of its own source directories does not
+            // make git ignore that directory as well
+            if (cfg.type.isExecutable()) {
+                f:.write("/" ~ cfg.name ~ "\n");
+            } else {
+                f:.write("/lib" ~ cfg.name ~ ".a\n");
+            }
+
+            f:.write("/" ~ cfg.name ~ ".test\n");
             f:.close();
         }
 

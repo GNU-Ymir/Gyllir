@@ -49,13 +49,24 @@ __test {
 
 /**
  * The content of the gitignore file
+ * @info: every generated file is named explicitly, rather than covered by a blanket '.*': git
+ *   refuses to re-include a file whose parent directory is excluded, so ignoring every dot entry
+ *   would take '.github/', '.vscode/' and the like with it, with no negation able to bring them
+ *   back
  */
 pub def __GITIGNORE_CONTENT__ = str#{
-.*
+# Dependencies resolved by gyllir
 .deps/
-!.gitignore
-__doc/
+
+# Build cache and generated documentation
 .target/
+__doc/
+
+# Left behind by a test run
+.ymir_test_success
+.ymir_coverage_*
+
+# Produced artifacts
 };
 
 
