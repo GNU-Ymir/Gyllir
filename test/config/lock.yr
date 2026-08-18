@@ -1,0 +1,388 @@
+use gyllir::config::_;
+use gyllir::config::lock;
+
+use std::config::_;
+use std::config::{conv, json};
+use std::conv::errors;
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * ==================================          LockedPackage          =================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+__test hand_built_package_defaults_unpinned {
+    // A package built by hand with no sha is unpinned, and carries no dependency
+    let p = LockedPackage(Url("local:../foo"), Version(1u32, 0u32, 0u32));
+
+    assert(!p.pinned(), "a package with no sha should be unpinned");
+    assert(p.sha == "", "default sha should be empty");
+    assert(p.dependencies.len == 0us, "default dependencies should be empty");
+}
+
+__test hand_built_package_with_sha_is_pinned {
+    // A package built by hand with a sha is pinned
+    let p = LockedPackage(Url("git:git@host.com:org/foo.git"), Version(1u32, 0u32, 0u32), sha-> "a1b2c3");
+
+    assert(p.pinned(), "a package with a sha should be pinned");
+    assert(p.sha == "a1b2c3", "unexpected sha");
+}
+
+__test deserialize_git_package {
+    // A git package is deserialized with its url, version, sha and dependencies
+    let ctx = gyllir::config::errors::inTableArray("package", "foo");
+    let p = LockedPackage(json#{
+        "url" : {"git" : "git@host.com:org/foo.git"},
+        "version" : "1.2.3",
+        "sha" : "a1b2c3d4",
+        "dependencies" : [{"git" : "git@host.com:org/bar.git"}]
+    }, ctx);
+
+    assert(p.url.type == UrlType::GIT, "unexpected url type");
+    assert(p.url.path.toStr() == "git@host.com:org/foo.git", "unexpected url path");
+    assert(p.version == Version(1u32, 2u32, 3u32), "unexpected version");
+    assert(p.sha == "a1b2c3d4", "unexpected sha");
+    assert(p.pinned(), "a git package declaring a sha should be pinned");
+    assert(p.dependencies.len == 1us, "expected a single dependency url");
+    assert(p.dependencies[0].type == UrlType::GIT, "unexpected dependency url type");
+    assert(p.dependencies[0].path.toStr() == "git@host.com:org/bar.git", "unexpected dependency url path");
+}
+
+__test deserialize_local_package_without_sha {
+    // A local package declares no sha, and is never pinned
+    let ctx = gyllir::config::errors::inTableArray("package", "local-tool");
+    let p = LockedPackage(json#{
+        "url" : {"local" : "../local-tool"},
+        "version" : "0.1.0"
+    }, ctx);
+
+    assert(p.url.type == UrlType::LOCAL, "unexpected url type");
+    assert(!p.pinned(), "a local package should never be pinned");
+    assert(p.sha == "", "a local package should carry no sha");
+}
+
+__test missing_url_names_the_package {
+    // A package declaring no url is named by the error
+    let mut msg = "";
+    {
+        LockedPackage(json#{"version" : "1.0.0"}, gyllir::config::errors::inTableArray("package", "foo"));
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[[package]]' (name = \"foo\"), missing required entry 'url', for example: url = \"git:git@github.com:me/foo.git\"",
+           "unexpected error: " ~ msg);
+}
+
+__test missing_version_names_the_package {
+    // A package declaring no version is named by the error
+    let mut msg = "";
+    {
+        LockedPackage(json#{"url" : {"local" : "../foo"}}, gyllir::config::errors::inTableArray("package", "foo"));
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[[package]]' (name = \"foo\"), missing required entry 'version', for example: version = \"1.0.0\"",
+           "unexpected error: " ~ msg);
+}
+
+__test sha_on_local_package_rejected {
+    // A local package declaring a sha is rejected: a local path is never pinned to a commit
+    let mut msg = "";
+    {
+        LockedPackage(json#{
+            "url" : {"local" : "../foo"},
+            "version" : "1.0.0",
+            "sha" : "a1b2c3"
+        }, gyllir::config::errors::inTableArray("package", "foo"));
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[[package]]' (name = \"foo\"), 'sha' cannot be declared for a local dependency, only a 'git:' url is pinned to a commit",
+           "unexpected error: " ~ msg);
+}
+
+__test missing_sha_on_git_package_rejected {
+    // A git package declaring no sha locks nothing: a tag can move, only a commit cannot
+    let mut msg = "";
+    {
+        LockedPackage(json#{
+            "url" : {"git" : "git@host.com:org/foo.git"},
+            "version" : "1.0.0"
+        }, gyllir::config::errors::inTableArray("package", "foo"));
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[[package]]' (name = \"foo\"), missing required entry 'sha', for example: sha = \"a1b2c3d4e5f6...\", "
+           ~ "the exact commit the resolved version was checked out at",
+           "unexpected error: " ~ msg);
+}
+
+__test non_string_sha_rejected {
+    // A non string sha is rejected rather than silently coerced
+    let mut msg = "";
+    {
+        LockedPackage(json#{
+            "url" : {"git" : "git@host.com:org/foo.git"},
+            "version" : "1.0.0",
+            "sha" : 12
+        }, gyllir::config::errors::inTableArray("package", "foo"));
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[[package]]' (name = \"foo\"), 'sha' must be a string, the exact commit the resolved version was checked out at",
+           "unexpected error: " ~ msg);
+}
+
+__test non_array_dependencies_rejected {
+    // A non array "dependencies" is rejected
+    let mut msg = "";
+    {
+        LockedPackage(json#{
+            "url" : {"local" : "../foo"},
+            "version" : "1.0.0",
+            "dependencies" : "bar"
+        }, gyllir::config::errors::inTableArray("package", "foo"));
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[[package]]' (name = \"foo\"), 'dependencies' must be an array of urls, the packages this one depends on",
+           "unexpected error: " ~ msg);
+}
+
+__test unknown_package_field_rejected {
+    // An entry that is not a known field of a locked package is rejected rather than ignored
+    let mut msg = "";
+    {
+        LockedPackage(json#{
+            "url" : {"local" : "../foo"},
+            "version" : "1.0.0",
+            "branch" : "main"
+        }, gyllir::config::errors::inTableArray("package", "foo"));
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[[package]]' (name = \"foo\"), 'branch' is not a known entry", "unexpected error: " ~ msg);
+}
+
+__test package_serialize_omits_sha_and_dependencies_when_unset {
+    // Serializing a package that never had a sha or a dependency does not gain them
+    let p = LockedPackage(Url("local:../foo"), Version(1u32, 0u32, 0u32));
+    let serialized = p.serialize();
+
+    assert("sha" !in serialized, "an unset sha should not be written back");
+    assert("dependencies" !in serialized, "an empty dependency list should not be written back");
+}
+
+__test package_survives_round_trip {
+    // A fully populated package survives a serialize/parse round trip
+    let p = LockedPackage(Url("git:git@host.com:org/foo.git"), Version(1u32, 2u32, 3u32),
+                          dependencies-> copy [Url("git:git@host.com:org/bar.git")], sha-> "a1b2c3");
+
+    let back = LockedPackage(p.serialize(), gyllir::config::errors::inTableArray("package", "foo"));
+
+    assert(back.url.type == p.url.type, "the url type should survive the round trip");
+    assert(back.url.path.toStr() == p.url.path.toStr(), "the url path should survive the round trip");
+    assert(back.version == p.version, "the version should survive the round trip");
+    assert(back.sha == p.sha, "the sha should survive the round trip");
+    assert(back.dependencies.len == p.dependencies.len, "the dependencies should survive the round trip");
+    assert(back.dependencies[0].path.toStr() == p.dependencies[0].path.toStr(), "the dependency url should survive the round trip");
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * ====================================          LockFile          =====================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+__test empty_lock_file_defaults {
+    // A default constructed lock file is at the current lock format, and locks nothing
+    let l = LockFile();
+
+    assert(l.lockVersion == gyllir::config::lock::__LOCK_VERSION__, "default lock version should be the current one");
+    assert(l[].len == 0us, "a default lock file should lock no package");
+}
+
+__test deserialize_full_lock_file {
+    // Deserializing a lock file declaring several packages
+    let l = LockFile(json#{
+        "lock-version" : 1,
+        "package" : [
+            {"name" : "foo", "url" : {"git" : "git@host.com:org/foo.git"}, "version" : "1.0.0", "sha" : "aaa111"},
+            {"name" : "local-tool", "url" : {"local" : "../local-tool"}, "version" : "0.1.0"}
+        ]
+    });
+
+    assert(l.lockVersion == 1u32, "unexpected lock version");
+    assert(l[].len == 2us, "expected two locked packages");
+
+    if let Ok(foo) = l[]["foo"] {
+        assert(foo.sha == "aaa111", "unexpected sha for \"foo\"");
+        assert(foo.pinned(), "\"foo\" should be pinned");
+    } else assert(false, "expected a locked \"foo\" package");
+
+    if let Ok(local) = l[]["local-tool"] {
+        assert(!local.pinned(), "\"local-tool\" should not be pinned");
+    } else assert(false, "expected a locked \"local-tool\" package");
+}
+
+__test missing_package_table_defaults_to_empty {
+    // A lock file declaring no "package" table locks nothing, rather than being rejected
+    let l = LockFile(json#{"lock-version" : 1});
+
+    assert(l[].len == 0us, "a lock file with no \"package\" table should lock nothing");
+}
+
+__test missing_lock_version_rejected {
+    // A lock file declaring no "lock-version" is rejected: there is nothing to check it against
+    let mut msg = "";
+    {
+        let dmut d = copy Dict();
+        d["package"] = copy Dict();
+        LockFile(d);
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "missing required entry 'lock-version', for example: lock-version = 1", "unexpected error: " ~ msg);
+}
+
+__test non_integer_lock_version_rejected {
+    // A non integer "lock-version" is rejected
+    let mut msg = "";
+    {
+        LockFile(json#{"lock-version" : "1"});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'lock-version' must be an integer, for example: lock-version = 1", "unexpected error: " ~ msg);
+}
+
+__test newer_lock_version_rejected {
+    // A lock file written by a newer gyllir, using a lock format this build does not understand, is
+    // rejected rather than best-effort parsed
+    let mut msg = "";
+    {
+        LockFile(json#{"lock-version" : 2});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "gyllir.lock has lock-version 2, this build of gyllir only understands lock-version 1: "
+           ~ "delete gyllir.lock and let it be regenerated, or use a matching gyllir version",
+           "unexpected error: " ~ msg);
+}
+
+__test non_table_package_entry_rejected {
+    // "package" declaring something other than an array of tables is rejected
+    let mut msg = "";
+    {
+        LockFile(json#{"lock-version" : 1, "package" : "not-a-table"});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'package' must be an array of tables, one '[[package]]' entry per resolved dependency",
+           "unexpected error: " ~ msg);
+}
+
+__test non_dict_package_element_rejected {
+    // A '[[package]]' array element that is not itself a table is rejected
+    let mut msg = "";
+    {
+        LockFile(json#{"lock-version" : 1, "package" : ["not-a-table"]});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[[package]]' entries must be tables", "unexpected error: " ~ msg);
+}
+
+__test package_missing_name_rejected {
+    // A '[[package]]' entry declaring no "name" is rejected: there is nothing to key it under
+    let mut msg = "";
+    {
+        LockFile(json#{"lock-version" : 1, "package" : [{"version" : "1.0.0"}]});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[[package]]', missing required entry 'name', for example: name = \"somelib\"",
+           "unexpected error: " ~ msg);
+}
+
+__test package_entry_error_named_by_lock_file {
+    // An invalid '[[package]]' entry is named by the error the same way as every other table
+    let mut msg = "";
+    {
+        LockFile(json#{"lock-version" : 1, "package" : [{"name" : "foo", "version" : "1.0.0"}]});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[[package]]' (name = \"foo\"), missing required entry 'url', for example: url = \"git:git@github.com:me/foo.git\"",
+           "unexpected error: " ~ msg);
+}
+
+__test unknown_top_level_field_rejected {
+    // An entry that is not "lock-version" or "package" is rejected rather than ignored
+    let mut msg = "";
+    {
+        LockFile(json#{"lock-version" : 1, "checksum-kind" : "sha256"});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'checksum-kind' is not a known entry", "unexpected error: " ~ msg);
+}
+
+__test non_table_lock_file_rejected {
+    // A lock file built from something else than a table is rejected
+    let mut msg = "";
+    {
+        LockFile(copy Str("not-a-dict"));
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "expecting a table, the root of a gyllir.lock file", "unexpected error: " ~ msg);
+}
+
+__test lock_file_survives_round_trip {
+    // A fully populated lock file survives a serialize/parse round trip
+    let l = LockFile(json#{
+        "lock-version" : 1,
+        "package" : [
+            {
+                "name" : "foo",
+                "url" : {"git" : "git@host.com:org/foo.git"},
+                "version" : "1.0.0",
+                "sha" : "aaa111",
+                "dependencies" : [{"git" : "git@host.com:org/bar.git"}]
+            },
+            {"name" : "bar", "url" : {"git" : "git@host.com:org/bar.git"}, "version" : "2.0.0", "sha" : "bbb222"}
+        ]
+    });
+
+    let back = LockFile(l.serialize());
+
+    assert(back.lockVersion == l.lockVersion, "the lock version should survive the round trip");
+    assert(back[].len == l[].len, "every package should survive the round trip");
+
+    if let Ok(foo) = back[]["foo"] {
+        assert(foo.sha == "aaa111", "the sha should survive the round trip");
+        assert(foo.dependencies.len == 1us, "the dependencies should survive the round trip");
+        assert(foo.dependencies[0].path.toStr() == "git@host.com:org/bar.git", "the dependency url should survive the round trip");
+    } else assert(false, "expected a locked \"foo\" package after the round trip");
+}

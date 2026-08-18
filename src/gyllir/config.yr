@@ -6,6 +6,7 @@ pub mod ::command;
 pub mod ::url;
 pub mod ::version;
 pub mod ::dependency;
+pub mod ::lock;
 pub mod ::target;
 pub mod ::type;
 pub mod ::errors;
