@@ -6,7 +6,7 @@ use gyllir::doc::types::scalar;
 
 use std::stream;
 
-__test {
+__test unsafe_ctor_with_thrower {
     let dmut c = copy Ctor("self", "", INTERNAL_LOCATION, Protection::PUB);
     c.isUnsafe = true;
 
@@ -22,7 +22,7 @@ __test {
            "unexpected rendering for an unsafe ctor with a thrower");
 }
 
-__test {
+__test bare_ctor_rendering {
     let c = copy Ctor("self", "", INTERNAL_LOCATION, Protection::PUB);
 
     let dmut stream = copy StringStream();

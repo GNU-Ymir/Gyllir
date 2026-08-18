@@ -3,7 +3,7 @@ use gyllir::doc::symbols::global;
 
 use std::stream;
 
-__test {
+__test global_with_value {
     let dmut g = copy Global("MAX", "", INTERNAL_LOCATION, Protection::PUB);
     g.value = "42";
 
@@ -13,7 +13,7 @@ __test {
     assert(stream[] == "Global MAX => :(0,0)\n\t42", "unexpected rendering for a global with a value");
 }
 
-__test {
+__test global_with_no_value {
     let g = copy Global("MAX", "", INTERNAL_LOCATION, Protection::PUB);
 
     let dmut stream = copy StringStream();

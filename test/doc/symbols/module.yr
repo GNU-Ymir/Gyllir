@@ -4,7 +4,7 @@ use gyllir::doc::symbols::function;
 
 use std::stream;
 
-__test {
+__test module_with_one_child {
     let dmut m = copy Module("m", "", INTERNAL_LOCATION, Protection::PUB);
     let f: &Symbol = copy Function("f", "", INTERNAL_LOCATION, Protection::PUB);
     m.childs = copy [f];
@@ -16,7 +16,7 @@ __test {
            "unexpected rendering for a module with one child (nested indentation should compound)");
 }
 
-__test {
+__test empty_module_rendering {
     let m = copy Module("empty", "", INTERNAL_LOCATION, Protection::PUB);
 
     let dmut stream = copy StringStream();

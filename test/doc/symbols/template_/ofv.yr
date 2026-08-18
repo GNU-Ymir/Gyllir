@@ -2,7 +2,7 @@ use gyllir::doc::symbols::template_::ofv;
 
 use std::stream;
 
-__test {
+__test of_template_param_rendering {
     let p = copy TemplateOfVarParam("T", "of", "i32");
     let dmut stream = copy StringStream();
     stream:.write(p);

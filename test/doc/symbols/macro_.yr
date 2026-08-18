@@ -3,7 +3,7 @@ use gyllir::doc::symbols::macro_;
 
 use std::stream;
 
-__test {
+__test macro_with_ctor_and_rule {
     // A MacroRule renders as "Ctor" or "Rule" depending on isCtor, followed by its rule and skip alternatives
     let dmut rule = copy MacroRule("r1", "", INTERNAL_LOCATION, Protection::PUB);
     rule.rule = "expr";

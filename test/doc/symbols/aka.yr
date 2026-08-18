@@ -5,7 +5,7 @@ use gyllir::doc::types::scalar;
 
 use std::stream;
 
-__test {
+__test type_aka_rendering {
     // A type alias renders its target type, prefixed with " : "
     let dmut a = copy Aka("Foo", "", INTERNAL_LOCATION, Protection::PUB);
     a.type = copy ScalarType("i32", "");
@@ -16,7 +16,7 @@ __test {
     assert(stream[] == "Aka Foo => :(0,0)\n\t : Scalar (i32)", "unexpected rendering for a type aka");
 }
 
-__test {
+__test value_aka_rendering {
     // A value alias renders its literal value, prefixed with " = "
     let dmut a = copy Aka("Foo", "", INTERNAL_LOCATION, Protection::PUB);
     a.isValue = true;
