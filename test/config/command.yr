@@ -46,6 +46,20 @@ __test {
 }
 
 __test {
+    // An entry that is not a known field of a command table is rejected rather than ignored
+    let mut msg = "";
+    {
+        copy CustomCommandList(json#{
+            "typo" : {"cmd" : "echo hi", "pre" : true}
+        });
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[commands.typo]', 'pre' is not a known entry", "unexpected error: " ~ msg);
+}
+
+__test {
     // Serializing a command list back into a configuration round-trips every field
     let cfg = json#{
         "serialize_me" : {"cmd" : "echo serialize", "post" : true, "cwd" : "/tmp"}
