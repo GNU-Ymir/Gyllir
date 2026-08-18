@@ -1,6 +1,6 @@
 in errors;
 
-use std::stream;
+use std::{config::_, stream};
 
 /*!
  * Every error raised while reading a gyllir.toml is an 'AssertError' whose message is written for
@@ -24,6 +24,41 @@ use std::stream;
  * */
 pub fn inTable(table: [c8], name: [c8])-> [c8] {
     "'[" ~ table ~ "." ~ name ~ "]', "
+}
+
+/**
+ * Reject any entry of 'd' that is not one of 'known': a field that is neither read nor rejected
+ * is silently ignored, which lets a typo or a stray entry pass without warning.
+ *
+ * 'known' is a template variadic rather than a '[[c8]]' slice so that the usual call, a handful
+ * of string literals, allocates nothing.
+ *
+ * @params:
+ *    - d: the table to check
+ *    - ctx: the prefix naming the table an error message comes from, for example the result of
+ *      'inTable', or "" for the top level table of the configuration file
+ *    - known: the entries 'd' is allowed to declare
+ * @throws:
+ *    - AssertError: on the first entry of 'd' that is not in 'known'
+ * */
+pub fn rejectUnknown {T...} (d: &Dict, ctx: [c8], known: T)
+    throws AssertError
+{
+    for k, _ in d[] {
+        let mut found = false;
+
+        cte if (T,)::arity > 1 {
+            for n in (expand known,) {
+                if (k == n) { found = true; }
+            }
+        } else {
+            found = (k == known);
+        }
+
+        if (!found) {
+            throw copy AssertError(ctx ~ "'" ~ k ~ "' is not a known entry");
+        }
+    }
 }
 
 /**
