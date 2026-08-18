@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Your first project — Gyllir handbook</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="favicon-32.png" sizes="32x32">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+    <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="26" height="26">Gyllir</a>
+    <div class="tagline">Build system &amp; package manager for GNU-Ymir</div>
+    <h2>Getting started</h2>
+    <ul>
+        <li><a href="index.html">Overview</a></li>
+        <li><a class="current" href="getting-started.html">Your first project</a></li>
+        <li><a href="cli.html">Command reference</a></li>
+    </ul>
+    <h2>Configuration</h2>
+    <ul>
+        <li><a href="manifest.html">gyllir.toml</a></li>
+        <li><a href="targets.html">Targets</a></li>
+        <li><a href="dependencies.html">Dependencies</a></li>
+    </ul>
+    <h2>Going further</h2>
+    <ul>
+        <li><a href="build-model.html">How a build works</a></li>
+        <li><a href="publishing.html">Publishing</a></li>
+    </ul>
+</nav>
+<main>
+
+<h1>Your first project</h1>
+<p class="lead">Create a package, build it, run it, test it, document it — and understand every file
+that appears along the way.</p>
+
+<h2>1. Create the package</h2>
+
+<p><code>gyllir init</code> creates a package in the <em>current</em> directory, so make one first.
+It refuses to run if a <code>gyllir.toml</code> is already there.</p>
+
+<pre><code>mkdir hello &amp;&amp; cd hello
+gyllir init</code></pre>
+
+<p>It asks a handful of questions, each with a default in brackets that you accept by pressing
+enter:</p>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Question</th><th>Default</th><th>Meaning</th></tr>
+    <tr><td>Name</td><td><code>main</code></td><td>Package name, and the name of the artifact it produces.</td></tr>
+    <tr><td>Author name</td><td>your git <code>user.name</code></td><td>First entry of <code>authors</code>.</td></tr>
+    <tr><td>Description</td><td><code>A minimal Ymir app</code></td><td>One line describing the package.</td></tr>
+    <tr><td>License</td><td><code>proprietary</code></td><td>Free-form license string.</td></tr>
+    <tr><td>Type (executable/library)</td><td><code>executable</code></td><td>What the package produces.</td></tr>
+    <tr><td>Registry</td><td><code>local:$HOME/.local/gyllir/&lt;name&gt;</code></td><td>Where <a href="publishing.html"><code>gyllir publish</code></a> pushes versions.</td></tr>
+</table>
+</div>
+
+<h2>2. What it created</h2>
+
+<pre><code>hello/
+├── gyllir.toml        the manifest: everything Gyllir knows about the package
+├── .gitignore         ignores .deps/, .target/, __doc/ and the produced artifacts
+├── src/
+│   └── main.yr        root module of an executable (__lib__.yr for a library)
+└── test/
+    └── __test__.yr    root module of the unit tests</code></pre>
+
+<p><code>gyllir init</code> also runs <code>git init</code> and makes an initial commit — Gyllir
+leans on git for versioning, so a package is expected to be a git repository.</p>
+
+<p>The generated <code>gyllir.toml</code> looks like this:</p>
+
+<pre><code>name = "hello"
+license = "MIT"
+description = "A minimal Ymir app"
+compiler = "gyc"
+type = "executable"
+version = "0.1.0"
+authors = ["Jane Doe"]
+libraries = []
+
+[dependencies]
+
+[commands]
+
+[registry]
+local = "/home/jane/.local/gyllir/hello"</code></pre>
+
+<p>Every key is described in the <a href="manifest.html">manifest reference</a>.</p>
+
+<h2>3. Build it</h2>
+
+<pre><code>gyllir build              # debug build (-g)
+gyllir build --release    # release build (-O3)</code></pre>
+
+<p>An executable package produces <code>./hello</code> in the package directory; a library package
+produces <code>./libhello.a</code>. Intermediate results live under <code>.target/</code> — see
+<a href="build-model.html">How a build works</a>.</p>
+
+<div class="note">
+<p><strong>Where does the root module come from?</strong> A package that declares no
+<a href="targets.html"><code>[targets.*]</code></a> table roots an executable at
+<code>src/main.yr</code> and a library at <code>src/__lib__.yr</code>. Name another file with
+<a href="manifest.html#package-root"><code>package-root</code></a> if you need to. Every other
+<code>.yr</code> file under <code>src/</code> is compiled too, but must be reachable from the root
+module — Gyllir warns about any module that is not attached to the package tree.</p>
+</div>
+
+<h2>4. Run it</h2>
+
+<pre><code>gyllir run                # builds, then runs ./hello
+gyllir run -- --flag x    # everything after -- is forwarded to your program</code></pre>
+
+<p><code>gyllir run</code> always rebuilds first, in debug mode. It exits with the exit code of
+your program (or <code>128 + signal</code> if a signal killed it), so it composes with shell
+scripts and CI.</p>
+
+<h2>5. Write and run tests</h2>
+
+<p>Unit tests live under <code>test/</code>, rooted at <code>test/__test__.yr</code>, and are
+written as <code>__test</code> blocks. A test fails by throwing — typically through
+<code>assert</code>:</p>
+
+<pre><code>use std::io;
+
+__test {
+    println("Example of first test");
+
+    // To make a test fail, throw an exception
+    // for example, assert(false);
+}</code></pre>
+
+<pre><code>gyllir test               # compile ./hello.test and run it
+gyllir test --dry         # only compile it, do not run</code></pre>
+
+<p>The test binary is <code>./hello.test</code>, next to the normal artifact. The test tree is
+compiled against your sources, so <code>test/</code> modules can <code>use</code> the modules of
+<code>src/</code> directly. <code>--dry</code> is what CI uses when it wants to run the binary
+itself with extra options, e.g. coverage.</p>
+
+<h2>6. Generate the documentation</h2>
+
+<pre><code>gyllir doc                # writes the HTML site into __doc/
+gyllir doc -o site        # ... into site/ instead</code></pre>
+
+<p>The generator reads the <code>/** ... */</code> doc comments of your sources and renders a
+static site. Nothing is linked during a doc build, so it works even on a package whose dependencies
+you have not built.</p>
+
+<h2>7. Clean up</h2>
+
+<pre><code>gyllir clean              # remove .target/ and the produced artifacts
+gyllir clean --doc        # remove __doc/
+gyllir clean --all        # remove all of the above, plus resolved dependencies (.deps/)</code></pre>
+
+<h2>Turning it into a library</h2>
+
+<p>Set <a href="manifest.html#type"><code>type</code></a> to <code>"library"</code>, rename the
+root module to <code>src/__lib__.yr</code>, and the next build produces <code>./libhello.a</code>
+instead of an executable. Other packages can then depend on it — see
+<a href="dependencies.html">Dependencies</a>. A package that needs to ship both a library and a CLI
+in one repository declares two <a href="targets.html">targets</a>.</p>
+
+<div class="next">
+    <span>Next:</span> <a href="cli.html">Command reference →</a>
+    <span>or</span> <a href="manifest.html">the manifest →</a>
+</div>
+
+</main>
+</div>
+</body>
+</html>

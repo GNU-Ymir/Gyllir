@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gyllir handbook</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="alternate icon" href="favicon-32.png" sizes="32x32">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+    <a class="brand" href="index.html"><img src="favicon.svg" alt="" width="26" height="26">Gyllir</a>
+    <div class="tagline">Build system &amp; package manager for GNU-Ymir</div>
+    <h2>Getting started</h2>
+    <ul>
+        <li><a class="current" href="index.html">Overview</a></li>
+        <li><a href="getting-started.html">Your first project</a></li>
+        <li><a href="cli.html">Command reference</a></li>
+    </ul>
+    <h2>Configuration</h2>
+    <ul>
+        <li><a href="manifest.html">gyllir.toml</a></li>
+        <li><a href="targets.html">Targets</a></li>
+        <li><a href="dependencies.html">Dependencies</a></li>
+    </ul>
+    <h2>Going further</h2>
+    <ul>
+        <li><a href="build-model.html">How a build works</a></li>
+        <li><a href="publishing.html">Publishing</a></li>
+    </ul>
+</nav>
+<main>
+
+<h1>Gyllir handbook</h1>
+<p class="lead">Gyllir is the build system and package manager for GNU-Ymir projects — what
+<code>cargo</code> is to Rust, or <code>dub</code> to D. It compiles <code>.yr</code> sources into
+executables and libraries, resolves dependencies, runs unit tests, generates documentation and
+publishes versions to a registry.</p>
+
+<p>Gyllir does not compile anything itself: it drives the <code>gyc</code> compiler, decides what
+needs recompiling, and links the result. One file — <a href="manifest.html"><code>gyllir.toml</code></a>
+— describes the whole package.</p>
+
+<div class="cards">
+    <a class="card" href="getting-started.html">
+        <strong>Your first project</strong>
+        <span>From <code>gyllir init</code> to a running binary and a passing test suite.</span>
+    </a>
+    <a class="card" href="cli.html">
+        <strong>Command reference</strong>
+        <span>Every sub-command and flag: build, run, test, clean, doc, publish.</span>
+    </a>
+    <a class="card" href="manifest.html">
+        <strong>gyllir.toml</strong>
+        <span>Every key of the manifest, what it defaults to, and when it is rejected.</span>
+    </a>
+    <a class="card" href="targets.html">
+        <strong>Targets</strong>
+        <span>Declaring several artifacts in one package, and linking them together.</span>
+    </a>
+    <a class="card" href="dependencies.html">
+        <strong>Dependencies</strong>
+        <span>Local and git packages, version filters, and picking what to link.</span>
+    </a>
+    <a class="card" href="build-model.html">
+        <strong>How a build works</strong>
+        <span>Root modules, the <code>.target/</code> cache, incremental rebuilds, C sources.</span>
+    </a>
+</div>
+
+<h2>Installing</h2>
+
+<p>Gyllir needs a working <code>gyc</code> toolchain on the machine — it is looked up on
+<code>PATH</code> under the name given by the <a href="manifest.html#compiler"><code>compiler</code></a>
+key of the manifest, which defaults to <code>gyc</code>:</p>
+
+<pre><code>gyc --version</code></pre>
+
+<p>Gyllir itself ships as a Debian package. Grab the latest one from
+<a href="https://github.com/GNU-Ymir/Gyllir/releases">the releases page</a> and install it:</p>
+
+<pre><code>sudo apt-get install ./gyllir_&lt;version&gt;_amd64.deb</code></pre>
+
+<p>The package installs the <code>gyllir</code> binary to <code>/usr/bin/</code>, the static assets
+used by the documentation generator to <code>/etc/gyllir/res/</code>, and a bash completion script
+to <code>/etc/bash_completion.d/</code>. Check the install with:</p>
+
+<pre><code>gyllir --version</code></pre>
+
+<p>which prints the version of Gyllir followed by the version of the compiler it found.</p>
+
+<h2>Hello world</h2>
+
+<pre><code>mkdir hello &amp;&amp; cd hello
+gyllir init          # answers a handful of questions, writes gyllir.toml
+gyllir run           # builds ./hello, then runs it</code></pre>
+
+<p>That is the whole loop. <a href="getting-started.html">Your first project</a> walks through what
+each of those steps created and what to do next.</p>
+
+<h2>What Gyllir does for you</h2>
+
+<ul>
+    <li><strong>Builds</strong> a package into an executable or a static library, in debug or
+        release mode, with an incremental cache under <code>.target/</code>.</li>
+    <li><strong>Resolves dependencies</strong> declared as local paths or git remotes, checks out
+        the version matching a filter, and builds them recursively before your package.</li>
+    <li><strong>Runs unit tests</strong> written as <code>__test</code> blocks, compiled into a
+        separate test binary.</li>
+    <li><strong>Generates documentation</strong> as a static HTML site from the doc comments in
+        your sources.</li>
+    <li><strong>Publishes versions</strong>: bumps the version, commits, tags, and pushes to a
+        local directory or a git registry.</li>
+</ul>
+
+<h2>Conventions in this handbook</h2>
+
+<p>Shell blocks are commands you type; TOML blocks are fragments of <code>gyllir.toml</code>.
+Paths like <code>src/main.yr</code> are relative to the package directory — the directory holding
+<code>gyllir.toml</code>, which is where every Gyllir command must be run.</p>
+
+<div class="next">
+    <span>Next:</span> <a href="getting-started.html">Your first project →</a>
+</div>
+
+</main>
+</div>
+</body>
+</html>
