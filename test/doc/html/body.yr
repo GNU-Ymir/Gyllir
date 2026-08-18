@@ -3,7 +3,7 @@ use gyllir::doc::symbols::_;
 use gyllir::doc::symbols::module;
 use gyllir::doc::symbols::function;
 use gyllir::doc::symbols::global;
-use gyllir::doc::symbols::aka;
+use gyllir::doc::symbols::def_;
 use gyllir::doc::symbols::enum_;
 use gyllir::doc::symbols::macro_;
 use gyllir::doc::symbols::class_;
@@ -73,13 +73,13 @@ __test global_default_type {
         "unexpected html for a global with no type");
 }
 
-__test type_alias_aka {
-    // An aka (type alias)
+__test type_alias_def {
+    // A def (type alias)
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
-    let dmut a = copy Aka("MyInt", "", INTERNAL_LOCATION, Protection::PUB);
-    a.type = copy ScalarType("i32", "");
-    let a2: &Symbol = a;
-    mod_.childs = copy [a2];
+    let dmut d = copy Def("MyInt", "", INTERNAL_LOCATION, Protection::PUB);
+    d.type = copy ScalarType("i32", "");
+    let d2: &Symbol = d;
+    mod_.childs = copy [d2];
 
     assert(dump(mod_) == MODULE_HEAD ~
         "<!-- <hr> <\\!--  -\\-> -->\n" ~
@@ -89,7 +89,7 @@ __test type_alias_aka {
         "</div>\n\n" ~
         "<div class=\"declaration-content y_dd_decl\" id=\"MyInt-content\"><pre><code class=\"language-ymir\">pub def MyInt : i32</code></pre>\n" ~
         "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n",
-        "unexpected html for a type aka");
+        "unexpected html for a type def");
 }
 
 __test enum_self_referential_type {
