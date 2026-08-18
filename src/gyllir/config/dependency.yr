@@ -188,6 +188,10 @@ pub class DependencyList {
             throw copy AssertError(ctx ~ "missing required entry 'url', for example: url = \"git:git@github.com:me/" ~ name ~ ".git\"");
         };
 
+        if let d: &Dict = cfg {
+            gyllir::config::errors::rejectUnknown(d, ctx, "version", "url", "link-targets");
+        }
+
         Dependency(version-> version, url, targets-> self.readTargets(cfg, ctx))
     }
 
