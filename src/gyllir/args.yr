@@ -3,6 +3,7 @@ in args;
 use std::config::_;
 use std::{io, stream, concurrency::process};
 use std::syntax::tokenizer;
+use std::fs::_;
 
 
 /**
@@ -10,7 +11,7 @@ use std::syntax::tokenizer;
  * @info: kept in sync with the 'version' field of gyllir.toml by 'tools/set-version.sh',
  *   declared as a pre build command in the '[commands]' table of gyllir.toml.
  * */
-pub def __GYLLIR_VERSION__ = "1.4.1";
+pub def __GYLLIR_VERSION__ = "1.5.1";
 
 /**
  * Format the version banner of gyllir
@@ -80,6 +81,56 @@ pub fn compilerStdVersion(compiler: [c8] = "gyc")-> [c8] {
     midgardVersionOfLine(line)
 } catch {
     _ => ""
+}
+
+/**
+ * Locates the compiler's own bundled std include directory('<prefix>/include/ymir/<ver>/'), the
+ * one '-iprefix' redirects when a '[std]' resolves a version other than the one bundled with the
+ * compiler: rather than turning the compiler's implicit prelude import off entirely('-nostdinc'
+ * has no way to redirect it to a custom '-I' - every source file would need its own explicit
+ * 'use core::_;'/'use etc::_;' just to get back what it already has for free by default), a
+ * synthetic directory shaped exactly like this one, but pointing at the resolved std lib, is
+ * built and passed as '-iprefix' instead - keeping 'Hashable', 'AssertError',
+ * 'etc::c::process::_yrt_exit', etc. available exactly as they are without '[std]' at all.
+ * @params:
+ *    - compiler: the name of the compiler binary
+ * @returns: '[<the compiler's own include/ymir/<ver> directory>]', or '[]' if it could not be
+ *    found(a compiler too old to support '-print-prog-name', or a non-standard install layout)
+ * */
+pub fn compilerCoreVersionDir(compiler: [c8] = "gyc")-> [Path] {
+    let dmut proc = copy SubProcess(compiler, copy ["-print-prog-name=ymir1"s8]);
+    proc:.start();
+
+    if (proc:.wait() != 0) return [];
+
+    let dmut pipe = alias proc.stdout;
+    let dmut res: [c8] = [];
+    while let Ok(c) = pipe:.read!c8()? {
+        if (c == '\n') break;
+        res ~= [c];
+    }
+
+    let mut empty: [Path] = [];
+
+    let progPath = Path(res);
+    if (!progPath.isAbsolute()) return empty; // 'gcc -print-prog-name' echoes the bare name back when it can't locate the program
+
+    let includeRoot = progPath.parent().push("include"s8).push("ymir"s8);
+    if (!isDir(includeRoot)) return empty;
+
+    for entry in readDir(includeRoot) {
+        match entry {
+            FsEntry(path-> p, kind-> FsEntryKind::DIR) => {
+                if (isFile(p.push("core.yr"s8)) && isFile(p.push("etc.yr"s8)) && isFile(p.push("std.yr"s8))) {
+                    return copy [p];
+                }
+            }
+        }
+    }
+
+    empty
+} catch {
+    _ => []
 }
 
 /**
