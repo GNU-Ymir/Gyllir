@@ -137,7 +137,7 @@ pub record RepoDocBuilder {
      *    - outDir: the output directory
      * */
     fn createBaseDirectory(self, dmut _: &GyllirManager, outDir: Path) {
-        let ymir_res = ressources::GyllirHtmlFiles::RESSOURCES;
+        let ymir_res = ressources::RES_ROOT;
         fs::sys::copyDir(ymir_res.push("js"), outDir.push("js"), recursive-> true, create-> true);
         fs::sys::copyDir(ymir_res.push("css"), outDir.push("css"), recursive-> true, create-> true);
         fs::sys::copyDir(ymir_res.push("ico"), outDir.push("ico"), recursive-> true, create-> true);
