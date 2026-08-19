@@ -72,6 +72,48 @@ __test runnable_compiler_reports_first_line {
     }
 }
 
+__test midgard_version_line_extracted {
+    // The version is read off a well formed "Midgard version <version> <date>" line
+    assert(midgardVersionOfLine("Midgard version 1.3.0 20260818") == "1.3.0",
+           "the std lib version should be extracted from the line");
+}
+
+__test midgard_version_line_other_lines_ignored {
+    // Any line that isn't the "Midgard version ..." one reports no version
+    assert(midgardVersionOfLine("Ymir version 1.3.2 20260818") == "",
+           "an unrelated line should report no version");
+    assert(midgardVersionOfLine("") == "", "an empty line should report no version");
+    assert(midgardVersionOfLine("Midgard version") == "",
+           "a truncated line with no version after it should report no version");
+}
+
+__test ymir_version_line_extracted {
+    // The version is read off a well formed "Ymir version <version> <date>" line
+    assert(ymirVersionOfLine("Ymir version 1.3.2 20260818") == "1.3.2",
+           "the compiler's Ymir version should be extracted from the line");
+}
+
+__test ymir_version_line_other_lines_ignored {
+    // Any line that isn't the "Ymir version ..." one reports no version
+    assert(ymirVersionOfLine("Midgard version 1.3.0 20260818") == "",
+           "an unrelated line should report no version");
+    assert(ymirVersionOfLine("") == "", "an empty line should report no version");
+}
+
+__test unknown_compiler_reports_no_std_version {
+    // A compiler that cannot be run reports no std lib version either
+    assert(compilerStdVersion(compiler-> "gyllir-no-such-compiler") == "",
+           "an unknown compiler should report an empty std lib version");
+}
+
+__test runnable_compiler_without_midgard_line_reports_no_std_version {
+    // A compiler that can be run, but whose "--version" carries no "Midgard version" line,
+    // reports no std lib version rather than failing
+    // ("echo" stands in for a real compiler, to keep the test independent of the toolchain)
+    assert(compilerStdVersion(compiler-> "echo") == "",
+           "a compiler with no 'Midgard version' line should report an empty std lib version");
+}
+
 __test init_recognized_as_sub_command {
     // 'init' takes no option, but it must be recognized as a sub command
     let cfg = parse(copy ["gyllir", "init"]);

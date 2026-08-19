@@ -3,6 +3,7 @@ in git;
 use gyllir::utils::errors;
 use std::concurrency::process;
 use std::{io, fs::_, stream};
+use std::syntax::tokenizer;
 
 /**
  * Record used to manage a git repository
@@ -62,6 +63,51 @@ pub record GitManager {
         if (code != 0) {
             throw copy GitError(GitErrorCode::UNKNOWN, self.readAll(alias proc.stderr));
         }
+    }
+
+    /**
+     * Clone a remote repository as a bare, blobless partial clone: every ref/tag and commit is
+     * fetched, but file contents are only fetched on demand(by 'showFileAtTag') - cheap enough to
+     * use just to inspect a handful of files across many tags, unlike a real 'clone'
+     * @params:
+     *    - url: the remote repository url
+     * */
+    pub fn clonePartial(self, url: [c8])
+        throws GitError, FsError
+    {
+        let parent = self._cwd.parent();
+        fs::sys::createDir(parent)?;
+
+        let dmut proc = copy SubProcess("git", copy ["clone", "--bare", "--filter=blob:none", "-q", url, self._cwd.file()], cwd-> parent);
+        proc:.start();
+
+        let code = proc:.wait();
+        if (code != 0) {
+            throw copy GitError(GitErrorCode::UNKNOWN, self.readAll(alias proc.stderr));
+        }
+    }
+
+    /**
+     * Read a single file as it stood at a given tag, without checking it out
+     * @params:
+     *    - tag: the tag(or any other revision) to read the file at
+     *    - path: the path of the file, relative to the root of the repository
+     * @returns: the content of the file
+     * @throws:
+     *    - GitError: 'tag' does not exist, or declares no such file
+     * */
+    pub fn showFileAtTag(self, tag: [c8], path: [c8])-> [c8]
+        throws GitError, FsError
+    {
+        let dmut proc = copy SubProcess("git", copy ["show", tag ~ ":" ~ path], cwd-> self._cwd);
+        proc:.start();
+
+        let code = proc:.wait();
+        if (code != 0) {
+            throw copy GitError(GitErrorCode::UNKNOWN, self.readAll(alias proc.stderr));
+        }
+
+        self.readAll(alias proc.stdout)
     }
 
     /**
@@ -286,6 +332,27 @@ pub record GitManager {
     }
 
     /**
+     * List the tags of a remote repository, without cloning it
+     * @params:
+     *    - url: the remote repository url
+     * @returns: the tag names available at 'url', one per line, in the same shape 'getTagList'
+     *    returns them, so it can be fed into 'GyllirManager::toVersionList' the same way
+     * */
+    pub fn getRemoteTagList(self, url: [c8])-> [c8]
+        throws GitError, FsError
+    {
+        let dmut proc = copy SubProcess("git", copy ["ls-remote", "--tags", url], cwd-> self._cwd);
+        proc:.start();
+
+        let code = proc:.wait();
+        if (code != 0) {
+            throw copy GitError(GitErrorCode::UNKNOWN, self.readAll(alias proc.stderr));
+        }
+
+        self.parseRemoteTagNames(self.readAll(alias proc.stdout))
+    }
+
+    /**
      * @returns: the current branch name
      * */
     pub fn getCurrentBranchName(self)-> [c8]
@@ -342,6 +409,40 @@ pub record GitManager {
      * ====================================================================================================
      * ====================================================================================================
      */
+
+    /**
+     * Extract the tag names out of the output of 'git ls-remote --tags'
+     * @params:
+     *    - output: the raw '<sha>\trefs/tags/<name>' lines printed by 'git ls-remote --tags'
+     * @returns: the tag names, one per line, an annotated tag's peeled '^{}' entry stripped down
+     *    to the same name as its lightweight counterpart('toVersionList' dedupes the two)
+     * */
+    prv fn parseRemoteTagNames(self, output: [c8])-> [c8] {
+        let dmut lineTzer = Tokenizer!c8();
+        lineTzer:.insert("\n", isSkip-> true);
+        let lines = lineTzer.tokenizeWithoutSkips(output);
+
+        let prefix = "refs/tags/"s8;
+        let peeled = "^{}"s8;
+
+        let dmut stream = copy StringStream();
+        for l in lines {
+            let dmut colTzer = Tokenizer!c8();
+            colTzer:.insert("\t", isSkip-> true);
+            let cols = colTzer.tokenizeWithoutSkips(l);
+
+            if (cols.len == 2us && cols[1].len > prefix.len && cols[1][0us .. prefix.len] == prefix) {
+                let mut name = cols[1][prefix.len .. $];
+                if (name.len > peeled.len && name[$ - peeled.len .. $] == peeled) {
+                    name = name[0us .. $ - peeled.len];
+                }
+
+                stream:.write(name, "\n");
+            }
+        }
+
+        stream[]
+    }
 
     /**
      * Read the content of the pipe

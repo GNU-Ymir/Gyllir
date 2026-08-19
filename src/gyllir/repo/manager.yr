@@ -2,6 +2,7 @@ in manager;
 
 use std::{config::_, fs::_, io, stream};
 use gyllir::{config::_, args, args::_, utils::_};
+use gyllir::config::version::filter;
 use gyllir::repo::_;
 use std::{algorithm::sorting, concurrency::process, syntax::errors, syntax::tokenizer};
 
@@ -204,6 +205,16 @@ pub class GyllirManager {
         // the documentation of a package producing several artifacts is one site per target
         let subDir = targets.len > 1us;
 
+        let (stdIncludes, stdLinks) = self:.resolveStd(args, cwd, cfg, dry || forDoc);
+
+        // a std lib resolved from the remote(rather than the one bundled with the compiler) has to
+        // fully replace it, or the compiler's own default lookup and implicit linking would still
+        // pull in its bundled one on top of it
+        let mut stdFlags: [[c8]] = [];
+        if (stdIncludes.len != 0us || stdLinks.len != 0us) {
+            stdFlags ~= ["-nostdinc", "-nomidgardlib"];
+        }
+
         let mut builtIncludes: [[c8] => mut [Path]] = copy [];
         let mut builtLinks: [[c8] => mut [Path]] = copy [];
 
@@ -216,7 +227,9 @@ pub class GyllirManager {
             let isSelected = t.name in selected;
 
             if (isLinked || isSelected) {
-                let (includes, links) = self.gatherTargetArtifacts(t, builtIncludes, builtLinks);
+                let (rawIncludes, rawLinks) = self.gatherTargetArtifacts(t, builtIncludes, builtLinks);
+                let includes = self.uniquePaths(rawIncludes ~ stdIncludes);
+                let links = self.uniquePaths(rawLinks ~ stdLinks);
 
                 let mut ownIncludes: [Path] = [];
                 let mut ownLinks: [Path] = [];
@@ -225,7 +238,7 @@ pub class GyllirManager {
                 // a target another one links is always built as an artifact first: the unittest and
                 // the documentation builds of a target produce nothing to link against
                 if (isLinked) {
-                    let (i, l) = RepoBuilder(cwd, args, cfg, t, forUnitTest-> false, dry-> dry)
+                    let (i, l) = RepoBuilder(cwd, args, cfg, t, forUnitTest-> false, dry-> dry, extraFlags-> stdFlags)
                         .run(alias self, targetIncludes-> includes, targetLinks-> links);
 
                     builtIncludes[t.name] = i;
@@ -237,12 +250,12 @@ pub class GyllirManager {
 
                 if (isSelected) {
                     if (forDoc) {
-                        RepoDocBuilder(cwd, args, cfg, target-> t, subDir-> subDir)
+                        RepoDocBuilder(cwd, args, cfg, target-> t, subDir-> subDir, extraFlags-> stdFlags)
                             .run(alias self, targetIncludes-> includes, targetLinks-> links);
                     }
 
                     else if (forUnitTest || !hasOwn) {
-                        let (i, l) = RepoBuilder(cwd, args, cfg, t, forUnitTest-> forUnitTest, dry-> dry)
+                        let (i, l) = RepoBuilder(cwd, args, cfg, t, forUnitTest-> forUnitTest, dry-> dry, extraFlags-> stdFlags)
                             .run(alias self, targetIncludes-> includes, targetLinks-> links);
 
                         if (!hasOwn) {
@@ -639,6 +652,227 @@ pub class GyllirManager {
      * ====================================================================================================
      * ====================================================================================================
      */
+
+    /**
+     * Resolve the std lib(midgard) a package requires, when it declares a '[std]' table
+     *
+     * The version bundled with the compiler is used as-is (no cloning, no extra '-I'/link flag:
+     * the compiler already finds it on its own, exactly as before '[std]' existed) whenever it
+     * matches the declared filter at least as well as what the remote repository offers. Only a
+     * remote version that matches the filter strictly better is cloned into '.deps/std' and built
+     * like a regular dependency.
+     * @params:
+     *    - args: the configuration of the current building
+     *    - cwd: the root directory of the package
+     *    - cfg: the configuration of the package, possibly declaring a '[std]' table
+     *    - dry: true to resolve without compiling anything
+     * @returns:
+     *    - .0: the list of path to the root files to include, '[]' when the bundled std is used
+     *    - .1: the list of path to the built libraries to link, '[]' when the bundled std is used
+     * @throws:
+     *    - AssertError: neither the bundled std lib nor the remote repository has a version
+     *      matching the declared filter
+     * */
+    pub fn resolveStd(mut self, args: &Config, cwd: Path, cfg: GyllirPackageConfiguration, dry: bool)-> ([Path], [Path])
+        throws RecursiveDependency, AssertError
+    {
+        if (!cfg.hasStd) { return ([], []); }
+
+        let filter = cfg.stdVersion();
+        let url = cfg.stdUrl;
+
+        let bundled = gyllir::args::compilerStdVersion(compiler-> cfg.compiler);
+        let bundledOk = bundled != "" && filter.pass(Version(bundled));
+
+        let matches = {
+            let gM = GitManager();
+            self.matchingVersionsDescending(filter, self.toVersionList(gM.getRemoteTagList(url.path.toStr())))
+        } catch { _ => [] };
+
+        let dmut filterStream = copy StringStream();
+        filterStream:.write(filter);
+        let filterStr = filterStream[];
+
+        if (matches.len == 0us) {
+            if (bundledOk) { return ([], []); }
+
+            if (bundled == "") {
+                throw copy AssertError("could not determine the version of the std lib bundled with '" ~ cfg.compiler
+                    ~ "' ('" ~ cfg.compiler ~ " --version' printed no 'Midgard version' line), and the remote std "
+                    ~ "lib repository '" ~ url.path.toStr() ~ "' has no version matching " ~ filterStr);
+            }
+
+            throw copy AssertError("the std lib bundled with '" ~ cfg.compiler ~ "' is version " ~ bundled
+                ~ ", which does not match " ~ filterStr ~ ", and the remote std lib repository '" ~ url.path.toStr()
+                ~ "' has no version matching it either");
+        }
+
+        if (bundledOk && Version(bundled) >= matches[0]._0) {
+            return ([], []);
+        }
+
+        // among the remote versions matching the filter, prefer the newest one bootstrapped with a
+        // Ymir compiler compatible(same major.minor) with the one that is actually going to build
+        // it, falling back to the newest filter match otherwise: the two are co-developed, and
+        // building against a std lib bootstrapped with a different compiler is not guaranteed safe
+        let installedYmir = gyllir::args::ymirVersionOfLine(gyllir::args::compilerVersion(compiler-> cfg.compiler));
+        let (chosen, ymirCompatible) = self.selectYmirCompatible(cwd, url, matches, installedYmir);
+
+        if (bundledOk && Version(bundled) >= chosen._0) {
+            return ([], []);
+        }
+
+        utils::log::info("Resolving", "std lib: remote '", url.path.toStr(), "' offers ", chosen._0,
+                         ", matching ", filter, " better than the ", (if (bundled != "") { bundled } else { "(none)" }),
+                         " bundled with '", cfg.compiler, "'", (if !ymirCompatible {
+                             " (no matching version was bootstrapped with a Ymir compiler compatible with the installed one)"
+                         } else { "" }));
+
+        // pin the exact chosen tag: the raw filter alone could pick a different(better matching,
+        // but not the one just vetted for Ymir compatibility) version once 'resolveDependency' runs
+        // its own selection
+        let pinned = VersionFilter(copy [chosen._1], entry-> "'std.version'");
+        let res = self:.resolveDependency(args, cwd, defaults::__STD_DEP_NAME__, Dependency(pinned, url), dry);
+        self.warnOnYmirVersionMismatch(cwd, cfg);
+
+        res
+    }
+
+    /**
+     * @params:
+     *    - filter: the version filter declared by '[std]'
+     *    - versions: every version(and the tag it comes from) offered by the remote
+     * @returns: the versions among 'versions' that pass 'filter', newest first
+     * */
+    prv fn matchingVersionsDescending(self, filter: VersionFilter, versions: [(Version, [c8])])-> [(Version, [c8])] {
+        let mut matched: [(Version, [c8])] = [];
+        for v in versions {
+            if (filter.pass(v._0)) {
+                matched ~= [v];
+            }
+        }
+
+        let mut res: [mut (Version, [c8])] = copy matched;
+        sorting::sort(alias res, |a, b| { a._0 > b._0 });
+
+        res
+    }
+
+    /**
+     * Rank the candidate versions of a remote std lib by Ymir-compatibility, without cloning any
+     * of them: a bare, blobless partial clone is enough to peek at each candidate's 'YMIR_VERSION'
+     * file
+     * @params:
+     *    - cwd: the root directory of the package resolving std
+     *    - url: the remote std lib repository
+     *    - matches: the candidate versions, newest first(as returned by 'matchingVersionsDescending')
+     *    - installedYmir: the Ymir version of the compiler that is actually going to build it, ""
+     *      when it could not be determined
+     * @returns:
+     *    - .0: the newest candidate bootstrapped with a compatible Ymir compiler, or 'matches[0]'
+     *      when none is(or 'installedYmir' is unknown, or the probe itself fails)
+     *    - .1: true iif that candidate is actually known to be Ymir-compatible
+     * */
+    prv fn selectYmirCompatible(self, cwd: Path, url: Url, matches: [(Version, [c8])], installedYmir: [c8])-> ((Version, [c8]), bool) {
+        if (installedYmir == "") { return (matches[0], false); }
+
+        let probePath = cwd.push(defaults::__DEPENCY_DIR__).push(defaults::__STD_PROBE_DIR__);
+        let found = {
+            fs::sys::removeDir(probePath, recursive-> true)?;
+
+            let gM = GitManager(cwd-> probePath);
+            gM.clonePartial(url.path.toStr());
+
+            let mut res: (Version, [c8])? = none;
+            for m in matches {
+                let bootstrapped = {
+                    self.parseYmirBootstrapVersion(gM.showFileAtTag(m._1, defaults::__YMIR_VERSION_FILENAME__))
+                } catch { _ => "" };
+
+                if (bootstrapped != "" && self.sameMajorMinor(Version(bootstrapped), Version(installedYmir))) {
+                    res = (m)?;
+                    break;
+                }
+            }
+
+            res
+        } catch { _ => none };
+
+        fs::sys::removeDir(probePath, recursive-> true)?;
+
+        if let Ok(m) = found {
+            return (m, true);
+        }
+
+        (matches[0], false)
+    }
+
+    /**
+     * @returns: true iif 'a' and 'b' share the same major and minor version number
+     * */
+    prv fn sameMajorMinor(self, a: Version, b: Version)-> bool {
+        a.major == b.major && a.minor == b.minor
+    }
+
+    /**
+     * The std lib(midgard) and the compiler are co-developed: resolving a std lib version does
+     * not mean it was bootstrapped with(and therefore safe to mix with) the compiler that is
+     * actually going to build it. This only warns, it never blocks the build: whether the skew
+     * matters is for the user to judge, gyllir has no way to know
+     * @info: best effort only - a resolved std lib that carries no readable 'YMIR_VERSION' file
+     *    is silently skipped, this is a diagnostic, not a requirement
+     * */
+    prv fn warnOnYmirVersionMismatch(self, cwd: Path, cfg: GyllirPackageConfiguration) {
+        let depPath = cwd.push(defaults::__DEPENCY_DIR__).push(defaults::__STD_DEP_NAME__);
+        let resolvedYmir = self.readYmirBootstrapVersionFile(depPath.push(defaults::__YMIR_VERSION_FILENAME__));
+        if (resolvedYmir == "") { return; }
+
+        let installedYmir = gyllir::args::ymirVersionOfLine(gyllir::args::compilerVersion(compiler-> cfg.compiler));
+        if (installedYmir == "") { return; }
+
+        if (Version(resolvedYmir) != Version(installedYmir)) {
+            utils::log::warn("Resolving", "std lib was bootstrapped with Ymir ", resolvedYmir, ", but '", cfg.compiler,
+                             "' is Ymir ", installedYmir, ": mixing std lib and compiler versions is not guaranteed ",
+                             "to be safe");
+        }
+    }
+
+    /**
+     * @params:
+     *    - filePath: the path of a 'YMIR_VERSION' file
+     * @returns: the 'YMIR_BOOTSTRAP_VERSION' it declares, "" when it is absent, unreadable, or
+     *    declares no such entry
+     * */
+    prv fn readYmirBootstrapVersionFile(self, filePath: Path)-> [c8] {
+        let dmut f = File::open(filePath, read-> true);
+        let content = f:.readAll();
+        f:.close();
+
+        self.parseYmirBootstrapVersion(content)
+    } catch {
+        _ => ""
+    }
+
+    /**
+     * @params:
+     *    - content: the content of a 'YMIR_VERSION' file('KEY=VALUE' lines)
+     * @returns: the value of its 'YMIR_BOOTSTRAP_VERSION' entry, "" when 'content' declares no
+     *    such entry
+     * */
+    prv fn parseYmirBootstrapVersion(self, content: [c8])-> [c8] {
+        let dmut lineTzer = Tokenizer!c8();
+        lineTzer:.insert("\n", isSkip-> true);
+        for l in lineTzer.tokenizeWithoutSkips(content) {
+            let dmut kvTzer = Tokenizer!c8();
+            kvTzer:.insert("=", isSkip-> true);
+            let kv = kvTzer.tokenizeWithoutSkips(l);
+            if (kv.len == 2us && kv[0] == "YMIR_BOOTSTRAP_VERSION") {
+                return kv[1];
+            }
+        }
+
+        ""
+    }
 
     /**
      * Resolve a dependency, and build it

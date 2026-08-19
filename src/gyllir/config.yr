@@ -11,6 +11,13 @@ pub mod ::type;
 pub mod ::errors;
 
 use gyllir::config::_;
+use gyllir::config::version::filter;
+
+/**
+ * The registry of the std lib(midgard) a package resolves against when it declares a '[std]'
+ * table without an 'url' entry
+ * */
+pub def __DEFAULT_STD_URL__ = "git:git@github.com:GNU-Ymir/yruntime.git";
 
 /**
  * Record defining a gyllir configuration
@@ -66,6 +73,18 @@ pub record GyllirPackageConfiguration {
 
     // The list of custom commands to run when building the project
     let mut _commands: &CustomCommandList = copy CustomCommandList();
+
+    // The version filter of the std lib(midgard) the package requires, declared by an optional
+    // '[std]' table; '[]' when the package declares none, in which case std lib resolution is
+    // left entirely to the compiler, exactly as it always has been
+    let mut _stdVersionRaw: [[c8]] = [];
+
+    // The remote location of the std lib(midgard) repository, only meaningful when '_hasStd' is
+    // true; defaults to the official one when a '[std]' table declares no 'url'
+    let mut _stdUrl: Url = Url();
+
+    // True iif the package declares a '[std]' table
+    let mut _hasStd: bool = false;
 
     /*!
      * ====================================================================================================
@@ -222,6 +241,34 @@ pub record GyllirPackageConfiguration {
         self._commands
     }
 
+    /**
+     * @returns: true iif the package declares a '[std]' table, requiring a specific version of
+     *    the std lib(midgard)
+     * */
+    @field
+    pub fn hasStd(self)-> bool {
+        self._hasStd
+    }
+
+    /**
+     * @returns: the remote location of the std lib(midgard) repository, only meaningful when
+     *    'hasStd' is true
+     * */
+    @field
+    pub fn stdUrl(self)-> Url {
+        self._stdUrl
+    }
+
+    /**
+     * @returns: the version filter of the std lib(midgard) the package requires, only meaningful
+     *    when 'hasStd' is true
+     * */
+    pub fn stdVersion(self)-> VersionFilter
+        throws AssertError
+    {
+        VersionFilter(self._stdVersionRaw, entry-> "'std.version'")
+    }
+
     /*!
      * ====================================================================================================
      * ====================================================================================================
@@ -287,6 +334,18 @@ pub record GyllirPackageConfiguration {
                 if (!self._tests) {
                     d["tests"] = copy Bool(false);
                 }
+            }
+
+            if (self._hasStd) {
+                let dmut s = copy Dict();
+                // 'parseStd' already validated '_stdVersionRaw' when the configuration was loaded,
+                // this can only fail for a package built through the programmatic ctor, never one
+                // read back from its own 'gyllir.toml'
+                s["version"] = {
+                    VersionFilter(self._stdVersionRaw, entry-> "'std.version'").serialize()
+                } catch { _ => copy Str("*") };
+                s["url"] = self._stdUrl.serialize();
+                d["std"] = s;
             }
 
             d
@@ -386,9 +445,68 @@ pub record GyllirPackageConfiguration {
             self._commands = copy CustomCommandList(x);
         }
 
+        if let Ok(x) = d["std"]? {
+            self:.parseStd(x);
+        }
+
         gyllir::config::errors::rejectUnknown(d, "", "name", "license", "description", "compiler",
             "package-root", "test-root", "tests", "type", "registry", "version", "authors",
-            "libraries", "flags", "dependencies", "targets", "commands");
+            "libraries", "flags", "dependencies", "targets", "commands", "std");
+    }
+
+    /**
+     * Parse the optional '[std]' table, declaring the version filter(and optionally the remote)
+     * of the std lib(midgard) the package requires
+     * @params:
+     *    - cfg: the content of the '[std]' table
+     * @throws:
+     *    - AssertError: on the first entry that is missing, or that does not have the expected
+     *      shape
+     * */
+    prv fn parseStd(mut self, cfg: &Config)
+        throws AssertError
+    {
+        let ctx = "'[std]', ";
+        if let d: &Dict = cfg {
+            self._hasStd = true;
+
+            self._stdVersionRaw = if let Ok(Str(value-> v)) = d["version"]? {
+                let mut res: [[c8]] = [];
+                res ~= [v];
+                res
+            } else if let Ok(a: &Array) = d["version"]? {
+                let mut res: [[c8]] = [];
+                for i in a[] {
+                    if let Str(value-> v) = i {
+                        res ~= [v];
+                    } else {
+                        throw copy AssertError(ctx ~ "'version' must be an array of version filter strings, "
+                                               ~ "for example: version = [\">=1.0.0\", \"<2.0.0\"]");
+                    }
+                }
+                res
+            } else if ("version" in d) {
+                throw copy AssertError(ctx ~ "'version' must be a version filter, or an array of them, "
+                                       ~ "for example: version = \">=1.0.0\"");
+            } else {
+                throw copy AssertError(ctx ~ "missing required entry 'version', for example: version = \">=1.0.0\", "
+                                       ~ "or \"*\" for any version");
+            };
+
+            self._stdUrl = if let Ok(u) = d["url"]? {
+                Url(u, entry-> ctx ~ "'url'")
+            } else {
+                Url(__DEFAULT_STD_URL__)
+            };
+
+            gyllir::config::errors::rejectUnknown(d, ctx, "version", "url");
+
+            // validated eagerly, so a malformed filter is reported when the configuration is
+            // loaded, not deep inside a build
+            VersionFilter(self._stdVersionRaw, entry-> "'std.version'");
+        }
+
+        else throw copy AssertError("'std' must be a table, for example: [std]\nversion = \">=1.0.0\"");
     }
 
     /**

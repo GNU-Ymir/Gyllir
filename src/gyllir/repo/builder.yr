@@ -39,13 +39,19 @@ pub record RepoBuilder {
     // The number of threads to spawn in the task pool
     let _nbThreads: u32;
 
+    // Extra compiler flags gyllir itself needs for this build(e.g. '-nostdinc -nomidgardlib' when
+    // the std lib was resolved from the remote rather than the one bundled with the compiler),
+    // put ahead of the target's own 'flags' so a target can still override them if it has to
+    let _extraFlags: [[c8]];
+
     /**
      * @params:
      *    - cfg: the configuration of the repo
      *    - target: the target of the package to build, the single target synthesized from the top
      *      level fields of 'cfg' when it declares no '[targets.<name>]' table
+     *    - extraFlags: extra compiler flags gyllir itself needs for this build
      * */
-    pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration, target: Target, forUnitTest: bool, forDoc: bool = false, dry: bool = false)
+    pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration, target: Target, forUnitTest: bool, forDoc: bool = false, dry: bool = false, extraFlags: [[c8]] = [])
         with _cwd = path
         , _args = args
         , _cfg = cfg
@@ -53,6 +59,7 @@ pub record RepoBuilder {
         , _forUnitTest = forUnitTest
         , _forDoc = forDoc
         , _dry = dry
+        , _extraFlags = extraFlags
         , _verbose = (if let Ok(Bool(value-> true)) = args["verbose"]? {
             true
         } else { false })
@@ -404,6 +411,8 @@ pub record RepoBuilder {
             options ~= ["-g"];
         }
 
+        options ~= self._extraFlags;
+
         // last, so that a target can override the options gyllir picked for it(-g, -O3, ...)
         options ~ self._target.flags
     }
@@ -424,6 +433,8 @@ pub record RepoBuilder {
         for p in depPaths {
             options ~= ["-I", p.toStr()];
         }
+
+        options ~= self._extraFlags;
 
         options ~ self._target.flags
     }
@@ -482,7 +493,7 @@ pub record RepoBuilder {
             options ~= ["-g"];
         }
 
-
+        options ~= self._extraFlags;
 
         if (!context.runProcess(self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose)) {
             self.reportCompilerFailure("failed to assemble the object file of target");
@@ -560,6 +571,8 @@ pub record RepoBuilder {
             options ~ ["-g"]
         };
 
+        options ~= self._extraFlags;
+
         if (!context.runProcess(self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose)) {
             self.reportCompilerFailure("failed to link the unittest executable of target");
             etc::c::process::_yrt_exit(-1);
@@ -588,6 +601,8 @@ pub record RepoBuilder {
         } else {
             options ~ ["-g"]
         };
+
+        options ~= self._extraFlags;
 
         if (!context.runProcess(self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose)) {
             self.reportCompilerFailure("failed to link the executable of target");

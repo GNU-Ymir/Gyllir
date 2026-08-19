@@ -30,6 +30,7 @@ __test empty_configuration_defaults {
     assert(cfg.libraries == [], "default libraries should be empty");
     assert(cfg.dependencies[].len == 0us, "default dependencies should be empty");
     assert(cfg.commands[].len == 0us, "default commands should be empty");
+    assert(!cfg.hasStd, "default configuration should declare no std lib version");
 }
 
 __test explicit_constructor_sets_given_fields {
@@ -496,6 +497,7 @@ __test serialize_omits_unset_optional_fields {
     assert("test-root" !in serialized, "an unset test root should not be written back");
     assert("tests" !in serialized, "an unset tests flag should not be written back");
     assert("flags" !in serialized, "an empty flag list should not be written back");
+    assert("std" !in serialized, "a package declaring no '[std]' table should not gain one");
 }
 
 __test tests_false_survives_round_trip {
@@ -585,4 +587,129 @@ __test serialize_round_trips_every_field {
             assert(to!{[c8]}(hook["cmd"]) == "echo hi", "unexpected serialized command");
         } else assert(false, "expected a serialized \"build-hook\" command");
     } else assert(false, "expected serialized commands");
+}
+
+__test std_table_deserialized {
+    // A declared '[std]' table is parsed into a version filter and an explicit url
+    let cfg = GyllirPackageConfiguration(json#{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "std" : {"version" : ">=1.2.0", "url" : "git:git@example.com:me/midgard-fork.git"}
+    });
+
+    assert(cfg.hasStd, "a declared '[std]' table should be reported");
+    assert(cfg.stdVersion().pass(Version(1u32, 3u32, 0u32)), "1.3.0 should pass '>=1.2.0'");
+    assert(!cfg.stdVersion().pass(Version(1u32, 1u32, 0u32)), "1.1.0 should not pass '>=1.2.0'");
+    assert(cfg.stdUrl.path.toStr() == "git@example.com:me/midgard-fork.git", "unexpected std url");
+}
+
+__test std_table_url_defaults_to_official_registry {
+    // A '[std]' table declaring no 'url' resolves against the official std lib repository
+    let cfg = GyllirPackageConfiguration(json#{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "std" : {"version" : "*"}
+    });
+
+    assert(cfg.hasStd, "a declared '[std]' table should be reported");
+    assert(cfg.stdUrl.path.toStr() == "git@github.com:GNU-Ymir/yruntime.git", "unexpected default std url");
+}
+
+__test std_table_missing_version_rejected {
+    // '[std]' requires a 'version' entry, exactly like a regular dependency does
+    let bad = json#{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "std" : {"url" : "git:git@example.com:me/midgard-fork.git"}
+    };
+
+    let mut msg = "";
+    {
+        GyllirPackageConfiguration(bad);
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[std]', missing required entry 'version', for example: version = \">=1.0.0\", or \"*\" for any version",
+           "unexpected error: " ~ msg);
+}
+
+__test std_table_unknown_entry_rejected {
+    // An entry that is not a known field of '[std]' is rejected rather than silently ignored
+    let typo = json#{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "std" : {"version" : "*", "urll" : "git:git@example.com:me/midgard-fork.git"}
+    };
+
+    let mut msg = "";
+    {
+        GyllirPackageConfiguration(typo);
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[std]', 'urll' is not a known entry", "unexpected error: " ~ msg);
+}
+
+__test std_table_not_a_table_rejected {
+    // A '[std]' entry that is not itself a table is rejected directly
+    let bad = json#{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "std" : "1.3.0"
+    };
+
+    let mut msg = "";
+    {
+        GyllirPackageConfiguration(bad);
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'std' must be a table, for example: [std]\nversion = \">=1.0.0\"", "unexpected error: " ~ msg);
+}
+
+__test std_table_survives_round_trip {
+    // A declared '[std]' table survives a serialization round trip
+    let cfg = GyllirPackageConfiguration(json#{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "std" : {"version" : ">=1.2.0", "url" : "git:git@example.com:me/midgard-fork.git"}
+    });
+
+    let serialized = cfg.serialize();
+    if let Ok(std) = serialized["std"]? {
+        assert(to!{[c8]}(std["version"]) == ">=1.2.0", "unexpected serialized std version");
+        assert(to!{[c8]}(std["url"]["git"]) == "git@example.com:me/midgard-fork.git", "unexpected serialized std url");
+    } else assert(false, "expected a serialized '[std]' table");
+
+    let back = GyllirPackageConfiguration(serialized);
+    assert(back.hasStd, "the '[std]' table should survive the round trip");
+    assert(back.stdVersion().pass(Version(1u32, 2u32, 0u32)), "the std version filter should survive the round trip");
+    assert(back.stdUrl.path.toStr() == "git@example.com:me/midgard-fork.git", "the std url should survive the round trip");
 }
