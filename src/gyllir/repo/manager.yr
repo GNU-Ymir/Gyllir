@@ -205,15 +205,7 @@ pub class GyllirManager {
         // the documentation of a package producing several artifacts is one site per target
         let subDir = targets.len > 1us;
 
-        let (stdIncludes, stdLinks) = self:.resolveStd(args, cwd, cfg, dry || forDoc);
-
-        // a std lib resolved from the remote(rather than the one bundled with the compiler) has to
-        // fully replace it, or the compiler's own default lookup and implicit linking would still
-        // pull in its bundled one on top of it
-        let mut stdFlags: [[c8]] = [];
-        if (stdIncludes.len != 0us || stdLinks.len != 0us) {
-            stdFlags ~= ["-nostdinc", "-nomidgardlib"];
-        }
+        let (stdFlags, stdLinks) = self:.resolveStd(args, cwd, cfg, dry || forDoc);
 
         let mut builtIncludes: [[c8] => mut [Path]] = copy [];
         let mut builtLinks: [[c8] => mut [Path]] = copy [];
@@ -228,7 +220,7 @@ pub class GyllirManager {
 
             if (isLinked || isSelected) {
                 let (rawIncludes, rawLinks) = self.gatherTargetArtifacts(t, builtIncludes, builtLinks);
-                let includes = self.uniquePaths(rawIncludes ~ stdIncludes);
+                let includes = self.uniquePaths(rawIncludes);
                 let links = self.uniquePaths(rawLinks ~ stdLinks);
 
                 let mut ownIncludes: [Path] = [];
@@ -673,7 +665,7 @@ pub class GyllirManager {
      *    - AssertError: neither the bundled std lib nor the remote repository has a version
      *      matching the declared filter
      * */
-    pub fn resolveStd(mut self, args: &Config, cwd: Path, cfg: GyllirPackageConfiguration, dry: bool)-> ([Path], [Path])
+    pub fn resolveStd(mut self, args: &Config, cwd: Path, cfg: GyllirPackageConfiguration, dry: bool)-> ([[c8]], [Path])
         throws RecursiveDependency, AssertError
     {
         if (!cfg.hasStd) { return ([], []); }
@@ -732,10 +724,88 @@ pub class GyllirManager {
         // but not the one just vetted for Ymir compatibility) version once 'resolveDependency' runs
         // its own selection
         let pinned = VersionFilter(copy [chosen._1], entry-> "'std.version'");
-        let res = self:.resolveDependency(args, cwd, defaults::__STD_DEP_NAME__, Dependency(pinned, url), dry);
+        let (includes, links) = self:.resolveDependency(args, cwd, defaults::__STD_DEP_NAME__, Dependency(pinned, url), dry);
         self.warnOnYmirVersionMismatch(cwd, cfg);
 
-        res
+        (self.asStdPrefixFlags(includes, cfg), links)
+    }
+
+    /**
+     * A remote std lib is resolved like any other dependency, whose root include is its own
+     * '__lib__.yr'('pub mod std; pub mod core; pub mod etc;'). Passing that as an '-I' alongside
+     * '-nostdinc' was the first approach tried here, but '-nostdinc' does not just drop the
+     * compiler's default search path: it skips its implicit-prelude machinery entirely('Hashable',
+     * 'AssertError', 'etc::c::process::_yrt_exit', even the built-in check that lets a char be used
+     * as a map literal key all come from there), and that machinery cannot be redirected to a
+     * custom '-I' at all - every gyllir source file would need its own explicit
+     * 'use core::_;'/'use etc::_;', which is exactly the fragility this is meant to avoid.
+     *
+     * The compiler has a dedicated flag for this instead: '-iprefix <dir>' redirects where it looks
+     * for its own bundled std('<dir>/include/ymir/<compiler's Midgard major.minor>/'), keeping the
+     * implicit prelude intact. So instead of an '-I', a small directory of symlinks is built next to
+     * the resolved dependency, mirroring that exact layout but pointing at the resolved std's own
+     * files, and '-iprefix' is pointed at it.
+     * @params:
+     *    - includes: the root files 'resolveDependency' returned for the std lib('[]' when the
+     *      bundled std is used as-is)
+     *    - cfg: the configuration of the package resolving std, to know which compiler built it
+     * @returns: '["-iprefix", "<synthetic prefix dir>"]', or '[]' when 'includes' is empty
+     * @throws:
+     *    - AssertError: the compiler's own include directory could not be located(too old to
+     *      support '-print-prog-name', or a non-standard install layout)
+     * */
+    prv fn asStdPrefixFlags(self, includes: [Path], cfg: GyllirPackageConfiguration)-> [[c8]]
+        throws AssertError
+    {
+        let mut noFlags: [[c8]] = [];
+        if (includes.len == 0us) { return noFlags; }
+
+        let verDirs = gyllir::args::compilerCoreVersionDir(compiler-> cfg.compiler);
+        if (verDirs.len == 0us) {
+            throw copy AssertError("could not locate the include directory of '" ~ cfg.compiler
+                ~ "' ('" ~ cfg.compiler ~ " -print-prog-name=ymir1' did not resolve to an absolute path), "
+                ~ "required to build against the std lib resolved by '[std]'");
+        }
+
+        // every selected target of the std package shares the same source directory(e.g. a unit
+        // test build also resolves the std package's own test-rt target, alongside midgard itself)
+        let stdDir = includes[0].parent();
+        let prefixDir = self.buildStdPrefix(stdDir, verDirs[0].file());
+
+        copy ["-iprefix"s8, prefixDir.toStr()]
+    }
+
+    /**
+     * Builds(or refreshes) a directory shaped like '<prefix>/include/ymir/<ver>/', the layout
+     * '-iprefix' expects, filled with symlinks pointing at 'stdDir' - so it can stand in for the
+     * compiler's own bundled std without copying anything
+     * @params:
+     *    - stdDir: the resolved std package's own source directory(declares '__lib__.yr', 'std.yr',
+     *      'core.yr', 'etc.yr' and their same-named sibling directories)
+     *    - verName: the name of the compiler's own version directory(e.g. '1.3'), so the synthetic
+     *      one is found the same way
+     * @returns: the synthetic prefix root(the directory to pass to '-iprefix', i.e. the parent of
+     *    'include/')
+     * */
+    prv fn buildStdPrefix(self, stdDir: Path, verName: [c8])-> Path
+        throws AssertError
+    {
+        let prefixRoot = stdDir.parent().push(".iprefix"s8);
+        let verDir = prefixRoot.push("include"s8).push("ymir"s8).push(verName);
+
+        fs::sys::removeDir(verDir, recursive-> true)?;
+        fs::sys::createDir(verDir, recursive-> true);
+
+        for name in ["__lib__.yr"s8, "std.yr"s8, "std"s8, "core.yr"s8, "core"s8, "etc.yr"s8, "etc"s8] {
+            self.runProcess("ln"s8, copy ["-sfn"s8, stdDir.push(name).toStr(), verDir.push(name).toStr()]);
+        }
+
+        prefixRoot
+    } catch {
+        e: &FsError => {
+            throw copy AssertError("could not prepare the std lib include directory for '" ~ stdDir.toStr()
+                ~ "': " ~ utils::errors::singleLine(e.msg));
+        }
     }
 
     /**
