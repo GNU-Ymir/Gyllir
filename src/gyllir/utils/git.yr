@@ -254,6 +254,23 @@ pub record GitManager {
     }
 
     /**
+     * Fetch every branch and tag of the remote repository.
+     * @info: unlike 'fetchTags', the history is fetched in full: it is the way a commit that is
+     *   named by a lock file, but is not in the local clone, is brought in, and a shallow fetch
+     *   would not necessarily bring it
+     * */
+    pub fn fetch(self)
+        throws GitError, FsError
+    {
+        let dmut proc = copy SubProcess("git", copy ["fetch", "origin", "--tags"], cwd-> self._cwd);
+        proc:.start();
+        let code = proc:.wait();
+        if (code != 0) {
+            throw copy GitError(GitErrorCode::UNKNOWN, self.readAll(alias proc.stderr));
+        }
+    }
+
+    /**
      * Checkout to a branch
      * @params:
      *    - name: the name of the branch to checkout
@@ -372,6 +389,50 @@ pub record GitManager {
     }
 
     /**
+     * @returns: the commit HEAD currently points at, the sha a lock file pins a dependency to
+     * */
+    pub fn getCommitSha(self)-> [c8]
+        throws GitError, FsError
+    {
+        let dmut proc = copy SubProcess("git", copy ["rev-parse", "HEAD"], cwd-> self._cwd);
+        proc:.start();
+        let code = proc:.wait();
+        if (code != 0) {
+            throw copy GitError(GitErrorCode::UNKNOWN, self.readAll(alias proc.stderr));
+        }
+
+        self.trimEnd(self.readAll(alias proc.stdout))
+    }
+
+    /**
+     * @params:
+     *    - sha: a commit
+     * @returns: true iif that commit is in the local repository, and can be checked out without
+     *    talking to the remote
+     * */
+    pub fn hasCommit(self, sha: [c8])-> bool {
+        let dmut proc = copy SubProcess("git", copy ["cat-file", "-e", sha ~ "^{commit}"], cwd-> self._cwd);
+        proc:.start();
+
+        proc:.wait() == 0
+    } catch {
+        _ => { false }
+    }
+
+    /**
+     * @returns: the url the repository was cloned from, "" if it has no 'origin' remote
+     * */
+    pub fn getRemote(self)-> [c8] {
+        let dmut proc = copy SubProcess("git", copy ["remote", "get-url", "origin"], cwd-> self._cwd);
+        proc:.start();
+        if (proc:.wait() != 0) { return ""; }
+
+        self.trimEnd(self.readAll(alias proc.stdout))
+    } catch {
+        _ => { "" }
+    }
+
+    /**
      * @returns: the user name and email of the registered git user
      * */
     pub fn getUserName(self)-> [c8]
@@ -442,6 +503,18 @@ pub record GitManager {
         }
 
         stream[]
+    }
+
+    /**
+     * @returns: 's', without the line returns and spaces git writes after a value it prints
+     * */
+    prv fn trimEnd(self, s: [c8])-> [c8] {
+        let mut end = s.len;
+        while end > 0us && (s[end - 1us] == '\n' || s[end - 1us] == '\r' || s[end - 1us] == ' ') {
+            end -= 1us;
+        }
+
+        s[0us .. end]
     }
 
     /**
