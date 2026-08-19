@@ -57,3 +57,7 @@ src/main.yr.ydump*
 .ymir_coverage_*
 .ymir_test_success
 .target
+
+/__doc
+/.deps
+
