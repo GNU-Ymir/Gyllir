@@ -2,6 +2,7 @@ in args;
 
 use std::config::_;
 use std::{io, stream, concurrency::process};
+use std::syntax::tokenizer;
 
 
 /**
@@ -49,6 +50,73 @@ pub fn compilerVersion(compiler: [c8] = "gyc")-> [c8] {
     res
 } catch {
     _ => ""
+}
+
+/**
+ * Ask the compiler for the version of the std lib(midgard) it was bundled with
+ * @params:
+ *    - compiler: the name of the compiler binary
+ * @returns: the version printed on the compiler's 'Midgard version <version> <date>' line of its
+ *    '--version' output (e.g. "1.3.0"), or "" if it cannot be run, or prints no such line
+ * */
+pub fn compilerStdVersion(compiler: [c8] = "gyc")-> [c8] {
+    let dmut proc = copy SubProcess(compiler, copy ["--version"s8]);
+    proc:.start();
+
+    if (proc:.wait() != 0) return "";
+
+    let dmut pipe = alias proc.stdout;
+    let dmut line: [c8] = [];
+    while let Ok(c) = pipe:.read!c8()? {
+        if (c == '\n') {
+            let v = midgardVersionOfLine(line);
+            if (v != "") return v;
+            line = [];
+        } else {
+            line ~= [c];
+        }
+    }
+
+    midgardVersionOfLine(line)
+} catch {
+    _ => ""
+}
+
+/**
+ * @params:
+ *    - line: a single line of a compiler's '--version' output
+ * @returns: the version on 'line' if it reads "Midgard version <version> ...", "" otherwise
+ * */
+pub fn midgardVersionOfLine(line: [c8])-> [c8] {
+    versionOfLine(line, "Midgard", "version")
+}
+
+/**
+ * @params:
+ *    - line: a single line of a compiler's '--version' output
+ * @returns: the version on 'line' if it reads "Ymir version <version> ...", "" otherwise
+ * */
+pub fn ymirVersionOfLine(line: [c8])-> [c8] {
+    versionOfLine(line, "Ymir", "version")
+}
+
+/**
+ * @params:
+ *    - line: a single line of a compiler's '--version' output
+ *    - word0: the first expected word of the line(e.g. "Ymir", "Midgard")
+ *    - word1: the second expected word of the line(e.g. "version")
+ * @returns: the third word of 'line' when it starts with 'word0 word1 ', "" otherwise
+ * */
+fn versionOfLine(line: [c8], word0: [c8], word1: [c8])-> [c8] {
+    let dmut tzer = Tokenizer!c8();
+    tzer:.insert(" ", isSkip-> true);
+    let parts = tzer.tokenizeWithoutSkips(line);
+
+    if (parts.len >= 3us && parts[0] == word0 && parts[1] == word1) {
+        return parts[2];
+    }
+
+    ""
 }
 
 

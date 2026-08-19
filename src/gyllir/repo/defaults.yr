@@ -84,6 +84,26 @@ pub def __DOC_DIR__     = "__doc";
 pub def __YIL_DIR__     = "yils";
 pub def __DEPENCY_DIR__ = ".deps";
 
+/**
+ * The name under which a resolved std lib(midgard) is cloned into '__DEPENCY_DIR__', when it is
+ * not the one bundled with the compiler
+ */
+pub def __STD_DEP_NAME__ = "std";
+
+/**
+ * The file at the root of a std lib(midgard) checkout declaring the 'YMIR_BOOTSTRAP_VERSION' it
+ * was built against, used to warn when a resolved std lib was bootstrapped with a different Ymir
+ * compiler than the one that is actually going to build it
+ */
+pub def __YMIR_VERSION_FILENAME__ = "YMIR_VERSION";
+
+/**
+ * The scratch directory, under '__DEPENCY_DIR__', a blobless partial clone of the std lib remote
+ * is checked out into while ranking its tags by Ymir-compatibility - torn down once that ranking
+ * is done, never left behind as part of the resolved dependency tree
+ */
+pub def __STD_PROBE_DIR__ = ".std-probe";
+
 
 /**
  * The build cache of a package, holding one sub directory per target

@@ -32,13 +32,18 @@ pub record RepoDocBuilder {
     // The git manager util
     let _git: GitManager;
 
+    // Extra compiler flags gyllir itself needs for this build(forwarded to the 'RepoBuilder' that
+    // compiles the target ahead of generating its documentation)
+    let _extraFlags: [[c8]];
+
     /**
      * @params:
      *    - target: the target to document(unused when 'fromFile' is set)
      *    - input: the input file to parse
      *    - subDir: true iif the pages go to '<output>/<target>' instead of '<output>'
+     *    - extraFlags: extra compiler flags gyllir itself needs for this build
      * */
-    pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration, target: Target = Target("", BuildType()), input: [c8] = "", fromFile: bool = false, subDir: bool = false)
+    pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration, target: Target = Target("", BuildType()), input: [c8] = "", fromFile: bool = false, subDir: bool = false, extraFlags: [[c8]] = [])
         with _cwd = path
         , _args = args
         , _cfg = cfg
@@ -47,6 +52,7 @@ pub record RepoDocBuilder {
         , _fromFile = fromFile
         , _input = input
         , _git = GitManager(cwd-> path)
+        , _extraFlags = extraFlags
     {}
 
     /**
@@ -65,7 +71,7 @@ pub record RepoDocBuilder {
         } else { "main" };
 
         let inputFile = if (!self._fromFile) {
-            RepoBuilder(self._cwd, self._args, self._cfg, self._target, forUnitTest-> false, forDoc-> true)
+            RepoBuilder(self._cwd, self._args, self._cfg, self._target, forUnitTest-> false, forDoc-> true, extraFlags-> self._extraFlags)
                 .run(alias context, targetIncludes-> targetIncludes, targetLinks-> targetLinks);
             defaults::targetCacheDir(self._cwd, self._target.name, defaults::__CACHE_DOC_DIR__)
                 .push(self._target.outputName()).addExtension(defaults::__DOC_EXTENSION__)
@@ -131,7 +137,7 @@ pub record RepoDocBuilder {
      *    - outDir: the output directory
      * */
     fn createBaseDirectory(self, dmut _: &GyllirManager, outDir: Path) {
-        let ymir_res = ressources::GyllirHtmlFiles::RESSOURCES;
+        let ymir_res = ressources::RES_ROOT;
         fs::sys::copyDir(ymir_res.push("js"), outDir.push("js"), recursive-> true, create-> true);
         fs::sys::copyDir(ymir_res.push("css"), outDir.push("css"), recursive-> true, create-> true);
         fs::sys::copyDir(ymir_res.push("ico"), outDir.push("ico"), recursive-> true, create-> true);

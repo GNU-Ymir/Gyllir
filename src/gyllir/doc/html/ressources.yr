@@ -2,22 +2,36 @@ in ressources;
 
 use std::fs::_;
 
+/**
+ * The directory the html/css/js/ico resources are read from: the installed location a packaged
+ * gyllir copies 'res/' into (see the Dockerfile's `package` stage). The unittest executable is
+ * compiled with '-funittest' (see 'createCompileOptions' in 'repo::builder'), which makes
+ * '__version!unittest' true for every module it links, including this one - so only that binary
+ * reads the repo's own 'res/' instead, exercising the templates actually committed on the branch
+ * under test rather than whatever happens to be installed system-wide. A regular 'gyllir build'
+ * never takes this branch, so a project directory that happens to contain a 'res/' of its own is
+ * never mistaken for it.
+ */
+pub lazy RES_ROOT = {
+    cte if __version!unittest { Path("res") }
+    else { Path("/etc/gyllir/res") }
+};
+
 pub enum GyllirHtmlFiles
-| RESSOURCES   = Path("/etc/gyllir/res")
-| LEAF_NODE    = Path("/etc/gyllir/res/html/leaf_node.html")
-| DECLARATION  = Path("/etc/gyllir/res/html/declaration.html")
-| INLINE_CODE  = Path("/etc/gyllir/res/html/inline_code.html")
-| MEMBERS      = Path("/etc/gyllir/res/html/members.html")
-| MEMBER_HEAD  = Path("/etc/gyllir/res/html/member_head.html")
-| MODULE_HEAD  = Path("/etc/gyllir/res/html/module_head.html")
-| HEADER       = Path("/etc/gyllir/res/html/header.html")
-| FOOTER       = Path("/etc/gyllir/res/html/footer.html")
-| SUBMODULE    = Path("/etc/gyllir/res/html/submodule.html")
-| MODULE_TABLE = Path("/etc/gyllir/res/html/module_table.html");
+| LEAF_NODE    = "html/leaf_node.html"
+| DECLARATION  = "html/declaration.html"
+| INLINE_CODE  = "html/inline_code.html"
+| MEMBERS      = "html/members.html"
+| MEMBER_HEAD  = "html/member_head.html"
+| MODULE_HEAD  = "html/module_head.html"
+| HEADER       = "html/header.html"
+| FOOTER       = "html/footer.html"
+| SUBMODULE    = "html/submodule.html"
+| MODULE_TABLE = "html/module_table.html";
 
 pub lazy LEAF_NODE = {
     {
-        let dmut f = File::open(GyllirHtmlFiles::LEAF_NODE);
+        let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::LEAF_NODE));
         f:.readAll()
     } catch {
         _ => ""
@@ -26,7 +40,7 @@ pub lazy LEAF_NODE = {
 
 pub lazy DECLARATION = {
     {
-        let dmut f = File::open(GyllirHtmlFiles::DECLARATION);
+        let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::DECLARATION));
         f:.readAll()
     } catch {
         _ => ""
@@ -35,7 +49,7 @@ pub lazy DECLARATION = {
 
 pub lazy INLINE_CODE = {
     {
-        let dmut f = File::open(GyllirHtmlFiles::INLINE_CODE);
+        let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::INLINE_CODE));
         f:.readAll()
     } catch {
         _ => ""
@@ -44,7 +58,7 @@ pub lazy INLINE_CODE = {
 
 pub lazy MEMBERS = {
     {
-        let dmut f = File::open(GyllirHtmlFiles::MEMBERS);
+        let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::MEMBERS));
         f:.readAll()
     } catch {
         _ => ""
@@ -53,7 +67,7 @@ pub lazy MEMBERS = {
 
 pub lazy MEMBER_HEAD = {
     {
-        let dmut f = File::open(GyllirHtmlFiles::MEMBER_HEAD);
+        let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::MEMBER_HEAD));
         f:.readAll()
     } catch {
         _ => ""
@@ -62,7 +76,7 @@ pub lazy MEMBER_HEAD = {
 
 pub lazy MODULE_HEAD = {
     {
-        let dmut f = File::open(GyllirHtmlFiles::MODULE_HEAD);
+        let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::MODULE_HEAD));
         f:.readAll()
     } catch {
         _ => ""
@@ -71,7 +85,7 @@ pub lazy MODULE_HEAD = {
 
 pub lazy HEADER = {
     {
-        let dmut f = File::open(GyllirHtmlFiles::HEADER);
+        let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::HEADER));
         f:.readAll()
     } catch {
         _ => ""
@@ -80,7 +94,7 @@ pub lazy HEADER = {
 
 pub lazy FOOTER = {
     {
-        let dmut f = File::open(GyllirHtmlFiles::FOOTER);
+        let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::FOOTER));
         f:.readAll()
     } catch {
         _ => ""
@@ -89,7 +103,7 @@ pub lazy FOOTER = {
 
 pub lazy SUBMODULE = {
     {
-        let dmut f = File::open(GyllirHtmlFiles::SUBMODULE);
+        let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::SUBMODULE));
         f:.readAll()
     } catch {
         _ => ""
@@ -98,7 +112,7 @@ pub lazy SUBMODULE = {
 
 pub lazy MODULE_TABLE = {
     {
-        let dmut f = File::open(GyllirHtmlFiles::MODULE_TABLE);
+        let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::MODULE_TABLE));
         f:.readAll()
     } catch {
         _ => ""
