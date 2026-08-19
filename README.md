@@ -78,13 +78,19 @@ Building a `.deb` from a checkout is done through the `Dockerfile`, which pins t
 
 - `gyllir init` — interactively create a new `gyllir.toml` project in the current directory
   (name, author, description, license, executable/library type, registry).
-- `gyllir build [--release] [-j N] [-v]` — build the project (debug by default).
+- `gyllir build [--release] [--locked] [--offline] [-j N] [-v]` — build the project (debug by
+  default); `--locked` fails instead of writing a new `gyllir.lock`, `--offline` also forbids any
+  network access.
 - `gyllir run [-- args...]` — build then run the produced executable.
-- `gyllir test [--release] [--dry] [-j N] [-v]` — build and run the unit test suite (`--dry` to
-  only compile, not run).
+- `gyllir test [--release] [--dry] [--locked] [--offline] [-j N] [-v]` — build and run the unit
+  test suite (`--dry` to only compile, not run).
 - `gyllir clean [-a|--all] [--doc]` — remove generated build outputs; `--doc` also removes
   generated documentation, `--all` also removes resolved dependencies.
-- `gyllir doc [-i input.doc.json] [-o outputDir]` — generate the HTML documentation site.
+- `gyllir doc [-i input.doc.json] [-o outputDir] [--locked] [--offline]` — generate the HTML
+  documentation site.
+- `gyllir update [--std] [dependency...]` — resolve the dependencies again and rewrite
+  `gyllir.lock`, without compiling anything; naming none updates every one of them. `--std`
+  updates the std lib resolved by `[std]`, which is never named positionally.
 - `gyllir publish <message> [--major|--minor|--patch] [--dry] [-y]` — bump the package version
   and publish it to the registry declared in `gyllir.toml`.
 
@@ -112,6 +118,30 @@ url = "git:https://github.com/example/somelib"
 Dependencies are resolved into `.deps/<name>` (git-cloned or symlinked for `local:` urls),
 version-filtered per the declared `VersionFilter` (`>`, `>=`, `<`, `<=`, `=`), and built
 recursively before the current package.
+
+### Lock file (`gyllir.lock`)
+
+`gyllir.toml` declares which versions are acceptable, `gyllir.lock` records the one that was
+resolved — the whole graph, transitively, each `git:` package pinned to the exact commit its
+version pointed at. It is written next to the manifest by `build`/`run`/`test`/`doc`, and is meant
+to be **committed**: it is what makes the same commit build the same dependencies on another
+machine, or a month later.
+
+```toml
+lock-version = 1
+
+[[package]]
+name = "somelib"
+url = "git:https://github.com/example/somelib"
+version = "1.4.2"
+sha = "9f1c0d0a1b0e5f6d7c8b9a0f1e2d3c4b5a697887"
+```
+
+A build honors it and never bumps a pinned version, even when a newer tag exists upstream — it
+re-resolves only what the lock file does not pin (a new dependency, a url that changed, a filter
+narrowed past the pinned version). `gyllir update [<name>]` is the deliberate bump, `--locked`
+turns an out-of-date lock file into an error (the CI mode), and `--offline` additionally forbids
+cloning, fetching and pulling.
 
 ## Contributing
 
