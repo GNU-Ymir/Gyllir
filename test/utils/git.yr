@@ -256,6 +256,237 @@ __test get_remote_reports_the_configured_url {
     assert(mgr.getRemote() == bare.toStr(), "getRemote() should report the url the remote was set to");
 }
 
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * =====================================          FAILURES          ===================================
+ * ====================================================================================================
+ * ====================================================================================================
+ * The 'throw copy GitError(...)' branch of every command, none of which goes through '_yrt_exit':
+ * 'GitManager' only ever throws, the caller decides what to do with the failure
+ * */
+
+__test clone_unreachable_source_fails {
+    // clone() from a url that names no repository fails
+    let dst = sys::tempDirectory(prefix-> "gyllir_git_clone_fail_test_");
+    let mgr = GitManager(cwd-> dst.push("cloned"));
+
+    let mut threw = false;
+    {
+        mgr.clone("/no/such/repository/here");
+    } catch {
+        _: &GitError => { threw = true; }
+        _: &FsError => { threw = true; }
+    }
+
+    assert(threw, "cloning an unreachable source should throw a GitError");
+}
+
+__test set_remote_falls_back_to_set_url_when_origin_exists {
+    // setRemote() tries "remote add" first, which fails once "origin" is already set: it then falls
+    // back to "remote set-url", which is what actually re-points an existing remote
+    let dir = mkScratchRepo();
+    let mgr = GitManager(cwd-> dir);
+
+    let first = mkBareRepo();
+    mgr.setRemote(first.toStr());
+    assert(mgr.getRemote() == first.toStr(), "sanity: the first setRemote() should have set the origin");
+
+    let second = mkBareRepo();
+    mgr.setRemote(second.toStr());
+
+    assert(mgr.getRemote() == second.toStr(), "the second setRemote() should re-point the existing origin");
+}
+
+__test set_remote_fails_outside_a_git_repository {
+    // Outside a git repository, both "remote add" and its "remote set-url" fallback fail: setRemote()
+    // reports that failure instead of swallowing it
+    let dir = sys::tempDirectory(prefix-> "gyllir_git_not_a_repo_test_");
+    let mgr = GitManager(cwd-> dir);
+
+    let mut threw = false;
+    {
+        mgr.setRemote("/some/url");
+    } catch {
+        _: &GitError => { threw = true; }
+        _: &FsError => { threw = true; }
+    }
+
+    assert(threw, "setRemote() outside a git repository should throw a GitError");
+}
+
+__test push_without_a_remote_fails {
+    // push() without a configured remote fails
+    let dir = mkScratchRepo();
+    commitFile(dir, "a.txt", "hello", "first commit");
+    let mgr = GitManager(cwd-> dir);
+
+    let mut threw = false;
+    {
+        mgr.push(copy ["master"]);
+    } catch {
+        _: &GitError => { threw = true; }
+        _: &FsError => { threw = true; }
+    }
+
+    assert(threw, "pushing without a remote should throw a GitError");
+}
+
+__test pull_without_a_remote_fails {
+    // pull() without a configured remote fails
+    let dir = mkScratchRepo();
+    commitFile(dir, "a.txt", "hello", "first commit");
+    let mgr = GitManager(cwd-> dir);
+
+    let mut threw = false;
+    {
+        mgr.pull("master");
+    } catch {
+        _: &GitError => { threw = true; }
+        _: &FsError => { threw = true; }
+    }
+
+    assert(threw, "pulling without a remote should throw a GitError");
+}
+
+__test create_branch_duplicate_name_fails {
+    // createBranch() naming a branch that already exists fails
+    let dir = mkScratchRepo();
+    commitFile(dir, "a.txt", "hello", "first commit");
+    let mgr = GitManager(cwd-> dir);
+
+    mgr.createBranch("feature");
+
+    let mut threw = false;
+    {
+        mgr.createBranch("feature");
+    } catch {
+        _: &GitError => { threw = true; }
+        _: &FsError => { threw = true; }
+    }
+
+    assert(threw, "creating a branch that already exists should throw a GitError");
+}
+
+__test delete_branch_missing_name_fails {
+    // deleteBranch() naming a branch that does not exist fails
+    let dir = mkScratchRepo();
+    commitFile(dir, "a.txt", "hello", "first commit");
+    let mgr = GitManager(cwd-> dir);
+
+    let mut threw = false;
+    {
+        mgr.deleteBranch("no-such-branch");
+    } catch {
+        _: &GitError => { threw = true; }
+        _: &FsError => { threw = true; }
+    }
+
+    assert(threw, "deleting a non-existent branch should throw a GitError");
+}
+
+__test create_tag_duplicate_name_fails {
+    // createTag() naming a tag that already exists fails
+    let dir = mkScratchRepo();
+    commitFile(dir, "a.txt", "hello", "first commit");
+    let mgr = GitManager(cwd-> dir);
+
+    mgr.createTag("v1.0.0");
+
+    let mut threw = false;
+    {
+        mgr.createTag("v1.0.0");
+    } catch {
+        _: &GitError => { threw = true; }
+        _: &FsError => { threw = true; }
+    }
+
+    assert(threw, "creating a tag that already exists should throw a GitError");
+}
+
+__test delete_tag_missing_name_fails {
+    // deleteTag() naming a tag that does not exist fails
+    let dir = mkScratchRepo();
+    commitFile(dir, "a.txt", "hello", "first commit");
+    let mgr = GitManager(cwd-> dir);
+
+    let mut threw = false;
+    {
+        mgr.deleteTag("no-such-tag");
+    } catch {
+        _: &GitError => { threw = true; }
+        _: &FsError => { threw = true; }
+    }
+
+    assert(threw, "deleting a non-existent tag should throw a GitError");
+}
+
+__test fetch_tags_outside_a_git_repository_fails {
+    // fetchTags() names no remote explicitly (unlike fetch()), so a missing "origin" alone is not
+    // enough to fail it; being outside a git repository entirely is
+    let dir = sys::tempDirectory(prefix-> "gyllir_git_not_a_repo_fetchtags_test_");
+    let mgr = GitManager(cwd-> dir);
+
+    let mut threw = false;
+    {
+        mgr.fetchTags();
+    } catch {
+        _: &GitError => { threw = true; }
+        _: &FsError => { threw = true; }
+    }
+
+    assert(threw, "fetching tags outside a git repository should throw a GitError");
+}
+
+__test fetch_without_a_remote_fails {
+    // fetch() without a configured remote fails
+    let dir = mkScratchRepo();
+    commitFile(dir, "a.txt", "hello", "first commit");
+    let mgr = GitManager(cwd-> dir);
+
+    let mut threw = false;
+    {
+        mgr.fetch();
+    } catch {
+        _: &GitError => { threw = true; }
+        _: &FsError => { threw = true; }
+    }
+
+    assert(threw, "fetching without a remote should throw a GitError");
+}
+
+__test get_tag_list_outside_a_git_repository_fails {
+    // getTagList() outside a git repository fails on its first subprocess, "rev-parse --abbrev-ref HEAD"
+    let dir = sys::tempDirectory(prefix-> "gyllir_git_not_a_repo_taglist_test_");
+    let mgr = GitManager(cwd-> dir);
+
+    let mut threw = false;
+    {
+        mgr.getTagList();
+    } catch {
+        _: &GitError => { threw = true; }
+        _: &FsError => { threw = true; }
+    }
+
+    assert(threw, "listing tags outside a git repository should throw a GitError");
+}
+
+__test get_commit_sha_with_no_commit_fails {
+    // getCommitSha() on a repository that has no commit yet fails: "HEAD" names no commit
+    let dir = mkScratchRepo();
+    let mgr = GitManager(cwd-> dir);
+
+    let mut threw = false;
+    {
+        mgr.getCommitSha();
+    } catch {
+        _: &GitError => { threw = true; }
+        _: &FsError => { threw = true; }
+    }
+
+    assert(threw, "getting the commit sha of a repository with no commit should throw a GitError");
+}
+
 __test fetch_brings_commits_in_without_moving_the_checkout {
     // fetch() brings the objects of a commit in, which is how a pinned commit that is missing from
     // a checkout is recovered, and leaves the working tree where it was

@@ -1,0 +1,36 @@
+use gyllir::utils::log;
+
+/**
+ * These are smoke tests: 'info'/'warn'/'error' only ever print to stdout/stderr, there is nothing
+ * to assert on beyond "it does not throw" -- exercising both the tuple and the single value form of
+ * 'params' is what earns the coverage, since the two are handled by different branches ('cte if
+ * isTuple!{typeof(params)}')
+ * */
+
+__test info_single_value {
+    utils::log::info("Info", "a single message");
+}
+
+__test info_multiple_values {
+    utils::log::info("Info", "a ", "message ", "built from ", 3, " parts");
+}
+
+__test info_custom_padding {
+    utils::log::info("  ", "Info", "a custom padding");
+}
+
+__test warn_single_value {
+    utils::log::warn("Warn", "a single message");
+}
+
+__test warn_multiple_values {
+    utils::log::warn("Warn", "a ", "message ", "built from ", 3, " parts");
+}
+
+__test error_single_value {
+    utils::log::error("Error", "a single message");
+}
+
+__test error_multiple_values {
+    utils::log::error("Error", "a ", "message ", "built from ", 3, " parts");
+}

@@ -70,12 +70,14 @@ fn hasTag(dir: Path, tag: [c8])-> bool
  * The command line of a publication
  * @params:
  *    - increment: "major", "minor" or "patch"
+ *    - dry: false to also build and run the tests of the published project, the way a real
+ *      publication would
  * */
-fn mkPublishArgs(increment: [c8])-> &Config {
+fn mkPublishArgs(increment: [c8], dry: bool = true)-> &Config {
     let dmut d = copy Dict();
     d[increment] = copy Bool(true);
     d["yes"] = copy Bool(true);       // do not ask for a confirmation on the command line
-    d["dry"] = copy Bool(true);       // do not build nor run the tests of the published project
+    d["dry"] = copy Bool(dry);
     d["message"] = copy Str("a release message");
 
     d
@@ -127,6 +129,23 @@ __test publish_replaces_existing_registry_version {
     RepoPublisher(dir, mkPublishArgs("patch"), cfg).run(alias mgr);
 
     assert(!sys::isFile(registry.push("stale.txt")), "the previous content of the registry should be replaced");
+    assert(sys::isFile(registry.push(defaults::__GYLLIR_CONFIG_FILENAME__)), "the project should be copied to the registry");
+}
+
+__test publish_without_dry_builds_and_runs_the_tests {
+    // Without "--dry", a publication first builds the project and runs its unittests; a passing
+    // project is published just the same, the "dry" flag only decides whether that verification runs
+    let registry = sys::tempDirectory(prefix-> "gyllir_registry_");
+    sys::removeDir(registry, recursive-> true);
+
+    let (dir, cfg) = mkPublishableProject("local:" ~ registry.toStr());
+    addUnitTests(dir);
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "clean"]);
+
+    RepoPublisher(dir, mkPublishArgs("patch", dry-> false), cfg).run(alias mgr);
+
+    assert(readVersion(dir) == Version(1u32, 0u32, 1u32), "the version should still be bumped after a non dry publication");
+    assert(hasCacheFile(dir, "myapp", defaults::__CACHE_UNIT_DEBUG_DIR__, "myapp.a"), "a non dry publication should have compiled the unittests");
     assert(sys::isFile(registry.push(defaults::__GYLLIR_CONFIG_FILENAME__)), "the project should be copied to the registry");
 }
 
