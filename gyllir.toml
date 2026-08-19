@@ -4,7 +4,7 @@ authors = ["Emile Cadorel <ecadorel@gmail.com>"]
 libraries = []
 type = "executable"
 description = "Ymir package manager, and builder"
-version = "1.5.2"
+version = "1.5.1"
 name = "gyllir"
 # Needed until a released gyllir binary picks up this fix: the currently installed bootstrap
 # toolchain still resolves the default root by package name first, so it picks src/gyllir.yr
