@@ -1,0 +1,143 @@
+in doc_server;
+
+use std::{io, env, config::_, fs::_};
+use std::net::_;
+use gyllir::{repo::_, utils::_};
+
+/**
+ * Serves an already generated documentation directory ('gyllir doc') over HTTP.
+ * */
+pub class RepoDocServer {
+
+    // The current working directory
+    let _cwd: Path;
+
+    // The command line options
+    let _args: &Config;
+
+    pub self (path: Path, args: &Config)
+        with _cwd = path
+        , _args = args
+    {}
+
+    /**
+     * Start the http server and block until it is killed
+     * */
+    pub fn run(self) {
+        let outDir = self.outputDir();
+        if (!fs::sys::isFile(outDir.push("index.html"))) {
+            utils::log::error("Error", "no documentation found in '", outDir.toStr(),
+                               "', run 'gyllir doc' first");
+            etc::c::process::_yrt_exit(-1);
+            panic;
+        }
+
+        let host = if let Ok(Str(value-> h)) = self._args["host"]? { h } else { "127.0.0.1" };
+        let port: u16 = if let Ok(Int(value-> p)) = self._args["port"]? { cast!u16(p) } else { 8000u16 };
+
+        let ip = {
+            std::net::addr::conv::to!{&IpAddr} (host)
+        } catch {
+            _ => {
+                utils::log::error("Error", "invalid host address '", host, "'");
+                etc::c::process::_yrt_exit(-1);
+                panic;
+            }
+        };
+
+        let dmut server = copy HttpServer(SockAddr(ip, port));
+        server:.setOn404(&self.onRequest);
+        server:.start();
+
+        utils::log::info("Serving", "documentation of '", outDir.toStr(), "' on http://", host, ":",
+                          std::conv::to!{[c8]} (server.port), "/");
+
+        server:.join();
+    } catch {
+        e: &HttpError => {
+            utils::log::error("Error", "failed to start the documentation server : ", e);
+            etc::c::process::_yrt_exit(-1);
+        }
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          SERVING          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Answer any request by serving the matching file in the documentation directory, or a 404
+     * */
+    fn onRequest(self, rqt: HttpRequest)-> HttpResponse {
+        let outDir = self.outputDir();
+        let mut fsPath = outDir;
+        let mut isRoot = true;
+        for p in rqt.url.parts() {
+            if (p == "" || p == "." || p == "..") continue;
+            fsPath = fsPath.push(p);
+            isRoot = false;
+        }
+
+        if (isRoot || fs::sys::isDir(fsPath)) {
+            fsPath = fsPath.push("index.html");
+        }
+
+        if (!fs::sys::isFile(fsPath)) {
+            return HttpResponse(404, body-> "Not Found");
+        }
+
+        let dmut f = File::open(fsPath, read-> true);
+        let content = f:.readAll();
+        f:.close();
+
+        HttpResponse(200, body-> content, contentType-> self.contentType(fsPath))
+    } catch {
+        _ => HttpResponse(500, body-> "Internal Server Error")
+    }
+
+    /**
+     * @returns: the content type of the file, guessed from its extension
+     * */
+    fn contentType(self, p: Path)-> [c8] {
+        match p.extension() {
+            "html" => { "text/html; charset=utf-8" }
+            "css" => { "text/css" }
+            "js" => { "application/javascript" }
+            "json" => { "application/json" }
+            "ico" => { "image/x-icon" }
+            "svg" => { "image/svg+xml" }
+            "png" => { "image/png" }
+            _ => { "application/octet-stream" }
+        }
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          OUTPUT DIR          ===================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * @returns: the documentation directory to serve, following the same '--output [target]'
+     *   resolution as 'gyllir doc'
+     * */
+    fn outputDir(self)-> Path {
+        let baseDir = if let Ok(Str(value-> dir)) = self._args["output"]? {
+            Path(dir)
+        } else {
+            self._cwd.push(defaults::__DOC_DIR__)
+        };
+
+        if let Ok(Str(value-> t)) = self._args["target"]? {
+            baseDir.push(t)
+        } else {
+            baseDir
+        }
+    }
+
+}

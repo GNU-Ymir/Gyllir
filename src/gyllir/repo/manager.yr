@@ -110,7 +110,11 @@ pub class GyllirManager {
 
         else if let Ok(c) = self._args["doc"]? {
             let cwd = env::currentDir();
-            if let Ok(Str(value-> file)) = c["input"]? {
+            if let Ok(Bool(value-> _ = true)) = c["serve"]? {
+                let cfg = self.loadToml(cwd);
+                self:.buildTargets(cwd, c, cfg, self.selectTargets(cfg, c), forDoc-> true);
+                (copy RepoDocServer(cwd, c)).run();
+            } else if let Ok(Str(value-> file)) = c["input"]? {
                 RepoDocBuilder(cwd, c, self.tryLoadToml(cwd), input-> file, fromFile-> true).run(alias self);
             } else {
                 let cfg = self.loadToml(cwd);
