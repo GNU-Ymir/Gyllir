@@ -221,6 +221,12 @@ hr {
     text-decoration: none;
 }
 
+.search-result-module {
+    display: block;
+    font-size: .8em;
+    color: var(--color-text-muted);
+}
+
 .topbar-link {
     white-space: nowrap;
     color: var(--color-text-muted);
@@ -512,7 +518,7 @@ details.member-group[open] > summary::before {
     color: var(--color-text);
 }
 
-.declaration-content {
+.declaration-content, .member-group-body {
     padding: .5rem .25rem .25rem;
 }
 

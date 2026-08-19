@@ -116,6 +116,17 @@ CSS is being written first against a target markup shape; item 3 (templates) mus
   `<details class="member-group" open><summary>$(Kind)</summary><div
   class="member-list">$(Content)</div></details>`. `$(Name)-closing` spans and the
   `symbol-closing`/`module-closing` classes go away — `<details>` provides the toggle natively.
+  **Caught during item 3's manual verification**: `member_head.html`/`module_head.html`/
+  `module_table.html`'s own group-wrapper `<div>` must *not* reuse the `declaration-content`
+  class — `main.js`'s `directDeclarations()` walks up from every `.declaration` looking for a
+  `.declaration-content` ancestor to decide "this belongs to a deeper nesting level, some other
+  declaration owns it"; reusing that class on a `member-group`'s wrapper made every declaration
+  inside a `Methods`/`Fields`/... group look one level too deep and silently vanish from the
+  sidebar symbol tree and search index (the page content itself still rendered fine — only the
+  sidebar/search were affected, which is why it wasn't obvious from a screenshot alone). Group
+  wrappers use `.member-list` (member_head.html) or the new `.member-group-body` class
+  (module_head.html/module_table.html) instead; `.declaration-content` is now exclusively the
+  per-symbol content wrapper `main.js` depends on.
 - `.desc-closing` (from `src/gyllir/doc/comment/node.yr`, used for long `@param`/`@return` doc
   blocks) is a separate, smaller, pre-existing toggle that is *not* being converted to
   `<details>` in this pass — it stays a plain clickable span with a small JS handler in item 2.

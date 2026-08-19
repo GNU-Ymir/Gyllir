@@ -820,7 +820,7 @@ pub class HtmlBody over HtmlNode {
             ": " ~ self.dumpType(en.proxy, withMut-> false)
         } else { "" };
 
-        let code = std::format::format("{} enum {}{}{}\n-> {} ", pr, tempTest, tempFormat, type, p.file());
+        let code = std::format::format("{} enum {}{}{}{}", pr, tempTest, tempFormat, p.file(), type);
 
         let dmut codeStream = copy StringStream();
         formatter::format(alias codeStream, ressources::INLINE_CODE, copy ["Code" => code]);

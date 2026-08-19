@@ -1,17 +1,14 @@
 
-<script type="text/javascript">
-  console.log ('$(GitURL)');
-  var Title = '$(Title)';
-  var SourceRepository = '$(GitURL)';
-  var PackageSeparator = "_";
-</script>
+    <footer class="site-footer">
+      <p>Generated with <a href="https://github.com/GNU-Ymir/Gyllir">Gyllir</a>.</p>
+    </footer>
 
-<script src="js/jquery.min.js"></script>
-<script src="js/bootstrap.min.js"></script>
-<script src="js/highlight.js"></script>
+    <script>
+      window.GYLLIR_DOC = { title: "$(Title)", sourceRepo: "$(GitURL)" };
+    </script>
 
-<script src="js/bootdoc.js"></script>
-
+    <script src="js/highlight.js"></script>
+    <script src="js/main.js"></script>
 
   </body>
 </html>
