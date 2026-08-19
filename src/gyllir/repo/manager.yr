@@ -777,11 +777,13 @@ pub class GyllirManager {
 
         gM.fetchTags();
         let version = dependency.version.select(self.toVersionList(gM.getTagList()), name-> name);
-        if (version._0).isIgnore() {
-            gM.checkout(version._1);
-            if (dependency.url.type == UrlType::GIT) {
-                gM.pull(version._1);
-            }
+
+        // 'version._0' is one of the actual tags just listed, never the '*' wildcard sentinel
+        // itself('select' only ever returns an entry of 'versions'): the current branch already
+        // failed the filter above, so the repository always needs to move to the selected tag
+        gM.checkout(version._1);
+        if (dependency.url.type == UrlType::GIT) {
+            gM.pull(version._1);
         }
     }
 
