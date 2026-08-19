@@ -319,7 +319,9 @@ pub record RepoBuilder {
      * @returns: the list of libraries to link for further dependencies
      * */
     prv fn finalizeBuild(self, dmut context: &GyllirManager, cacheDir: Path, links: [Path], cObjects: [Path])-> [Path] {
-        if (self._forDoc) {
+        // a dry run compiled nothing: there is no object to archive, and no artifact to produce out
+        // of one
+        if (self._forDoc || self._dry) {
             links
         }
 
@@ -978,6 +980,10 @@ pub record RepoBuilder {
      * Execute the commands to run before the compilation
      * */
     prv fn runCommands(self, dmut context: &GyllirManager, post: bool) {
+        // a dry run resolves the dependencies and compiles nothing, the commands of a package are
+        // there to prepare, or to finish, a build that is not happening
+        if (self._dry) { return; }
+
         let dmut tzer = Tokenizer!c8();
         tzer:.insert(" ", isSkip-> true);
         for k, c in self._cfg.commands[] {
