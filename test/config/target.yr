@@ -10,6 +10,7 @@ __test target_defaults_fall_back_to_name {
 
     assert(t.name == "cli", "unexpected target name");
     assert(t.type.isExecutable(), "unexpected build type");
+    assert(t.description == "", "the description should default to empty");
     assert(t.sourceDir == "src", "the source directory should default to \"src\"");
     assert(t.testDir == "test", "the test directory should default to \"test\"");
     assert(t.rootModule() == "cli", "the root module should default to the name of the target");
@@ -59,6 +60,7 @@ __test every_target_table_entry_parsed {
     let lst = copy TargetList(json#{
         "cli" : {
             "type" : "library",
+            "description" : "the cli target",
             "source-dir" : "second_src",
             "package-root" : "main",
             "test-dir" : "second_test",
@@ -77,6 +79,7 @@ __test every_target_table_entry_parsed {
     if let Ok(t) = lst[]["cli"] {
         assert(t.name == "cli", "the name of a target is the key of its table");
         assert(t.type.isLibrary(), "unexpected build type");
+        assert(t.description == "the cli target", "unexpected description");
         assert(t.sourceDir == "second_src", "unexpected source directory");
         assert(t.packageRoot == "main", "unexpected package root");
         assert(t.testDir == "second_test", "unexpected test directory");
@@ -271,6 +274,7 @@ __test serialize_writes_only_declared_entries {
         assert(to!{[[c8]]}(cli["dependencies"]) == copy ["midgard"], "unexpected serialized dependencies");
         assert(to!{[[c8]]}(cli["targets"]) == copy ["mylib"], "unexpected serialized linked targets");
 
+        assert("description" !in cli, "an undeclared description should not be written back");
         assert("source-dir" !in cli, "a default source directory should not be written back");
         assert("test-dir" !in cli, "a default test directory should not be written back");
         assert("test-root" !in cli, "an undeclared test root should not be written back");
@@ -287,6 +291,7 @@ __test declared_entries_survive_round_trip {
     let lst = copy TargetList(json#{
         "cli" : {
             "type" : "library",
+            "description" : "the cli target",
             "source-dir" : "second_src",
             "test-dir" : "second_test",
             "test-root" : "cli_test",
@@ -300,6 +305,7 @@ __test declared_entries_survive_round_trip {
     let back = copy TargetList(lst.serialize());
     if let Ok(t) = back[]["cli"] {
         assert(t.type.isLibrary(), "the build type should survive the round trip");
+        assert(t.description == "the cli target", "the description should survive the round trip");
         assert(t.sourceDir == "second_src", "the source directory should survive the round trip");
         assert(t.testDir == "second_test", "the test directory should survive the round trip");
         assert(t.testRoot == "cli_test", "the test root should survive the round trip");

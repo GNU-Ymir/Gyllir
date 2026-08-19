@@ -29,6 +29,9 @@ pub record Target {
     // The kind of artifact produced by the target
     let _type: BuildType;
 
+    // The short description of the target ("" when it declares none)
+    let _description: [c8];
+
     // The directory holding the sources of the target, relative to the package directory
     let _sourceDir: [c8];
 
@@ -81,6 +84,7 @@ pub record Target {
      * @params:
      *    - name: the name of the target
      *    - type: the kind of artifact it produces
+     *    - description: the short description of the target
      *    - sourceDir: the directory holding its sources
      *    - packageRoot: its root module, relative to 'sourceDir' and without extension
      *    - testDir: the directory holding its unittests
@@ -96,6 +100,7 @@ pub record Target {
      *    - synthesized: true iif the target is not declared by a '[targets.<name>]' table
      * */
     pub self (name: [c8], type: BuildType,
+              description: [c8] = "",
               sourceDir: [c8] = __DEFAULT_SOURCE_DIR__,
               packageRoot: [c8] = "",
               testDir: [c8] = __DEFAULT_TEST_DIR__,
@@ -111,6 +116,7 @@ pub record Target {
               synthesized: bool = false)
         with _name = name
         , _type = type
+        , _description = description
         , _sourceDir = sourceDir
         , _packageRoot = packageRoot
         , _testDir = testDir
@@ -142,6 +148,11 @@ pub record Target {
     @field
     pub fn type(self)-> BuildType {
         self._type
+    }
+
+    @field
+    pub fn description(self)-> [c8] {
+        self._description
     }
 
     @field
@@ -330,6 +341,10 @@ pub class TargetList {
                 let dmut trg = copy Dict();
                 trg["type"] = t.type.serialize();
 
+                if (t.description != "") {
+                    trg["description"] = copy Str(t.description);
+                }
+
                 if (t.sourceDir != __DEFAULT_SOURCE_DIR__) {
                     trg["source-dir"] = copy Str(t.sourceDir);
                 }
@@ -432,12 +447,17 @@ pub class TargetList {
         }
 
         if let d: &Dict = cfg {
-            gyllir::config::errors::rejectUnknown(d, ctx, "type", "tests", "source-dir", "package-root",
-                "test-dir", "test-root", "output", "flags", "libraries", "dependencies", "targets",
-                "c-sources", "c-flags");
+            // 'name' is redundant with the key of the '[targets.<name>]' table itself(which is
+            // where 'Target::name' actually comes from), but some published packages(including the
+            // official std lib) still carry it, from an older schema, so it is accepted and ignored
+            // rather than rejected
+            gyllir::config::errors::rejectUnknown(d, ctx, "type", "name", "description", "tests",
+                "source-dir", "package-root", "test-dir", "test-root", "output", "flags", "libraries",
+                "dependencies", "targets", "c-sources", "c-flags");
         }
 
         Target(name, type,
+               description-> self.readString(cfg, "description", ctx),
                sourceDir-> self.readString(cfg, "source-dir", ctx, default-> __DEFAULT_SOURCE_DIR__),
                packageRoot-> self.readString(cfg, "package-root", ctx),
                testDir-> self.readString(cfg, "test-dir", ctx, default-> __DEFAULT_TEST_DIR__),
