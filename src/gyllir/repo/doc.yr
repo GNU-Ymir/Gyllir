@@ -110,12 +110,6 @@ pub record RepoDocBuilder {
             }
         };
 
-        // The doc json is unchanged and the pages are already there : nothing to regenerate
-        if (!self._fromFile && content == previousContent && fs::sys::isFile(outputDir.push("index.html"))) {
-            utils::log::info("Up to date", "documentation pages in '", outputDir.toStr(), "'");
-            return;
-        }
-
         let docConfig = {
             json::parse(content)
         } catch {
@@ -127,7 +121,42 @@ pub record RepoDocBuilder {
         };
 
         let symbol = (SymbolLoader()).load(docConfig);
-        self.generate(alias context, version, outputDir, symbol);
+        let (htmlTable, modules) = self.createHtmlTable(symbol);
+
+        // The doc json is unchanged and the pages already there match the current modules exactly
+        // (no stray page left by a deleted source, none missing) : nothing to regenerate
+        if (!self._fromFile && content == previousContent && self.pagesUpToDate(outputDir, modules)) {
+            utils::log::info("Up to date", "documentation pages in '", outputDir.toStr(), "'");
+            return;
+        }
+
+        self.generate(alias context, version, outputDir, htmlTable, modules);
+    }
+
+    /**
+     * @returns: true iif every module in 'modules' already has its page in 'outDir', and no extra
+     * html page (e.g. left behind by a module whose source was since removed) is present
+     * */
+    fn pagesUpToDate(self, outDir: Path, modules: [&Module])-> bool {
+        let mut expected: [[c8]] = [];
+        for m in modules {
+            let name = if m.name == "" { "index" } else { m.name };
+            expected ~= [Path(name, sep-> "::").addExtension(defaults::__HTML_EXTENSION__).toStr(sep-> "_")];
+        }
+
+        let mut nbFound = 0us;
+        for i in readDir(outDir) match i {
+            FsEntry(kind-> FsEntryKind::FILE, path-> p) if p.extension() == defaults::__HTML_EXTENSION__ => {
+                let mut found = false;
+                for e in expected if e == p.file() { found = true; }
+                if (!found) return false;
+                nbFound += 1us;
+            }
+        }
+
+        nbFound == expected.len
+    } catch {
+        FsError() => false
     }
 
     /**
@@ -155,10 +184,9 @@ pub record RepoDocBuilder {
     /**
      * Generate the documentation directory
      * */
-    fn generate(self, dmut context: &GyllirManager, version: [c8], outDir: Path, symbol: &Symbol) {
+    fn generate(self, dmut context: &GyllirManager, version: [c8], outDir: Path, htmlTable: [c8], modules: [&Module]) {
         utils::log::info("Generate", "documentation pages in '", outDir.toStr(), "'");
         self.createBaseDirectory(alias context, outDir);
-        let (htmlTable, modules) = self.createHtmlTable(symbol);
 
         for m in modules {
             self.generatePage(self._cfg.name, self._cfg.registry.path.toStr(), version, htmlTable, m, outDir);
