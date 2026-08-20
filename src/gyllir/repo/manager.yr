@@ -992,7 +992,9 @@ pub class GyllirManager {
      *    - .1: the list of path to the built libraries to link, '[]' when the bundled std is used
      * @throws:
      *    - AssertError: neither the bundled std lib nor the remote repository has a version
-     *      matching the declared filter
+     *      matching the declared filter, or the remote repository's tags could not be listed(a
+     *      network or authentication failure is reported as such, not silently treated as "no
+     *      matching version")
      * */
     pub fn resolveStd(mut self, args: &Config, cwd: Path, cfg: GyllirPackageConfiguration, dry: bool)-> ([[c8]], [Path])
         throws RecursiveDependency, AssertError
@@ -1016,7 +1018,17 @@ pub class GyllirManager {
         let matches = {
             let gM = GitManager();
             self.matchingVersionsDescending(filter, self.toVersionList(gM.getRemoteTagList(url.path.toStr())))
-        } catch { _ => [] };
+        } catch {
+            e: &GitError => {
+                throw copy AssertError("could not list the versions offered by the std lib repository '"
+                    ~ url.path.toStr() ~ "': " ~ e.msg);
+            }
+
+            e: &FsError => {
+                throw copy AssertError("could not list the versions offered by the std lib repository '"
+                    ~ url.path.toStr() ~ "': " ~ e.msg);
+            }
+        };
 
         let dmut filterStream = copy StringStream();
         filterStream:.write(filter);

@@ -438,6 +438,36 @@ __test std_only_package_keeps_its_lock_file {
     assert(locked.sha == "a1b2c3", "the locked std commit should survive the rewrite");
 }
 
+__test resolve_std_reports_an_unreachable_remote_instead_of_no_matching_version {
+    // A remote std lib repository that cannot be reached is reported as such, not silently turned
+    // into "no version matching the filter" the way a genuinely tagless remote would be
+    let app = mkExecutableProject("myapp");
+    let cfg = GyllirPackageConfiguration(json#{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "std" : {"version" : "*", "url" : "git:/no/such/repository/here"}
+    });
+
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    mgr:.loadLock(app, mkBuildArgs(), cfg);
+
+    let mut msg = "";
+    {
+        mgr:.resolveStd(mkBuildArgs(), app, cfg, false);
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+        _: &RecursiveDependency => { assert(false, "no recursive dependency should be detected here"); }
+    }
+
+    let expectedPrefix = "could not list the versions offered by the std lib repository '/no/such/repository/here': ";
+    assert(msg.len >= expectedPrefix.len && msg[0us .. expectedPrefix.len] == expectedPrefix,
+           "unexpected error: " ~ msg);
+}
+
 __test update_std_flag_accepted_before_it_is_ever_locked {
     // '--std' is accepted by 'selectUpdated' even before the std lib was ever resolved as a remote
     // lock entry(the bundled compiler's std lib can already be satisfying the declared filter, in
