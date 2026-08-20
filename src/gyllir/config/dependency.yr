@@ -154,10 +154,22 @@ pub class DependencyList {
     /**
      * Insert the dependencies from a configuration dictionnary
      */
+    /**
+     * Insert the dependencies from a configuration dictionnary
+     * @throws:
+     *    - AssertError: one of the entries is named "std", which is reserved for the std lib
+     *      resolved by '[std]'('gyllir::repo::defaults::__STD_DEP_NAME__') - a dependency sharing
+     *      that name would collide with it in the lock file and in '.deps/'
+     * */
     prv fn insert(mut self, cfg: &Dict)
         throws AssertError
     {
         for k, v in cfg[] {
+            if (k == "std") {
+                throw copy AssertError("'[dependencies.std]', 'std' is reserved for the std lib resolved by '[std]', "
+                                       ~ "name this dependency differently");
+            }
+
             self._package[k] = self.parseDependency(k, v);
         }
     }
