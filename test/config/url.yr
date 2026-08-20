@@ -129,6 +129,24 @@ __test equality_requires_path_type_and_validity {
     assert(a != d, "urls with different types should not be equal");
 }
 
+__test to_str_writes_the_scheme_back {
+    // toStr() writes an url the way it is declared, its path prefixed by its scheme
+    assert(Url("local:some/dir").toStr() == "local:some/dir", "unexpected string form of a local url");
+    assert(Url("git:some/repo").toStr() == "git:some/repo", "unexpected string form of a git url");
+
+    // an url declared with no scheme at all is a git one, and is written back as such
+    assert(Url("git@host.com:org/repo.git").toStr() == "git:git@host.com:org/repo.git",
+           "an unprefixed url should be written back with its git scheme");
+}
+
+__test to_str_round_trips_through_the_parser {
+    // The string form of an url parses back to the same url
+    for u in copy [Url("local:some/dir"), Url("git:some/repo"), Url("git@host.com:org/repo.git")] {
+        let back = Url(u.toStr());
+        assert(back == u, "an url should survive a round trip through its string form: " ~ u.toStr());
+    }
+}
+
 __test serialize_local_and_git_urls {
     // Serializing a local url produces a "local" entry, a git url a "git" entry
     let localUrl = Url("local:some/dir");

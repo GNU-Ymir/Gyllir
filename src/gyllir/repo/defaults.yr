@@ -8,6 +8,11 @@ use std::fs::path;
 pub def __GYLLIR_CONFIG_FILENAME__ = "gyllir.toml";
 
 /**
+ * The filename of the dependency lock file
+ */
+pub def __GYLLIR_LOCK_FILENAME__ = "gyllir.lock";
+
+/**
  * The filename of the gitignore file
  */
 pub def __GITIGNORE_FILENAME__ = ".gitignore";

@@ -3,4 +3,4 @@ GCC_VERSION=15.3.1
 # Version of the already-released gyllir used to build this repo (gyllir builds itself only in
 # the sense that a previously published binary compiles the current tree - there is no
 # bootstrap-from-source step). Bump it to build against a newer released gyllir.
-GYLLIR_BOOTSTRAP_VERSION=1.3.1
+GYLLIR_BOOTSTRAP_VERSION=1.5.1

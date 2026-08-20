@@ -27,6 +27,16 @@ pub fn inTable(table: [c8], name: [c8])-> [c8] {
 }
 
 /**
+ * @params:
+ *    - table: the name of an array-of-tables of the configuration file('package', ...)
+ *    - name: the "name" entry of one of its elements
+ * @returns: the prefix naming the '[[<table>]]' entry named 'name' an error message comes from
+ * */
+pub fn inTableArray(table: [c8], name: [c8])-> [c8] {
+    "'[[" ~ table ~ "]]' (name = \"" ~ name ~ "\"), "
+}
+
+/**
  * Reject any entry of 'd' that is not one of 'known': a field that is neither read nor rejected
  * is silently ignored, which lets a typo or a stray entry pass without warning.
  *

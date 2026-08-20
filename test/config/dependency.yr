@@ -77,6 +77,21 @@ __test non_array_link_targets_rejected {
            "unexpected error: " ~ msg);
 }
 
+__test std_named_dependency_rejected {
+    // A dependency named "std" is rejected: that name is reserved for the std lib resolved by
+    // '[std]', and a dependency sharing it would collide in the lock file and in '.deps/'
+    let mut msg = "";
+    {
+        copy DependencyList(json#{"std" : {"version" : "1.0.0", "url" : {"local" : "../foo"}}});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[dependencies.std]', 'std' is reserved for the std lib resolved by '[std]', "
+           ~ "name this dependency differently",
+           "unexpected error: " ~ msg);
+}
+
 __test missing_version_names_the_entry {
     // A dependency declaring no version says what one looks like: an unversioned dependency has no
     // tag to check out, it is not a shorthand for "any version"

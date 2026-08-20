@@ -18,7 +18,8 @@ _gyllir() {
 		clean
 		publish
 		test
-		doc"
+		doc
+		update"
 
     GLOBAL_OPTIONS="\
 		-h --help -V --version"
@@ -27,7 +28,7 @@ _gyllir() {
 	     -h --help --name"
 
     BUILD_OPTIONS="\
-		-h --help --release -v --verbose"
+		-h --help --release --locked --offline -v --verbose"
 
     CLEAN_OPTIONS="\
 		-h --help --doc --all"
@@ -36,9 +37,12 @@ _gyllir() {
 		-h --help minor major patch -y --yes --dry"
     
     TEST_OPTIONS="\
-		-h --help -v --verbose --dry --release"
+		-h --help -v --verbose --dry --release --locked --offline"
 
     DOC_OPTIONS="\
+    		-h --help -v --verbose --locked --offline"
+
+    UPDATE_OPTIONS="\
     		-h --help -v --verbose"
     
     # Un-comment this for debug purposes:
@@ -71,6 +75,10 @@ _gyllir() {
 	doc)
 	    complete_options="$DOC_OPTIONS"
 	    complete_words="$(_gyllir_get_targets)"
+	    ;;
+	update)
+	    complete_options="$UPDATE_OPTIONS"
+	    complete_words="$(_gyllir_get_dependencies)"
 	    ;;
 	*)
 	    case "${prev}" in
@@ -106,6 +114,14 @@ _gyllir_get_targets() {
     fi
 
     echo $names
+}
+
+# Lists the dependencies declared by the gyllir.toml of the current directory, the names
+# 'gyllir update' takes.
+_gyllir_get_dependencies() {
+    [[ -f gyllir.toml ]] || return 0
+
+    sed -n 's/^[[:space:]]*\[dependencies\.\([^]]*\)\][[:space:]]*$/\1/p' gyllir.toml
 }
 
 # Determines the current plugin optons for RAID0 plugin,

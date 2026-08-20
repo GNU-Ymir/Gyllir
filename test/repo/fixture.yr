@@ -10,6 +10,7 @@ use gyllir::repo::defaults;
 use std::{config::_, config::json, config::toml, fs::_};
 use std::concurrency::process;
 use std::conv::errors;
+use std::syntax::errors;
 
 /**
  * Write 'content' to 'path', creating the parent directory if needed
@@ -46,16 +47,19 @@ pub fn mkExecutableProject(name: [c8])-> Path
  * A minimal library project: 'src/__lib__.yr' exporting a single function.
  * '__lib__.yr' is the naming convention 'findRootSourceFile' falls back to for a library when no
  * 'package-root' is configured, regardless of the package name.
+ * @params:
+ *    - suffix: appended to the name of the exported function and of its sub module, so that two
+ *      library projects linked into the same executable do not define the same symbols
  * @returns: the root directory of the created project
  * */
-pub fn mkLibraryProject()-> Path
+pub fn mkLibraryProject(suffix: [c8] = "")-> Path
     throws FsError
 {
     let dir = sys::tempDirectory(prefix-> "gyllir_it_");
     writeSource(dir.push(defaults::__SRC_DIR__).push(defaults::__LIB_FILE__),
-                "pub mod helper;\n\npub fn root()-> i32 {\n    42\n}\n");
-    writeSource(dir.push(defaults::__SRC_DIR__).push("helper").addExtension(defaults::__YMIR_EXTENSION__),
-                "pub fn helper()-> i32 {\n    1\n}\n");
+                "pub mod helper" ~ suffix ~ ";\n\npub fn root" ~ suffix ~ "()-> i32 {\n    42\n}\n");
+    writeSource(dir.push(defaults::__SRC_DIR__).push("helper" ~ suffix).addExtension(defaults::__YMIR_EXTENSION__),
+                "pub fn helper" ~ suffix ~ "()-> i32 {\n    1\n}\n");
 
     dir
 }
@@ -192,12 +196,151 @@ pub fn gitInit(dir: Path)
     git.init();
 
     // some environments sign commits globally, which fails non interactively
-    let dmut proc = copy SubProcess("git", copy ["config", "commit.gpgsign", "false"], cwd-> dir);
-    proc:.start();
-    proc:.wait();
+    for key in copy ["commit.gpgsign", "tag.gpgsign"] {
+        let dmut proc = copy SubProcess("git", copy ["config", key, "false"], cwd-> dir);
+        proc:.start();
+        proc:.wait();
+    }
 
     git.add(dir.push("."));
     git.commit("initial commit");
+}
+
+/**
+ * Commit a change in an already initialized project, and tag it: the way a dependency gains the
+ * new version a build, or an update, can resolve it at
+ * @params:
+ *    - dir: the root directory of the project
+ *    - tag: the name of the tag to create
+ * */
+pub fn commitAndTag(dir: Path, tag: [c8])
+    throws GitError, FsError
+{
+    let git = GitManager(cwd-> dir);
+    let marker = dir.push("VERSION");
+
+    let dmut f = File::create(marker, write-> true);
+    f:.write(tag);
+    f:.close();
+
+    git.add(marker);
+    git.commit("release " ~ tag);
+    git.createTag(tag);
+}
+
+/**
+ * A configuration declaring a single git dependency, which is resolved by cloning it rather than
+ * by symlinking it
+ * @params:
+ *    - name: the package name
+ *    - type: "executable" or "library"
+ *    - depName: the name of the dependency
+ *    - depPath: the repository the dependency is cloned from
+ *    - version: the version filter of the dependency, accepting anything by default
+ * */
+pub fn mkConfigWithGitDependency(name: [c8], type: [c8], depName: [c8], depPath: Path, version: [c8] = "*")-> GyllirPackageConfiguration
+    throws AssertError
+{
+    let dmut url = copy Dict();
+    url["git"] = copy Str(depPath.toStr());
+
+    let dmut dep = copy Dict();
+    dep["version"] = copy Str(version);
+    dep["url"] = url;
+
+    let dmut deps = copy Dict();
+    deps[depName] = dep;
+
+    let dmut cfg = copy Dict();
+    cfg["name"] = copy Str(name);
+    cfg["license"] = copy Str("MIT");
+    cfg["description"] = copy Str("an integration test project");
+    cfg["type"] = copy Str(type);
+    cfg["version"] = copy Str("1.0.0");
+    cfg["registry"] = copy Str("local:some/registry");
+    cfg["dependencies"] = deps;
+
+    GyllirPackageConfiguration(cfg)
+}
+
+/**
+ * A configuration declaring two git dependencies, so that a command acting on one of them can be
+ * told from a command acting on every one of them
+ * @params:
+ *    - name: the package name
+ *    - type: "executable" or "library"
+ *    - deps: the name of each dependency, and the repository it is cloned from
+ * */
+pub fn mkConfigWithGitDependencies(name: [c8], type: [c8], deps: [([c8], Path)])-> GyllirPackageConfiguration
+    throws AssertError
+{
+    let dmut declared = copy Dict();
+    for d in deps {
+        let dmut url = copy Dict();
+        url["git"] = copy Str((d._1).toStr());
+
+        let dmut dep = copy Dict();
+        dep["version"] = copy Str(">=1.0.0");
+        dep["url"] = url;
+
+        declared[d._0] = dep;
+    }
+
+    let dmut cfg = copy Dict();
+    cfg["name"] = copy Str(name);
+    cfg["license"] = copy Str("MIT");
+    cfg["description"] = copy Str("an integration test project");
+    cfg["type"] = copy Str(type);
+    cfg["version"] = copy Str("1.0.0");
+    cfg["registry"] = copy Str("local:some/registry");
+    cfg["dependencies"] = declared;
+
+    GyllirPackageConfiguration(cfg)
+}
+
+/**
+ * Read the lock file a build wrote in a project
+ * @params:
+ *    - dir: the root directory of the project
+ * */
+pub fn readLockFile(dir: Path)-> &LockFile
+    throws FsError, SyntaxError, AssertError
+{
+    let dmut f = File::open(dir.push(defaults::__GYLLIR_LOCK_FILENAME__));
+    let content = f:.readAll();
+    f:.close();
+
+    copy LockFile(std::config::toml::parse(content))
+}
+
+/**
+ * The entry a project's lock file pins a dependency at
+ * @params:
+ *    - dir: the root directory of the project
+ *    - name: the name of the dependency
+ * @throws:
+ *    - AssertError: if the lock file has no entry for it
+ * */
+pub fn lockedPackage(dir: Path, name: [c8])-> LockedPackage
+    throws FsError, SyntaxError, AssertError
+{
+    if let Ok(p) = readLockFile(dir)[][name] {
+        return p;
+    }
+
+    throw copy AssertError("'" ~ defaults::__GYLLIR_LOCK_FILENAME__ ~ "' locks no dependency named '" ~ name ~ "'");
+}
+
+/**
+ * The commit a resolved dependency is checked out at
+ * @params:
+ *    - dir: the root directory of the project that resolved it
+ *    - name: the name of the dependency
+ * */
+pub fn resolvedCommitOf(dir: Path, name: [c8])-> [c8]
+    throws GitError, FsError
+{
+    GitManager(cwd-> dir.push(defaults::__DEPENCY_DIR__).push(name)).getCommitSha()
 }
 
 /**

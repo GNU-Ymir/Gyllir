@@ -200,6 +200,9 @@ pub class GyllirArgumentParser {
         self._mainParser:.sub("clean", &self.parseClean, comments-> "clean the project (remove generated files)", hyphenated-> false);
         self._mainParser:.sub("doc", &self.parseDoc, comments-> "build the documentation", hyphenated-> false);
         self._mainParser:.sub("test", &self.parseTest, comments-> "build and run the unit tests", hyphenated-> false);
+        self._mainParser:.sub("update", &self.parseUpdate,
+                              comments-> "resolve the dependencies again, and rewrite " ~ repo::defaults::__GYLLIR_LOCK_FILENAME__,
+                              hyphenated-> false);
     }
 
     /**
@@ -217,7 +220,7 @@ pub class GyllirArgumentParser {
             }
 
             let mut found = false;
-            for i in ["init", "build", "run", "publish", "clean", "doc", "test"] {
+            for i in ["init", "build", "run", "publish", "clean", "doc", "test", "update"] {
                 if (i in ret) {
                     found = true;
                     break;
@@ -278,6 +281,8 @@ pub class GyllirArgumentParser {
             :.help("help", short-> "h", comments-> "print this help and exit")
             :.flag("release", comments-> "build the release mode (debug by default)")
             :.option!{i32} ("j", comments-> "number of parallel threads to spawn")
+            :.flag("locked", comments-> "fail if the dependency versions differ from the ones " ~ repo::defaults::__GYLLIR_LOCK_FILENAME__ ~ " pins")
+            :.flag("offline", comments-> "resolve the dependencies without any network access (implies --locked)")
             :.flag("verbose", short-> "v", comments-> "verbose mode");
 
         let (rest, target) = self.extractTarget(args, copy ["j"]);
@@ -380,6 +385,8 @@ pub class GyllirArgumentParser {
         let dmut parser = (copy ArgumentParser)
             :.help("help", short-> "h", comments-> "print this help and exit")
             :.flag("verbose", short-> "v", comments-> "verbose mode")
+            :.flag("locked", comments-> "fail if the dependency versions differ from the ones " ~ repo::defaults::__GYLLIR_LOCK_FILENAME__ ~ " pins")
+            :.flag("offline", comments-> "resolve the dependencies without any network access (implies --locked)")
             :.option!{[c8]} ("input", short-> "i", comments-> "input json file already produced by a previous compilation")
             :.option!{[c8]} ("output", short-> "o", comments-> "output directory");
 
@@ -407,6 +414,8 @@ pub class GyllirArgumentParser {
             :.flag("verbose", short-> "v", comments-> "clean the documentation")
             :.flag("dry", comments-> "only compile the test executable, but does not run them")
             :.flag("release", comments-> "compile tests in release mode (debug by default)")
+            :.flag("locked", comments-> "fail if the dependency versions differ from the ones " ~ repo::defaults::__GYLLIR_LOCK_FILENAME__ ~ " pins")
+            :.flag("offline", comments-> "resolve the dependencies without any network access (implies --locked)")
             :.option!{i32} ("j", comments-> "number of parallel threads to spawn");
 
         let (rest, target) = self.extractTarget(args, copy ["j"]);
@@ -415,6 +424,30 @@ pub class GyllirArgumentParser {
         } catch {
             err: &std::config::args::errors::HelpRequestError => {
                 std::io::eprintln(parser.explain(err, usage-> "gyllir test [target]"));
+                etc::c::process::_yrt_exit(-1);
+                panic;
+            }
+            e => throw e;
+        })?;
+    }
+
+    /**
+     * Parse the dependency update sub command
+     * @params:
+     *    - args: the arguments passed to the sub command
+     * */
+    prv fn parseUpdate(self, args: [[c8]])-> (&Config)? {
+        let dmut parser = (copy ArgumentParser)
+            :.help("help", short-> "h", comments-> "print this help and exit")
+            :.flag("verbose", short-> "v", comments-> "verbose mode")
+            :.flag("std", comments-> "update the std lib resolved by '[std]', ambiguous with no other name");
+
+        let (rest, packages) = self.extractPackages(args);
+        return ({
+            self.withPackages(parser.parse(rest), packages)
+        } catch {
+            err: &std::config::args::errors::HelpRequestError => {
+                std::io::eprintln(parser.explain(err, usage-> "gyllir update [--std] [dependency...]"));
                 etc::c::process::_yrt_exit(-1);
                 panic;
             }
@@ -496,6 +529,52 @@ pub class GyllirArgumentParser {
         }
 
         false
+    }
+
+    /**
+     * Split the optional '<dependency>...' arguments of 'gyllir update' out of its arguments, the
+     * same way 'extractTarget' does for the sub commands taking a target: the std argument parser
+     * has no optional positional argument
+     * @params:
+     *    - args: the arguments of the sub command, 'args[0]' being its name
+     * @returns:
+     *    - .0: the arguments, without the dependency names
+     *    - .1: the names of the dependencies to update, [] when the command line names none
+     * */
+    prv fn extractPackages(self, args: [[c8]])-> ([[c8]], [[c8]]) {
+        let mut rest: [[c8]] = [];
+        let mut packages: [[c8]] = [];
+
+        for i, a in args {
+            // the sub command name is 'args[0]', and never a dependency
+            if (i == 0 || (a.len > 0us && a[0] == '-')) {
+                rest ~= [a];
+            } else {
+                packages ~= [a];
+            }
+        }
+
+        (rest, packages)
+    }
+
+    /**
+     * @params:
+     *    - cfg: the configuration parsed for a sub command
+     *    - packages: the names of the dependencies extracted from its command line
+     * @returns: 'cfg', with a 'packages' entry when the command line named some
+     * */
+    prv fn withPackages(self, cfg: &Config, packages: [[c8]])-> &Config {
+        if (packages.len == 0us) { return cfg; }
+
+        let dmut res = copy Dict();
+        if let d: &Dict = cfg {
+            for k, v in d[] {
+                res[k] = v;
+            }
+        }
+
+        res["packages"] = copy Array(copy [copy Str(p) for p in packages]);
+        res
     }
 
     /**

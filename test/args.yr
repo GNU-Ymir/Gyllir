@@ -321,3 +321,60 @@ __test sub_command_name_not_target {
 
     assert("target" !in doc, "the sub command should not name a target");
 }
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * =====================================          UPDATE          =====================================
+ * ====================================================================================================
+ * ====================================================================================================
+ * 'gyllir update' has no optional '<target>', but the same kind of "sliced out before the std
+ * parser sees it" positional: an optional '<dependency>...' list
+ */
+
+__test update_without_packages_leaves_entry_out {
+    // 'gyllir update' naming no dependency leaves "packages" out entirely: it is what asks to
+    // update the whole graph
+    let update = sub(parse(copy ["gyllir", "update"]), "update");
+
+    assert("packages" !in update, "\"packages\" should be absent when none is named");
+    assert(!flag(update, "verbose"), "verbose should default to false");
+}
+
+__test update_named_packages_are_parsed {
+    // 'gyllir update <dep> <dep>' extracts the dependency names out of the command line
+    let update = sub(parse(copy ["gyllir", "update", "mylib", "myother"]), "update");
+
+    if let Ok(a: &Array) = update["packages"]? {
+        assert(a[].len == 2us, "both dependency names should be extracted");
+        assert(to!{[c8]}(a[][0]) == "mylib" && to!{[c8]}(a[][1]) == "myother", "unexpected dependency names");
+    } else assert(false, "\"packages\" should be parsed as an array");
+}
+
+__test update_packages_alongside_flags {
+    // A dependency name may appear alongside the flags of 'update', which are still parsed normally
+    let update = sub(parse(copy ["gyllir", "update", "-v", "mylib"]), "update");
+
+    assert(flag(update, "verbose"), "-v should still be parsed as verbose");
+    if let Ok(a: &Array) = update["packages"]? {
+        assert(a[].len == 1us && to!{[c8]}(a[][0]) == "mylib", "unexpected dependency names");
+    } else assert(false, "\"packages\" should be parsed as an array");
+}
+
+__test update_std_flag_recognized {
+    // 'gyllir update --std' updates the std lib resolved by '[std]', without naming any dependency
+    let update = sub(parse(copy ["gyllir", "update", "--std"]), "update");
+
+    assert(flag(update, "std"), "\"std\" should be set");
+    assert("packages" !in update, "\"--std\" alone should name no dependency");
+}
+
+__test update_std_flag_alongside_packages {
+    // '--std' can be combined with named dependencies, updating both
+    let update = sub(parse(copy ["gyllir", "update", "--std", "mylib"]), "update");
+
+    assert(flag(update, "std"), "\"std\" should be set");
+    if let Ok(a: &Array) = update["packages"]? {
+        assert(a[].len == 1us && to!{[c8]}(a[][0]) == "mylib", "unexpected dependency names");
+    } else assert(false, "\"packages\" should be parsed as an array");
+}

@@ -94,8 +94,8 @@ Entry point `src/main.yr` constructs a `gyllir::repo::manager::GyllirManager` fr
 calls `run()`; every sub-command is dispatched and implemented from there.
 
 - `src/gyllir/args.yr` — `GyllirArgumentParser`, built on `std::config::ArgumentParser`: one
-  sub-parser per command (`init`, `build`, `run`, `test`, `clean`, `doc`, `publish`), each
-  returning a `&Config` of parsed flags consumed by the matching `repo/*.yr` runner.
+  sub-parser per command (`init`, `build`, `run`, `test`, `clean`, `doc`, `publish`, `update`),
+  each returning a `&Config` of parsed flags consumed by the matching `repo/*.yr` runner.
 - `src/gyllir/config/` — the `gyllir.toml` schema, all `Serializable`/deserializable via
   `std::config`:
   - `config.yr` — `GyllirPackageConfiguration`: name, license, description, `compiler` (default
@@ -108,11 +108,19 @@ calls `run()`; every sub-command is dispatched and implemented from there.
   - `version.yr` / `version/filter.yr` — `Version` (major.minor.patch or named) and
     `VersionFilter` (`>`, `>=`, `<`, `<=`, `=` comparators used to pick a dependency's version).
   - `command.yr` — `Command`/`CustomCommandList`: user-declared pre/post build commands.
+  - `lock.yr` — `LockedPackage`/`LockFile`: the `gyllir.lock` schema (`lock-version`, one
+    `[[package]]` array-of-tables entry per resolved package: `name`, `url`, `version`, `sha` for
+    a `git:` source, `dependencies`), plus `matches()` (does an entry still resolve a declaration), `prune()`
+    (drop what the manifest no longer reaches) and `toToml()` (the sorted, canonical dump — the
+    file is committed, so its bytes have to be stable).
 - `src/gyllir/repo/` — one file per sub-command, all consumed by `manager.yr`'s `run()`:
   - `manager.yr` — `GyllirManager::run()` dispatch, plus `resolveDependency`/
     `selectDependencyVersion`: clones (`git:`) or symlinks (`local:`) each declared dependency
     into `.deps/<name>`, checks out the version matching its `VersionFilter`, recurses into the
     dependency's own `gyllir.toml` (cycle-guarded via the `_depPackages` map), then builds it.
+    Also the lock lifecycle of a command — `loadLock` before the build, `recordResolution` per
+    dependency, `writeLock` after — the `--locked`/`--offline` flags, and `gyllir update`, which
+    is a `dry` build pass (dependencies resolved, nothing compiled) followed by a rewrite.
   - `init.yr` — `RepoInitializer`: interactively prompts for project metadata and writes
     `gyllir.toml`, `src/`, `test/`, `.gitignore`, then `git init`+commit.
   - `builder.yr` — `RepoBuilder`: the largest file in the repo: resolves dependencies, invokes

@@ -74,12 +74,14 @@ asks.</p>
 
 <h2 id="build">gyllir build</h2>
 
-<pre><code>gyllir build [target] [--release] [-j N] [-v]</code></pre>
+<pre><code>gyllir build [target] [--release] [--locked] [--offline] [-j N] [-v]</code></pre>
 
 <div class="table-wrap">
 <table>
     <tr><th>Flag</th><th>Effect</th></tr>
     <tr><td><code>--release</code></td><td>Compile with <code>-O3</code> instead of <code>-g</code>, into the <code>release</code> cache.</td></tr>
+    <tr><td><code>--locked</code></td><td>Fail instead of writing a new <a href="dependencies.html#lock"><code>gyllir.lock</code></a>. The CI flag: it turns a dependency that would move into an error.</td></tr>
+    <tr><td><code>--offline</code></td><td>Resolve without any network access — no clone, no fetch. Implies <code>--locked</code>.</td></tr>
     <tr><td><code>-j N</code></td><td>Number of compilation threads. Defaults to the number of processors.</td></tr>
     <tr><td><code>-v</code>, <code>--verbose</code></td><td>Print every command line Gyllir runs, and pass <code>-fv</code> to the compiler.</td></tr>
 </table>
@@ -108,13 +110,14 @@ Running a library target is an error.</p>
 
 <h2 id="test">gyllir test</h2>
 
-<pre><code>gyllir test [target] [--release] [--dry] [-j N] [-v]</code></pre>
+<pre><code>gyllir test [target] [--release] [--dry] [--locked] [--offline] [-j N] [-v]</code></pre>
 
 <div class="table-wrap">
 <table>
     <tr><th>Flag</th><th>Effect</th></tr>
     <tr><td><code>--dry</code></td><td>Compile the test binary but do not run it.</td></tr>
     <tr><td><code>--release</code></td><td>Compile the tests with <code>-O3</code>.</td></tr>
+    <tr><td><code>--locked</code> / <code>--offline</code></td><td>As for <a href="#build"><code>gyllir build</code></a>.</td></tr>
     <tr><td><code>-j N</code></td><td>Number of compilation threads.</td></tr>
     <tr><td><code>-v</code>, <code>--verbose</code></td><td>Verbose mode.</td></tr>
 </table>
@@ -142,12 +145,13 @@ testable.</p>
 
 <h2 id="doc">gyllir doc</h2>
 
-<pre><code>gyllir doc [target] [-o outputDir] [-i input.doc.json] [-v]</code></pre>
+<pre><code>gyllir doc [target] [-o outputDir] [-i input.doc.json] [--locked] [--offline] [-v]</code></pre>
 
 <div class="table-wrap">
 <table>
     <tr><th>Flag</th><th>Effect</th></tr>
     <tr><td><code>-o</code>, <code>--output</code></td><td>Directory to write the site into. Defaults to <code>__doc/</code>.</td></tr>
+    <tr><td><code>--locked</code> / <code>--offline</code></td><td>As for <a href="#build"><code>gyllir build</code></a>.</td></tr>
     <tr><td><code>-i</code>, <code>--input</code></td><td>Render a <code>.doc.json</code> file produced by an earlier run instead of recompiling the sources.</td></tr>
     <tr><td><code>-v</code>, <code>--verbose</code></td><td>Verbose mode.</td></tr>
 </table>
@@ -158,6 +162,27 @@ package with several targets, each target gets its own sub-directory:
 <code>__doc/&lt;target&gt;/</code>. The intermediate <code>.doc.json</code> is kept in the build
 cache at <code>.target/&lt;target&gt;/doc/&lt;output&gt;.doc.json</code>, which is what
 <code>-i</code> expects.</p>
+
+<h2 id="update">gyllir update</h2>
+
+<pre><code>gyllir update [--std] [dependency...] [-v]</code></pre>
+
+<p>Resolves the dependency graph again and rewrites
+<a href="dependencies.html#lock"><code>gyllir.lock</code></a>, without compiling anything. Naming no
+dependency (and passing no <code>--std</code>) updates every entry; naming some updates only those,
+leaving the rest pinned where they are. A transitive dependency can be named too, even though no
+<code>gyllir.toml</code> of yours declares it.</p>
+
+<p>The std lib resolved by <code>[std]</code> is never named positionally — it would be ambiguous
+with an actual dependency a package could otherwise declare under that same name — so
+<code>--std</code> updates it instead:</p>
+
+<pre><code>gyllir update             # every dependency moves to the newest version its filter accepts
+gyllir update somelib     # only "somelib" moves
+gyllir update --std       # only the std lib resolved by [std] moves</code></pre>
+
+<p>This is the only command that bumps a locked version: every other one honors the lock file and
+only writes it for dependencies it does not yet pin.</p>
 
 <h2 id="publish">gyllir publish</h2>
 

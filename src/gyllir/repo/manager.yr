@@ -21,6 +21,26 @@ pub class GyllirManager {
     // The list of resolved dependencies
     let dmut _depPackages: [Url => ()] = copy [];
 
+    // The versions the dependencies are locked at, as read from the 'gyllir.lock' of the package
+    // being built
+    let mut _lock: &LockFile = copy LockFile();
+
+    // The dependencies resolved by this run, the content 'gyllir.lock' is rewritten with
+    let dmut _resolved: [[c8] => LockedPackage] = copy [];
+
+    // True iif the lock file is only ever read, never rewritten ('--locked')
+    let mut _lockedMode: bool = false;
+
+    // True iif the resolution is not allowed to talk to a remote ('--offline')
+    let mut _offline: bool = false;
+
+    // The names of the dependencies to resolve again, ignoring the version the lock file pins
+    // ('gyllir update'), [] when the lock file is honored
+    let mut _updated: [[c8]] = [];
+
+    // True iif every dependency is to be resolved again ('gyllir update' naming none in particular)
+    let mut _updateAll: bool = false;
+
     /**
      * Create a Gyllir builder from an argument
      */
@@ -40,7 +60,9 @@ pub class GyllirManager {
         else if let Ok(c) =  self._args["build"]? {
             let cwd = env::currentDir();
             let cfg = self.loadToml(cwd);
+            self:.loadLock(cwd, c, cfg);
             self:.buildTargets(cwd, c, cfg, self.selectTargets(cfg, c));
+            self.writeLock(cwd, cfg);
         }
 
         else if let Ok(c) = self._args["run"]? {
@@ -48,8 +70,22 @@ pub class GyllirManager {
             let cfg = self.loadToml(cwd);
             let (target, forwarded) = self.selectRunTarget(cfg, c);
 
+            // every argument of 'gyllir run' is forwarded to the executable, so it carries no flag
+            // of its own: the lock file is honored, and rewritten when it is out of date
+            self:.loadLock(cwd, copy Dict(), cfg);
             self:.buildTargets(cwd, copy Dict(), cfg, copy [target.name => ()]);
+            self.writeLock(cwd, cfg);
+
             etc::c::process::_yrt_exit(RepoRunner(cwd, forwarded, cfg, target, forUnitTest-> false).run());
+        }
+
+        else if let Ok(c) = self._args["update"]? {
+            let cwd = env::currentDir();
+            let cfg = self.loadToml(cwd);
+            self:.loadLock(cwd, c, cfg);
+            self:.selectUpdated(c, cfg);
+            self:.buildTargets(cwd, c, cfg, self.selectTargets(cfg, c), dry-> true);
+            self.writeLock(cwd, cfg);
         }
 
         else if let Ok(c) = self._args["clean"]? {
@@ -63,7 +99,10 @@ pub class GyllirManager {
         else if let Ok(c) = self._args["test"]? {
             let cwd = env::currentDir();
             let cfg = self.loadToml(cwd);
+            self:.loadLock(cwd, c, cfg);
             let (built, _, _) = self:.buildTargets(cwd, c, cfg, self.selectTestTargets(cfg, c), forUnitTest-> true);
+            self.writeLock(cwd, cfg);
+
             if let Ok(Bool(value-> _ = false)) = c["dry"]? {
                 etc::c::process::_yrt_exit(self.runUnitTests(cwd, cfg, built));
             }
@@ -75,7 +114,9 @@ pub class GyllirManager {
                 RepoDocBuilder(cwd, c, self.tryLoadToml(cwd), input-> file, fromFile-> true).run(alias self);
             } else {
                 let cfg = self.loadToml(cwd);
+                self:.loadLock(cwd, c, cfg);
                 self:.buildTargets(cwd, c, cfg, self.selectTargets(cfg, c), forDoc-> true);
+                self.writeLock(cwd, cfg);
             }
         }
 
@@ -147,7 +188,15 @@ pub class GyllirManager {
      *    of the two configuration files it comes from
      * */
     prv fn configFile(self, path: Path)-> [c8] {
-        let file = path.push(defaults::__GYLLIR_CONFIG_FILENAME__);
+        self.namedFile(path, defaults::__GYLLIR_CONFIG_FILENAME__)
+    }
+
+    /**
+     * @returns: the path of a file of a package, as it is named in an error message: relative to
+     *    the current directory when it is under it, absolute otherwise
+     * */
+    prv fn namedFile(self, path: Path, name: [c8])-> [c8] {
+        let file = path.push(name);
         let cwd = env::currentDir();
         if (cwd.isPrefix(file)) {
             return file.removePrefix(cwd).toStr();
@@ -169,6 +218,285 @@ pub class GyllirManager {
         _ => { GyllirPackageConfiguration::empty() }
     }
 
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * =====================================          LOCKING          ====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     * 'gyllir.toml' declares which versions of a dependency are acceptable, 'gyllir.lock' records the
+     * one that was actually resolved, so that the same commit builds the same dependencies whenever
+     * and wherever it is built again
+     */
+
+    /**
+     * Read the 'gyllir.lock' of the package about to be built, and the flags of the command line
+     * saying how it is to be used
+     * @params:
+     *    - cwd: the root directory of the package
+     *    - args: the configuration of the sub command
+     *    - cfg: the configuration of the package
+     * @warning: exits if the lock file cannot be read, or if '--locked' was passed and there is no
+     *    lock file to honor
+     * */
+    pub fn loadLock(mut self, cwd: Path, args: &Config, cfg: GyllirPackageConfiguration) {
+        // a dependency that the lock file does not pin has to be resolved against its remote, which
+        // an offline run cannot do: it can only refuse to resolve anything new
+        if let Ok(Bool(value-> _ = true)) = args["offline"]? {
+            self._offline = true;
+            self._lockedMode = true;
+        }
+
+        if let Ok(Bool(value-> _ = true)) = args["locked"]? {
+            self._lockedMode = true;
+        }
+
+        let file = cwd.push(defaults::__GYLLIR_LOCK_FILENAME__);
+        if (!fs::sys::isFile(file)) {
+            if (self._lockedMode && cfg.dependencies[].len != 0us) {
+                utils::log::error("Error", "there is no '", self.namedFile(cwd, defaults::__GYLLIR_LOCK_FILENAME__),
+                                  "' to honor, run 'gyllir build' once to write it, or drop the flag");
+                etc::c::process::_yrt_exit(-1);
+            }
+
+            return;
+        }
+
+        let dmut f = File::open(file);
+        let content = f:.readAll();
+        f:.close();
+
+        self._lock = copy LockFile(std::config::toml::parse(content));
+    } catch {
+        FsError() => {
+            utils::log::error("Error", "failed to read '", self.namedFile(cwd, defaults::__GYLLIR_LOCK_FILENAME__), "'");
+            etc::c::process::_yrt_exit(-1);
+        }
+        // a lock file is generated, so a malformed one was hand edited, or merged badly: the parser
+        // locates the character it choked on, which is what tells the user which of the two it is
+        s: &SyntaxError => {
+            utils::log::error("Error", "'", self.namedFile(cwd, defaults::__GYLLIR_LOCK_FILENAME__), "' is not valid TOML, line ",
+                              s.line, " column ", s.col, ": ", s.msg);
+            etc::c::process::_yrt_exit(-1);
+        }
+        a: &AssertError => {
+            utils::log::error("Error", "in '", self.namedFile(cwd, defaults::__GYLLIR_LOCK_FILENAME__), "', ", a.msg);
+            etc::c::process::_yrt_exit(-1);
+        }
+    }
+
+    /**
+     * Read the names 'gyllir update' was asked to resolve again, plus the '--std' flag, which
+     * updates the std lib resolved by '[std]' the same way naming a dependency would, without
+     * risking a name that could collide with an actual one
+     * @params:
+     *    - args: the configuration of the 'update' sub command
+     *    - cfg: the configuration of the package
+     * @warning: exits if the command line names 'std' positionally, passes '--std' on a package
+     *    declaring no '[std]' table, or names a dependency that is neither declared by the package
+     *    nor locked by its lock file
+     * */
+    pub fn selectUpdated(mut self, args: &Config, cfg: GyllirPackageConfiguration) {
+        let mut names: [[c8]] = [];
+        if let Ok(a: &Array) = args["packages"]? {
+            for i in a[] if let Str(value-> n) = i {
+                names ~= [n];
+            }
+        }
+
+        // 'std' is never named positionally: it would be ambiguous with an actual dependency a
+        // package could otherwise declare under that same name, and the lock file already uses it
+        // as the std lib's own reserved key
+        for n in names if n == defaults::__STD_DEP_NAME__ {
+            utils::log::error("Error", "'", defaults::__STD_DEP_NAME__, "' is not named positionally, use '--std' "
+                              ~ "to update the std lib resolved by '[std]'");
+            etc::c::process::_yrt_exit(-1);
+        }
+
+        let updatingStd = if let Ok(Bool(value-> v)) = args["std"]? { v } else { false };
+        if (updatingStd) {
+            if (!cfg.hasStd) {
+                utils::log::error("Error", "'--std' was passed, but this package declares no '[std]' table");
+                etc::c::process::_yrt_exit(-1);
+            }
+
+            names ~= [defaults::__STD_DEP_NAME__];
+        }
+
+        // 'gyllir update' naming nothing, and without '--std' either, updates the whole graph,
+        // including the transitive dependencies that no 'gyllir.toml' of the package names
+        self._updateAll = names.len == 0us;
+        self._updated = names;
+
+        // a transitive dependency can be named too: it is not declared by this package, but the
+        // lock file pins it just the same
+        let dmut known: [[c8] => ()] = copy [];
+        for k, _ in cfg.dependencies[] {
+            known[k] = ();
+        }
+
+        for k, _ in self._lock[] {
+            known[k] = ();
+        }
+
+        if (updatingStd) { known[defaults::__STD_DEP_NAME__] = (); }
+
+        for n in names if n !in known {
+            utils::log::error("Error", "unknown dependency '", n, "', the locked dependencies are ",
+                              self.quotedNames(self.sortedNames(known)));
+            etc::c::process::_yrt_exit(-1);
+        }
+    }
+
+    /**
+     * The entry of the lock file to resolve a dependency with
+     * @params:
+     *    - name: the name the dependency is declared under
+     *    - dependency: its declaration
+     * @returns: the locked resolution of that dependency, none when the lock file has no entry for
+     *    it, when the entry no longer matches what 'gyllir.toml' declares, or when 'gyllir update'
+     *    asked for that dependency to be resolved again
+     * */
+    prv fn lockedEntry(self, name: [c8], dependency: Dependency)-> (LockedPackage)? {
+        if (self.isUpdating(name)) { return none; }
+
+        if let Ok(p) = self._lock[][name] {
+            if (p.matches(dependency)) {
+                return (p)?;
+            }
+        }
+
+        none
+    }
+
+    /**
+     * @params:
+     *    - name: the name a dependency is declared under
+     * @returns: true iif 'gyllir update' was asked to resolve that dependency again, rather than to
+     *    honor the version the lock file pins it at
+     * */
+    prv fn isUpdating(self, name: [c8])-> bool {
+        if (self._updateAll) { return true; }
+        for u in self._updated if u == name {
+            return true;
+        }
+
+        false
+    }
+
+    /**
+     * Record the resolution of a dependency, to be written to the lock file at the end of the run
+     * @params:
+     *    - name: the name the dependency is declared under
+     *    - dependency: its declaration
+     *    - version: the version it was resolved at
+     *    - sha: the commit it was checked out at, "" for a 'local:' dependency, which is recorded
+     *      but never pinned
+     *    - conf: the configuration of the resolved package, holding the dependencies of its own
+     * @throws:
+     *    - AssertError: if two different packages are resolved under the same name, which a lock
+     *      file, keyed by name, cannot record
+     * */
+    prv fn recordResolution(mut self, name: [c8], dependency: Dependency, version: Version, sha: [c8],
+                            conf: GyllirPackageConfiguration)
+        throws AssertError
+    {
+        let url = dependency.url;
+        if let Ok(previous) = self._resolved[name] {
+            let other = previous.url;
+            if (other != url) {
+                throw copy AssertError("dependency '" ~ name ~ "' is resolved from '" ~ url.toStr() ~ "' and from '"
+                                       ~ other.toStr() ~ "', two packages cannot share a name: '"
+                                       ~ defaults::__GYLLIR_LOCK_FILENAME__ ~ "' records one url per name");
+            }
+        }
+
+        let mut deps: [Url] = [];
+        for _, d in conf.dependencies[] {
+            deps ~= [d.url];
+        }
+
+        self._resolved[name] = LockedPackage(url, version, dependencies-> deps, sha-> sha);
+    }
+
+    /**
+     * Write the 'gyllir.lock' of the package that was just built.
+     *
+     * The entries resolved by this run are merged into the ones the lock file already held: a build
+     * only resolves the dependencies of the targets it builds, so an entry that was not visited is
+     * kept rather than dropped. What is dropped is what the package no longer depends on, which
+     * 'LockFile::prune' tells apart by reachability.
+     *
+     * @params:
+     *    - cwd: the root directory of the package
+     *    - cfg: the configuration of the package
+     * @warning: exits if the lock file has to change while '--locked' forbids it, or if it cannot
+     *    be written
+     * */
+    pub fn writeLock(self, cwd: Path, cfg: GyllirPackageConfiguration) {
+        // a package with no dependency at all never gains a lock file
+        if (self._resolved.len == 0us && self._lock[].len == 0us) { return; }
+
+        let dmut merged = copy LockFile();
+        for k, p in self._lock[] {
+            merged:.insert(k, p);
+        }
+
+        for k, p in self._resolved {
+            merged:.insert(k, p);
+        }
+
+        let mut roots = copy [d.url for _, d in cfg.dependencies[]];
+        if (cfg.hasStd) { roots ~= [cfg.stdUrl]; }
+
+        merged:.prune(roots);
+
+        let content = merged.toToml();
+        let file = cwd.push(defaults::__GYLLIR_LOCK_FILENAME__);
+
+        // rewriting an unchanged lock file would touch it on every single build, and show up as a
+        // modified file in every working tree
+        if (self.readLock(file) == content) { return; }
+
+        if (self._lockedMode) {
+            utils::log::error("Error", "'", self.namedFile(cwd, defaults::__GYLLIR_LOCK_FILENAME__), "' is out of date with '",
+                              defaults::__GYLLIR_CONFIG_FILENAME__, "', run 'gyllir update' to bring it up to date");
+            etc::c::process::_yrt_exit(-1);
+        }
+
+        // the last dependency of the package was dropped: there is nothing left to lock
+        if (merged[].len == 0us) {
+            fs::sys::removeFile(file)?;
+            return;
+        }
+
+        {
+            let dmut f = File::create(file, write-> true);
+            f:.write(content);
+            f:.close();
+        } catch {
+            _: &FsError => {
+                utils::log::error("Error", "failed to write '", self.namedFile(cwd, defaults::__GYLLIR_LOCK_FILENAME__), "'");
+                etc::c::process::_yrt_exit(-1);
+            }
+        }
+
+        utils::log::info("Locking", "dependency versions in ", self.namedFile(cwd, defaults::__GYLLIR_LOCK_FILENAME__));
+    }
+
+    /**
+     * @returns: the current content of a lock file, "" if there is none to read
+     * */
+    prv fn readLock(self, file: Path)-> [c8] {
+        let dmut f = File::open(file);
+        let content = f:.readAll();
+        f:.close();
+
+        content
+    } catch {
+        _ => { "" }
+    }
 
     /*!
      * ====================================================================================================
@@ -557,11 +885,12 @@ pub class GyllirManager {
     }
 
     /**
-     * @returns: the names of 'targets', in alphabetical order, so that the build order of two targets
-     *    that do not link each other does not depend on the iteration order of a map
+     * @returns: the keys of a map named by name, in alphabetical order, so that the build order of
+     *    two targets that do not link each other, or the order two dependencies are named in an
+     *    error message, does not depend on the iteration order of a map
      * */
-    prv fn sortedNames(self, targets: [[c8] => Target])-> [[c8]] {
-        let names: [[c8]] = copy [k for k, _ in targets];
+    prv fn sortedNames {T} (self, elements: [[c8] => T])-> [[c8]] {
+        let names: [[c8]] = copy [k for k, _ in elements];
         let mut res: [mut [c8]] = copy names;
         sorting::sort(alias res, |x, y| {
             let mut i = 0us;
@@ -663,7 +992,9 @@ pub class GyllirManager {
      *    - .1: the list of path to the built libraries to link, '[]' when the bundled std is used
      * @throws:
      *    - AssertError: neither the bundled std lib nor the remote repository has a version
-     *      matching the declared filter
+     *      matching the declared filter, or the remote repository's tags could not be listed(a
+     *      network or authentication failure is reported as such, not silently treated as "no
+     *      matching version")
      * */
     pub fn resolveStd(mut self, args: &Config, cwd: Path, cfg: GyllirPackageConfiguration, dry: bool)-> ([[c8]], [Path])
         throws RecursiveDependency, AssertError
@@ -673,13 +1004,31 @@ pub class GyllirManager {
         let filter = cfg.stdVersion();
         let url = cfg.stdUrl;
 
+        // Once a remote std was pinned, stay on it like any other git dependency instead of
+        // re-listing the remote's tags on every single build: 'resolveDependency' checks the
+        // locked commit out directly, without touching the network unless it is missing locally
+        if let Ok(_) = self.lockedEntry(defaults::__STD_DEP_NAME__, Dependency(filter, url)) {
+            let (includes, links) = self:.resolveDependency(args, cwd, defaults::__STD_DEP_NAME__, Dependency(filter, url), dry);
+            return (self.asStdPrefixFlags(includes, cfg), links);
+        }
+
         let bundled = gyllir::args::compilerStdVersion(compiler-> cfg.compiler);
         let bundledOk = bundled != "" && filter.pass(Version(bundled));
 
         let matches = {
             let gM = GitManager();
             self.matchingVersionsDescending(filter, self.toVersionList(gM.getRemoteTagList(url.path.toStr())))
-        } catch { _ => [] };
+        } catch {
+            e: &GitError => {
+                throw copy AssertError("could not list the versions offered by the std lib repository '"
+                    ~ url.path.toStr() ~ "': " ~ e.msg);
+            }
+
+            e: &FsError => {
+                throw copy AssertError("could not list the versions offered by the std lib repository '"
+                    ~ url.path.toStr() ~ "': " ~ e.msg);
+            }
+        };
 
         let dmut filterStream = copy StringStream();
         filterStream:.write(filter);
@@ -965,6 +1314,8 @@ pub class GyllirManager {
         {
             utils::log::info("Resolving", "dependency ", name, " to ", depPath.toStr());
             let gM = GitManager(cwd-> depPath);
+            let locked = self.lockedEntry(name, dependency);
+
             let hasCloned = if (dependency.url.type == UrlType::LOCAL) {
                 if !isDir(depPath.parent()) {
                     fs::sys::createDir(depPath.parent(), recursive-> true);
@@ -980,14 +1331,20 @@ pub class GyllirManager {
             }
 
             else if !isDir(depPath) {
+                if (self._offline) {
+                    throw copy AssertError("dependency '" ~ name ~ "' has never been fetched, it cannot be cloned offline");
+                }
+
                 gM.clone(dependency.url.path.toStr());
                 true
             } else {
+                self.followRemote(gM, name, dependency);
                 false
             };
 
-            self:.selectDependencyVersion(gM, dependency, name-> name);
+            let (version, sha) = self:.checkoutDependency(gM, name, dependency, locked);
             let conf = self.loadToml(depPath);
+            self:.recordResolution(name, dependency, version, sha, conf);
 
             // only the library targets of a dependency are of any use here, an executable it also
             // declares is never linked into the package that depends on it
@@ -1064,31 +1421,143 @@ pub class GyllirManager {
     }
 
     /**
+     * Point the checkout of a dependency at the url its declaration now names.
+     *
+     * '.deps/<name>' is only ever cloned once, so a dependency whose url changed in 'gyllir.toml'
+     * would otherwise keep being built, and locked, from the repository it was first fetched from.
+     *
+     * @params:
+     *    - gM: the git repository of the dependency
+     *    - name: the name of the dependency, for error reporting
+     *    - dependency: the declaration of the dependency
+     * */
+    prv fn followRemote(self, gM: GitManager, name: [c8], dependency: Dependency)
+        throws GitError, FsError
+    {
+        if (dependency.url.type != UrlType::GIT) { return; }
+
+        let url = dependency.url.path.toStr();
+        let remote = gM.getRemote();
+        if (remote == "" || remote == url) { return; }
+
+        utils::log::info("Resolving", "dependency ", name, " now comes from ", url, ", its checkout is re-pointed");
+        gM.setRemote(url);
+        if (!self._offline) {
+            gM.fetch();
+        }
+    }
+
+    /**
+     * Bring the checkout of a dependency to the version the package is to be built against: the one
+     * the lock file pins when it has an entry for it, the best one passing its version filter
+     * otherwise
+     * @params:
+     *    - gM: the git repository of the dependency
+     *    - name: the name of the dependency, for error reporting
+     *    - dependency: the declaration of the dependency
+     *    - locked: the entry of the lock file resolving it, none when it locks nothing for it
+     * @returns:
+     *    - .0: the version it was resolved at
+     *    - .1: the commit it is checked out at, "" for a 'local:' dependency, which is recorded but
+     *      never pinned
+     * @throws:
+     *    - AssertError: '--locked' forbids resolving a dependency the lock file does not pin, or a
+     *      pinned commit is no longer offered by its remote
+     * */
+    prv fn checkoutDependency(mut self, gM: GitManager, name: [c8], dependency: Dependency, locked: (LockedPackage)?)-> (Version, [c8])
+        throws GitError, FsError, AssertError
+    {
+        if let Ok(l) = locked {
+            // a 'local:' dependency pins no commit: it is resolved the same way as an unlocked one,
+            // and the version it lands on is recorded
+            if (l.pinned()) {
+                self.checkoutLockedCommit(gM, name, l);
+                return (l.version, l.sha);
+            }
+        }
+
+        else if (self._lockedMode) {
+            let dmut msg = copy StringStream();
+            msg:.write("dependency '", name, "' is not locked at a version matching ", dependency.version,
+                       " by '", defaults::__GYLLIR_LOCK_FILENAME__, "', run 'gyllir update' to lock it");
+
+            throw copy AssertError(msg[]);
+        }
+
+        // 'gyllir update' of a git dependency starts from its remote rather than from the commit the
+        // lock file left its checkout detached at, which passes any filter it was pinned by. A local
+        // dependency is not forced: its checkout belongs to the user, who is working in it
+        let force = dependency.url.type == UrlType::GIT && self.isUpdating(name);
+        let version = self:.selectDependencyVersion(gM, dependency, name-> name, force-> force);
+        let sha = if (dependency.url.type == UrlType::GIT) {
+            gM.getCommitSha()
+        } else { "" };
+
+        (version, sha)
+    }
+
+    /**
+     * Check a dependency out at the commit the lock file pins it to
+     * @params:
+     *    - gM: the git repository of the dependency
+     *    - name: the name of the dependency, for error reporting
+     *    - locked: the entry of the lock file pinning it
+     * @throws:
+     *    - AssertError: the commit is neither in the local checkout nor offered by the remote
+     * */
+    prv fn checkoutLockedCommit(self, gM: GitManager, name: [c8], locked: LockedPackage)
+        throws GitError, FsError, AssertError
+    {
+        if (!gM.hasCommit(locked.sha)) {
+            if (self._offline) {
+                throw copy AssertError("dependency '" ~ name ~ "' is locked at commit " ~ locked.sha
+                                       ~ ", which is not in its checkout, and cannot be fetched offline");
+            }
+
+            gM.fetch();
+            if (!gM.hasCommit(locked.sha)) {
+                throw copy AssertError("dependency '" ~ name ~ "' is locked at commit " ~ locked.sha
+                                       ~ ", which its remote no longer offers: run 'gyllir update " ~ name
+                                       ~ "' to lock it at a commit that still exists");
+            }
+        }
+
+        gM.checkout(locked.sha);
+    }
+
+    /**
      * Select the version in the git repository
      * @params:
      *    - gM: the git repository of the dependency
      *    - dependency: the declaration of the dependency
      *    - name: the name of the dependency, for error reporting
+     *    - force: true to resolve against the remote even when the checkout already passes the
+     *      version filter, the way 'gyllir update' does
+     * @returns: the version the dependency was left checked out at
      * */
-    fn selectDependencyVersion(mut self, gM: GitManager, dependency: Dependency, name: [c8] = "")
+    fn selectDependencyVersion(mut self, gM: GitManager, dependency: Dependency, name: [c8] = "", force: bool = false)-> Version
         throws GitError, FsError, AssertError
     {
         // No need to fetch or swith if current branch pass the dependency version filter
-        let currentBranch = gM.getCurrentBranchName();
-        if currentBranch.len > 0 && currentBranch[0] != '(' {
-            if dependency.version.pass(Version(currentBranch)) return;
+        if (!force) {
+            let currentBranch = gM.getCurrentBranchName();
+            if currentBranch.len > 0 && currentBranch[0] != '(' {
+                let current = Version(currentBranch);
+                if dependency.version.pass(current) return current;
+            }
         }
 
-        gM.fetchTags();
-        let version = dependency.version.select(self.toVersionList(gM.getTagList()), name-> name);
+        if (!self._offline) {
+            gM.fetchTags();
+        }
 
-        // 'version._0' is one of the actual tags just listed, never the '*' wildcard sentinel
-        // itself('select' only ever returns an entry of 'versions'): the current branch already
-        // failed the filter above, so the repository always needs to move to the selected tag
+        let version = dependency.version.select(self.toVersionList(gM.getTagList()), name-> name);
         gM.checkout(version._1);
-        if (dependency.url.type == UrlType::GIT) {
+        if (dependency.url.type == UrlType::GIT && !self._offline) {
             gM.pull(version._1);
         }
+
+        version._0
     }
 
     /**

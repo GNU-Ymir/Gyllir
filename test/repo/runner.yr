@@ -27,6 +27,45 @@ fn mkArtifact(dir: Path, name: [c8], code: [c8])
     proc:.wait();
 }
 
+/**
+ * Write an executable shell script that records the arguments it was called with, standing in for
+ * an artifact that forwards its command line to a file 'run()' can then assert on
+ * @params:
+ *    - dir: the directory holding the script
+ *    - name: the name of the script
+ *    - witness: the name of the file the script writes its arguments to
+ * */
+fn mkArgRecordingArtifact(dir: Path, name: [c8], witness: [c8])
+    throws FsError
+{
+    let dmut f = File::create(dir.push(name), write-> true);
+    f:.write("#!/bin/sh\necho \"$@\" > " ~ witness ~ "\n");
+    f:.close();
+
+    let dmut proc = copy SubProcess("chmod", copy ["+x", dir.push(name).toStr()], cwd-> dir);
+    proc:.start();
+    proc:.wait();
+}
+
+/**
+ * Write an executable shell script that kills itself with a signal, standing in for an artifact
+ * that crashes instead of exiting normally
+ * @params:
+ *    - dir: the directory holding the script
+ *    - name: the name of the script
+ * */
+fn mkSignalKilledArtifact(dir: Path, name: [c8])
+    throws FsError
+{
+    let dmut f = File::create(dir.push(name), write-> true);
+    f:.write("#!/bin/sh\nkill -9 $$\n");
+    f:.close();
+
+    let dmut proc = copy SubProcess("chmod", copy ["+x", dir.push(name).toStr()], cwd-> dir);
+    proc:.start();
+    proc:.wait();
+}
+
 __test reject_library_target_run {
     // run() on a library target (not forUnitTest) rejects before doing anything else
     let cfg = GyllirPackageConfiguration(
@@ -88,4 +127,33 @@ __test library_target_unittest_runs_normally {
 
     assert(RepoRunner(dir, copy Dict(), cfg, namedTarget(cfg, "mylib"), true).run() == 2,
            "the unittest executable of a library target should be run");
+}
+
+__test run_forwards_command_line_arguments_to_the_artifact {
+    // 'gyllir run' forwards its own command line to the artifact it runs
+    let dir = sys::tempDirectory(prefix-> "gyllir_runner_test_");
+    let cfg = mkConfig("myapp", "executable");
+    mkArgRecordingArtifact(dir, "myapp", "witness.txt");
+
+    let dmut args = copy Array();
+    args:.push(copy Str("--some-flag"));
+    args:.push(copy Str("positional"));
+
+    assert(RepoRunner(dir, args, cfg, soleTarget(cfg), false).run() == 0, "the recording artifact should exit 0");
+
+    let dmut f = File::open(dir.push("witness.txt"), read-> true);
+    let content = f:.readAll();
+    f:.close();
+
+    assert(content == "--some-flag positional\n", "unexpected forwarded arguments: \"" ~ content ~ "\"");
+}
+
+__test run_reports_signal_as_128_plus_signal_number {
+    // A run() killed by a signal reports "128 + <signal>", the way a shell does, rather than 0
+    let dir = sys::tempDirectory(prefix-> "gyllir_runner_test_");
+    let cfg = mkConfig("myapp", "executable");
+    mkSignalKilledArtifact(dir, "myapp");
+
+    assert(RepoRunner(dir, copy Dict(), cfg, soleTarget(cfg), false).run() == 128 + 9,
+           "a SIGKILL'd artifact should report 128 + 9");
 }

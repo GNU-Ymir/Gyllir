@@ -140,6 +140,23 @@ pub record Url {
         self._valid
     }
 
+    /**
+     * @returns: the url written the way it is declared in a configuration file, its path prefixed
+     *    by the scheme it was read from
+     * @example:
+     * ====================
+     * assert(Url("git:git@github.com:me/foo.git").toStr() == "git:git@github.com:me/foo.git");
+     * assert(Url("../foo").toStr() == "git:../foo"); // an url with no scheme is a git one
+     * ====================
+     */
+    pub fn toStr(self)-> [c8] {
+        if (self._type == UrlType::LOCAL) {
+            return UrlStarts::LOCAL ~ self._path.toStr();
+        }
+
+        UrlStarts::GIT ~ self._path.toStr()
+    }
+
     /*!
      * ====================================================================================================
      * ====================================================================================================

@@ -212,6 +212,315 @@ __test dependency_resolved_through_fetched_tags {
 /*!
  * ====================================================================================================
  * ====================================================================================================
+ * =====================================          LOCKING          ====================================
+ * ====================================================================================================
+ * ====================================================================================================
+ * What a build writes to 'gyllir.lock', and what the next build does with it
+ */
+
+/**
+ * Resolve and build a package the way 'GyllirManager::run()' does for 'gyllir build': honoring the
+ * lock file, and rewriting it with what was resolved
+ * @params:
+ *    - dir: the root directory of the package
+ *    - cfg: its configuration
+ *    - args: the configuration of the sub command
+ *    - update: the names of the dependencies to resolve again, ["*"] for all of them, [] to honor
+ *      the lock file
+ * */
+fn buildWithLock(dir: Path, cfg: GyllirPackageConfiguration, args: &Config, update: [[c8]] = [])
+    throws RecursiveDependency, AssertError
+{
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    mgr:.loadLock(dir, args, cfg);
+
+    if (update.len != 0us) {
+        let dmut updateArgs = copy Dict();
+        if (update != copy ["*"]) {
+            updateArgs["packages"] = copy Array(copy [copy Str(u) for u in update]);
+        }
+
+        mgr:.selectUpdated(updateArgs, cfg);
+    }
+
+    mgr:.buildTargets(dir, args, cfg, copy [soleTarget(cfg).name => ()]);
+    mgr.writeLock(dir, cfg);
+}
+
+__test lock_file_pins_a_git_dependency_to_its_commit {
+    // A build records the version each dependency was resolved at, and the commit it was checked
+    // out at: a tag can be moved, a commit cannot
+    let lib = mkLibraryProject();
+    writeToml(lib, mkConfig("mylib", "library"));
+    gitInit(lib);
+    commitAndTag(lib, "v1.0.0");
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkConfigWithGitDependency("myapp", "executable", "mylib", lib, version-> ">=1.0.0");
+
+    buildWithLock(app, cfg, mkBuildArgs());
+
+    assert(hasFile(app, defaults::__GYLLIR_LOCK_FILENAME__), "a build resolving a dependency should write a lock file");
+
+    let locked = lockedPackage(app, "mylib");
+    assert(locked.version == Version(1u32, 0u32, 0u32), "the resolved version should be recorded");
+    assert(locked.url.type == UrlType::GIT, "the url the dependency was resolved from should be recorded");
+    assert(locked.pinned(), "a git dependency should be pinned to a commit");
+    assert(locked.sha == resolvedCommitOf(app, "mylib"), "the pinned commit should be the one the checkout sits at");
+}
+
+__test lock_file_is_honored_by_the_next_build {
+    // A version published upstream after the lock file was written does not change what is built:
+    // that is the whole point of locking
+    let lib = mkLibraryProject();
+    writeToml(lib, mkConfig("mylib", "library"));
+    gitInit(lib);
+    commitAndTag(lib, "v1.0.0");
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkConfigWithGitDependency("myapp", "executable", "mylib", lib, version-> ">=1.0.0");
+
+    buildWithLock(app, cfg, mkBuildArgs());
+    let first = lockedPackage(app, "mylib");
+
+    commitAndTag(lib, "v2.0.0");
+    buildWithLock(app, cfg, mkBuildArgs());
+
+    let second = lockedPackage(app, "mylib");
+    assert(second.version == Version(1u32, 0u32, 0u32), "a newer tag upstream should not move a locked dependency");
+    assert(second.sha == first.sha, "the pinned commit should not move either");
+    assert(resolvedCommitOf(app, "mylib") == first.sha, "the checkout should be brought back to the pinned commit");
+}
+
+__test update_moves_the_lock_file_forward {
+    // 'gyllir update' is what deliberately picks the version published since the lock file was
+    // written
+    let lib = mkLibraryProject();
+    writeToml(lib, mkConfig("mylib", "library"));
+    gitInit(lib);
+    commitAndTag(lib, "v1.0.0");
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkConfigWithGitDependency("myapp", "executable", "mylib", lib, version-> ">=1.0.0");
+
+    buildWithLock(app, cfg, mkBuildArgs());
+    let first = lockedPackage(app, "mylib");
+
+    commitAndTag(lib, "v2.0.0");
+    buildWithLock(app, cfg, mkBuildArgs(), update-> copy ["*"]);
+
+    let updated = lockedPackage(app, "mylib");
+    assert(updated.version == Version(2u32, 0u32, 0u32), "an update should resolve the version published since");
+    assert(updated.sha != first.sha, "an update should pin the commit of the new version");
+    assert(resolvedCommitOf(app, "mylib") == updated.sha, "the checkout should follow the update");
+}
+
+__test update_of_one_dependency_leaves_the_others_alone {
+    // 'gyllir update <name>' only unlocks the dependency it names, the rest keep the version they
+    // were locked at
+    // the two libraries end up on the same link line, so they must not export the same symbols
+    let first = mkLibraryProject(suffix-> "One");
+    writeToml(first, mkConfig("libone", "library"));
+    gitInit(first);
+    commitAndTag(first, "v1.0.0");
+
+    let second = mkLibraryProject(suffix-> "Two");
+    writeToml(second, mkConfig("libtwo", "library"));
+    gitInit(second);
+    commitAndTag(second, "v1.0.0");
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkConfigWithGitDependencies("myapp", "executable", copy [("libone", first), ("libtwo", second)]);
+
+    buildWithLock(app, cfg, mkBuildArgs());
+
+    commitAndTag(first, "v2.0.0");
+    commitAndTag(second, "v2.0.0");
+    buildWithLock(app, cfg, mkBuildArgs(), update-> copy ["libone"]);
+
+    assert(lockedPackage(app, "libone").version == Version(2u32, 0u32, 0u32), "the named dependency should be updated");
+    assert(lockedPackage(app, "libtwo").version == Version(1u32, 0u32, 0u32),
+           "a dependency that was not named should keep the version it was locked at");
+}
+
+__test lock_file_records_the_transitive_graph {
+    // The lock file is flat, and holds the dependencies of the dependencies: an indirect dependency
+    // that is not pinned is one that can move without anything in the package changing
+    // the two libraries end up on the same link line, so they must not export the same symbols
+    let sub = mkLibraryProject(suffix-> "Sub");
+    writeToml(sub, mkConfig("mysub", "library"));
+    gitInit(sub);
+    commitAndTag(sub, "v1.0.0");
+
+    let lib = mkLibraryProject();
+    writeToml(lib, mkConfigWithGitDependency("mylib", "library", "mysub", sub, version-> ">=1.0.0"));
+    gitInit(lib);
+    commitAndTag(lib, "v1.0.0");
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkConfigWithGitDependency("myapp", "executable", "mylib", lib, version-> ">=1.0.0");
+
+    buildWithLock(app, cfg, mkBuildArgs());
+
+    let lock = readLockFile(app);
+    assert(lock[].len == 2us, "both the direct and the indirect dependency should be locked");
+
+    let direct = lockedPackage(app, "mylib");
+    assert(direct.dependencies.len == 1us, "the direct dependency should record the package it depends on");
+    assert(direct.dependencies[0].path.toStr() == sub.toStr(), "unexpected recorded dependency url");
+
+    let indirect = lockedPackage(app, "mysub");
+    assert(indirect.version == Version(1u32, 0u32, 0u32), "the indirect dependency should be locked at its resolved version");
+    assert(indirect.pinned(), "the indirect dependency should be pinned to a commit");
+}
+
+__test local_dependency_is_recorded_without_a_commit {
+    // A local path is a working checkout, not a released version: it is recorded, so that the lock
+    // file describes the whole graph, but never pinned to a commit
+    let lib = mkLibraryProject();
+    writeToml(lib, mkConfig("mylib", "library"));
+    gitInit(lib);
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkConfigWithDependency("myapp", "executable", "mylib", lib);
+
+    buildWithLock(app, cfg, mkBuildArgs());
+
+    let locked = lockedPackage(app, "mylib");
+    assert(locked.url.type == UrlType::LOCAL, "the local url should be recorded");
+    assert(!locked.pinned(), "a local dependency should not be pinned to a commit");
+    assert(locked.sha == "", "a local dependency should carry no commit");
+}
+
+__test package_without_dependency_gains_no_lock_file {
+    // A package that depends on nothing has nothing to lock
+    let app = mkExecutableProject("myapp");
+    let cfg = mkConfig("myapp", "executable");
+
+    buildWithLock(app, cfg, mkBuildArgs());
+
+    assert(!hasFile(app, defaults::__GYLLIR_LOCK_FILENAME__), "a package with no dependency should not gain a lock file");
+}
+
+__test std_only_package_keeps_its_lock_file {
+    // A package resolving a remote std lib through '[std]', but declaring no '[dependencies]' of
+    // its own, still has something to lock: 'std' must be a prune root just like any other
+    // dependency, or its entry is unreachable and the lock file is written empty, then deleted
+    let app = mkExecutableProject("myapp");
+    let stdUrl = "git:https://example.com/fake-std.git";
+    let cfg = GyllirPackageConfiguration(json#{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "std" : {"version" : "*", "url" : stdUrl}
+    });
+
+    let dmut lock = copy LockFile();
+    lock:.insert("std", LockedPackage(Url(stdUrl), Version(1u32, 3u32, 2u32), sha-> "a1b2c3"));
+
+    {
+        let dmut f = File::create(app.push(defaults::__GYLLIR_LOCK_FILENAME__), write-> true);
+        f:.write(lock.toToml());
+        f:.close();
+    }
+
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    mgr:.loadLock(app, mkBuildArgs(), cfg);
+    mgr.writeLock(app, cfg);
+
+    assert(hasFile(app, defaults::__GYLLIR_LOCK_FILENAME__), "a locked std lib should keep the lock file");
+
+    let locked = lockedPackage(app, "std");
+    assert(locked.version == Version(1u32, 3u32, 2u32), "the locked std version should survive the rewrite");
+    assert(locked.sha == "a1b2c3", "the locked std commit should survive the rewrite");
+}
+
+__test resolve_std_reports_an_unreachable_remote_instead_of_no_matching_version {
+    // A remote std lib repository that cannot be reached is reported as such, not silently turned
+    // into "no version matching the filter" the way a genuinely tagless remote would be
+    let app = mkExecutableProject("myapp");
+    let cfg = GyllirPackageConfiguration(json#{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "std" : {"version" : "*", "url" : "git:/no/such/repository/here"}
+    });
+
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    mgr:.loadLock(app, mkBuildArgs(), cfg);
+
+    let mut msg = "";
+    {
+        mgr:.resolveStd(mkBuildArgs(), app, cfg, false);
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+        _: &RecursiveDependency => { assert(false, "no recursive dependency should be detected here"); }
+    }
+
+    let expectedPrefix = "could not list the versions offered by the std lib repository '/no/such/repository/here': ";
+    assert(msg.len >= expectedPrefix.len && msg[0us .. expectedPrefix.len] == expectedPrefix,
+           "unexpected error: " ~ msg);
+}
+
+__test update_std_flag_accepted_before_it_is_ever_locked {
+    // '--std' is accepted by 'selectUpdated' even before the std lib was ever resolved as a remote
+    // lock entry(the bundled compiler's std lib can already be satisfying the declared filter, in
+    // which case nothing is cloned and 'std' never appears as a key of 'gyllir.lock')
+    // 'selectUpdated' exits the process on an unrecognized name, so reaching past this call is
+    // itself the assertion
+    let app = mkExecutableProject("myapp");
+    let cfg = GyllirPackageConfiguration(json#{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "std" : {"version" : "*"}
+    });
+
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    mgr:.loadLock(app, mkBuildArgs(), cfg);
+
+    let dmut updateArgs = copy Dict();
+    updateArgs["std"] = copy Bool(true);
+
+    mgr:.selectUpdated(updateArgs, cfg);
+    assert(!hasFile(app, defaults::__GYLLIR_LOCK_FILENAME__),
+           "'--std' should be accepted once '[std]' is declared, without writing a lock file on its own");
+}
+
+__test dropping_the_last_dependency_removes_the_lock_file {
+    // An entry that the package no longer depends on is dropped, and a lock file with nothing left
+    // to lock goes with it
+    let lib = mkLibraryProject();
+    writeToml(lib, mkConfig("mylib", "library"));
+    gitInit(lib);
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkConfigWithDependency("myapp", "executable", "mylib", lib);
+
+    buildWithLock(app, cfg, mkBuildArgs());
+    assert(hasFile(app, defaults::__GYLLIR_LOCK_FILENAME__), "sanity: the build should have written a lock file");
+
+    // the same package, with its dependency taken out of 'gyllir.toml'
+    let dropped = mkConfig("myapp", "executable");
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    mgr:.loadLock(app, mkBuildArgs(), dropped);
+    mgr.writeLock(app, dropped);
+
+    assert(!hasFile(app, defaults::__GYLLIR_LOCK_FILENAME__), "a lock file with nothing left to lock should be removed");
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
  * =====================================          TARGETS          ====================================
  * ====================================================================================================
  * ====================================================================================================
