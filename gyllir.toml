@@ -4,7 +4,7 @@ authors = ["Emile Cadorel <ecadorel@gmail.com>"]
 libraries = []
 type = "executable"
 description = "Ymir package manager, and builder"
-version = "1.5.1"
+version = "1.6.0"
 name = "gyllir"
 package-root = "main"
 
