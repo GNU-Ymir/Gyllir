@@ -1,92 +1,55 @@
 <!doctype html>
 <html lang="en">
   <head>
-    <!-- Required meta tags -->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <!-- Bootstrap CSS -->
-    <link href="./css/bootstrap.css" rel="stylesheet">
-    <link href="./css/bootstrap.responsive.css" rel="stylesheet">
     <link href="./css/style.css" rel="stylesheet">
-    <link href="./css/sidebar.css" rel="stylesheet">
     <link href="./css/highlight.css" rel="stylesheet">
-    
+
     <title>$(Title)</title>
   </head>
   <body>
 
-    <ul id="module-list-source" class="hidden">
-      $(Modules)
-    </ul>
-    
-    <div class="navbar">
-      <div class="navbar-inner">
-	<div class="container-fluid">
-	  <a class="btn btn-navbar" data-toggle="collapse" data-target=".nav-collapse">
-	    <span class="icon-bar"></span>
-	    <span class="icon-bar"></span>
-	    <span class="icon-bar"></span>
-	  </a>
-	  <a class="brand" href="index.html">$(Title)</a>
-	  <div class="nav-collapse">	    
-	    <form id="gotosymbol" class="navbar-search pull-left">
-	      <input type="text" class="search-query" placeholder="Go to symbol in index" data-provide="typeahead" data-items="4">
-	    </form>
-	    
-	    <p class="navbar-text pull-right"><a href="$(GitURL)">Github Page</a></p>
-	  </div><!--/.nav-collapse -->
-	</div>
-      </div>
-    </div>
+    <header class="topbar">
+      <button type="button" class="sidebar-toggle" aria-label="Toggle navigation" aria-controls="sidebar">☰</button>
+      <a class="brand" href="index.html">$(Title)</a>
 
-      
-    <div class="container-fluid">
-      <div class="row-fluid">
+      <form id="gotosymbol" class="search" role="search">
+        <input type="text" class="search-input" placeholder="Go to symbol…" autocomplete="off">
+        <ul id="search-results" class="search-results" hidden></ul>
+      </form>
 
-	<div class="span2">
-	  <nav class="well sidebar-nav">
-	    <ul class="nav nav-list">
-	      <li id="module-list" class="nav-header sidebar-list-entry">Modules<li>
-		<noscript>
-		  $(Modules)
-		</noscript>
-	      <li id="symbol-list" class="nav-header sidebar-list-entry hidden">$(Title)</li>
-	    </ul>
-	  </nav><!--/.well -->
-	</div><!--/span-->
-		
-	<div class="span10 width-limiter">
-	  <div class="row-fluid">
-	    <div class="span12">
-	      <ul id="module-breadcrumb" class="breadcrumb"></ul>
-	    </div>
-	  </div>
+      <a class="topbar-link" href="$(GitURL)">Source</a>
+      <button type="button" class="theme-toggle" aria-label="Toggle theme">☾</button>
+    </header>
 
-	  <div class="row-fluid">
-	    <div class="span12">
-	      <div id="declaration-list">
-		$(Body)
-	      </div>
+    <div class="layout">
+      <nav class="sidebar" id="sidebar">
+        <ul id="module-list-source" hidden>
+          $(Modules)
+        </ul>
 
-	      <hr>
+        <section class="sidebar-section">
+          <h2>Modules</h2>
+          <ul id="module-list" class="tree">
+            <noscript>
+              $(Modules)
+            </noscript>
+          </ul>
+        </section>
 
-	      
-	      <footer class="pull-left">
-		<p>Generated with <a href="https://github.com/GNU-Ymir/Gyllir">Gyllir</a>.</p>
-		<p>Theme from <a href="https://github.com/JakobOvrum/bootDoc">bootDoc</a>.</p>
-	      </footer>
+        <section class="sidebar-section" id="symbol-section" hidden>
+          <h2>$(Title)</h2>
+          <ul id="symbol-list" class="tree"></ul>
+        </section>
+      </nav>
 
-	      <footer class="pull-right">
-		<p>$(COPYRIGHTFOOTER)</p>
-	      </footer>
+      <main class="content">
+        <nav id="module-breadcrumb" class="breadcrumb" aria-label="Breadcrumb"></nav>
 
-	    </div><!--/span -->
-	    
-	  </div><!-- row --> 
-	</div>
-      </div>
-    </div><!-- container-fluid -->
-
-
-    
+        <div id="declaration-list">
+          $(Body)
+        </div>
+      </main>
+    </div><!-- /.layout -->

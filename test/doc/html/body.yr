@@ -35,24 +35,23 @@ fn dump(mod_: &Module)-> [c8] {
     stream[]
 }
 
-// This exact prefix (module description wrapper around an empty comment) is common to every
-// module page, regardless of its content
-def MODULE_HEAD = "<div class=\"module description\"><h3 class=\"y_dd_decl_name\">Description</h3><span class=\"module-closing\" id=\"mod-desc-closing\">[−]</span><div class=\"inner\"><div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div></div>\n";
-
 __test bare_function_declaration {
     // A function with defaults (no params, no ret_type, no throwers) renders via the "declaration" template
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let f: &Symbol = copy Function("foo", "", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [f];
 
-    assert(dump(mod_) == MODULE_HEAD ~
-        "<!-- <hr> <\\!--  -\\-> -->\n" ~
-        "<div class=\"row-fluid declaration y_decl\"><h3 class=\"y_dd_decl_name\">\n" ~
-        "    <span class=\"symbol-target\" id=\"foo\">&nbsp;</span><span class=\"y_symbol_kind\" id=\"foo\">fn</span> <span class=\"y_symbol_name symbol-link\">foo</span> \n" ~
-        "    <span class=\"symbol-closing\" id=\"foo-closing\">[−]</span></h3>\n" ~
-        "</div>\n\n" ~
-        "<div class=\"declaration-content y_dd_decl\" id=\"foo-content\"><pre><code class=\"language-ymir\">pub fn foo ()-> </code></pre>\n" ~
-        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n",
+    assert(dump(mod_) ==
+        "<details class=\"declaration y_decl\" open>\n" ~
+        "  <summary>\n" ~
+        "    <span class=\"symbol-target\" id=\"foo\">&nbsp;</span>\n" ~
+        "    <span class=\"y_symbol_kind kind-fn\" data-kind=\"fn\">fn</span>\n" ~
+        "    <span class=\"y_symbol_name symbol-link\">foo</span>\n" ~
+        "    \n" ~
+        "  </summary>\n" ~
+        "  <div class=\"declaration-content\" id=\"foo-content\"><pre><code class=\"language-ymir\">pub fn foo ()-> </code></pre>\n" ~
+        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n" ~
+        "</details>\n",
         "unexpected html for a bare function");
 }
 
@@ -62,14 +61,17 @@ __test global_default_type {
     let g: &Symbol = copy Global("MAX", "", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [g];
 
-    assert(dump(mod_) == MODULE_HEAD ~
-        "<!-- <hr> <\\!--  -\\-> -->\n" ~
-        "<div class=\"row-fluid declaration y_decl\"><h3 class=\"y_dd_decl_name\">\n" ~
-        "    <span class=\"symbol-target\" id=\"MAX\">&nbsp;</span><span class=\"y_symbol_kind\" id=\"MAX\">let</span> <span class=\"y_symbol_name symbol-link\">MAX</span> \n" ~
-        "    <span class=\"symbol-closing\" id=\"MAX-closing\">[−]</span></h3>\n" ~
-        "</div>\n\n" ~
-        "<div class=\"declaration-content y_dd_decl\" id=\"MAX-content\"><pre><code class=\"language-ymir\">pub lazy MAX</code></pre>\n" ~
-        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n",
+    assert(dump(mod_) ==
+        "<details class=\"declaration y_decl\" open>\n" ~
+        "  <summary>\n" ~
+        "    <span class=\"symbol-target\" id=\"MAX\">&nbsp;</span>\n" ~
+        "    <span class=\"y_symbol_kind kind-let\" data-kind=\"let\">let</span>\n" ~
+        "    <span class=\"y_symbol_name symbol-link\">MAX</span>\n" ~
+        "    \n" ~
+        "  </summary>\n" ~
+        "  <div class=\"declaration-content\" id=\"MAX-content\"><pre><code class=\"language-ymir\">pub lazy MAX</code></pre>\n" ~
+        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n" ~
+        "</details>\n",
         "unexpected html for a global with no type");
 }
 
@@ -81,14 +83,17 @@ __test type_alias_def {
     let d2: &Symbol = d;
     mod_.childs = copy [d2];
 
-    assert(dump(mod_) == MODULE_HEAD ~
-        "<!-- <hr> <\\!--  -\\-> -->\n" ~
-        "<div class=\"row-fluid declaration y_decl\"><h3 class=\"y_dd_decl_name\">\n" ~
-        "    <span class=\"symbol-target\" id=\"MyInt\">&nbsp;</span><span class=\"y_symbol_kind\" id=\"MyInt\">def</span> <span class=\"y_symbol_name symbol-link\">MyInt</span> \n" ~
-        "    <span class=\"symbol-closing\" id=\"MyInt-closing\">[−]</span></h3>\n" ~
-        "</div>\n\n" ~
-        "<div class=\"declaration-content y_dd_decl\" id=\"MyInt-content\"><pre><code class=\"language-ymir\">pub def MyInt : i32</code></pre>\n" ~
-        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n",
+    assert(dump(mod_) ==
+        "<details class=\"declaration y_decl\" open>\n" ~
+        "  <summary>\n" ~
+        "    <span class=\"symbol-target\" id=\"MyInt\">&nbsp;</span>\n" ~
+        "    <span class=\"y_symbol_kind kind-def\" data-kind=\"def\">def</span>\n" ~
+        "    <span class=\"y_symbol_name symbol-link\">MyInt</span>\n" ~
+        "    \n" ~
+        "  </summary>\n" ~
+        "  <div class=\"declaration-content\" id=\"MyInt-content\"><pre><code class=\"language-ymir\">pub def MyInt : i32</code></pre>\n" ~
+        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n" ~
+        "</details>\n",
         "unexpected html for a type def");
 }
 
@@ -101,22 +106,28 @@ __test enum_self_referential_type {
     let e2: &Symbol = e;
     mod_.childs = copy [e2];
 
-    assert(dump(mod_) == MODULE_HEAD ~
-        "<!-- <hr> <\\!--  -\\-> -->\n" ~
-        "<div class=\"row-fluid declaration y_decl\"><h3 class=\"y_dd_decl_name\">\n" ~
-        "    <span class=\"symbol-target\" id=\"Color\">&nbsp;</span><span class=\"y_symbol_kind\" id=\"Color\">enum</span> <span class=\"y_symbol_name symbol-link\">Color</span> \n" ~
-        "    <span class=\"symbol-closing\" id=\"Color-closing\">[−]</span></h3>\n" ~
-        "</div>\n\n" ~
-        "<div class=\"declaration-content y_dd_decl\" id=\"Color-content\"><pre><code class=\"language-ymir\">pub enum : u8\n" ~
-        "-> Color </code></pre>\n" ~
-        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div><div class=\"member-list\"><!-- <hr> <\\!--  -\\-> -->\n" ~
-        "<div class=\"row-fluid declaration y_decl\"><h3 class=\"y_dd_decl_name\">\n" ~
-        "    <span class=\"symbol-target\" id=\"RED\">&nbsp;</span><span class=\"y_symbol_kind\" id=\"RED\">let</span> <span class=\"y_symbol_name symbol-link\">RED</span> \n" ~
-        "    <span class=\"symbol-closing\" id=\"RED-closing\">[−]</span></h3>\n" ~
-        "</div>\n\n" ~
-        "<div class=\"declaration-content y_dd_decl\" id=\"RED-content\"><pre><code class=\"language-ymir\">RED = 0</code></pre>\n" ~
+    assert(dump(mod_) ==
+        "<details class=\"declaration y_decl\" open>\n" ~
+        "  <summary>\n" ~
+        "    <span class=\"symbol-target\" id=\"Color\">&nbsp;</span>\n" ~
+        "    <span class=\"y_symbol_kind kind-enum\" data-kind=\"enum\">enum</span>\n" ~
+        "    <span class=\"y_symbol_name symbol-link\">Color</span>\n" ~
+        "    \n" ~
+        "  </summary>\n" ~
+        "  <div class=\"declaration-content\" id=\"Color-content\"><pre><code class=\"language-ymir\">pub enum Color: u8</code></pre>\n" ~
+        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div><div class=\"member-list\"><details class=\"declaration y_decl\" open>\n" ~
+        "  <summary>\n" ~
+        "    <span class=\"symbol-target\" id=\"RED\">&nbsp;</span>\n" ~
+        "    <span class=\"y_symbol_kind kind-let\" data-kind=\"let\">let</span>\n" ~
+        "    <span class=\"y_symbol_name symbol-link\">RED</span>\n" ~
+        "    \n" ~
+        "  </summary>\n" ~
+        "  <div class=\"declaration-content\" id=\"RED-content\"><pre><code class=\"language-ymir\">RED = 0</code></pre>\n" ~
         "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n" ~
-        "</div>\n</div>\n",
+        "</details>\n" ~
+        "</div>\n" ~
+        "</div>\n" ~
+        "</details>\n",
         "unexpected html for an enum with a field");
 }
 
@@ -126,15 +137,18 @@ __test empty_macro {
     let m: &Symbol = copy Macro("mymacro", "", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [m];
 
-    assert(dump(mod_) == MODULE_HEAD ~
-        "<!-- <hr> <\\!--  -\\-> -->\n" ~
-        "<div class=\"row-fluid declaration y_decl\"><h3 class=\"y_dd_decl_name\">\n" ~
-        "    <span class=\"symbol-target\" id=\"mymacro\">&nbsp;</span><span class=\"y_symbol_kind\" id=\"mymacro\">macro</span> <span class=\"y_symbol_name symbol-link\">mymacro</span> \n" ~
-        "    <span class=\"symbol-closing\" id=\"mymacro-closing\">[−]</span></h3>\n" ~
-        "</div>\n\n" ~
-        "<div class=\"declaration-content y_dd_decl\" id=\"mymacro-content\"><pre><code class=\"language-ymir\">pub macro mymacro</code></pre>\n" ~
+    assert(dump(mod_) ==
+        "<details class=\"declaration y_decl\" open>\n" ~
+        "  <summary>\n" ~
+        "    <span class=\"symbol-target\" id=\"mymacro\">&nbsp;</span>\n" ~
+        "    <span class=\"y_symbol_kind kind-macro\" data-kind=\"macro\">macro</span>\n" ~
+        "    <span class=\"y_symbol_name symbol-link\">mymacro</span>\n" ~
+        "    \n" ~
+        "  </summary>\n" ~
+        "  <div class=\"declaration-content\" id=\"mymacro-content\"><pre><code class=\"language-ymir\">pub macro mymacro</code></pre>\n" ~
         "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div><div class=\"member-list\"></div>\n" ~
-        "</div>\n",
+        "</div>\n" ~
+        "</details>\n",
         "unexpected html for an empty macro");
 }
 
@@ -180,20 +194,20 @@ __test submodule_table {
     let sub: &Symbol = copy Module("mymod::sub", "docs for sub", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [sub];
 
-    assert(dump(mod_) == MODULE_HEAD ~
-        "<div class=\"module description y_decl_small\">\n" ~
-        "  <h3 class=\"y_dd_decl_name\">Inner modules</h3>\n" ~
-        "  <span class=\"module-closing\" id=\"mod-desc-closing\">[−]</span>\n" ~
-        "  <div class=\"inner\" style=\"display: block;\">\n" ~
+    assert(dump(mod_) ==
+        "<details class=\"member-group\" open>\n" ~
+        "  <summary>Inner modules</summary>\n" ~
+        "  <div class=\"member-group-body\">\n" ~
         "    <table class=\"book\">\n" ~
-        "      <caption></caption>\n" ~
+        "      <thead>\n" ~
+        "        <tr><th class=\"fst\" scope=\"col\">Submodule</th><th class=\"fst\" scope=\"col\">Protection</th><th scope=\"col\">Documentation</th></tr>\n" ~
+        "      </thead>\n" ~
         "      <tbody>\n" ~
-        "        <tr><th class=\"fst\" scope=\"col\">Submodule</th> <th class=\"fst\" scope=\"col\">Protection</th> <th scope=\"col\">Documentation</th></tr>\n" ~
-        "        <tr><td class=\"donthyphenate nobr\"><a href=\"mymod_sub.html\">sub</a></td><td><em>pub</em></td><td>docs for sub</td></tr>\n\n" ~
-        "    </tbody></table>\n" ~
+        "        <tr><td><a href=\"mymod_sub.html\">sub</a></td><td><em>pub</em></td><td>docs for sub</td></tr>\n\n" ~
+        "      </tbody>\n" ~
+        "    </table>\n" ~
         "  </div>\n" ~
-        "</div>\n\n" ~
-        "<hr>\n",
+        "</details>\n",
         "unexpected html for a submodule table");
 }
 
@@ -208,7 +222,7 @@ __test trait_with_method {
     let out = dump(mod_);
     assert(out.len > 0us, "sanity: output should not be empty");
 
-    let needle = "<span class=\"y_symbol_kind\" id=\"Foo\">trait</span>";
+    let needle = "<span class=\"y_symbol_kind kind-trait\" data-kind=\"trait\">trait</span>";
     let mut found = false;
     for i in 0us .. out.len {
         if (out.len - i >= needle.len && out[i .. i + needle.len] == needle) { found = true; }
@@ -246,15 +260,18 @@ __test templated_function {
     let tmplSym: &Symbol = tmpl;
     mod_.childs = copy [tmplSym];
 
-    assert(dump(mod_) == MODULE_HEAD ~
-        "<!-- <hr> <\\!--  -\\-> -->\n" ~
-        "<div class=\"row-fluid declaration y_decl\"><h3 class=\"y_dd_decl_name\">\n" ~
-        "    <span class=\"symbol-target\" id=\"foo\">&nbsp;</span><span class=\"y_symbol_kind\" id=\"foo\">fn</span> <span class=\"y_symbol_name symbol-link\">foo</span>  {class T}\n" ~
-        "    <span class=\"symbol-closing\" id=\"foo-closing\">[−]</span></h3>\n" ~
-        "</div>\n\n" ~
-        "<div class=\"declaration-content y_dd_decl\" id=\"foo-content\"><pre><code class=\"language-ymir\">pub fn if (T != U)\n" ~
+    assert(dump(mod_) ==
+        "<details class=\"declaration y_decl\" open>\n" ~
+        "  <summary>\n" ~
+        "    <span class=\"symbol-target\" id=\"foo\">&nbsp;</span>\n" ~
+        "    <span class=\"y_symbol_kind kind-fn\" data-kind=\"fn\">fn</span>\n" ~
+        "    <span class=\"y_symbol_name symbol-link\">foo</span>\n" ~
+        "     {class T}\n" ~
+        "  </summary>\n" ~
+        "  <div class=\"declaration-content\" id=\"foo-content\"><pre><code class=\"language-ymir\">pub fn if (T != U)\n" ~
         "       foo {class T} ()-> </code></pre>\n" ~
-        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n",
+        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n" ~
+        "</details>\n",
         "unexpected html for a templated function");
 }
 
@@ -524,6 +541,26 @@ __test enum_cross_module_link {
     assert(contains(out, "othermod.html#Shade"), "a type of another module should link to that module's page");
     assert(contains(out, "RED = Shade::RED"), "the value of an enum field should be rendered");
     assert(contains(out, "the red shade"), "the documentation of an enum field should be rendered");
+}
+
+__test module_description_omitted_when_undocumented {
+    // A module without a doc comment gets no "Description" collapsible at all
+    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+
+    let out = dump(mod_);
+
+    assert(!contains(out, "module-description"), "an undocumented module should not render a description block");
+    assert(!contains(out, "Description"), "an undocumented module should not render a \"Description\" heading");
+}
+
+__test module_description_rendered_when_documented {
+    // A module with a doc comment gets its "Description" collapsible
+    let dmut mod_ = copy Module("mymod", "the module's documentation", INTERNAL_LOCATION, Protection::PUB);
+
+    let out = dump(mod_);
+
+    assert(contains(out, "module-description"), "a documented module should render a description block");
+    assert(contains(out, "the module's documentation"), "the module's documentation should be rendered");
 }
 
 __test submodule_table_strips_template {

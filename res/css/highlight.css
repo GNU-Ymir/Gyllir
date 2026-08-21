@@ -1,34 +1,71 @@
-/* Base16 Atelier Dune Light - Theme */
-/* by Bram de Haan (http://atelierbram.github.io/syntax-highlighting/atelier-schemes/dune) */
-/* Original Base16 color scheme by Chris Kempson (https://github.com/chriskempson/base16) */
+/*
+ * highlight.js theme for generated documentation code blocks.
+ * Tracks the light/dark tokens defined in style.css instead of hardcoding a
+ * single palette, so code blocks follow the page theme.
+ */
 
-
-.hljs-attr {
-  color: #b1A8a7;
-  font-style: italic;
+:root {
+    --hljs-comment: #8a8f98;
+    --hljs-keyword: #b854d4;
+    --hljs-string: #2f9e44;
+    --hljs-number: #b65611;
+    --hljs-title: #3b5bdb;
+    --hljs-name: #d6336c;
+    --hljs-attr: #57606a;
 }
 
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --hljs-comment: #7a8394;
+        --hljs-keyword: #d59bff;
+        --hljs-string: #7fd88f;
+        --hljs-number: #f2a65a;
+        --hljs-title: #8ab4ff;
+        --hljs-name: #ff8fb1;
+        --hljs-attr: #9aa4b2;
+    }
+}
 
-/* Atelier-Dune Comment */
+:root[data-theme="dark"] {
+    --hljs-comment: #7a8394;
+    --hljs-keyword: #d59bff;
+    --hljs-string: #7fd88f;
+    --hljs-number: #f2a65a;
+    --hljs-title: #8ab4ff;
+    --hljs-name: #ff8fb1;
+    --hljs-attr: #9aa4b2;
+}
+
+.hljs {
+    display: block;
+    background: transparent;
+    color: var(--color-text, inherit);
+}
+
+:not(pre) > .hljs {
+    display: inline-block;
+    vertical-align: middle;
+    padding: 0.1em 0.35em;
+    border-radius: 3px;
+}
+
 .hljs-comment,
 .hljs-quote {
-  color: #AAA;
+    color: var(--hljs-comment);
+    font-style: italic;
 }
 
-/* Atelier-Dune Red */
-.hljs-variable,
-.hljs-template-variable,
-.hljs-tag,
-.hljs-name,
-.hljs-regexp,
-.hljs-link,
-.hljs-name,
-.hljs-selector-id,
-.hljs-selector-class {
-  color: #d73737;
+.hljs-keyword,
+.hljs-selector-tag {
+    color: var(--hljs-keyword);
 }
 
-/* Atelier-Dune Orange */
+.hljs-string,
+.hljs-symbol,
+.hljs-bullet {
+    color: var(--hljs-string);
+}
+
 .hljs-number,
 .hljs-meta,
 .hljs-built_in,
@@ -36,40 +73,35 @@
 .hljs-literal,
 .hljs-type,
 .hljs-params {
-  color: #b65611;
+    color: var(--hljs-number);
 }
 
-/* Atelier-Dune Green */
-.hljs-string,
-.hljs-symbol,
-.hljs-bullet {
-  color: #60ac39;
-}
-
-/* Atelier-Dune Blue */
 .hljs-title,
 .hljs-section {
-  color: #6684e1;
+    color: var(--hljs-title);
+    font-weight: 600;
 }
 
-/* Atelier-Dune Purple */
-.hljs-keyword,
-.hljs-selector-tag {
-  color: #b854d4;
+.hljs-variable,
+.hljs-template-variable,
+.hljs-tag,
+.hljs-name,
+.hljs-regexp,
+.hljs-link,
+.hljs-selector-id,
+.hljs-selector-class {
+    color: var(--hljs-name);
 }
 
-.hljs {
-  display: block;
-  overflow-x: auto;
-  background: #f1f1f1;
-  color: #6e6b5e;
-  padding: 0.5em;
+.hljs-attr {
+    color: var(--hljs-attr);
+    font-style: italic;
 }
 
 .hljs-emphasis {
-  font-style: italic;
+    font-style: italic;
 }
 
 .hljs-strong {
-  font-weight: bold;
+    font-weight: bold;
 }
