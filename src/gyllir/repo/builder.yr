@@ -299,6 +299,13 @@ pub record RepoBuilder {
         let cacheDir = self.targetCacheDir(defaults::__CACHE_DOC_DIR__);
         self.createCacheDirs(cacheDir);
 
+        let jsonFile = cacheDir.push(self._target.outputName()).addExtension(defaults::__DOC_EXTENSION__);
+        let objectFile = cacheDir.push(self._target.outputName()).addExtension(defaults::__OBJECT_EXTENSION__);
+
+        if (!self.docNeedsRebuild(jsonFile, objectFile)) {
+            return (srcPath, cacheDir);
+        }
+
         let options = self.createDocCompileOptions(srcPath, includes);
         utils::log::info("Compiling", "documentation of ", self._target.name, " for ", self._cfg.name, " v", self._cfg.version[]);
         if !context.runProcess(self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose) {
@@ -308,6 +315,31 @@ pub record RepoBuilder {
         }
 
         (srcPath, cacheDir)
+    }
+
+    /**
+     * A doc compile is a single whole-target 'gyc -fdoc' invocation (unlike the per-module YIL
+     * incremental compile of a normal build), so the only cheap incremental check available is:
+     * has any source of this target been touched since the last '.doc.json' was produced.
+     * @returns: true iif the doc compile has to be re-run (missing outputs, or a source newer
+     *   than the previous '.doc.json')
+     * */
+    prv fn docNeedsRebuild(self, jsonFile: Path, objectFile: Path)-> bool {
+        if (!sys::isFile(jsonFile) || !sys::isFile(objectFile)) { return true; }
+
+        let mut jsonDate = 0u64;
+        if let Ok(Instant(sec-> d)) = sys::fileDate(jsonFile)? {
+            jsonDate = d;
+        } else { return true; }
+
+        let rootDir = self._cwd.push(self._target.sourceDir);
+        for src in self.listFilesInDir(rootDir, rootDir, extension-> defaults::__YMIR_EXTENSION__) {
+            if let Ok(Instant(sec-> d)) = sys::fileDate(rootDir.push(src))? {
+                if d > jsonDate { return true; }
+            } else { return true; }
+        }
+
+        false
     }
 
     /**

@@ -429,10 +429,35 @@
             render(matches);
         });
 
-        if (modules && modules.length > 0) {
+        // The global index (every other page's symbols) is expensive to build — one
+        // fetch + full-document parse per page in the site — so it is only built once
+        // the user actually starts using search, not on every page load. GLOBAL_INDEX_KEY
+        // caches the result across page navigations within the tab's session, so browsing
+        // between doc pages doesn't repeat this "download the whole site" cost each time.
+        var GLOBAL_INDEX_KEY = "gyllir-doc-global-index";
+        var globalIndexRequested = false;
+
+        function ensureGlobalIndex() {
+            if (globalIndexRequested || !modules || modules.length === 0) return;
+            globalIndexRequested = true;
+
+            try {
+                var cached = sessionStorage.getItem(GLOBAL_INDEX_KEY);
+                if (cached) {
+                    // Cached entries carry an absolute `href` per module (see
+                    // computeModuleSymbolIndex), so they stay valid regardless of which
+                    // page they're merged into.
+                    searchIndex.push.apply(searchIndex, JSON.parse(cached));
+                    return;
+                }
+            } catch (e) { /* sessionStorage unavailable (e.g. private mode) — fall through to fetch */ }
+
+            var allEntries = [];
             loadGlobalSearchIndex(modules, function (entries) {
                 if (entries.length === 0) return;
+                allEntries = allEntries.concat(entries);
                 searchIndex.push.apply(searchIndex, entries);
+                try { sessionStorage.setItem(GLOBAL_INDEX_KEY, JSON.stringify(allEntries)); } catch (e) { /* quota/private mode — skip caching */ }
                 // reflect newly-loaded modules in whatever the user already typed
                 if (!results.hidden || document.activeElement === input) {
                     var matches = currentMatches();
@@ -440,6 +465,8 @@
                 }
             });
         }
+
+        input.addEventListener("focus", ensureGlobalIndex);
 
         form.addEventListener("submit", function (evt) {
             evt.preventDefault();
