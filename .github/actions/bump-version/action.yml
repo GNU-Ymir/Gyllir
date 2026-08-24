@@ -43,9 +43,15 @@ runs:
           exit 1
         fi
 
+        # 'tools/set-version.sh' is only ever invoked as a pre build command (i.e. at build time,
+        # in whichever checkout happens to be building), so it never runs as part of a bump on its
+        # own - keep 'src/gyllir/args.yr's __GYLLIR_VERSION__' in sync here too, or the committed
+        # source (and 'gyllir --version' of anyone who doesn't rebuild) drifts from gyllir.toml
+        bash tools/set-version.sh
+
         git config user.name "github-actions[bot]"
         git config user.email "github-actions[bot]@users.noreply.github.com"
-        git add gyllir.toml
+        git add gyllir.toml src/gyllir/args.yr
         git commit -m "chore: bump version ${OLD_VERSION} -> ${NEW_VERSION}"
         git push
 

@@ -1343,7 +1343,14 @@ pub class GyllirManager {
             };
 
             let (version, sha) = self:.checkoutDependency(gM, name, dependency, locked);
-            let conf = self.loadToml(depPath);
+
+            // a git dependency's own 'gyllir.toml' can declare a 'version' that drifts from the
+            // tag it was actually resolved at(e.g. a repository that does not bump it on every
+            // release) - the tag/lock-derived 'version' above is the one gyllir itself vetted
+            // against the declared filter, so it - not whatever the checked out file says - is
+            // what every 'Compiling ... v<version>' log line and the lock file report from here on
+            let dmut conf = self.loadToml(depPath);
+            conf:.setVersion(version);
             self:.recordResolution(name, dependency, version, sha, conf);
 
             // only the library targets of a dependency are of any use here, an executable it also
