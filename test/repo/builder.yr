@@ -391,6 +391,35 @@ __test target_flags_appended_last {
     assert(indexOf(options, "/dep/src/mylib.yr") < options.len, "the root file of a dependency should be included");
 }
 
+__test target_flags_reach_the_link_step {
+    // The link step of an executable is a compiler invocation of its own, and the "flags" of the
+    // target have to reach it as well: a flag such as "-nomidgardlib" only matters there
+    let cfg = mkTargetsConfig("myapp", json#{"app" : {"flags" : ["-nomidgardlib"]}});
+    let builder = RepoBuilder(Path("/project"), mkBuildArgs(), cfg, namedTarget(cfg, "app"), forUnitTest-> false);
+
+    let options = builder.createLinkOptions(copy ["/project/.target/app/debug/app.a"], "app",
+                                            copy [Path("/dep/libmylib.a")], []);
+
+    assert(options.len > 1us && options[$ - 1us] == "-nomidgardlib", "the flags of the target should come last");
+    assert(indexOf(options, "-g") < options.len - 1us, "the debug flag should come before the ones of the target");
+    assert(indexOf(options, "/dep/libmylib.a") < options.len, "the library of a dependency should be linked");
+    assert(indexOf(options, "-funittest") == options.len, "an executable is not a unittest build");
+}
+
+__test target_flags_reach_the_unittest_link_step {
+    // Same for the link step of the unittest executable
+    let cfg = mkTargetsConfig("myapp", json#{"app" : {"flags" : ["-nomidgardlib"]}});
+    let builder = RepoBuilder(Path("/project"), mkBuildArgs(flags-> copy ["release"]), cfg,
+                              namedTarget(cfg, "app"), forUnitTest-> true);
+
+    let options = builder.createLinkOptions(copy ["/project/.target/app/unit_release/app.a",
+                                                  "/project/.target/app/test/app.a"], "app.test", [], []);
+
+    assert(options.len > 1us && options[$ - 1us] == "-nomidgardlib", "the flags of the target should come last");
+    assert(indexOf(options, "-funittest") < options.len, "a unittest build should link the tests in");
+    assert(indexOf(options, "-O3") < options.len - 1us, "a release build should be optimized");
+}
+
 __test doc_build_command_line_of_its_own {
     // The same holds for a documentation build, which has a command line of its own
     let cfg = mkTargetsConfig("myapp", json#{"app" : {"flags" : ["-O0"]}});

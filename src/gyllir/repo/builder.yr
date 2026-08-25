@@ -442,6 +442,42 @@ pub record RepoBuilder {
     }
 
     /**
+     * Build the command line linking the final executable of the target, shared by the executable
+     * and the unittest executable
+     * @params:
+     *    - objects: the object files gathering the compiled modules of the target
+     *    - output: the name of the file to produce
+     *    - dependencyLibs: the libraries of the dependencies to link against
+     *    - cObjects: the object files compiled from the 'c-sources' of the target
+     * */
+    pub fn createLinkOptions(self, objects: [[c8]], output: [c8], dependencyLibs: [Path], cObjects: [Path])-> [[c8]] {
+        let mut options: [[c8]] = copy ["-fv"];
+        if (self._forUnitTest) {
+            options ~= ["-funittest"];
+        }
+
+        options ~= objects;
+        options ~= ["-o", output];
+        options ~= copy [d.toStr() for d in dependencyLibs];
+        options ~= copy [o.toStr() for o in cObjects];
+
+        for k in self._target.libraries {
+            options ~= ["-l" ~ k];
+        }
+
+        if let Ok(Bool(value-> _ = true)) = self._args["release"]? {
+            options ~= ["-O3"];
+        } else {
+            options ~= ["-g"];
+        }
+
+        options ~= self._extraFlags;
+
+        // last, so that a target can override the options gyllir picked for it(-g, -O3, ...)
+        options ~ self._target.flags
+    }
+
+    /**
      * Cut the module list to be compiled by multiple threads
      * */
     fn cutModuleList(self, modules: [Path], nbThreads: u32)-> [[Path]] {
@@ -559,21 +595,8 @@ pub record RepoBuilder {
         let createdTmp = (cacheDir.push(output).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
         let createdUnittests = (self.targetCacheDir(defaults::__CACHE_TEST_DIR__).push(output).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
 
-        let mut options = copy ["-fv", "-funittest", createdTmp, createdUnittests, "-o", output ~ ".test"];
-        options ~= copy [d.toStr() for d in dependencyLibs];
-        options ~= copy [o.toStr() for o in cObjects];
-
-        for k in self._target.libraries {
-            options ~= ["-l" ~ k];
-        }
-
-        options = if let Ok(Bool(value-> _ = true)) = self._args["release"]? {
-            options ~ ["-O3"]
-        } else {
-            options ~ ["-g"]
-        };
-
-        options ~= self._extraFlags;
+        let options = self.createLinkOptions(copy [createdTmp, createdUnittests], output ~ ".test",
+                                             dependencyLibs, cObjects);
 
         if (!context.runProcess(self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose)) {
             self.reportCompilerFailure("failed to link the unittest executable of target");
@@ -590,21 +613,7 @@ pub record RepoBuilder {
         let output = self._target.outputName();
         let createdTmp = (cacheDir.push(output).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
 
-        let mut options = copy ["-fv", createdTmp, "-o", output];
-        options ~= copy [d.toStr() for d in dependencyLibs];
-        options ~= copy [o.toStr() for o in cObjects];
-
-        for k in self._target.libraries {
-            options ~= ["-l" ~ k];
-        }
-
-        options = if let Ok(Bool(value-> _ = true)) = self._args["release"]? {
-            options ~ ["-O3"]
-        } else {
-            options ~ ["-g"]
-        };
-
-        options ~= self._extraFlags;
+        let options = self.createLinkOptions(copy [createdTmp], output, dependencyLibs, cObjects);
 
         if (!context.runProcess(self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose)) {
             self.reportCompilerFailure("failed to link the executable of target");
