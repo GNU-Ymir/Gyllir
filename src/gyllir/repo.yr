@@ -9,3 +9,4 @@ pub mod ::runner;
 pub mod ::cleaner;
 pub mod ::publisher;
 pub mod ::doc;
+pub mod ::doc_server;

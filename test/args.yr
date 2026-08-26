@@ -378,3 +378,47 @@ __test update_std_flag_alongside_packages {
         assert(a[].len == 1us && to!{[c8]}(a[][0]) == "mylib", "unexpected dependency names");
     } else assert(false, "\"packages\" should be parsed as an array");
 }
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * ====================================          DOC SERVE          ===================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+__test doc_serve_recognized_and_marked {
+    // 'gyllir doc serve' is routed to its own sub parser, and marked with "serve" so 'GyllirManager'
+    // knows to start the http server instead of generating pages
+    let doc = sub(parse(copy ["gyllir", "doc", "serve"]), "doc");
+
+    assert(flag(doc, "serve"), "\"serve\" should be set");
+}
+
+__test doc_serve_with_every_option {
+    // 'doc serve' with every option set, using both the long and the short spelling
+    let doc = sub(parse(copy ["gyllir", "doc", "serve", "-o", "/tmp/out", "--host", "0.0.0.0", "-p", "9090"]), "doc");
+
+    assert(flag(doc, "serve"), "\"serve\" should be set");
+
+    if let Ok(Str(value-> o)) = doc["output"]? {
+        assert(o == "/tmp/out", "-o should be parsed as output");
+    } else assert(false, "-o should be parsed");
+
+    if let Ok(Str(value-> h)) = doc["host"]? {
+        assert(h == "0.0.0.0", "--host should be parsed");
+    } else assert(false, "--host should be parsed");
+
+    if let Ok(Int(value-> p)) = doc["port"]? {
+        assert(p == 9090i64, "-p should be parsed as an integer");
+    } else assert(false, "-p should be parsed");
+}
+
+__test doc_serve_target_may_appear_among_flags {
+    // 'doc serve' takes the same optional '<target>' as the other sub commands
+    let doc = sub(parse(copy ["gyllir", "doc", "serve", "-p", "9090", "cli"]), "doc");
+
+    assert(flag(doc, "serve"), "\"serve\" should be set");
+    assert(target(doc) == "cli", "the target should be parsed among the flags");
+
+}
