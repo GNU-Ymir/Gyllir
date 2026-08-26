@@ -1,0 +1,306 @@
+in index;
+
+use std::{stream, fs::path, char};
+use std::algorithm::searching;
+
+use gyllir::doc::{symbols::_, symbols::template_::_};
+use gyllir::repo::defaults;
+
+/**
+ * One symbol of a documentation site, as the '/symbol' endpoint of 'gyllir doc serve' returns it
+ * */
+pub record SymbolEntry {
+
+    // The name of the symbol, qualified inside the page documenting it ('Class.method'), following
+    // the scheme 'res/js/main.js' uses to qualify the symbols of the page it renders : the page
+    // local index it builds is what a '/symbol' result is looked up in when landing on the page
+    pub let name: [c8];
+
+    // The kind of the symbol, the 'data-kind' written into the generated html ('fn', 'class', ...)
+    pub let kind: [c8];
+
+    // The qualified name of the module declaring the symbol ('gyllir::repo::builder')
+    pub let module: [c8];
+
+    // The file name of the page documenting that module ('gyllir_repo_builder.html')
+    pub let url: [c8];
+
+    pub self (name: [c8], kind: [c8], module: [c8], url: [c8])
+        with name = name
+        , kind = kind
+        , module = module
+        , url = url
+    {}
+
+    impl Streamable;
+
+}
+
+/**
+ * The flat list of every symbol documented by a site, built from the '*.doc.json' of a target
+ * (already loaded into a symbol tree by 'doc::loader::SymbolLoader') and queried by the '/symbol'
+ * endpoint of 'gyllir doc serve'.
+ *
+ * The names and kinds it records mirror what 'doc::html::body' writes into the generated pages
+ * ('$(Name)' is the last component of the qualified name of the symbol, '$(Kind)' is its
+ * 'data-kind'), so that a result can be matched against the page it points to.
+ * */
+pub class SymbolIndex {
+
+    // Every symbol of the site, in the order the module tree is walked
+    let mut _entries: [SymbolEntry] = [];
+
+    /**
+     * Index every symbol reachable from a symbol tree
+     * @params:
+     *    - root: the root symbol of the tree, as returned by 'doc::loader::SymbolLoader::load'
+     * */
+    pub self (root: &Symbol) {
+        if let m: &Module = root {
+            self:.loadModule(m);
+        }
+    }
+
+    /**
+     * @returns: every indexed symbol
+     * */
+    @field
+    pub fn entries(self)-> [SymbolEntry] {
+        self._entries
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * =====================================          SEARCH          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Search the symbols whose name matches a query
+     * @params:
+     *    - query: the text to look for, matched case insensitively against the qualified names
+     *    - kind: the kind the results are restricted to ("" accepts every kind)
+     *    - limit: the maximum number of results to return
+     * @returns:
+     *    - .0: the matching symbols, best match first (exact name, then prefix, then substring)
+     *    - .1: the number of symbols that matched, which is more than '.0.len' when 'limit'
+     *      dropped some of them
+     * */
+    pub fn search(self, query: [c8], kind: [c8] = "", limit: usize = 50us)-> ([SymbolEntry], usize) {
+        let q = toLower(query);
+        if (q.len == 0us) { return ([], 0us); }
+
+        let k = normalizeKind(toLower(kind));
+
+        let mut exact: [SymbolEntry] = [];
+        let mut prefixed: [SymbolEntry] = [];
+        let mut inner: [SymbolEntry] = [];
+
+        for e in self._entries {
+            if (k.len != 0us && normalizeKind(toLower(e.kind)) != k) continue;
+
+            let name = toLower(e.name);
+            let last = lastSegment(name);
+
+            if (name == q || last == q) { exact ~= [e]; }
+            else if (startsWith(last, q) || startsWith(name, q)) { prefixed ~= [e]; }
+            else if (contains(name, q)) { inner ~= [e]; }
+        }
+
+        let all = exact ~ prefixed ~ inner;
+        if (all.len > limit) { return (all[0us .. limit], all.len); }
+
+        (all, all.len)
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * =====================================          LOADING          ====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Index a module and everything it declares, one page per module
+     * */
+    fn loadModule(mut self, module: &Module) {
+        let url = pageUrl(module.name);
+        if (module.name.len != 0us) {
+            self._entries ~= [SymbolEntry(module.name, "module", module.name, url)];
+        }
+
+        for ch in module.childs {
+            match ch {
+                m: &Module => { self:.loadModule(m); }
+                _ => { self:.loadDeclaration(ch, "", module.name, url); }
+            }
+        }
+    }
+
+    /**
+     * Index a declaration of a module page, and the members it declares in turn
+     * @params:
+     *    - sym: the symbol to index
+     *    - prefix: the name of the symbol declaring it, qualified inside the page ("" at the top
+     *      level of the page)
+     *    - module: the qualified name of the module documented by the page
+     *    - url: the file name of the page
+     * */
+    fn loadDeclaration(mut self, sym: &Symbol, prefix: [c8], module: [c8], url: [c8]) {
+        match sym {
+            // a template declares no symbol of its own : the page documents what it wraps, with
+            // the template parameters rendered next to the name (same as 'HtmlBody::loadElement')
+            t: &Template => {
+                for i in t.inners {
+                    self:.loadDeclaration(i, prefix, module, url);
+                }
+            }
+
+            c: &ClassSymbol => {
+                let kind = if (c.isRecord) { "record" } else if (c.isEntity) { "entity" } else { "class" };
+                let name = self:.push(prefix, symbolName(c.name), kind, module, url);
+
+                for ct in c.ctors { self:.loadDeclaration(ct, name, module, url); }
+                for ct in c.condCtors { self:.loadDeclaration(ct.0, name, module, url); }
+                for ct in c.templateCtors { self:.loadDeclaration(ct, name, module, url); }
+                for f in c.fields { self:.loadDeclaration(f, name, module, url); }
+                for f in c.condFields { self:.loadDeclaration(f.0, name, module, url); }
+                for m in c.methods { self:.loadDeclaration(m, name, module, url); }
+                for m in c.condMethods { self:.loadDeclaration(m.0, name, module, url); }
+                for m in c.templateMethods { self:.loadDeclaration(m, name, module, url); }
+            }
+
+            t: &TraitSymbol => {
+                let name = self:.push(prefix, symbolName(t.name), "trait", module, url);
+
+                for m in t.methods { self:.loadDeclaration(m, name, module, url); }
+                for m in t.condMethods { self:.loadDeclaration(m.0, name, module, url); }
+            }
+
+            e: &EnumSymbol => {
+                let name = self:.push(prefix, symbolName(e.name), "enum", module, url);
+
+                for f in e.fields {
+                    self:.push(name, f.0, "let", module, url);
+                }
+            }
+
+            m: &Macro => {
+                let name = self:.push(prefix, symbolName(m.name), "macro", module, url);
+
+                // a macro constructor is dumped with the 'self' kind, a rule with 'fn'
+                for r in m.ctors { self:.push(name, Path(r.name).file(), "self", module, url); }
+                for r in m.rules { self:.push(name, Path(r.name).file(), "fn", module, url); }
+            }
+
+            f: &Function => { self:.push(prefix, symbolName(f.name), "fn", module, url); }
+            m: &Method => { self:.push(prefix, symbolName(m.name), "fn", module, url); }
+            c: &Ctor => { self:.push(prefix, symbolName(c.name), "ctor", module, url); }
+            // a class field is dumped under its raw name, it is never qualified by 'gyc'
+            v: &Variable => { self:.push(prefix, v.name, "let", module, url); }
+            g: &Global => { self:.push(prefix, symbolName(g.name), "let", module, url); }
+            d: &Def => { self:.push(prefix, symbolName(d.name), "def", module, url); }
+        }
+    }
+
+    /**
+     * Append a symbol to the index
+     * @params:
+     *    - prefix: the name of the symbol declaring it, qualified inside the page
+     *    - name: the name of the symbol, as the page displays it
+     * @returns: the name of the symbol, qualified inside the page ('prefix' when it has no name,
+     *   e.g. a class assertion, so that its members are not qualified with an empty component)
+     * */
+    fn push(mut self, prefix: [c8], name: [c8], kind: [c8], module: [c8], url: [c8])-> [c8] {
+        if (name.len == 0us) { return prefix; }
+
+        let qualified = if (prefix.len == 0us) { name } else { prefix ~ "." ~ name };
+        self._entries ~= [SymbolEntry(qualified, kind, module, url)];
+
+        qualified
+    }
+
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * ====================================          HELPERS          =====================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+/**
+ * @returns: the file name of the page documenting a module, following the same rule as
+ *   'repo::doc::RepoDocBuilder::generatePage'
+ * */
+pub fn pageUrl(module: [c8])-> [c8] {
+    let name = if (module.len == 0us) { "index" } else { module };
+
+    Path(name, sep-> "::").addExtension(defaults::__HTML_EXTENSION__).toStr(sep-> "_")
+}
+
+/**
+ * @returns: the kind of a symbol, with the aliases a '/symbol' query is allowed to use mapped onto
+ *   the 'data-kind' the generated pages actually write
+ * */
+pub fn normalizeKind(kind: [c8])-> [c8] {
+    if (kind == "function" || kind == "method") { return "fn"; }
+    if (kind == "global" || kind == "field" || kind == "variable") { return "let"; }
+    if (kind == "mod") { return "module"; }
+
+    kind
+}
+
+/**
+ * @returns: the name of a symbol as the page displays it, the last component of its qualified name
+ * */
+prv fn symbolName(name: [c8])-> [c8] {
+    Path(name, sep-> "::").file()
+}
+
+/**
+ * @returns: the last component of a name qualified inside a page ('bar' for 'Foo.bar')
+ * */
+prv fn lastSegment(name: [c8])-> [c8] {
+    if let Ok(i) = searching::rfind(name, '.'c8) {
+        return name[i + 1us .. $];
+    }
+
+    name
+}
+
+prv fn toLower(text: [c8])-> [c8] {
+    copy [char::toLower(c) for c in text]
+}
+
+prv fn startsWith(text: [c8], prefix: [c8])-> bool {
+    if (prefix.len > text.len) { return false; }
+
+    text[0us .. prefix.len] == prefix
+}
+
+prv fn contains(text: [c8], needle: [c8])-> bool {
+    if let Ok(_) = findSub(text, needle) { return true; }
+
+    false
+}
+
+/**
+ * @params:
+ *    - text: the text to search into
+ *    - needle: the text to search for
+ * @returns: the index of the first occurrence of 'needle' in 'text', none if there is none
+ * */
+pub fn findSub(text: [c8], needle: [c8])-> (usize)? {
+    if (needle.len > text.len) { return none; }
+
+    for i in 0us .. (text.len - needle.len) + 1us {
+        if (text[i .. i + needle.len] == needle) { return (i)?; }
+    }
+
+    none
+}
