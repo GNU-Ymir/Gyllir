@@ -353,8 +353,36 @@
 
         if (served) input.placeholder = "Go to symbol…";
 
+        // index of the result the arrow keys are on, -1 when none is highlighted yet: Enter then
+        // falls back to the first one, so a query can be validated without pressing Down first.
+        var selected = -1;
+
+        function links() {
+            return results.querySelectorAll("a");
+        }
+
+        function highlight(index) {
+            var all = links();
+            if (all.length === 0) {
+                selected = -1;
+                return;
+            }
+
+            // wrap around, so Up from the input lands on the last match
+            selected = ((index % all.length) + all.length) % all.length;
+            for (var i = 0; i < all.length; i += 1) {
+                if (i === selected) {
+                    all[i].setAttribute("aria-selected", "true");
+                    if (all[i].scrollIntoView) all[i].scrollIntoView({ block: "nearest" });
+                } else {
+                    all[i].removeAttribute("aria-selected");
+                }
+            }
+        }
+
         function render(matches) {
             results.innerHTML = "";
+            selected = -1;
             if (matches.length === 0) {
                 results.hidden = true;
                 return;
@@ -456,10 +484,26 @@
             timer = setTimeout(function () { queryServer(query); }, QUERY_DEBOUNCE_MS);
         });
 
+        input.addEventListener("keydown", function (evt) {
+            if (evt.key === "Escape") {
+                results.hidden = true;
+                selected = -1;
+                return;
+            }
+
+            if (evt.key !== "ArrowDown" && evt.key !== "ArrowUp") return;
+            if (results.hidden || links().length === 0) return;
+
+            // the caret would otherwise jump to the start/end of the query
+            evt.preventDefault();
+            highlight(evt.key === "ArrowDown" ? selected + 1 : selected - 1);
+        });
+
         form.addEventListener("submit", function (evt) {
             evt.preventDefault();
-            var first = results.querySelector("a");
-            if (first) first.click();
+            var all = links();
+            var target = selected >= 0 ? all[selected] : all[0];
+            if (target) target.click();
         });
 
         document.addEventListener("click", function (evt) {
