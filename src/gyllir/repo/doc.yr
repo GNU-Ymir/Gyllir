@@ -70,11 +70,19 @@ pub record RepoDocBuilder {
             v
         } else { "main" };
 
+        let jsonFile = defaults::targetCacheDir(self._cwd, self._target.name, defaults::__CACHE_DOC_DIR__)
+            .push(self._target.outputName()).addExtension(defaults::__DOC_EXTENSION__);
+
+        // Captured before recompiling, so it can be compared against the freshly produced json
+        // below : 'gyc -fdoc' rewrites the file (and its mtime) on every compile regardless of
+        // whether the extracted documentation actually changed, so mtime alone cannot tell a
+        // real update from a no-op recompile (e.g. repeated 'gyllir doc serve' on an unchanged tree)
+        let previousContent = if (!self._fromFile) { self.tryReadFile(jsonFile) } else { "" };
+
         let inputFile = if (!self._fromFile) {
             RepoBuilder(self._cwd, self._args, self._cfg, self._target, forUnitTest-> false, forDoc-> true, extraFlags-> self._extraFlags)
                 .run(alias context, targetIncludes-> targetIncludes, targetLinks-> targetLinks);
-            defaults::targetCacheDir(self._cwd, self._target.name, defaults::__CACHE_DOC_DIR__)
-                .push(self._target.outputName()).addExtension(defaults::__DOC_EXTENSION__)
+            jsonFile
         } else {
             Path(self._input)
         };
@@ -89,15 +97,22 @@ pub record RepoDocBuilder {
             baseDir.push(self._target.name)
         } else { baseDir };
 
-        let docConfig = {
+        let content = {
             let dmut file = File::open(inputFile, read-> true);
-            json::parse(file:.readAll())
+            let c = file:.readAll();
+            file:.close();
+            c
         } catch {
             FsError() => {
                 utils::log::error("Error", "failed to read documentation file '", inputFile.toStr(), "'");
                 etc::c::process::_yrt_exit(-1);
                 panic;
             }
+        };
+
+        let docConfig = {
+            json::parse(content)
+        } catch {
             err: &SyntaxError => {
                 utils::log::error("Error", "failed to parse documentation file '", inputFile.toStr(), "' : ", err);
                 etc::c::process::_yrt_exit(-1);
@@ -106,7 +121,56 @@ pub record RepoDocBuilder {
         };
 
         let symbol = (SymbolLoader()).load(docConfig);
-        self.generate(alias context, version, outputDir, symbol);
+        let (htmlTable, modules) = self.createHtmlTable(symbol);
+
+        // The doc json is unchanged and the pages already there match the current modules exactly
+        // (no stray page left by a deleted source, none missing) : nothing to regenerate
+        if (!self._fromFile && content == previousContent && self.pagesUpToDate(outputDir, modules)) {
+            utils::log::info("Up to date", "documentation pages in '", outputDir.toStr(), "'");
+            return;
+        }
+
+        self.generate(alias context, version, outputDir, htmlTable, modules);
+    }
+
+    /**
+     * @returns: true iif every module in 'modules' already has its page in 'outDir', and no extra
+     * html page (e.g. left behind by a module whose source was since removed) is present
+     * */
+    fn pagesUpToDate(self, outDir: Path, modules: [&Module])-> bool {
+        let mut expected: [[c8]] = [];
+        for m in modules {
+            let name = if m.name == "" { "index" } else { m.name };
+            expected ~= [Path(name, sep-> "::").addExtension(defaults::__HTML_EXTENSION__).toStr(sep-> "_")];
+        }
+
+        let mut nbFound = 0us;
+        for i in readDir(outDir) match i {
+            FsEntry(kind-> FsEntryKind::FILE, path-> p) if p.extension() == defaults::__HTML_EXTENSION__ => {
+                let mut found = false;
+                for e in expected if e == p.file() { found = true; }
+                if (!found) return false;
+                nbFound += 1us;
+            }
+        }
+
+        nbFound == expected.len
+    } catch {
+        FsError() => false
+    }
+
+    /**
+     * @returns: the content of 'p', or an empty string if it does not exist / cannot be read
+     * */
+    fn tryReadFile(self, p: Path)-> [c8] {
+        if (!fs::sys::isFile(p)) { return ""; }
+
+        let dmut f = File::open(p, read-> true);
+        let c = f:.readAll();
+        f:.close();
+        c
+    } catch {
+        _ => ""
     }
 
     /*!
@@ -120,10 +184,9 @@ pub record RepoDocBuilder {
     /**
      * Generate the documentation directory
      * */
-    fn generate(self, dmut context: &GyllirManager, version: [c8], outDir: Path, symbol: &Symbol) {
+    fn generate(self, dmut context: &GyllirManager, version: [c8], outDir: Path, htmlTable: [c8], modules: [&Module]) {
         utils::log::info("Generate", "documentation pages in '", outDir.toStr(), "'");
         self.createBaseDirectory(alias context, outDir);
-        let (htmlTable, modules) = self.createHtmlTable(symbol);
 
         for m in modules {
             self.generatePage(self._cfg.name, self._cfg.registry.path.toStr(), version, htmlTable, m, outDir);
