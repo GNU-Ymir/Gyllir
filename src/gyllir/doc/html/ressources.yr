@@ -27,7 +27,8 @@ pub enum GyllirHtmlFiles
 | HEADER       = "html/header.html"
 | FOOTER       = "html/footer.html"
 | SUBMODULE    = "html/submodule.html"
-| MODULE_TABLE = "html/module_table.html";
+| MODULE_TABLE = "html/module_table.html"
+| ERROR        = "html/error.html";
 
 pub lazy LEAF_NODE = {
     {
@@ -113,6 +114,15 @@ pub lazy SUBMODULE = {
 pub lazy MODULE_TABLE = {
     {
         let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::MODULE_TABLE));
+        f:.readAll()
+    } catch {
+        _ => ""
+    }
+};
+
+pub lazy ERROR = {
+    {
+        let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::ERROR));
         f:.readAll()
     } catch {
         _ => ""

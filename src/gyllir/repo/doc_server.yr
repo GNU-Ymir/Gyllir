@@ -1,9 +1,9 @@
 in doc_server;
 
-use std::{io, env, config::_, fs::_, syntax::_};
-use std::net::_;
-use gyllir::{repo::_, utils::_, config::_};
-use gyllir::doc::{index, loader, symbols::_};
+use gyllir::{config::_, repo::_, utils::_};
+use gyllir::doc::{html::_, index, loader, symbols::_};
+
+use std::{config::_, env, fs::_, io, net::_, stream, syntax::_};
 
 /**
  * The opening of the inline configuration object every generated page declares for its javascript
@@ -108,7 +108,9 @@ pub class RepoDocServer {
         }
 
         if (!fs::sys::isFile(fsPath)) {
-            return HttpResponse(404, body-> "Not Found");
+            return self.errorPage(404, "Page not found",
+                                  "There is nothing at <code>" ~ htmlEscape(rqt.url.toStr()) ~
+                                  "</code> in this documentation.");
         }
 
         let dmut f = File::open(fsPath, read-> true);
@@ -121,7 +123,28 @@ pub class RepoDocServer {
 
         HttpResponse(200, body-> body, contentType-> self.contentType(fsPath))
     } catch {
-        _ => HttpResponse(500, body-> "Internal Server Error")
+        _ => self.errorPage(500, "Internal server error",
+                            "The documentation directory could not be read.")
+    }
+
+    /**
+     * @returns: an error response, rendered with the same stylesheet, favicon and theme as the
+     *   pages of the documentation being served ('res/html/error.html')
+     * @info: falls back to a plain text body when the template cannot be read (a gyllir whose
+     *   'res/' is not installed), the point being to answer at all
+     * */
+    fn errorPage(self, code: u32, title: [c8], message: [c8])-> HttpResponse {
+        let page = ressources::ERROR;
+        if (page.len == 0us) {
+            return HttpResponse(code, body-> title);
+        }
+
+        let dmut stream = copy StringStream();
+        formatter::format(alias stream, page, copy ["Code" => std::conv::to!{[c8]} (code),
+                                                   "Title" => title,
+                                                   "Message" => message]);
+
+        HttpResponse(code, body-> stream[], contentType-> "text/html; charset=utf-8")
     }
 
     /**
@@ -253,6 +276,25 @@ pub class RepoDocServer {
  * The route answering the symbol queries of the search box of a served page
  * */
 pub def __SYMBOL_ROUTE__ = "/symbol";
+
+/**
+ * @returns: 'content', with the characters that would otherwise be read as markup by the error
+ *   page it is inserted in replaced by their html entity
+ * */
+pub fn htmlEscape(content: [c8])-> [c8] {
+    let dmut stream = copy StringStream();
+    for c in content {
+        match c {
+            '&'c8 => { stream:.write("&amp;"); }
+            '<'c8 => { stream:.write("&lt;"); }
+            '>'c8 => { stream:.write("&gt;"); }
+            '"'c8 => { stream:.write("&quot;"); }
+            _ => { stream:.write(c); }
+        }
+    }
+
+    stream[]
+}
 
 /**
  * @returns: the content of a page, with the flag telling its javascript that it is served by

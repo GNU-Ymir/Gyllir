@@ -682,3 +682,67 @@ table th.fst {
         display: none;
     }
 }
+
+/* ==========================================================================
+   Error page — served by 'gyllir doc serve' (see repo/doc_server.yr), never
+   part of a static 'gyllir doc' output
+   ========================================================================== */
+
+.error-page {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem 1.25rem 4rem;
+    text-align: center;
+}
+
+.error-mark {
+    border-radius: 16px;
+    box-shadow: var(--shadow-md);
+}
+
+.error-code {
+    margin: 1.5rem 0 0;
+    font-family: var(--font-mono);
+    font-size: 4rem;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: .04em;
+    color: var(--color-accent);
+}
+
+.error-title {
+    margin: .4rem 0 0;
+    font-size: 1.3rem;
+    font-weight: 600;
+}
+
+.error-message {
+    margin: .5rem 0 0;
+    max-width: 34rem;
+    color: var(--color-text-muted);
+}
+
+.error-message code {
+    padding: .1rem .3rem;
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-inset);
+    font-family: var(--font-mono);
+    font-size: .9em;
+    word-break: break-all;
+}
+
+.error-home {
+    margin-top: 1.75rem;
+    padding: .45rem .9rem;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg-raised);
+}
+
+.error-home:hover, .error-home:focus-visible {
+    border-color: var(--color-accent);
+    text-decoration: none;
+}
