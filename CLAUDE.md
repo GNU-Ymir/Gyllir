@@ -132,6 +132,12 @@ calls `run()`; every sub-command is dispatched and implemented from there.
   - `publisher.yr` — `RepoPublisher`: bumps `Version` (major/minor/patch) and pushes the new
     version to the `registry` `Url` (`local:` or `git:`).
   - `doc.yr` — `RepoDocBuilder`: entry point for `gyllir doc`, wiring `gyllir/doc/*` together.
+  - `doc_server.yr` — `RepoDocServer`: `gyllir doc serve`, an `std::net` `HttpServer` over an
+    already-generated documentation directory. Beyond the files, it answers `POST /symbol`
+    (`{"query", "type"}`) from a `doc::index::SymbolIndex` preloaded from the target's
+    `.doc.json`, and adds a `serve: true` flag to the `window.GYLLIR_DOC` object of every page it
+    serves — that flag is what makes `res/js/main.js` query the endpoint instead of searching only
+    the page being viewed.
   - `defaults.yr` — every shared filename/dirname/extension constant (`gyllir.toml`, `.deps/`,
     `.target/...`, file extensions like `.yil`/`.doc.json`) — check here before hardcoding a path
     elsewhere.
@@ -146,6 +152,10 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     `formatter.yr`, `ressources.yr`), using the static assets under `res/`.
   - `loader.yr` — loads a previously-produced `*.doc.json` (the `-i`/`--input` flag of
     `gyllir doc`), so docs can be regenerated without recompiling the whole project.
+  - `index.yr` — `SymbolIndex`: the flat, searchable list of every symbol of a site, built from
+    that same loaded tree and queried by `repo/doc_server.yr`'s `/symbol`. Its names and kinds
+    mirror what `html/body.yr` writes into the pages, so a result can be resolved against the page
+    it points to.
 - `src/gyllir/utils/` — `git.yr` (`GitManager`: shells out to `git` for clone/checkout/tags/
   init/commit, used by `manager.yr`, `init.yr`, `publisher.yr`), `log.yr` (colored CLI status
   output), `errors.yr` (shared exception types, e.g. `RecursiveDependency`).

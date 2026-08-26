@@ -40,7 +40,10 @@ _gyllir() {
 		-h --help -v --verbose --dry --release --locked --offline"
 
     DOC_OPTIONS="\
-    		-h --help -v --verbose --locked --offline"
+    		-h --help -v --verbose --locked --offline -i --input -o --output"
+
+    DOC_SERVE_OPTIONS="\
+    		-h --help -o --output --host -p --port"
 
     UPDATE_OPTIONS="\
     		-h --help -v --verbose"
@@ -73,8 +76,14 @@ _gyllir() {
 	    complete_options="$PUBLISH_OPTION"
 	    ;;
 	doc)
-	    complete_options="$DOC_OPTIONS"
-	    complete_words="$(_gyllir_get_targets)"
+	    # 'gyllir doc serve' is a sub command of its own, with its own options
+	    if [[ "$(_gyllir_doc_is_serve)" == "yes" ]]; then
+		complete_options="$DOC_SERVE_OPTIONS"
+		complete_words="$(_gyllir_get_targets)"
+	    else
+		complete_options="$DOC_OPTIONS"
+		complete_words="serve $(_gyllir_get_targets)"
+	    fi
 	    ;;
 	update)
 	    complete_options="$UPDATE_OPTIONS"
@@ -114,6 +123,19 @@ _gyllir_get_targets() {
     fi
 
     echo $names
+}
+
+# Answers "yes" iif the command line being completed is a 'gyllir doc serve' one, the word right
+# after 'doc' being the sub command (see 'parseDoc' in 'src/gyllir/args.yr').
+_gyllir_doc_is_serve() {
+    local i
+
+    for ((i = 1; i < ${#COMP_WORDS[@]}; ++i)); do
+	if [[ ${COMP_WORDS[i]} == "doc" ]]; then
+	    [[ ${COMP_WORDS[i + 1]} == "serve" ]] && echo "yes"
+	    return 0
+	fi
+    done
 }
 
 # Lists the dependencies declared by the gyllir.toml of the current directory, the names

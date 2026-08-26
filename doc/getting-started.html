@@ -152,6 +152,13 @@ gyllir doc -o site        # ... into site/ instead</code></pre>
 static site. Nothing is linked during a doc build, so it works even on a package whose dependencies
 you have not built.</p>
 
+<pre><code>gyllir doc serve          # regenerate, then serve __doc/ on http://127.0.0.1:8000
+gyllir doc serve -p 9000  # ... on port 9000 instead</code></pre>
+
+<p>Serving the site also gives its search box the whole package to look through, rather than only
+the page you happen to have open — see
+<a href="cli.html#doc-serve"><code>gyllir doc serve</code></a>.</p>
+
 <h2>7. Clean up</h2>
 
 <pre><code>gyllir clean              # remove .target/ and the produced artifacts
