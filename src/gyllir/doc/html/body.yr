@@ -63,8 +63,10 @@ pub class HtmlBody over HtmlNode {
      *    - stream: the stream to populate
      */
     pub over dumpHtml(self, dmut stream: &StringStream) {
-        let content = copy ["Content" => self.dumpCommonSymbol(self._module)];
-        formatter::format(alias stream, ressources::MODULE_HEAD, content);
+        if (self._module.doc.len != 0us) {
+            let content = copy ["Content" => self.dumpCommonSymbol(self._module)];
+            formatter::format(alias stream, ressources::MODULE_HEAD, content);
+        }
 
         self.dumpSubModuleTable(alias stream);
 
@@ -820,7 +822,7 @@ pub class HtmlBody over HtmlNode {
             ": " ~ self.dumpType(en.proxy, withMut-> false)
         } else { "" };
 
-        let code = std::format::format("{} enum {}{}{}\n-> {} ", pr, tempTest, tempFormat, type, p.file());
+        let code = std::format::format("{} enum {}{}{}{}", pr, tempTest, tempFormat, p.file(), type);
 
         let dmut codeStream = copy StringStream();
         formatter::format(alias codeStream, ressources::INLINE_CODE, copy ["Code" => code]);

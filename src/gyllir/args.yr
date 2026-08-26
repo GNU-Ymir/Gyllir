@@ -13,6 +13,7 @@ use std::fs::_;
  * */
 pub def __GYLLIR_VERSION__ = "1.6.3";
 
+
 /**
  * Format the version banner of gyllir
  * @params:
@@ -382,6 +383,10 @@ pub class GyllirArgumentParser {
      *    - args: the arguments passed to the sub command
      * */
     prv fn parseDoc(self, args: [[c8]])-> (&Config)? {
+        if (args.len > 1us && args[1] == "serve") {
+            return self.parseDocServe(args[1 .. $]);
+        }
+
         let dmut parser = (copy ArgumentParser)
             :.help("help", short-> "h", comments-> "print this help and exit")
             :.flag("verbose", short-> "v", comments-> "verbose mode")
@@ -396,6 +401,31 @@ pub class GyllirArgumentParser {
         } catch {
             err: &std::config::args::errors::HelpRequestError => {
                 std::io::eprintln(parser.explain(err, usage-> "gyllir doc [target]"));
+                etc::c::process::_yrt_exit(-1);
+                panic;
+            }
+            e => throw e;
+        })?;
+    }
+
+    /**
+     * Parse the documentation serving sub command ('gyllir doc serve')
+     * @params:
+     *    - args: the arguments passed to the sub command, 'args[0]' being 'serve'
+     * */
+    prv fn parseDocServe(self, args: [[c8]])-> (&Config)? {
+        let dmut parser = (copy ArgumentParser)
+            :.help("help", short-> "h", comments-> "print this help and exit")
+            :.option!{[c8]} ("output", short-> "o", comments-> "documentation directory to serve (default: '__doc')")
+            :.option!{[c8]} ("host", comments-> "address to listen on (default: '127.0.0.1')")
+            :.option!{i32} ("port", short-> "p", comments-> "port to listen on (default: 8000)");
+
+        let (rest, target) = self.extractTarget(args, copy ["output", "o", "host", "port", "p"]);
+        return ({
+            self.withServe(self.withTarget(parser.parse(rest), target))
+        } catch {
+            err: &std::config::args::errors::HelpRequestError => {
+                std::io::eprintln(parser.explain(err, usage-> "gyllir doc serve [target]"));
                 etc::c::process::_yrt_exit(-1);
                 panic;
             }
@@ -594,6 +624,23 @@ pub class GyllirArgumentParser {
         }
 
         res["target"] = copy Str(target);
+        res
+    }
+
+    /**
+     * Set the 'serve' flag of a configuration, marking a 'gyllir doc serve' invocation
+     * @params:
+     *    - cfg: the configuration to complete
+     * */
+    prv fn withServe(self, cfg: &Config)-> &Config {
+        let dmut res = copy Dict();
+        if let d: &Dict = cfg {
+            for k, v in d[] {
+                res[k] = v;
+            }
+        }
+
+        res["serve"] = copy Bool(true);
         res
     }
 

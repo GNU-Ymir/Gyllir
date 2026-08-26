@@ -3,3 +3,4 @@ pub mod ::html;
 pub mod ::types;
 pub mod ::symbols;
 pub mod ::loader;
+pub mod ::index;

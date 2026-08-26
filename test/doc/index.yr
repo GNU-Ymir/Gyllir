@@ -1,0 +1,217 @@
+use gyllir::doc::index;
+use gyllir::doc::loader;
+use gyllir::doc::symbols::_;
+
+use std::config::_;
+use std::config::json;
+use std::stream;
+
+/**
+ * @returns: the index of a documentation json, as 'gyllir doc serve' preloads it
+ * */
+prv fn indexOf(cfg: &Config)-> &index::SymbolIndex {
+    copy index::SymbolIndex((SymbolLoader()).load(cfg))
+}
+
+/**
+ * @returns: the entry named 'name' in the index
+ * */
+prv fn entry(i: &index::SymbolIndex, name: [c8])-> (index::SymbolEntry)? {
+    for e in i.entries {
+        if (e.name == name) { return (e)?; }
+    }
+
+    none
+}
+
+__test page_url_follows_the_generated_page_names {
+    // 'pageUrl' mirrors 'RepoDocBuilder::generatePage': "::" becomes "_", the root module is the
+    // index page
+    assert(index::pageUrl("") == "index.html", "unexpected url for the root module");
+    assert(index::pageUrl("gyllir") == "gyllir.html", "unexpected url for a top level module");
+    assert(index::pageUrl("gyllir::repo::builder") == "gyllir_repo_builder.html", "unexpected url for a sub module");
+}
+
+__test kind_aliases_are_normalized {
+    // A '/symbol' query may name a kind by its doc json name, the page writes the shorter one
+    assert(index::normalizeKind("function") == "fn", "'function' should normalize to 'fn'");
+    assert(index::normalizeKind("method") == "fn", "'method' should normalize to 'fn'");
+    assert(index::normalizeKind("global") == "let", "'global' should normalize to 'let'");
+    assert(index::normalizeKind("field") == "let", "'field' should normalize to 'let'");
+    assert(index::normalizeKind("class") == "class", "a kind that is already a 'data-kind' is left alone");
+}
+
+__test index_records_one_entry_per_page_symbol {
+    // Every documented symbol is indexed, named as its page displays it and pointing at the page
+    // of the module declaring it
+    let i = indexOf(json#{
+        "kind" : "module",
+        "name" : "",
+        "childs" : [
+            {"kind" : "module", "name" : "app::core", "childs" : [
+                {"kind" : "function", "name" : "app::core::run"},
+                {"kind" : "global", "name" : "app::core::VERSION"}
+            ]}
+        ]
+    });
+
+    if let Ok(m) = entry(i, "app::core") {
+        assert(m.kind == "module", "a module is indexed with the 'module' kind");
+        assert(m.url == "app_core.html", "unexpected page for a module");
+    } else assert(false, "the module itself should be indexed");
+
+    if let Ok(f) = entry(i, "run") {
+        assert(f.kind == "fn", "unexpected kind for a function");
+        assert(f.module == "app::core", "unexpected module for a function");
+        assert(f.url == "app_core.html", "a symbol points at the page of its module");
+    } else assert(false, "the function should be indexed");
+
+    if let Ok(g) = entry(i, "VERSION") {
+        assert(g.kind == "let", "unexpected kind for a global");
+    } else assert(false, "the global should be indexed");
+
+    // the root module has no name, hence no entry of its own
+    assert(i.entries.len == 3us, "unexpected number of indexed symbols");
+}
+
+__test index_qualifies_members_inside_their_page {
+    // Members are qualified with the symbol declaring them, the way 'main.js' qualifies the
+    // symbols of the page it renders
+    let i = indexOf(json#{
+        "kind" : "module",
+        "name" : "app",
+        "childs" : [
+            {"kind" : "class", "name" : "app::Server",
+             "ctors" : [{"kind" : "ctor", "name" : "app::Server::self"}],
+             "fields" : [{"name" : "_port"}],
+             "methods" : [{"kind" : "method", "name" : "app::Server::start"}]},
+            {"kind" : "enum", "name" : "app::Color", "fields" : [{"name" : "RED", "value" : "0"}]},
+            {"kind" : "record", "name" : "app::Point"},
+            {"kind" : "trait", "name" : "app::Streamable",
+             "methods" : [{"kind" : "method", "name" : "app::Streamable::toStream"}]}
+        ]
+    });
+
+    if let Ok(m) = entry(i, "Server.start") {
+        assert(m.kind == "fn", "a method is dumped with the 'fn' kind");
+        assert(m.url == "app.html", "a member points at the page of its module");
+    } else assert(false, "the method should be indexed, qualified with its class");
+
+    if let Ok(c) = entry(i, "Server.self") {
+        assert(c.kind == "ctor", "unexpected kind for a constructor");
+    } else assert(false, "the constructor should be indexed");
+
+    if let Ok(f) = entry(i, "Server._port") {
+        assert(f.kind == "let", "unexpected kind for a field");
+    } else assert(false, "the field should be indexed");
+
+    if let Ok(e) = entry(i, "Color.RED") {
+        assert(e.kind == "let", "unexpected kind for an enum member");
+    } else assert(false, "the enum member should be indexed");
+
+    if let Ok(r) = entry(i, "Point") {
+        assert(r.kind == "record", "a record is dumped with the 'record' kind");
+    } else assert(false, "the record should be indexed");
+
+    if let Ok(t) = entry(i, "Streamable.toStream") {
+        assert(t.kind == "fn", "unexpected kind for a trait method");
+    } else assert(false, "the trait method should be indexed");
+}
+
+__test index_unwraps_templates {
+    // A template declares no symbol of its own : the page documents what it wraps
+    let i = indexOf(json#{
+        "kind" : "module",
+        "name" : "app",
+        "childs" : [
+            {"kind" : "template", "name" : "app::map",
+             "content" : [{"kind" : "function", "name" : "app::map"}]}
+        ]
+    });
+
+    if let Ok(f) = entry(i, "map") {
+        assert(f.kind == "fn", "the inner of a template is indexed, not the template");
+    } else assert(false, "the templated function should be indexed");
+
+    assert(i.entries.len == 2us, "a template should not add an entry of its own");
+}
+
+__test search_ranks_exact_then_prefix_then_substring {
+    let i = indexOf(json#{
+        "kind" : "module",
+        "name" : "app",
+        "childs" : [
+            {"kind" : "function", "name" : "app::unbuildable"},
+            {"kind" : "function", "name" : "app::buildAll"},
+            {"kind" : "function", "name" : "app::build"}
+        ]
+    });
+
+    let (res, total) = i.search("build");
+    assert(total == 3us, "every matching symbol should be counted");
+    assert(res.len == 3us, "every matching symbol should be returned");
+    assert(res[0].name == "build", "an exact match comes first");
+    assert(res[1].name == "buildAll", "a prefix match comes before a substring match");
+    assert(res[2].name == "unbuildable", "a substring match comes last");
+}
+
+__test search_is_case_insensitive_and_matches_the_last_segment {
+    let i = indexOf(json#{
+        "kind" : "module",
+        "name" : "app",
+        "childs" : [
+            {"kind" : "class", "name" : "app::Server",
+             "methods" : [{"kind" : "method", "name" : "app::Server::start"}]}
+        ]
+    });
+
+    let (res, _) = i.search("START");
+    assert(res.len == 1us && res[0].name == "Server.start", "the last segment of a member name is matched");
+
+    let (byClass, _) = i.search("SERV");
+    assert(byClass.len == 2us, "the class and its method both start with the query");
+    assert(byClass[0].name == "Server", "the search should be case insensitive");
+}
+
+__test search_filters_on_the_kind {
+    let i = indexOf(json#{
+        "kind" : "module",
+        "name" : "app",
+        "childs" : [
+            {"kind" : "function", "name" : "app::value"},
+            {"kind" : "global", "name" : "app::valueCache"}
+        ]
+    });
+
+    let (fns, _) = i.search("value", kind-> "fn");
+    assert(fns.len == 1us && fns[0].name == "value", "only functions should be returned");
+
+    // a query may name the kind the way the doc json does
+    let (methods, _) = i.search("value", kind-> "function");
+    assert(methods.len == 1us && methods[0].name == "value", "'function' should select the same symbols as 'fn'");
+
+    let (lets, _) = i.search("value", kind-> "let");
+    assert(lets.len == 1us && lets[0].name == "valueCache", "only globals should be returned");
+
+    let (none_, _) = i.search("value", kind-> "class");
+    assert(none_.len == 0us, "no symbol of that kind should match");
+}
+
+__test search_honors_the_limit_and_rejects_an_empty_query {
+    let i = indexOf(json#{
+        "kind" : "module",
+        "name" : "app",
+        "childs" : [
+            {"kind" : "function", "name" : "app::buildA"},
+            {"kind" : "function", "name" : "app::buildB"},
+            {"kind" : "function", "name" : "app::buildC"}
+        ]
+    });
+
+    let (limited, total) = i.search("build", limit-> 2us);
+    assert(limited.len == 2us, "the limit should be honored");
+    assert(total == 3us, "the matches dropped by the limit should still be counted");
+
+    let (empty, emptyTotal) = i.search("");
+    assert(empty.len == 0us && emptyTotal == 0us, "an empty query matches nothing");
+}

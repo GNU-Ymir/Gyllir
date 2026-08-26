@@ -1,6 +1,7 @@
 in doc;
 
 pub mod ::loader;
+pub mod ::index;
 pub mod ::comment;
 pub mod ::html;
 pub mod ::symbols;

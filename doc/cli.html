@@ -163,6 +163,57 @@ package with several targets, each target gets its own sub-directory:
 cache at <code>.target/&lt;target&gt;/doc/&lt;output&gt;.doc.json</code>, which is what
 <code>-i</code> expects.</p>
 
+<h2 id="doc-serve">gyllir doc serve</h2>
+
+<pre><code>gyllir doc serve [target] [-o outputDir] [--host address] [-p port]</code></pre>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Flag</th><th>Effect</th></tr>
+    <tr><td><code>-o</code>, <code>--output</code></td><td>Directory to serve. Defaults to <code>__doc/</code>, and to <code>__doc/&lt;target&gt;/</code> when a target is named.</td></tr>
+    <tr><td><code>--host</code></td><td>Address to listen on. Defaults to <code>127.0.0.1</code>.</td></tr>
+    <tr><td><code>-p</code>, <code>--port</code></td><td>Port to listen on. Defaults to <code>8000</code>.</td></tr>
+</table>
+</div>
+
+<p>Regenerates the documentation (same work as <a href="#doc"><code>gyllir doc</code></a>) and then
+serves it over HTTP until it is killed. Beyond the pages themselves, the server answers symbol
+queries on <code>/symbol</code>, which is what makes the search box of a served page cover the
+whole site: a page opened straight from the <code>__doc/</code> directory only searches the module
+it documents, since nothing is there to answer for the others.</p>
+
+<h3 id="symbol-endpoint">POST /symbol</h3>
+
+<p>The body is a json object with a required <code>query</code> and an optional <code>type</code>
+restricting the results to one kind of symbol. The same query can be passed as url parameters of a
+<code>GET</code>, which is handier from a shell:</p>
+
+<pre><code>curl -X POST -d '{"query": "buildTargets"}' http://127.0.0.1:8000/symbol
+curl 'http://127.0.0.1:8000/symbol?query=buildTargets&amp;type=fn'</code></pre>
+
+<pre><code>{
+   "results" : [{
+             "kind" : "fn",
+             "module" : "gyllir::repo::manager",
+             "name" : "GyllirManager.buildTargets",
+             "url" : "gyllir_repo_manager.html"
+   }],
+   "total" : 1
+}</code></pre>
+
+<p>Names are matched case insensitively, exact matches first, then prefixes, then substrings, and
+each result is qualified inside the page documenting it (<code>Class.method</code>).
+<code>total</code> counts every match, which is more than the number of results returned when a
+query matches more symbols than one answer carries. <code>type</code> takes the kind written in the
+pages themselves — <code>fn</code>, <code>ctor</code>, <code>class</code>, <code>record</code>,
+<code>entity</code>, <code>trait</code>, <code>enum</code>, <code>def</code>, <code>macro</code>,
+<code>let</code>, <code>module</code> — and accepts <code>function</code>/<code>method</code> for
+<code>fn</code> and <code>global</code>/<code>field</code> for <code>let</code>. A request naming no
+symbol is answered with a <code>400</code>.</p>
+
+<p>The index is built once at startup, from the <code>.doc.json</code> of the target being served,
+so a source change is picked up by restarting the server.</p>
+
 <h2 id="update">gyllir update</h2>
 
 <pre><code>gyllir update [--std] [dependency...] [-v]</code></pre>

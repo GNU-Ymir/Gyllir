@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link href="/css/style.css" rel="stylesheet">
+
+    <link rel="icon" href="/ico/favicon.svg" type="image/svg+xml">
+    <link rel="alternate icon" href="/ico/favicon-32.png" sizes="32x32">
+
+    <title>$(Code) $(Title)</title>
+
+    <script>
+      // the theme the rest of the site is read with, applied before the first paint so a dark
+      // themed documentation does not flash white on a wrong url
+      try {
+          var theme = localStorage.getItem("gyllir-doc-theme");
+          if (theme) document.documentElement.setAttribute("data-theme", theme);
+      } catch (err) {}
+    </script>
+  </head>
+  <body>
+
+    <main class="error-page">
+      <img class="error-mark" src="/ico/favicon.svg" alt="" width="72" height="72">
+      <p class="error-code">$(Code)</p>
+      <h1 class="error-title">$(Title)</h1>
+      <p class="error-message">$(Message)</p>
+      <a class="error-home" href="/">Back to the documentation</a>
+    </main>
+
+  </body>
+</html>

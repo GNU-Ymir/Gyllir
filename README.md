@@ -74,6 +74,17 @@ Building a `.deb` from a checkout is done through the `Dockerfile`, which pins t
 `res/css`, `res/js`, `res/ico`) to `/etc/gyllir/res/...` and the completion script to
 `/etc/bash_completion.d/`.
 
+`tools/install.sh` puts that same layout in place from a checkout, without building a package —
+useful when a change to `res/` has to be tried out, since `gyllir doc` reads its templates from
+`/etc/gyllir/res` (compiled into `ressources::RES_ROOT`), never from the repository:
+
+```sh
+gyllir build --release       # -> ./gyllir, what the script installs
+sudo tools/install.sh        # executable, documentation assets and completion
+sudo tools/install.sh -a     # only res/, keeping the released /usr/bin/gyllir in place
+tools/install.sh --destdir /pkg   # stage the layout under a directory instead, no root needed
+```
+
 ## Usage
 
 - `gyllir init` — interactively create a new `gyllir.toml` project in the current directory
