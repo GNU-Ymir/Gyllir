@@ -3,38 +3,17 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this
 repository.
 
-## Issue tracking (Linear)
+## Issue tracking (Plane)
 
-Issues for this repo are tracked in Linear, team **Ymir** (key `YMI`, id
-`43b9b28b-ad88-40b2-a3b7-e7ba31ad62fc`), workspace `ymir-bootstrap`. There is no Linear MCP tool
-installed in this environment — read/write issues via the Linear GraphQL API directly
-(`https://api.linear.app/graphql`), authenticated with the `$LINEAR_API_KEY` environment
-variable (passed as-is in the `Authorization` header, no `Bearer` prefix). That variable lives in
-the user's interactive shell — a fresh subprocess may not inherit it; check with
-`[ -z "$LINEAR_API_KEY" ]` before use, and never print the key itself.
+Project **Gyllir** (key `GYL`), workspace `ymir-bootstrap`. Use the plane MCP tools.
 
-- Create an issue:
-  ```bash
-  curl -s -X POST https://api.linear.app/graphql \
-    -H "Content-Type: application/json" \
-    -H "Authorization: $LINEAR_API_KEY" \
-    -d '{"query": "mutation IssueCreate($input: IssueCreateInput!) { issueCreate(input: $input) { success issue { id identifier url } } }", "variables": {"input": {"teamId": "43b9b28b-ad88-40b2-a3b7-e7ba31ad62fc", "title": "...", "description": "..."}}}'
-  ```
-- Read/search issues (e.g. by team):
-  ```bash
-  curl -s -X POST https://api.linear.app/graphql \
-    -H "Content-Type: application/json" \
-    -H "Authorization: $LINEAR_API_KEY" \
-    -d '{"query": "query { team(id: \"43b9b28b-ad88-40b2-a3b7-e7ba31ad62fc\") { issues { nodes { id identifier title state { name } url } } } }"}'
-  ```
-- Look up a single issue by identifier (e.g. `YMI-35`) via the `issue(id: "...")` query, or
-  `issueUpdate(id: ..., input: {...})` to change state/assignee/etc.
-- Team discovery (only needed if working across other Linear workspaces/teams):
-  `query { teams { nodes { id key name } } }`.
+Work items used to live in Linear under a single `YMI` key shared by every repository, which
+is why older PR titles and branch names here all read `YMI-`. Each repository now has its own
+Plane project, and new work for this one goes under `GYL`.
 
 ## Pull request titles
 
-PR titles must read `[YMI-XXX][kind] Log` — `YMI-XXX` is the Linear issue, and `[kind]` is
+PR titles must read `[GYL-XXX][kind] Log` — `GYL-XXX` is the Plane work item, and `[kind]` is
 optional and defaults to a feature. Known kinds: `feat`/`feature`, `fix`, `perf`, `refactor`,
 `doc(s)`, `test(s)`, `chore`/`ci`/`build`/`style`, `breaking`. This is not cosmetic: the release
 notes are generated from these titles by `.github/scripts/changelog.sh`, one entry per merged PR
@@ -42,10 +21,15 @@ notes are generated from these titles by `.github/scripts/changelog.sh`, one ent
 the format — no issue key, or a kind outside that list — is left out of the release notes
 entirely**; the skip is logged on stderr by the release job, but the change goes unannounced.
 
-The branch currently checked out is generally named `YMI-<issue_number>-<short-description>`
-(e.g. `YMI-34-coverage-by-files`) — the `YMI-<issue_number>` part is the Linear issue key, so it
-can be used to look up the issue this branch's work is tracked against (`issue(id: "YMI-34")` or
-by matching `identifier` in a team issue list).
+The leading tag is also the only thing tying a PR to Plane. `.github/workflows/plane-sync.yml`
+takes the work item from it and nowhere else — a body merely mentioning another item cannot
+attach the PR to it — then attaches the PR as a link, comments on open, close and merge, and
+moves the item to In Progress when the PR opens and to Done when it merges. A title without a
+valid tag is skipped in silence, so it costs both the release note and the tracker update.
+
+The branch currently checked out is generally named `GYL-<issue_number>-<short-description>`
+(e.g. `GYL-34-plane-ci`) — the `GYL-<issue_number>` part is the Plane work item key, so it
+can be used to look up the item this branch's work is tracked against.
 
 ## What this is
 
