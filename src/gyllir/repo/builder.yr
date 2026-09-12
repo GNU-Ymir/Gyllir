@@ -488,9 +488,25 @@ pub record RepoBuilder {
             options ~= ["-funittest"];
         }
 
-        options ~= objects;
-        options ~= ["-o", output];
-        options ~= copy [d.toStr() for d in dependencyLibs];
+        // Under '-funittest' the coverage hooks of a library function live in the archive that
+        // library was compiled into, but a template of it re-instantiated while compiling this
+        // target is emitted a second time, hookless, in this target's own object. Both copies are
+        // weak, and the linker keeps the first one it sees - so the archives go first, whole, or
+        // every function the hookless copies shadow reports zero coverage forever. They are listed
+        // only once - '--whole-archive' already pulls in every member, and naming an archive a
+        // second time makes the linker load those members again ('multiple definition').
+        if (self.isInstrumented()) {
+            options ~= ["-Wl,--whole-archive"];
+            options ~= copy [d.toStr() for d in dependencyLibs];
+            options ~= ["-Wl,--no-whole-archive"];
+            options ~= objects;
+            options ~= ["-o", output];
+        } else {
+            options ~= objects;
+            options ~= ["-o", output];
+            options ~= copy [d.toStr() for d in dependencyLibs];
+        }
+
         options ~= copy [o.toStr() for o in cObjects];
 
         for k in self._target.libraries {
@@ -507,6 +523,19 @@ pub record RepoBuilder {
 
         // last, so that a target can override the options gyllir picked for it(-g, -O3, ...)
         options ~ self._target.flags
+    }
+
+    /**
+     * @returns: true if the compiler instruments the code of this build for unittest coverage
+     * */
+    fn isInstrumented(self)-> bool {
+        if (self._forUnitTest) { return true; }
+
+        for f in self._extraFlags ~ self._target.flags {
+            if (f == "-funittest") { return true; }
+        }
+
+        false
     }
 
     /**
