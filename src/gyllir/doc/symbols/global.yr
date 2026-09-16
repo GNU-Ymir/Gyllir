@@ -1,10 +1,10 @@
 in global;
 
 
+use gyllir::doc::types;
+use gyllir::doc::types::any;
+
 use std::stream;
-use gyllir::doc::{symbols::{variable, method, ctor},
-                  types,
-                  types::any};
 
 @final
 pub class Global over Symbol {

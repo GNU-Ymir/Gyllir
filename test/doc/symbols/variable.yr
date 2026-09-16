@@ -1,6 +1,4 @@
-use gyllir::doc::symbols::_;
-use gyllir::doc::symbols::variable;
-use gyllir::doc::types::_;
+use gyllir::doc::{symbols::_, symbols::variable};
 use gyllir::doc::types::scalar;
 
 use std::stream;

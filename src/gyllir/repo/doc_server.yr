@@ -1,7 +1,7 @@
 in doc_server;
 
-use gyllir::{config::_, repo::_, utils::_};
-use gyllir::doc::{html::_, index, loader, symbols::_};
+use gyllir::config::_;
+use gyllir::doc::{html, index, loader, symbols};
 
 use std::{config::_, env, fs::_, io, net::_, stream, syntax::_};
 

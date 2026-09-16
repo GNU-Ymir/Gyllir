@@ -1,7 +1,6 @@
 in template_;
 
 use std::stream;
-use gyllir::doc::symbols::none_;
 
 pub mod ::any;
 pub mod ::and;

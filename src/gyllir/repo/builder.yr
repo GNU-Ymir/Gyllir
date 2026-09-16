@@ -1,7 +1,7 @@
 in builder;
 
 
-use gyllir::{config::_, repo::_, utils::_};
+use gyllir::{config::_, repo::_, utils};
 
 use std::{config::_, env, fs::_, io, stream, time::_};
 use std::syntax::tokenizer;
@@ -262,9 +262,11 @@ pub record RepoBuilder {
         let parallel_changed = self.cutModuleList(changed, self._nbThreads);
 
         for i, m in parallel_changed if m.len > 0 {
-            let msg = {
-                std::format::format("{} modules in thread {} (among {} changed files of {}) ", m.len, i + 1, changed.len, sources.len)
-            } catch { _ => { "\t" } };
+            let msg = std::format::format("{} modules in thread {} (among {} changed files of {}) ",
+                                          m.len,
+                                          i + 1,
+                                          changed.len,
+                                          sources.len);
             utils::log::info("Compiling", msg);
 
             submitted += 1;

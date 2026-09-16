@@ -1,15 +1,10 @@
 use ::repo::fixture;
-use gyllir::repo::publisher;
-use gyllir::repo::manager;
-use gyllir::repo::defaults;
-use gyllir::config::_;
-use gyllir::utils::_;
 
-use std::config::_;
-use std::config::toml;
-use std::fs::_;
+use gyllir::{config::_, utils::_};
+use gyllir::repo::{defaults, manager, publisher};
+
+use std::{config::_, config::toml, fs::_};
 use std::concurrency::process;
-use std::conv::errors;
 use std::syntax::errors;
 
 /**

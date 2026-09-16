@@ -1,8 +1,6 @@
-use gyllir::utils::git;
-use gyllir::utils::errors;
+use gyllir::utils::{errors, git};
 
 use std::fs::_;
-use std::stream;
 use std::concurrency::process;
 
 fn containsSub(haystack: [c8], needle: [c8])-> bool {

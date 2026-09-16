@@ -1,9 +1,7 @@
 use gyllir::config::_;
 use gyllir::config::version::filter;
 
-use std::config::_;
-use std::config::{conv, json};
-use std::conv::errors;
+use std::config::{_, conv, json};
 
 __test hand_built_dependency_defaults_empty_targets {
     // A dependency built by hand defaults to selecting every target of its own, until told otherwise

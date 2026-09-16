@@ -2,9 +2,6 @@ in macro_;
 
 
 use std::stream;
-use gyllir::doc::{symbols::{variable, method, ctor},
-                  types,
-                  types::any};
 
 
 @final

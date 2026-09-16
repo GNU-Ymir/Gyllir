@@ -1,7 +1,9 @@
 in loader;
 
-use std::{io, config::_, format};
-use gyllir::doc::{symbols::_, types::_, symbols::template_::_};
+use gyllir::doc::types::_;
+use gyllir::doc::symbols::{_, template_::_};
+
+use std::config::data;
 
 
 pub record SymbolLoader {

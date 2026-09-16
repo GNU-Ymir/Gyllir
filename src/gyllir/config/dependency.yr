@@ -1,7 +1,9 @@
 in dependency;
 
+use gyllir::config::url;
+use gyllir::config::version::filter;
+
 use std::{config::_, stream};
-use gyllir::config::{url, version, version::filter};
 
 /**
  * A dependency to an external package

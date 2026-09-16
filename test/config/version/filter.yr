@@ -1,10 +1,7 @@
-use gyllir::config::version::filter;
 use gyllir::config::version;
+use gyllir::config::version::filter;
 
-use std::config::_;
-use std::config::conv;
-use std::conv::errors;
-use std::stream;
+use std::{config::_, config::conv, stream};
 
 __test plain_versions_are_equality_filters {
     // Plain versions (no comparator) are equality filters

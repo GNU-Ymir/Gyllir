@@ -1,8 +1,9 @@
 in init;
 
-use std::{io, env, stream, config::_};
-use gyllir::{repo::_, utils::_, config::_};
-use std::fs::_;
+use gyllir::{config::_, utils::_};
+use gyllir::repo::manager;
+
+use std::{config::_, env, fs::_, io, stream};
 
 pub record RepoInitializer {
 

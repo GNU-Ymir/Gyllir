@@ -3,8 +3,6 @@ in filter;
 use std::{config::_, stream};
 use std::syntax::tokenizer;
 
-use gyllir::config::version;
-
 enum FilterKind: u8
 | SUP    = 1
 | SUP_EQ = 2

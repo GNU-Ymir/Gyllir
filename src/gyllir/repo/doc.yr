@@ -1,9 +1,11 @@
 in doc;
 
-use std::{io, env, stream, config::_, fs::{path, errors}, concurrency::process};
-use gyllir::{repo::_, utils::_, config::_};
-use std::{fs::_, syntax::_};
-use gyllir::doc::{_, symbols::_, types::_, html::_};
+use gyllir::{config::_, repo::_};
+use gyllir::doc::{_, html::_, symbols::_, types};
+use gyllir::utils::git;
+
+use std::{config::_, env, fs::_, fs::errors, fs::path, io, stream, syntax::_};
+use std::concurrency::process;
 
 pub record RepoDocBuilder {
 

@@ -1,18 +1,12 @@
 use ::repo::fixture;
-use gyllir::repo::manager;
-use gyllir::repo::builder;
-use gyllir::repo::cleaner;
-use gyllir::repo::defaults;
+
 use gyllir::config::_;
 use gyllir::config::version::filter;
-use gyllir::utils::errors;
+use gyllir::repo::{builder, cleaner, defaults, manager};
 use gyllir::utils::git;
 
-use std::config::_;
-use std::config::json;
+use std::{config::_, config::json, fs::_};
 use std::concurrency::process;
-use std::fs::_;
-use std::stream;
 
 /**
  * The library targets of a package as 'resolveDependency' would compute them: every declared

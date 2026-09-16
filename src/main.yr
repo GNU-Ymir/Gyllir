@@ -2,8 +2,7 @@ in main;
 
 mod .gyllir;
 
-use gyllir::repo::_;
-use std::io;
+use gyllir::repo::manager;
 
 fn main(args: [[c8]]) {
     let dmut m = copy GyllirManager(args);

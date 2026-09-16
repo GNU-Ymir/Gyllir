@@ -1,10 +1,9 @@
 in trait_;
 
 
+use gyllir::doc::symbols::{assertion, method};
+
 use std::stream;
-use gyllir::doc::{symbols::{variable, method, ctor, assertion},
-                  types,
-                  types::any};
 
 @final
 pub class TraitSymbol over Symbol {

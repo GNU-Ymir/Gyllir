@@ -1,8 +1,6 @@
 use gyllir::config::_;
 
-use std::config::_;
-use std::config::{conv, json};
-use std::conv::errors;
+use std::config::{_, conv, json};
 
 pub mod ::command;
 pub mod ::dependency;

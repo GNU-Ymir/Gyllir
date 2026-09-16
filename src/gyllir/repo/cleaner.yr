@@ -1,7 +1,11 @@
 in cleaner;
 
-use std::{io, env, stream, config::_, fs::{path, errors}, concurrency::process};
-use gyllir::{repo::_, utils::_, config::_};
+use gyllir::config::_;
+use gyllir::repo::manager;
+
+use std::{config::_, env, io, stream};
+use std::concurrency::process;
+use std::fs::{errors, path};
 
 
 pub record RepoCleaner {

@@ -1,6 +1,7 @@
 in csources;
 
-use gyllir::{config::_, repo::_, utils::_};
+use gyllir::config::_;
+use gyllir::repo::manager;
 
 use std::{config::_, env, fs::_, io, time::_};
 
