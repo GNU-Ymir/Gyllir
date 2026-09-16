@@ -137,9 +137,9 @@ pub class HtmlBody over HtmlNode {
                 let comm = copy CommentParser(m.doc);
 
                 formatter::format(alias subModule, ressources::SUBMODULE, copy ["Url" => url.toStr(sep-> "_"),
-                                                                                 "Name" => name,
-                                                                                 "Protection" => self.dumpProtection(m.protect),
-                                                                                 "Doc" => comm.dumpTextShort()]);
+                                                                                "Name" => name,
+                                                                                "Protection" => self.dumpProtection(m.protect),
+                                                                                "Doc" => comm.dumpTextShort()]);
             }
 
             formatter::format(alias stream, ressources::MODULE_TABLE, copy ["Content" => subModule[]]);
@@ -200,17 +200,17 @@ pub class HtmlBody over HtmlNode {
         codeStream:.write(tempTest);
 
         codeStream:.write(std::format::format(" {}{} {} {}",
-                                                p.file(),
-                                                tempFormat,
-                                                token, end));
+                                              p.file(),
+                                              tempFormat,
+                                              token, end));
 
         formatter::format(alias innerStream, ressources::INLINE_CODE, copy ["Code" => codeStream[]]);
         innerStream:.write(self.dumpCommonSymbol(d));
 
         formatter::format(alias stream, ressources::DECLARATION, copy ["Kind" => "def",
-                                                                        "Name" => p.file(),
-                                                                        "Templates" => (tempFormat ~ tempTest),
-                                                                        "Content" => innerStream[]]);
+                                                                       "Name" => p.file(),
+                                                                       "Templates" => (tempFormat ~ tempTest),
+                                                                       "Content" => innerStream[]]);
     }
 
 
@@ -232,10 +232,10 @@ pub class HtmlBody over HtmlNode {
         let tempTest = self.dumpTemplateTest(templateTest);
 
         let code = std::format::format("{} trait{} {} {} {{ \n\t/** full declaration omitted */ \n\n}",
-                                        self.dumpProtection(tr.protect),
-                                        tempTest,
-                                        p.file(),
-                                        tempFormat);
+                                       self.dumpProtection(tr.protect),
+                                       tempTest,
+                                       p.file(),
+                                       tempFormat);
 
         formatter::format(alias innerStream, ressources::INLINE_CODE, copy ["Code" => code]);
         innerStream:.write(self.dumpCommonSymbol(tr));
@@ -247,9 +247,9 @@ pub class HtmlBody over HtmlNode {
 
         formatter::format(alias innerStream, ressources::MEMBERS, copy ["Content" => contentStream[]]);
         formatter::format(alias stream, ressources::DECLARATION, copy ["Kind" => "trait",
-                                                                        "Name" => p.file(),
-                                                                        "Templates" => (tempFormat ~ tempTest),
-                                                                        "Content" => innerStream[]]);
+                                                                       "Name" => p.file(),
+                                                                       "Templates" => (tempFormat ~ tempTest),
+                                                                       "Content" => innerStream[]]);
     }
 
 
@@ -300,14 +300,14 @@ pub class HtmlBody over HtmlNode {
             } else { "" };
 
         let code = std::format::format("{}{} {}{} {}{} {} {{ \n\t/** full declaration omitted */ \n\n{}}",
-                                        attrs,
-                                        self.dumpProtection(c.protect),
-                                        kind,
-                                        tempTest,
-                                        p.file(),
-                                        tempFormat,
-                                        ancestor,
-                                        impls[]);
+                                       attrs,
+                                       self.dumpProtection(c.protect),
+                                       kind,
+                                       tempTest,
+                                       p.file(),
+                                       tempFormat,
+                                       ancestor,
+                                       impls[]);
 
         formatter::format(alias innerStream, ressources::INLINE_CODE, copy ["Code" => code]);
         innerStream:.write(self.dumpCommonSymbol(c));
@@ -326,9 +326,9 @@ pub class HtmlBody over HtmlNode {
 
         formatter::format(alias innerStream, ressources::MEMBERS, copy ["Content" => contentStream[]]);
         formatter::format(alias stream, ressources::DECLARATION, copy ["Kind" => kind,
-                                                                        "Name" => p.file(),
-                                                                        "Templates" => (tempFormat ~ tempTest),
-                                                                        "Content" => innerStream[]]);
+                                                                       "Name" => p.file(),
+                                                                       "Templates" => (tempFormat ~ tempTest),
+                                                                       "Content" => innerStream[]]);
     }
 
     /**
@@ -349,14 +349,14 @@ pub class HtmlBody over HtmlNode {
 
             // innerStream:.write(inner[]);
             formatter::format(alias innerStream, ressources::DECLARATION, copy ["Kind" => "assert",
-                                                                                 "Name" => "",
-                                                                                 "Templates" => cond,
-                                                                                 "Content" => inner[]]);
+                                                                                "Name" => "",
+                                                                                "Templates" => cond,
+                                                                                "Content" => inner[]]);
         }
 
         if (innerStream[].len != 0us)
             formatter::format(alias stream, ressources::MEMBER_HEAD, copy ["Kind" => "Assertions",
-                                                                            "Content" => innerStream[]]);
+                                                                           "Content" => innerStream[]]);
     }
 
     /*!
@@ -383,7 +383,7 @@ pub class HtmlBody over HtmlNode {
 
         if (innerStream[].len != 0us)
             formatter::format(alias stream, ressources::MEMBER_HEAD, copy ["Kind" => "Constructors",
-                                                                            "Content" => innerStream[]]);
+                                                                           "Content" => innerStream[]]);
     }
 
     /**
@@ -402,7 +402,7 @@ pub class HtmlBody over HtmlNode {
 
         if (innerStream[].len != 0us)
             formatter::format(alias stream, ressources::MEMBER_HEAD, copy ["Kind" => "Conditional Constructors",
-                                                                            "Content" => innerStream[]]);
+                                                                           "Content" => innerStream[]]);
     }
 
     /**
@@ -423,7 +423,7 @@ pub class HtmlBody over HtmlNode {
 
         if (innerStream[].len != 0us)
             formatter::format(alias stream, ressources::MEMBER_HEAD, copy ["Kind" => "Template Constructors",
-                                                                            "Content" => innerStream[]]);
+                                                                           "Content" => innerStream[]]);
     }
 
     /*!
@@ -450,7 +450,7 @@ pub class HtmlBody over HtmlNode {
 
         if (innerStream[].len != 0)
             formatter::format(alias stream, ressources::MEMBER_HEAD, copy ["Kind" => "Fields",
-                                                                            "Content" => innerStream[]]);
+                                                                           "Content" => innerStream[]]);
     }
 
     /**
@@ -469,7 +469,7 @@ pub class HtmlBody over HtmlNode {
 
         if (innerStream[].len != 0)
             formatter::format(alias stream, ressources::MEMBER_HEAD, copy ["Kind" => "Conditional Fields",
-                                                                            "Content" => innerStream[]]);
+                                                                           "Content" => innerStream[]]);
     }
 
     /**
@@ -492,21 +492,21 @@ pub class HtmlBody over HtmlNode {
         let isRef = if (field.isRef) { " ref" } else { "" };
 
         let code = std::format::format("{}{} let{}{} {}{}{};",
-                                        self.dumpProtection(field.protect),
-                                        tempTest,
-                                        isRef,
-                                        isMut,
-                                        field.name,
-                                        type,
-                                        value);
+                                       self.dumpProtection(field.protect),
+                                       tempTest,
+                                       isRef,
+                                       isMut,
+                                       field.name,
+                                       type,
+                                       value);
 
         formatter::format(alias innerStream2, ressources::INLINE_CODE, copy ["Code" => code]);
         innerStream2:.write(self.dumpCommonSymbol(field));
 
         formatter::format(alias stream, ressources::DECLARATION, copy ["Kind" => "let",
-                                                                        "Name" => field.name,
-                                                                        "Templates" => tempTest,
-                                                                        "Content" => innerStream2[]]);
+                                                                       "Name" => field.name,
+                                                                       "Templates" => tempTest,
+                                                                       "Content" => innerStream2[]]);
     }
 
     /*!
@@ -533,7 +533,7 @@ pub class HtmlBody over HtmlNode {
 
         if (innerStream[].len != 0us)
             formatter::format(alias stream, ressources::MEMBER_HEAD, copy ["Kind" => "Methods",
-                                                                            "Content" => innerStream[]]);
+                                                                           "Content" => innerStream[]]);
     }
 
     /**
@@ -552,7 +552,7 @@ pub class HtmlBody over HtmlNode {
 
         if (innerStream[].len != 0us)
             formatter::format(alias stream, ressources::MEMBER_HEAD, copy ["Kind" => "Conditional Methods",
-                                                                            "Content" => innerStream[]]);
+                                                                           "Content" => innerStream[]]);
     }
 
     /**
@@ -573,7 +573,7 @@ pub class HtmlBody over HtmlNode {
 
         if (innerStream[].len != 0us)
             formatter::format(alias stream, ressources::MEMBER_HEAD, copy ["Kind" => "Template Methods",
-                                                                            "Content" => innerStream[]]);
+                                                                           "Content" => innerStream[]]);
     }
 
 
@@ -645,9 +645,9 @@ pub class HtmlBody over HtmlNode {
         innerStream:.write(self.dumpCommonSymbol(func));
 
         formatter::format(alias stream, ressources::DECLARATION, copy ["Kind" => "fn",
-                                                                        "Name" => name.file(),
-                                                                        "Templates" => tempFormat,
-                                                                        "Content" => innerStream[]]);
+                                                                       "Name" => name.file(),
+                                                                       "Templates" => tempFormat,
+                                                                       "Content" => innerStream[]]);
     }
 
     /**
@@ -704,9 +704,9 @@ pub class HtmlBody over HtmlNode {
         innerStream:.write(self.dumpCommonSymbol(ctor));
 
         formatter::format(alias stream, ressources::DECLARATION, copy ["Kind" => "ctor",
-                                                                        "Name" => name.file(),
-                                                                        "Templates" => (tempFormat ~ tempTest),
-                                                                        "Content" => innerStream[]]);
+                                                                       "Name" => name.file(),
+                                                                       "Templates" => (tempFormat ~ tempTest),
+                                                                       "Content" => innerStream[]]);
     }
 
     /**
@@ -778,9 +778,9 @@ pub class HtmlBody over HtmlNode {
         innerStream:.write(self.dumpCommonSymbol(method));
 
         formatter::format(alias stream, ressources::DECLARATION, copy ["Kind" => "fn",
-                                                                        "Name" => name.file(),
-                                                                        "Templates" => tempFormat,
-                                                                        "Content" => innerStream[]]);
+                                                                       "Name" => name.file(),
+                                                                       "Templates" => tempFormat,
+                                                                       "Content" => innerStream[]]);
     }
 
     /*!
@@ -818,16 +818,16 @@ pub class HtmlBody over HtmlNode {
             fieldStream:.write(self.dumpComments(c.2));
 
             formatter::format(alias contentStream, ressources::DECLARATION, copy ["Kind" => "let",
-                                                                                   "Name" => c.0,
-                                                                                   "Templates" => "",
-                                                                                   "Content" => fieldStream[]]);
+                                                                                  "Name" => c.0,
+                                                                                  "Templates" => "",
+                                                                                  "Content" => fieldStream[]]);
         }
 
         formatter::format(alias codeStream, ressources::MEMBERS, copy ["Content" => contentStream[]]);
         formatter::format(alias stream, ressources::DECLARATION, copy ["Kind" => "enum",
-                                                                        "Name" => p.file(),
-                                                                        "Templates" => (tempFormat ~ tempTest),
-                                                                        "Content" => codeStream[]]);
+                                                                       "Name" => p.file(),
+                                                                       "Templates" => (tempFormat ~ tempTest),
+                                                                       "Content" => codeStream[]]);
     }
 
     /*!
@@ -851,7 +851,7 @@ pub class HtmlBody over HtmlNode {
         let kind = if (g.isStatic) { "static" } else { "lazy" };
         codeStream:.write(pr, " ", kind, " ", p.file());
         if let a: &AnyType = g.type {
-             if (a.name != "") codeStream:.write(" : ", self.dumpType(a));
+            if (a.name != "") codeStream:.write(" : ", self.dumpType(a));
         } else {
             codeStream:.write(" : ", self.dumpType(g.type));
         }
@@ -865,9 +865,9 @@ pub class HtmlBody over HtmlNode {
         innerStream:.write(self.dumpCommonSymbol(g));
 
         formatter::format(alias stream, ressources::DECLARATION, copy ["Kind" => "let",
-                                                                        "Name" => p.file(),
-                                                                        "Templates" => "",
-                                                                        "Content" => innerStream[]]);
+                                                                       "Name" => p.file(),
+                                                                       "Templates" => "",
+                                                                       "Content" => innerStream[]]);
     }
 
     /*!
@@ -897,9 +897,9 @@ pub class HtmlBody over HtmlNode {
 
         formatter::format(alias innerStream, ressources::MEMBERS, copy ["Content" => contentStream[]]);
         formatter::format(alias stream, ressources::DECLARATION, copy ["Kind" => "macro",
-                                                                        "Name" => p.file(),
-                                                                        "Templates" => "",
-                                                                        "Content" => innerStream[]]);
+                                                                       "Name" => p.file(),
+                                                                       "Templates" => "",
+                                                                       "Content" => innerStream[]]);
     }
 
     /**
@@ -915,7 +915,7 @@ pub class HtmlBody over HtmlNode {
 
         if (innerStream[].len != 0us)
             formatter::format(alias stream, ressources::MEMBER_HEAD, copy ["Kind" => "Constructors",
-                                                                            "Content" => innerStream[]]);
+                                                                           "Content" => innerStream[]]);
     }
 
     /**
@@ -931,7 +931,7 @@ pub class HtmlBody over HtmlNode {
 
         if (innerStream[].len != 0us)
             formatter::format(alias stream, ressources::MEMBER_HEAD, copy ["Kind" => "Rules",
-                                                                            "Content" => innerStream[]]);
+                                                                           "Content" => innerStream[]]);
     }
 
     /**
@@ -964,9 +964,9 @@ pub class HtmlBody over HtmlNode {
         innerStream:.write(self.dumpCommonSymbol(rule));
 
         formatter::format(alias stream, ressources::DECLARATION, copy ["Kind" => kind,
-                                                                        "Name" => n.file(),
-                                                                        "Templates" => "",
-                                                                        "Content" => innerStream[]]);
+                                                                       "Name" => n.file(),
+                                                                       "Templates" => "",
+                                                                       "Content" => innerStream[]]);
     }
 
     /*!
