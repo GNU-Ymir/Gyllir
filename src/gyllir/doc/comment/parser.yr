@@ -1,9 +1,9 @@
 in parser;
 
-use std::{io, stream, syntax::lexer};
-use gyllir::doc::comment::tokens;
+use gyllir::doc::comment::{node, node::_, tokens, utf};
 
-use gyllir::doc::comment::{node, node::_, utf};
+use std::stream;
+use std::syntax::lexer;
 
 
 /**

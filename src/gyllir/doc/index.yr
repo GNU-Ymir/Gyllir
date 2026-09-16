@@ -1,10 +1,11 @@
 in index;
 
-use std::{stream, fs::path, char};
-use std::algorithm::searching;
-
-use gyllir::doc::{symbols::_, symbols::template_::_};
+use gyllir::doc::symbols::{_, template_};
 use gyllir::repo::defaults;
+
+use std::{char, stream};
+use std::algorithm::searching;
+use std::fs::path;
 
 /**
  * One symbol of a documentation site, as the '/symbol' endpoint of 'gyllir doc serve' returns it

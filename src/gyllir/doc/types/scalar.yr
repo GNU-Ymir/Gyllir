@@ -1,6 +1,6 @@
 in scalar;
 
-use std::{stream, fs::path};
+use std::stream;
 
 @final
 pub class ScalarType over Type {

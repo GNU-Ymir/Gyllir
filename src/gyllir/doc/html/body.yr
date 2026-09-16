@@ -1,12 +1,11 @@
 in body;
 
-use std::{stream,
-          format,
-          algorithm::sorting,
-          conv, fs::path};
+use gyllir::doc::{_, symbols::_, types::_};
+use gyllir::doc::comment::parser;
 
-use gyllir::doc::{_, symbols::_, types::_, comment::parser};
-use gyllir::repo::defaults;
+use std::{conv, format, stream};
+use std::algorithm::sorting;
+use std::fs::path;
 
 
 /**

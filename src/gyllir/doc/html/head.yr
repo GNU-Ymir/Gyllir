@@ -1,7 +1,8 @@
 in head;
 
-use std::{stream};
-use gyllir::doc::{_, symbols::_, types::_, html::_};
+use gyllir::doc::html::body;
+
+use std::stream;
 
 /**
  * Html header of a page

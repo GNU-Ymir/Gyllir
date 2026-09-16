@@ -1,7 +1,6 @@
 in foot;
 
 use std::stream;
-use gyllir::doc::{_, symbols::_, types::_};
 
 
 /**
