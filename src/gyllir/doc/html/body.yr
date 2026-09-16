@@ -211,8 +211,6 @@ pub class HtmlBody over HtmlNode {
                                                                         "Name" => p.file(),
                                                                         "Templates" => (tempFormat ~ tempTest),
                                                                         "Content" => innerStream[]]);
-    } catch {
-        _ => {}
     }
 
 
@@ -252,8 +250,6 @@ pub class HtmlBody over HtmlNode {
                                                                         "Name" => p.file(),
                                                                         "Templates" => (tempFormat ~ tempTest),
                                                                         "Content" => innerStream[]]);
-    } catch {
-        _ => {}
     }
 
 
@@ -333,8 +329,6 @@ pub class HtmlBody over HtmlNode {
                                                                         "Name" => p.file(),
                                                                         "Templates" => (tempFormat ~ tempTest),
                                                                         "Content" => innerStream[]]);
-    } catch {
-        _ => {}
     }
 
     /**
@@ -363,8 +357,6 @@ pub class HtmlBody over HtmlNode {
         if (innerStream[].len != 0us)
             formatter::format(alias stream, ressources::MEMBER_HEAD, copy ["Kind" => "Assertions",
                                                                             "Content" => innerStream[]]);
-    } catch {
-        _ => {}
     }
 
     /*!
@@ -515,8 +507,6 @@ pub class HtmlBody over HtmlNode {
                                                                         "Name" => field.name,
                                                                         "Templates" => tempTest,
                                                                         "Content" => innerStream2[]]);
-    } catch {
-        _ => {}
     }
 
     /*!
@@ -658,8 +648,6 @@ pub class HtmlBody over HtmlNode {
                                                                         "Name" => name.file(),
                                                                         "Templates" => tempFormat,
                                                                         "Content" => innerStream[]]);
-    } catch {
-        _ => {}
     }
 
     /**
@@ -719,8 +707,6 @@ pub class HtmlBody over HtmlNode {
                                                                         "Name" => name.file(),
                                                                         "Templates" => (tempFormat ~ tempTest),
                                                                         "Content" => innerStream[]]);
-    } catch {
-        _ => {}
     }
 
     /**
@@ -795,8 +781,6 @@ pub class HtmlBody over HtmlNode {
                                                                         "Name" => name.file(),
                                                                         "Templates" => tempFormat,
                                                                         "Content" => innerStream[]]);
-    } catch {
-        _ => {}
     }
 
     /*!
@@ -844,8 +828,6 @@ pub class HtmlBody over HtmlNode {
                                                                         "Name" => p.file(),
                                                                         "Templates" => (tempFormat ~ tempTest),
                                                                         "Content" => codeStream[]]);
-    } catch {
-        _ => {}
     }
 
     /*!
@@ -985,8 +967,6 @@ pub class HtmlBody over HtmlNode {
                                                                         "Name" => n.file(),
                                                                         "Templates" => "",
                                                                         "Content" => innerStream[]]);
-    } catch {
-        _ => {}
     }
 
     /*!
@@ -1082,10 +1062,6 @@ pub class HtmlBody over HtmlNode {
             "dmut " ~ inner
         } else {
             inner
-        }
-    } catch {
-        _ => {
-            ""
         }
     }
 
