@@ -1,10 +1,10 @@
+use ::repo::fixture;
+
 use gyllir::config::_;
 use gyllir::repo::{csources, defaults, manager, runner};
 
-use ::repo::fixture;
-
-use std::{config::_, fs::_};
-use std::conv::errors;
+use std::fs::_;
+use std::config::data;
 use std::time::dur;
 
 /**

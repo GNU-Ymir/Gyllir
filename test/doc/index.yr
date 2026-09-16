@@ -1,10 +1,6 @@
-use gyllir::doc::index;
-use gyllir::doc::loader;
-use gyllir::doc::symbols::_;
+use gyllir::doc::{index, loader, symbols};
 
-use std::config::_;
-use std::config::json;
-use std::stream;
+use std::config::{_, json};
 
 /**
  * @returns: the index of a documentation json, as 'gyllir doc serve' preloads it

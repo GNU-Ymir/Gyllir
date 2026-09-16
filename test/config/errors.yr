@@ -1,6 +1,7 @@
 use gyllir::config::errors;
 
-use std::{config::_, stream};
+use std::stream;
+use std::config::data;
 
 __test no_sub_error_prints_message_only {
     // Without a sub error, only the message is printed

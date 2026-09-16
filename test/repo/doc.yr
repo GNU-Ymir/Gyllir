@@ -1,12 +1,10 @@
 use ::repo::fixture;
-use gyllir::repo::doc;
-use gyllir::repo::builder;
-use gyllir::repo::manager;
-use gyllir::repo::defaults;
-use gyllir::config::_;
 
-use std::config::_;
+use gyllir::config;
+use gyllir::repo::{builder, defaults, doc, manager};
+
 use std::fs::_;
+use std::config::data;
 
 /**
  * @returns: the number of html pages generated in 'dir'
