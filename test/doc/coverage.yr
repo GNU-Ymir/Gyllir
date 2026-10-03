@@ -1,0 +1,100 @@
+use gyllir::doc::coverage;
+
+use std::config::{_, json};
+
+/**
+ * @returns: the file named 'name' in the report
+ * */
+prv fn fileOf(r: &CoverageReport, name: [c8])-> (&CoverageFile)? {
+    for f in r.files {
+        if (f.name == name) { return (f)?; }
+    }
+
+    none
+}
+
+__test lines_and_branches_are_counted_apart {
+    // A line is covered once reached, a conditional only once taken both ways
+    let r = coverage::fromConfigs(copy [json #{
+        "functions" : [{
+            "file" : "src/a.yr", "func" : "a::f",
+            "locations" : [[1, 1, 0], [2, 5, 0], [3, 1, 0], [2, 5, 1], [2, 5, 2], [3, 9, 1], [3, 9, 2]],
+            "hits" : [4, 2, 0, 2, 1, 3, 0]
+        }]
+    }]);
+
+    assert(r.lines() == (2us, 3us), "two of the three lines were reached");
+    assert(r.branches() == (1us, 2us), "one of the two conditionals was taken both ways");
+
+    if let Ok(f) = fileOf(r, "src/a.yr") {
+        assert(f.missing() == [3u32], "line 3 was never reached");
+        assert(f.partial() == [3u32], "the conditional of line 3 was only taken one way");
+        if let Ok(h) = f.hitsOf(1u32) {
+            assert(h == 4u32, "line 1 was reached 4 times");
+        } else assert(false, "line 1 is instrumented");
+
+        if let Ok(_) = f.hitsOf(7u32) {
+            assert(false, "line 7 is not instrumented");
+        }
+        assert(f.branchesOf(2u32) == [(2u32, 1u32)], "the conditional of line 2 was taken 2 times, and not taken once");
+        assert(f.lastLine() == 3u32, "line 3 is the last coverable one");
+    } else {
+        assert(false, "the file should be in the report");
+    }
+}
+
+__test functions_of_several_files_are_merged {
+    // The hits of a function listed by several files are summed, on the locations of the first one
+    // that lists it (the way the test runtime merges them)
+    let r = coverage::fromConfigs(copy [json #{
+        "functions" : [{"file" : "src/a.yr", "func" : "a::f", "locations" : [[1, 1, 0], [2, 1, 0]], "hits" : [0, 0]}]
+    }, json #{
+        "functions" : [{"file" : "src/a.yr", "func" : "a::f", "locations" : [[1, 1, 0], [2, 1, 0], [9, 1, 0]], "hits" : [1, 0, 5]},
+                       {"file" : "src/b.yr", "func" : "b::g", "locations" : [[1, 1, 0]], "hits" : [1]}]
+    }]);
+
+    assert(r.files.len == 2us, "every file should be in the report");
+    assert(r.files[0].name == "src/a.yr" && r.files[1].name == "src/b.yr", "the files should be sorted by name");
+    assert(r.lines() == (2us, 3us), "the locations of the first file only should be counted");
+}
+
+__test lambdas_and_empty_functions_are_left_out {
+    // Neither a lambda nor a function without location is part of the report
+    let r = coverage::fromConfigs(copy [json::parse(
+        "{\"functions\" : [{\"file\" : \"src/a.yr\", \"func\" : \"a::_12_9\", \"locations\" : [[12, 9, 0]], \"hits\" : [0]},"
+        ~ "{\"file\" : \"src/b.yr\", \"func\" : \"b::g\", \"locations\" : [], \"hits\" : []},"
+        ~ "{\"file\" : \"src/a.yr\", \"func\" : \"a::f\", \"locations\" : [[1, 1, 0]], \"hits\" : [1]}]}")]);
+
+    assert(r.files.len == 1us, "a file whose only function has no location should not be listed");
+    assert(r.lines() == (1us, 1us), "the lines of a lambda should not be counted");
+}
+
+__test location_pairs_are_lines {
+    // An older test runtime wrote (line, column) pairs, read as line locations
+    let r = coverage::fromConfigs(copy [json #{
+        "functions" : [{"file" : "src/a.yr", "func" : "a::f", "locations" : [[1, 1], [2, 1]], "hits" : [1, 0]}]
+    }]);
+
+    assert(r.lines() == (1us, 2us), "the pairs should be read as lines");
+    assert(r.branches() == (0us, 0us), "there should be no conditional");
+}
+
+__test empty_report {
+    // A file without any function gives an empty report
+    let r = coverage::fromConfigs(copy [json::parse("{\"functions\" : [], \"callTree\" : []}")]);
+    assert(r.files.len == 0us && r.lines() == (0us, 0us), "the report should be empty");
+}
+
+__test percentages_are_truncated {
+    // The percentages are truncated, as in the terminal report
+    assert(coverage::percentOf(2us, 3us) == 66us, "2/3 should read as 66%");
+    assert(coverage::percentOf(3us, 3us) == 100us, "3/3 should read as 100%");
+    assert(coverage::percentOf(0us, 0us) == 0us, "nothing to cover should read as 0%");
+}
+
+__test lambda_names {
+    // A lambda is named after its position in the source
+    assert(coverage::isLambdaName("a::b::_12_9"), "'_12_9' is a lambda");
+    assert(!coverage::isLambdaName("a::b::f2"), "'f2' is not a lambda");
+    assert(!coverage::isLambdaName(""), "an empty name is not a lambda");
+}
