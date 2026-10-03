@@ -161,3 +161,29 @@ __test publish_git_pushes_version_and_tag {
     assert(hasTag(clone, "v1.0.1"), "the tag of the published version should have been pushed");
     assert(readVersion(clone) == Version(1u32, 0u32, 1u32), "the bumped configuration should have been pushed");
 }
+
+__test publish_named_version_fails_before_anything_is_done {
+    // A package whose version is not numbered cannot be bumped, so it cannot be published either:
+    // the publication fails before it builds, commits, tags or copies anything
+    let registry = sys::tempDirectory(prefix-> "gyllir_registry_");
+    sys::removeDir(registry, recursive-> true);
+
+    let (dir, numbered) = mkPublishableProject("local:" ~ registry.toStr());
+    let mut cfg         = numbered;
+    cfg:.setVersion(Version("master"));
+    writeToml(dir, cfg);
+
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "clean"]);
+    let mut msg  = "";
+    {
+        RepoPublisher(dir, mkPublishArgs("patch"), cfg).run(alias mgr);
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+        _               => { assert(false, "only an AssertError should be thrown"); }
+    }
+
+    assert(msg != "", "publishing a named version should be an error");
+    assert(readVersion(dir) == Version("master"), "the configuration should be left untouched");
+    assert(!hasTag(dir, "vmaster"), "nothing should have been tagged");
+    assert(!sys::isDir(registry), "nothing should have been copied to the registry");
+}
