@@ -69,13 +69,13 @@ pub class HtmlBody over HtmlNode {
 
         self.dumpSubModuleTable(alias stream);
 
-        for d in self._defs self.dumpContent(alias stream, d);
-        for a in self._enums self.dumpContent(alias stream, a);
-        for a in self._globals self.dumpContent(alias stream, a);
-        for a in self._macros self.dumpContent(alias stream, a);
-        for a in self._functions self.dumpContent(alias stream, a);
-        for a in self._traits self.dumpContent(alias stream, a);
-        for a in self._classes self.dumpContent(alias stream, a);
+        for d in self._defs { self.dumpContent(alias stream, d); }
+        for a in self._enums { self.dumpContent(alias stream, a); }
+        for a in self._globals { self.dumpContent(alias stream, a); }
+        for a in self._macros { self.dumpContent(alias stream, a); }
+        for a in self._functions { self.dumpContent(alias stream, a); }
+        for a in self._traits { self.dumpContent(alias stream, a); }
+        for a in self._classes { self.dumpContent(alias stream, a); }
     }
 
     /**
@@ -720,7 +720,7 @@ pub class HtmlBody over HtmlNode {
         let tempTest = self.dumpTemplateTest(templateTest);
 
         let dmut codeStream = copy StringStream();
-        let dmut attrs: [[c8]] = [];
+        let mut attrs: [[c8]] = [];
         if (method.isFinal) attrs ~= ["final"];
         if (method.isField) attrs ~= ["field"];
         if (method.isUnsafe) attrs ~= ["unsafe"];

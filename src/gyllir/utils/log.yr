@@ -1,6 +1,6 @@
 in log;
 
-use std::{io, conv, traits, stream};
+use std::{io, traits, stream};
 
 pub enum Colors
 | PURPLE = "\u{0x001B}[1;35m"s8

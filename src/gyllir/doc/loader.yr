@@ -819,9 +819,11 @@ pub record SymbolLoader {
     fn loadTupleType(self, d: &Dict, mutability: [c8])-> &Type {
         let mut inners: [mut &Type] = [];
         if let Ok(inner: &Array) = d["inners"]? {
-            for a in inner[] if let i: &Dict = a {
-                inners ~= [self.loadType(i)];
-            } else { inners ~= [EMPTY_ANY]; }
+            for a in inner[] {
+                if let i: &Dict = a {
+                    inners ~= [self.loadType(i)];
+                } else { inners ~= [EMPTY_ANY]; }
+            }
         }
 
         copy TupleType(mutability, inners)
