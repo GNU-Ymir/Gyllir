@@ -8,6 +8,10 @@ version = "1.8.0"
 name = "gyllir"
 package-root = "main"
 
+[std]
+version = "1.16.1"
+url = "https://github.com/GNU-Ymir/yruntime.git"
+
 [dependencies]
 
 [registry]

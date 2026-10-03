@@ -10,7 +10,9 @@ set -e
 CONFIG=gyllir.toml
 ARGS=src/gyllir/args.yr
 
-VERSION=$(sed -nE 's/^version = "([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p' "$CONFIG")
+# only the keys above the first [table] header are top-level, the 'version' of e.g. [std] or
+# [dependencies.foo] must not be picked up
+VERSION=$(sed -nE '/^[[:space:]]*\[/q; s/^version = "([0-9]+\.[0-9]+\.[0-9]+)".*/\1/p' "$CONFIG")
 test -n "$VERSION" || { echo "set-version: could not read 'version' from $CONFIG" >&2; exit 1; }
 
 TMP=$(mktemp "${ARGS}.XXXXXX")
