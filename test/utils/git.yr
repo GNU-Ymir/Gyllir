@@ -159,6 +159,18 @@ __test tag_create_delete_round_trip {
     assert(!containsSub(mgr.getTagList(), "v1.0.0"), "the deleted tag should no longer be listed");
 }
 
+__test has_tag_matches_exact_names {
+    // hasTag() only answers true for a tag of exactly that name, not for one it is a prefix of
+    let dir = mkScratchRepo();
+    commitFile(dir, "a.txt", "hello", "first commit");
+    let mgr = GitManager(cwd-> dir);
+
+    mgr.createTag("v1.0.10");
+    assert(mgr.hasTag("v1.0.10"), "an existing tag should be found");
+    assert(!mgr.hasTag("v1.0.1"), "a tag should not be found through a longer one it prefixes");
+    assert(!mgr.hasTag("master"), "a branch is not a tag");
+}
+
 __test clone_copies_local_repository {
     // clone() copies the full history/content of a local repository
     let src = mkScratchRepo();

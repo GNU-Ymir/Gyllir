@@ -421,6 +421,21 @@ pub record GitManager {
     }
 
     /**
+     * @params:
+     *    - name: the name of a tag
+     * @returns: true iif the local repository has a tag named exactly 'name'
+     * */
+    pub fn hasTag(self, name: [c8])-> bool {
+        let dmut proc = copy SubProcess("git", copy ["rev-parse", "-q", "--verify", "refs/tags/" ~ name],
+                                        cwd-> self._cwd);
+        proc:.start();
+
+        proc:.wait() == 0
+    } catch {
+        _ => { false }
+    }
+
+    /**
      * @returns: the url the repository was cloned from, "" if it has no 'origin' remote
      * */
     pub fn getRemote(self)-> [c8] {
