@@ -99,8 +99,11 @@ tools/install.sh --destdir /pkg   # stage the layout under a directory instead, 
   test suite (`--dry` to only compile, not run).
 - `gyllir clean [-a|--all] [--doc]` — remove generated build outputs; `--doc` also removes
   generated documentation, `--all` also removes resolved dependencies.
-- `gyllir doc [-i input.doc.json] [-o outputDir] [--locked] [--offline]` — generate the HTML
-  documentation site.
+- `gyllir doc [-i input.doc.json] [-o outputDir] [--locked] [--offline] [--coverage]
+  [--coverage-file coverage.json] [--coverage-only]` — generate the HTML documentation site;
+  `--coverage` also renders the coverage of the last `./<name>.test -cov` run into
+  `__doc/__coverage/` (linked from the documentation pages), `--coverage-only` renders nothing
+  else. `gyllir doc serve` takes `--coverage`/`--coverage-file` too.
 - `gyllir update [--std] [dependency...]` — resolve the dependencies again and rewrite
   `gyllir.lock`, without compiling anything; naming none updates every one of them. `--std`
   updates the std lib resolved by `[std]`, which is never named positionally.

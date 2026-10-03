@@ -132,12 +132,23 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     (`local:` or `git:`). Note `publish --dry` means "skip building and testing", not what
     `bump --dry` means.
   - `doc.yr` — `RepoDocBuilder`: entry point for `gyllir doc`, wiring `gyllir/doc/*` together.
+  - `coverage.yr` — `RepoCoverageBuilder`: `gyllir doc --coverage`/`--coverage-file`/
+    `--coverage-only`, renders the coverage the unittest executable left in the package root into
+    `<doc output>/__coverage/` (a summary, a page per source file, and a `coverage.json` of the
+    totals). It prefers `.ymir_coverage.json`, the merged report test-rt writes when it prints one
+    (`-cov`) and the only file listing the functions no test entered, and falls back to merging
+    the `.ymir_coverage_<pid>.json` files. The pages need only the sources, not the compiler.
+    The two sites link each other: `RepoDocBuilder` gives the doc pages a `Coverage` top-bar link
+    whenever coverage is requested or `__coverage/index.html` already exists (and regenerates
+    otherwise up-to-date pages when that link changes), `docLinks()` links the coverage pages back.
   - `doc_server.yr` — `RepoDocServer`: `gyllir doc serve`, an `std::net` `HttpServer` over an
     already-generated documentation directory. Beyond the files, it answers `POST /symbol`
     (`{"query", "type"}`) from a `doc::index::SymbolIndex` preloaded from the target's
     `.doc.json`, and adds a `serve: true` flag to the `window.GYLLIR_DOC` object of every page it
     serves — that flag is what makes `res/js/main.js` query the endpoint instead of searching only
-    the page being viewed.
+    the page being viewed. `--coverage` renders the coverage pages before serving; a file missing
+    from a served target sub-directory is looked up in the doc root, which is where `__coverage/`
+    and the other targets' sites live.
   - `defaults.yr` — every shared filename/dirname/extension constant (`gyllir.toml`, `.deps/`,
     `.target/...`, file extensions like `.yil`/`.doc.json`) — check here before hardcoding a path
     elsewhere.
@@ -152,6 +163,11 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     `formatter.yr`, `ressources.yr`), using the static assets under `res/`.
   - `loader.yr` — loads a previously-produced `*.doc.json` (the `-i`/`--input` flag of
     `gyllir doc`), so docs can be regenerated without recompiling the whole project.
+  - `coverage.yr` — `CoverageReport`/`CoverageFile`: the coverage json of test-rt folded per
+    source file. `fromConfigs` merges like test-rt's `CoverageConv` (keyed by `(file, func)`, the
+    first file's locations, hits summed; lambdas and empty functions dropped), so the totals match
+    the terminal `TOTAL:` line exactly; `html/coverage.yr` renders it with the `res/html/coverage*`
+    templates, `res/css/coverage.css` and `res/js/coverage.js`.
   - `index.yr` — `SymbolIndex`: the flat, searchable list of every symbol of a site, built from
     that same loaded tree and queried by `repo/doc_server.yr`'s `/symbol`. Its names and kinds
     mirror what `html/body.yr` writes into the pages, so a result can be resolved against the page
