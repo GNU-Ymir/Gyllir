@@ -144,6 +144,11 @@ sha = "0b1a2c3d4e5f60718293a4b5c6d7e8f901234567"</code></pre>
 like the one for a direct one. A <code>local:</code> path is recorded but never pinned to a commit:
 it is a working checkout of yours, not a released version, and it carries no <code>sha</code>.</p>
 
+<p>A dependency redeclared by a <a href="manifest.html#override"><code>gyllir.toml.override</code></a>
+is resolved on this machine only, so while an override redeclares <code>[dependencies]</code> or
+<code>[std]</code>, the lock file is left as it is — neither the override's resolutions nor the
+absence of the ones it replaced end up in it.</p>
+
 <h3>Commit it</h3>
 
 <p><code>gyllir.lock</code> belongs in git, next to <code>gyllir.toml</code> — that is the whole

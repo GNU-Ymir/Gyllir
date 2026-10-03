@@ -102,6 +102,11 @@ calls `run()`; every sub-command is dispatched and implemented from there.
   - `version.yr` / `version/filter.yr` — `Version` (major.minor.patch or named) and
     `VersionFilter` (`>`, `>=`, `<`, `<=`, `=` comparators used to pick a dependency's version).
   - `command.yr` — `Command`/`CustomCommandList`: user-declared pre/post build commands.
+  - `overlay.yr` — `mergeOverride`: lays a `gyllir.toml.override` (machine-local, gitignored)
+    onto the raw `gyllir.toml`, before the merge is validated — tables merge key by key, other values
+    replace, and an url (`registry`, every `url`) is replaced whole since the TOML parser cannot
+    tell an inline table from a `[table]`. `redeclaresDependencies` tells whether the override
+    touches `[dependencies]`/`[std]`, which makes the run leave `gyllir.lock` alone.
   - `lock.yr` — `LockedPackage`/`LockFile`: the `gyllir.lock` schema (`lock-version`, one
     `[[package]]` array-of-tables entry per resolved package: `name`, `url`, `version`, `sha` for
     a `git:` source, `dependencies`), plus `matches()` (does an entry still resolve a declaration), `prune()`
@@ -112,6 +117,10 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     `selectDependencyVersion`: clones (`git:`) or symlinks (`local:`) each declared dependency
     into `.deps/<name>`, checks out the version matching its `VersionFilter`, recurses into the
     dependency's own `gyllir.toml` (cycle-guarded via the `_depPackages` map), then builds it.
+    `loadToml` reads `gyllir.toml`, validated on its own first so that an error appearing only
+    after the merge is reported against the override, then the override on top of it
+    (`withOverride-> false` for `bump`/`publish`, which write the tracked file back, and for a
+    `git:` dependency, whose override would be someone else's).
     Also the lock lifecycle of a command — `loadLock` before the build, `recordResolution` per
     dependency, `writeLock` after — the `--locked`/`--offline` flags, and `gyllir update`, which
     is a `dry` build pass (dependencies resolved, nothing compiled) followed by a rewrite.

@@ -140,6 +140,25 @@ Dependencies are resolved into `.deps/<name>` (git-cloned or symlinked for `loca
 version-filtered per the declared `VersionFilter` (`>`, `>=`, `<`, `<=`, `=`), and built
 recursively before the current package.
 
+### Machine-local settings (`gyllir.toml.override`)
+
+A `gyllir.toml.override` next to `gyllir.toml` is read on top of it, for the settings that only
+hold on one machine — a dependency taken from a local checkout, a compiler path, a `local:`
+registry — so they stay out of the tracked file. `gyllir init` lists it in the `.gitignore` it
+writes.
+
+```toml
+[dependencies.somelib]
+version = "*"
+url = { local = "/home/jane/src/somelib" }
+```
+
+Tables merge key by key, any other value replaces the one of `gyllir.toml`, and an url
+(`registry`, every `url`) is replaced as a whole. `bump` and `publish` write the new version to
+`gyllir.toml` alone, and `gyllir.lock` is left as it is while the override redeclares
+`[dependencies]` or `[std]`. The override of a `local:` dependency applies when it is built, the
+one of a git dependency does not.
+
 ### Lock file (`gyllir.lock`)
 
 `gyllir.toml` declares which versions are acceptable, `gyllir.lock` records the one that was
