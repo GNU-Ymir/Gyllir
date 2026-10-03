@@ -1,0 +1,164 @@
+in bump;
+
+use gyllir::{config::_, utils::_};
+
+use std::{config::_, fs::_, fs::errors, fs::path};
+
+/**
+ * The 'gyllir bump' sub command: computes the next version of the package, and writes it back to
+ * its 'gyllir.toml'. Committing that change, and tagging it, are opt in.
+ *
+ * @info: 'gyllir publish' bumps the version of the package it publishes through this very record,
+ *   so that the two never disagree on what the next version is
+ * */
+pub record RepoBumper {
+
+    // The current working directory
+    let _cwd: Path;
+
+    // The command line options
+    let _args: &Config;
+
+    // The package configuration
+    let _cfg: GyllirPackageConfiguration;
+
+    // The git manager util
+    let _git: GitManager;
+
+    /**
+     * @params:
+     *    - path: the root directory of the package
+     *    - args: the command line options of the sub command
+     *    - cfg: the configuration of the package
+     * */
+    pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration)
+        with _cwd = path
+        , _args = args
+        , _cfg = cfg
+        , _git = GitManager(cwd-> path)
+    {}
+
+    /**
+     * Bump the version of the package
+     * @throws:
+     *    - AssertError: the version cannot be bumped(see 'nextVersion'), or '--tag' names a tag
+     *      that already exists. Nothing is written in either case
+     * */
+    pub fn run(self)
+        throws AssertError, FsError, GitError
+    {
+        let version    = self.nextVersion();
+        let transition = self._cfg.version[] ~ " -> " ~ version[];
+
+        let tag    = self.isSet("tag");
+        let commit = tag || self.isSet("commit"); // a tag on the previous commit would name the wrong version
+        if (tag && self._git.hasTag(self.tagName(version))) {
+            throw copy AssertError("tag '" ~ self.tagName(version) ~ "' already exists");
+        }
+
+        if self.isSet("dry") {
+            utils::log::info("Bump", transition, " (dry run, nothing written)");
+            if commit { utils::log::info("Bump", "would commit '", self.message(version), "'"); }
+            if tag { utils::log::info("Bump", "would tag ", self.tagName(version)); }
+            return;
+        }
+
+        self.write(version);
+        utils::log::info("Bumped", transition);
+
+        if commit {
+            self._git.add(self._cwd.push(defaults::__GYLLIR_CONFIG_FILENAME__));
+            self._git.commit(self.message(version));
+            utils::log::info("Committed", self.message(version));
+        }
+
+        if tag {
+            self._git.createTag(self.tagName(version));
+            utils::log::info("Tagged", self.tagName(version));
+        }
+    }
+
+    /**
+     * The version the package is bumped to: the one '--set' names, or else the current version with
+     * its major, minor or patch number(the default) incremented
+     * @throws:
+     *    - AssertError: '--set' names a version that is not numbered, or the one the package is
+     *      already at; or there is no '--set' and the current version of the package is not
+     *      numbered, so there is nothing to increment
+     * */
+    pub fn nextVersion(self)-> Version
+        throws AssertError
+    {
+        let current = self._cfg.version;
+        if let Ok(Str(value-> wanted)) = self._args["set"]? {
+            let v = Version(wanted);
+            if (!v.isNumbered()) {
+                throw copy AssertError("'" ~ wanted ~ "' is not a numbered version, for example: --set 1.2.0");
+            }
+
+            if (v == current) {
+                throw copy AssertError("the package is already at version " ~ current[]);
+            }
+
+            return v;
+        }
+
+        if (!current.isNumbered()) {
+            throw copy AssertError("the version '" ~ current[]
+                                   ~ "' of the package is not numbered, there is nothing to "
+                                   ~ "increment: set one with --set, for example: --set 0.1.0");
+        }
+
+        current.increment(major-> self.isSet("major"), minor-> self.isSet("minor"))
+    }
+
+    /**
+     * Rewrite the 'gyllir.toml' of the package with a new version, leaving the rest of its
+     * configuration as it is
+     * @params:
+     *    - version: the new version of the package
+     * @returns: the configuration that was written
+     * */
+    pub fn write(self, version: Version)-> GyllirPackageConfiguration
+        throws FsError
+    {
+        let mut npack = self._cfg;
+        npack:.setVersion(version);
+
+        let dmut f = File::create(self._cwd.push(defaults::__GYLLIR_CONFIG_FILENAME__), write-> true);
+        f:.write(std::config::toml::dump(npack.serialize()));
+        f:.close();
+
+        npack
+    }
+
+    /**
+     * @returns: the name of the tag marking 'version', the shape 'Version' parses back
+     * */
+    pub fn tagName(self, version: Version)-> [c8] {
+        "v" ~ version[]
+    }
+
+    /**
+     * @returns: the message of the commit bumping the package to 'version', '--message' if the
+     *    command line gives one
+     * */
+    prv fn message(self, version: Version)-> [c8] {
+        if let Ok(Str(value-> msg)) = self._args["message"]? {
+            return msg;
+        }
+
+        "chore: bump version " ~ self._cfg.version[] ~ " -> " ~ version[]
+    }
+
+    /**
+     * @returns: true iif the boolean flag 'name' is set on the command line
+     * */
+    prv fn isSet(self, name: [c8])-> bool {
+        if let Ok(Bool(value-> _ = true)) = self._args[name]? {
+            return true;
+        }
+
+        false
+    }
+}

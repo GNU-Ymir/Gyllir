@@ -3,9 +3,9 @@ use ::repo::fixture;
 use gyllir::{config::_, utils::_};
 use gyllir::repo::{defaults, manager, publisher};
 
-use std::{config::_, config::toml, fs::_};
+use std::fs::_;
 use std::concurrency::process;
-use std::syntax::errors;
+use std::config::data;
 
 /**
  * A project ready to be published: its sources, its 'gyllir.toml' and a git repository holding them
@@ -35,19 +35,6 @@ fn mkPublishableProject(registry: [c8])-> (Path, GyllirPackageConfiguration)
     proc:.wait();
 
     (dir, cfg)
-}
-
-/**
- * @returns: the version written in the 'gyllir.toml' of 'dir'
- * */
-fn readVersion(dir: Path)-> Version
-    throws FsError, AssertError, SyntaxError
-{
-    let dmut f = File::open(dir.push(defaults::__GYLLIR_CONFIG_FILENAME__));
-    let cfg    = toml::parse(f:.readAll());
-    f:.close();
-
-    GyllirPackageConfiguration(cfg).version
 }
 
 /**

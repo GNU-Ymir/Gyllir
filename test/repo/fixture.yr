@@ -191,6 +191,28 @@ pub fn writeToml(dir: Path, cfg: GyllirPackageConfiguration)
 }
 
 /**
+ * @returns: the configuration written in the 'gyllir.toml' of 'dir'
+ * */
+pub fn readToml(dir: Path)-> GyllirPackageConfiguration
+    throws FsError, AssertError, SyntaxError
+{
+    let dmut f = File::open(dir.push(defaults::__GYLLIR_CONFIG_FILENAME__));
+    let cfg    = toml::parse(f:.readAll());
+    f:.close();
+
+    GyllirPackageConfiguration(cfg)
+}
+
+/**
+ * @returns: the version written in the 'gyllir.toml' of 'dir'
+ * */
+pub fn readVersion(dir: Path)-> Version
+    throws FsError, AssertError, SyntaxError
+{
+    readToml(dir).version
+}
+
+/**
  * Turn 'dir' into a git repository, with everything it contains committed on the default branch.
  * A dependency is always resolved through git, so even a 'local:' one has to be a repository
  * */

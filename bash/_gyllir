@@ -17,6 +17,7 @@ _gyllir() {
 		run
 		clean
 		publish
+		bump
 		test
 		doc
 		update"
@@ -29,6 +30,9 @@ _gyllir() {
 
     BUILD_OPTIONS="\
 		-h --help --release --locked --offline -v --verbose"
+
+    BUMP_OPTIONS="\
+		-h --help --major --minor --patch --set --dry --commit --tag -m --message"
 
     CLEAN_OPTIONS="\
 		-h --help --doc --all"
@@ -74,6 +78,9 @@ _gyllir() {
 	    ;;
 	publish)
 	    complete_options="$PUBLISH_OPTION"
+	    ;;
+	bump)
+	    complete_options="$BUMP_OPTIONS"
 	    ;;
 	doc)
 	    # 'gyllir doc serve' is a sub command of its own, with its own options

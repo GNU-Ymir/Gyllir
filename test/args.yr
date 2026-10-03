@@ -181,6 +181,40 @@ __test publish_dry_and_major_together {
     assert(flag(publish, "dry") && flag(publish, "major"), "--dry and --major should be parsed");
 }
 
+__test bump_defaults_change_the_file_only {
+    // 'bump' alone: a patch bump, written but neither committed nor tagged
+    let bump = sub(parse(copy ["gyllir", "bump"]), "bump");
+
+    for f in ["major", "minor", "patch", "dry", "commit", "tag"] {
+        assert(!flag(bump, f), f ~ " should default to false");
+    }
+
+    assert("set" !in bump, "set should be absent by default");
+    assert("message" !in bump, "message should be absent by default");
+}
+
+__test bump_with_every_option {
+    // 'bump' with an increment, the git options and a commit message
+    let bump = sub(parse(copy ["gyllir", "bump", "--minor", "--dry", "--commit", "--tag", "-m", "a release"]), "bump");
+
+    assert(flag(bump, "minor") && !flag(bump, "major") && !flag(bump, "patch"), "only --minor should be parsed");
+    assert(flag(bump, "dry") && flag(bump, "commit") && flag(bump, "tag"),
+           "--dry, --commit and --tag should be parsed");
+
+    if let Ok(Str(value-> msg)) = bump["message"]? {
+        assert(msg == "a release", "unexpected bump message");
+    } else assert(false, "-m should be parsed as message");
+}
+
+__test bump_set_takes_a_version {
+    // 'bump --set <version>'
+    let bump = sub(parse(copy ["gyllir", "bump", "--set", "2.0.0"]), "bump");
+
+    if let Ok(Str(value-> v)) = bump["set"]? {
+        assert(v == "2.0.0", "unexpected --set value");
+    } else assert(false, "--set should be parsed");
+}
+
 __test clean_defaults_to_outputs_only {
     // 'clean' defaults to cleaning the outputs only
     let clean = sub(parse(copy ["gyllir", "clean"]), "clean");

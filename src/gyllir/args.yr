@@ -204,6 +204,10 @@ pub class GyllirArgumentParser {
         self._mainParser:.sub("publish", &self.parsePublish,
                               comments-> "publish a version to the package registry",
                               hyphenated-> false);
+        self._mainParser:.sub("bump", &self.parseBump,
+                              comments-> "bump the version of the package in "
+                                         ~ repo::defaults::__GYLLIR_CONFIG_FILENAME__,
+                              hyphenated-> false);
         self._mainParser:.sub("clean", &self.parseClean,
                               comments-> "clean the project (remove generated files)",
                               hyphenated-> false);
@@ -230,7 +234,7 @@ pub class GyllirArgumentParser {
             }
 
             let mut found = false;
-            for i in ["init", "build", "run", "publish", "clean", "doc", "test", "update"] {
+            for i in ["init", "build", "run", "publish", "bump", "clean", "doc", "test", "update"] {
                 if (i in ret) {
                     found = true;
                     break;
@@ -357,6 +361,55 @@ pub class GyllirArgumentParser {
         } catch {
             err: &std::config::args::errors::HelpRequestError => {
                 std::io::println(parser.explain(err, usage-> "gyllir publish"));
+                etc::c::process::_yrt_exit(-1);
+                panic;
+            }
+            e => throw e;
+        })?;
+    }
+
+    /**
+     * Parse the version bump sub command
+     * @params:
+     *    - args: the arguments passed to the sub command
+     * */
+    prv fn parseBump(self, args: [[c8]])-> (&Config)? {
+        let dmut parser = (copy ArgumentParser)
+            :.help("help", short-> "h", comments-> "print this help and exit")
+            :.flag("major", comments-> "bump the major version")
+            :.flag("minor", comments-> "bump the minor version")
+            :.flag("patch", comments-> "bump the patch version (the default)")
+            :.option!{[c8]} ("set", comments-> "set the version to the given one instead of incrementing it")
+            :.flag("dry", comments-> "print the new version, but change nothing")
+            :.flag("commit", comments-> "commit the change of " ~ repo::defaults::__GYLLIR_CONFIG_FILENAME__)
+            :.flag("tag", comments-> "tag the new version as 'v<version>' (implies --commit)")
+            :.option!{[c8]} ("message",
+                             short-> "m",
+                             comments-> "the message of the commit (default: 'chore: bump version <old> -> <new>')");
+
+        return ({
+            let res    = parser.parse(args);
+            let mut nb = 0;
+            for i in ["major", "minor", "patch"] {
+                if let Ok(Bool(value-> _ = true)) = res[i]? {
+                    nb += 1;
+                }
+            }
+
+            if let Ok(_) = res["set"]? {
+                nb += 1;
+            }
+
+            if nb > 1 {
+                std::io::eprintln(parser.getUsage(usage-> "gyllir bump"));
+                utils::log::error("Error", "flags 'major', 'minor', 'patch' and 'set' are exclusive");
+                etc::c::process::_yrt_exit(-1);
+            }
+
+            res
+        } catch {
+            err: &std::config::args::errors::HelpRequestError => {
+                std::io::println(parser.explain(err, usage-> "gyllir bump"));
                 etc::c::process::_yrt_exit(-1);
                 panic;
             }

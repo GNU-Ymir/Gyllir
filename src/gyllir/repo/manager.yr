@@ -85,6 +85,8 @@ pub class GyllirManager {
             self.writeLock(cwd, cfg);
         } else if let Ok(c) = self._args["clean"]? {
             RepoCleaner(env::currentDir(), c, self.loadToml(env::currentDir())).run(alias self);
+        } else if let Ok(c) = self._args["bump"]? {
+            RepoBumper(env::currentDir(), c, self.loadToml(env::currentDir())).run();
         } else if let Ok(c) = self._args["publish"]? {
             RepoPublisher(env::currentDir(), c, self.loadToml(env::currentDir())).run(alias self);
         } else if let Ok(c) = self._args["test"]? {
