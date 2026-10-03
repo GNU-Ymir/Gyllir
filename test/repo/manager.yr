@@ -1047,6 +1047,47 @@ __test override_is_read_on_top_of_the_configuration {
            "the configuration of gyllir.toml alone should not see the override");
 }
 
+__test override_takes_a_git_dependency_from_a_local_checkout {
+    // The override swaps a git dependency for a local checkout, without the lock file recording
+    // it; dropping the override brings the clone back, and leaves the checkout alone
+    let lib = mkLibraryProject();
+    writeToml(lib, mkConfig("mylib", "library"));
+    gitInit(lib);
+    commitAndTag(lib, "v1.0.0");
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkConfigWithGitDependency("myapp", "executable", "mylib", lib, version-> ">=1.0.0");
+    writeToml(app, cfg);
+    buildWithLock(app, cfg, mkBuildArgs());
+    let pinned = lockedPackage(app, "mylib");
+
+    let checkout = mkLibraryProject();
+    writeToml(checkout, mkConfig("mylib", "library"));
+    gitInit(checkout);
+    writeOverride(app, "[dependencies.mylib]\nversion = \"*\"\nurl = { local = \"" ~ checkout.toStr() ~ "\" }\n");
+
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    let ocfg     = mgr:.loadToml(app);
+    mgr:.loadLock(app, mkBuildArgs(), ocfg);
+    mgr:.buildTargets(app, mkBuildArgs(), ocfg, copy [soleTarget(ocfg).name => ()]);
+    mgr.writeLock(app, ocfg);
+
+    let depPath = app.push(defaults::__DEPENCY_DIR__).push("mylib");
+    assert(sys::isLink(depPath), "the clone should be replaced by a link to the local checkout");
+    assert(hasFile(checkout, "libmylib.a"), "the local checkout should be the one built");
+
+    let locked = lockedPackage(app, "mylib");
+    assert(locked.url.type == UrlType::GIT && locked.sha == pinned.sha,
+           "the lock file should not record a resolution the override made");
+
+    sys::removeFile(app.push(defaults::__GYLLIR_OVERRIDE_FILENAME__));
+    buildWithLock(app, cfg, mkBuildArgs());
+
+    assert(!sys::isLink(depPath) && sys::isDir(depPath), "the link should be replaced by a clone again");
+    assert(resolvedCommitOf(app, "mylib") == pinned.sha, "the clone should be back at the pinned commit");
+    assert(GitManager(cwd-> checkout).getRemote() == "", "the remote of the local checkout should be left alone");
+}
+
 __test override_of_a_local_dependency_is_read {
     // A local dependency is a checkout of the user: its own override applies when it is built
     let lib = mkLibraryProject();

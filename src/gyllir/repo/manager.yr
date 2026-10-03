@@ -1485,22 +1485,39 @@ pub class GyllirManager {
 
                 if isLink(depPath) {
                     removeFsEntry(depPath);
+                } else if isDir(depPath) {
+                    // the clone of the git url the dependency had until now(an override taking it
+                    // from a local checkout instead): the link would be made inside it, and the
+                    // clone built in place of the checkout
+                    utils::log::info("Resolving", "dependency ", name, " now comes from ", dependency.url.toStr(),
+                                     ", its clone is replaced by a link");
+                    removeDir(depPath, recursive-> true);
                 }
 
                 self.runProcess("ln"s8, copy ["-s"s8, dependency.url.path.toStr(), depPath.toStr()]);
                 utils::log::info("Fetched", "local dependency ", name);
                 false
-            } else if !isDir(depPath) {
-                if (self._offline) {
-                    throw copy AssertError("dependency '" ~ name
-                                           ~ "' has never been fetched, it cannot be cloned offline");
+            } else {
+                // the link to the local checkout the dependency had until now: following it would
+                // re-point the remote of the user's own checkout, only the link goes
+                if isLink(depPath) {
+                    utils::log::info("Resolving", "dependency ", name, " now comes from ", dependency.url.toStr(),
+                                     ", its link is replaced by a clone");
+                    removeFsEntry(depPath);
                 }
 
-                gM.clone(dependency.url.path.toStr());
-                true
-            } else {
-                self.followRemote(gM, name, dependency);
-                false
+                if !isDir(depPath) {
+                    if (self._offline) {
+                        throw copy AssertError("dependency '" ~ name
+                                               ~ "' has never been fetched, it cannot be cloned offline");
+                    }
+
+                    gM.clone(dependency.url.path.toStr());
+                    true
+                } else {
+                    self.followRemote(gM, name, dependency);
+                    false
+                }
             };
 
             let (version, sha) = self:.checkoutDependency(gM, name, dependency, locked);
