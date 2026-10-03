@@ -1,0 +1,392 @@
+in coverage;
+
+use std::char;
+use std::algorithm::sorting;
+use std::config::data;
+use std::fs::path;
+
+/**
+ * The kind of a coverage location, the third member of every entry of a function's 'locations'
+ * @info: mirrors 'CoverageLocKind' of midgard's test runtime ('test-rt/utils/coverage/tree.yr'),
+ *   whose json files are read here
+ * */
+pub enum CoverageLocKind: u32
+| LINE         = 0u32
+| BRANCH_TRUE  = 1u32
+| BRANCH_FALSE = 2u32;
+
+/**
+ * One "functions" entry of a coverage json file, as plain data
+ * */
+pub record CoverageFunction {
+
+    // The source file declaring the function, as the compiler named it (relative to the package)
+    pub let file: [c8];
+
+    // The qualified name of the function
+    pub let func: [c8];
+
+    // The (line, column, kind) of every coverable location of the function, parallel to 'hits'
+    pub let locations: [(u32, u32, u32)];
+
+    // The number of times each location was reached
+    pub let hits: [u32];
+
+    pub self (file: [c8], func: [c8], locations: [(u32, u32, u32)], hits: [u32])
+        with file = file
+        , func = func
+        , locations = locations
+        , hits = hits
+    {}
+}
+
+/**
+ * The coverage of a single source file, every function it declares folded together
+ * */
+pub class CoverageFile {
+
+    // The path of the source file, as the compiler named it
+    pub let name: [c8];
+
+    // line => number of times the line was reached
+    let dmut _lines: [u32 => u32] = copy [];
+
+    // (line, column) of a conditional => (times taken, times not taken)
+    let dmut _branches: [(u32, u32) => (u32, u32)] = copy [];
+
+    pub self (name: [c8])
+        with name = name
+    {}
+
+    /**
+     * Fold the locations of a function into the coverage of the file
+     * */
+    pub fn addFunction(mut self, function: CoverageFunction) {
+        for i, loc in function.locations {
+            let (line, col, kind) = loc;
+            let hits              = if (i < function.hits.len) { function.hits[i] } else { 0u32 };
+
+            if (kind == CoverageLocKind::LINE) {
+                if let Ok(nb) = self._lines[line] {
+                    self._lines[line] = nb + hits;
+                } else {
+                    self._lines[line] = hits;
+                }
+            } else {
+                let key  = (line, col);
+                let prev = if let Ok(p) = self._branches[key] { p } else { (0u32, 0u32) };
+                self._branches[key] = if (kind == CoverageLocKind::BRANCH_TRUE) {
+                    (prev._0 + hits, prev._1)
+                } else {
+                    (prev._0, prev._1 + hits)
+                };
+            }
+        }
+    }
+
+    /**
+     * @returns: the number of reached lines, and the number of instrumented lines
+     * */
+    pub fn lines(self)-> (usize, usize) {
+        let mut covered = 0us;
+        for _, hits in self._lines if (hits > 0u32) {
+            covered += 1us;
+        }
+
+        (covered, self._lines.len)
+    }
+
+    /**
+     * @returns: the number of conditionals whose both outcomes were taken, and the number of
+     *    conditionals
+     * */
+    pub fn branches(self)-> (usize, usize) {
+        let mut covered = 0us;
+        for _, hits in self._branches if (hits._0 > 0u32 && hits._1 > 0u32) {
+            covered += 1us;
+        }
+
+        (covered, self._branches.len)
+    }
+
+    /**
+     * @returns: the instrumented lines that were never reached, sorted
+     * */
+    pub fn missing(self)-> [u32] {
+        let dmut res: [u32] = [];
+        for line, hits in self._lines if (hits == 0u32) {
+            res ~= [line];
+        }
+
+        sort(alias res);
+        res
+    }
+
+    /**
+     * @returns: the lines holding a conditional that was not taken both ways, sorted, each listed
+     *    once
+     * */
+    pub fn partial(self)-> [u32] {
+        let dmut all: [u32] = [];
+        for loc, hits in self._branches if (hits._0 == 0u32 || hits._1 == 0u32) {
+            all ~= [loc._0];
+        }
+
+        sort(alias all);
+
+        let mut res: [u32] = [];
+        for l in all if (res.len == 0us || res[$ - 1us] != l) {
+            res ~= [l];
+        }
+
+        res
+    }
+
+    /**
+     * @returns: the number of times 'line' was reached, none if it is not instrumented
+     * */
+    pub fn hitsOf(self, line: u32)-> (u32)? {
+        if let Ok(h) = self._lines[line] {
+            return (h)?;
+        }
+
+        none
+    }
+
+    /**
+     * @returns: the last line holding a coverable location, 0 if there is none
+     * */
+    pub fn lastLine(self)-> u32 {
+        let mut last = 0u32;
+        for l, _ in self._lines if (l > last) {
+            last = l;
+        }
+
+        for loc, _ in self._branches if (loc._0 > last) {
+            last = loc._0;
+        }
+
+        last
+    }
+
+    /**
+     * @returns: the conditionals of 'line' as (taken, not taken) counts, sorted by column
+     * */
+    pub fn branchesOf(self, line: u32)-> [(u32, u32)] {
+        let dmut found: [(u32, (u32, u32))] = [];
+        for loc, hits in self._branches if (loc._0 == line) {
+            found ~= [(loc._1, hits)];
+        }
+
+        sort(alias found, |x, y| => { x._0 < y._0 });
+        copy [h._1 for h in found]
+    }
+}
+
+/**
+ * The coverage of a test run, one entry per source file
+ * */
+pub class CoverageReport {
+
+    // The files of the report, sorted by name
+    let _files: [&CoverageFile];
+
+    pub self (files: [&CoverageFile])
+        with _files = files
+    {}
+
+    /**
+     * @returns: the files of the report, sorted by name
+     * */
+    @field
+    pub fn files(self)-> [&CoverageFile] {
+        self._files
+    }
+
+    /**
+     * @returns: the number of reached lines, and the number of instrumented lines, of every file
+     * */
+    pub fn lines(self)-> (usize, usize) {
+        let mut covered = 0us, mut total = 0us;
+        for f in self._files {
+            let (c, t) = f.lines();
+            covered += c;
+            total += t;
+        }
+
+        (covered, total)
+    }
+
+    /**
+     * @returns: the number of conditionals taken both ways, and the number of conditionals, of
+     *    every file
+     * */
+    pub fn branches(self)-> (usize, usize) {
+        let mut covered = 0us, mut total = 0us;
+        for f in self._files {
+            let (c, t) = f.branches();
+            covered += c;
+            total += t;
+        }
+
+        (covered, total)
+    }
+}
+
+/**
+ * Merge the content of several coverage json files into a single report, computed the way the
+ * test runtime computes the report it prints (so that the totals match its 'TOTAL:' line):
+ *    - a function listed by several files is identified by its (file, name), its locations are
+ *      the ones of the first file listing it, and its hits are summed over every file;
+ *    - lambdas (see 'isLambdaName') and functions without any location are left out.
+ * @params:
+ *    - cfgs: the content of the json files, either '.ymir_coverage.json' or '.ymir_coverage_<pid>.json'
+ * */
+pub fn fromConfigs(cfgs: [&Config])-> &CoverageReport {
+    let mut order: [([c8], [c8])]                          = [];
+    let dmut functions: [([c8], [c8]) => CoverageFunction] = copy [];
+
+    for cfg in cfgs {
+        for f in readFunctions(cfg) {
+            let key = (f.file, f.func);
+            if let Ok(prev) = functions[key] {
+                functions[key] = mergeHits(prev, f);
+            } else {
+                order ~= [key];
+                functions[key] = f;
+            }
+        }
+    }
+
+    let dmut files: [[c8] => &CoverageFile] = copy [];
+    for key in order {
+        if let Ok(f) = functions[key] {
+            if (!isLambdaName(f.func) && f.locations.len != 0us) {
+                if let Ok(dmut file) = alias files[f.file] {
+                    file:.addFunction(f);
+                } else {
+                    let dmut file = copy CoverageFile(f.file);
+                    file:.addFunction(f);
+                    files[f.file] = alias file;
+                }
+            }
+        }
+    }
+
+    let mut sorted: [mut &CoverageFile] = copy [f for _, f in files];
+    sort(alias sorted, |x, y| => { x.name < y.name });
+
+    copy CoverageReport(sorted)
+}
+
+/**
+ * @returns: 'covered' out of 'total' as a truncated percentage, 0 if 'total' is 0 (the way the
+ *    test runtime rounds the percentages it prints)
+ * */
+pub fn percentOf(covered: usize, total: usize)-> usize {
+    if (total == 0us) { 0us } else { covered * 100us / total }
+}
+
+/**
+ * Compilers name anonymous lambdas after their source position (e.g. 'mod::_12_9')
+ * @returns: true iif the last "::" separated segment of 'name' contains only '_' and digits
+ * */
+pub fn isLambdaName(name: [c8])-> bool {
+    let last = Path(name, sep-> "::").file();
+    if (last.len == 0us) return false;
+
+    for c in last if (!isDigit(c) && c != '_') {
+        return false;
+    }
+
+    true
+}
+
+/**
+ * @returns: 'a' and 'b' (the same function read from two files), the hits of 'b' added to the ones
+ *    of 'a', on the locations of 'a'
+ * */
+fn mergeHits(a: CoverageFunction, b: CoverageFunction)-> CoverageFunction {
+    let dmut hits = copy [0u32; a.hits.len];
+    for i, h in a.hits {
+        hits[i] = h;
+    }
+
+    for i, h in b.hits if (i < hits.len) {
+        hits[i] += h;
+    }
+
+    CoverageFunction(a.file, a.func, a.locations, hits)
+}
+
+/**
+ * @returns: the "functions" array of a coverage json file
+ * */
+fn readFunctions(cfg: &Config)-> [CoverageFunction] {
+    let mut res: [CoverageFunction] = [];
+    if let Ok(functions) = cfg["functions"]? {
+        if let arr: &Array = functions {
+            for f in arr[] {
+                res ~= [CoverageFunction(readStr(f, "file"), readStr(f, "func"), readLocations(f), readHits(f))];
+            }
+        }
+    }
+
+    res
+}
+
+/**
+ * @returns: the "locations" array of a "functions" entry, a (line, column) pair being a line
+ *    location (the format of an older test runtime)
+ * */
+fn readLocations(cfg: &Config)-> [(u32, u32, u32)] {
+    let mut res: [(u32, u32, u32)] = [];
+    if let Ok(locations) = cfg["locations"]? {
+        if let arr: &Array = locations {
+            for loc in arr[] {
+                if let tuple: &Array = loc {
+                    let slc = tuple[];
+                    if (slc.len >= 3us) {
+                        res ~= [(readU32(slc[0]), readU32(slc[1]), readU32(slc[2]))];
+                    } else if (slc.len == 2us) {
+                        res ~= [(readU32(slc[0]), readU32(slc[1]), CoverageLocKind::LINE)];
+                    }
+                }
+            }
+        }
+    }
+
+    res
+}
+
+/**
+ * @returns: the "hits" array of a "functions" entry
+ * */
+fn readHits(cfg: &Config)-> [u32] {
+    let mut res: [u32] = [];
+    if let Ok(hits) = cfg["hits"]? {
+        if let arr: &Array = hits {
+            for h in arr[] {
+                res ~= [readU32(h)];
+            }
+        }
+    }
+
+    res
+}
+
+fn readStr(cfg: &Config, key: [c8])-> [c8] {
+    if let Ok(Str(value-> v)) = cfg[key]? {
+        return v;
+    }
+
+    ""
+}
+
+fn readU32(cfg: &Config)-> u32 {
+    if let Int(value-> v) = cfg {
+        return cast!u32(v);
+    }
+
+    0u32
+}

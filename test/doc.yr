@@ -4,3 +4,4 @@ pub mod ::types;
 pub mod ::symbols;
 pub mod ::loader;
 pub mod ::index;
+pub mod ::coverage;

@@ -55,6 +55,7 @@ _deps
 src/main.yr.ydump*
 
 .ymir_coverage_*
+.ymir_coverage.json
 .ymir_test_success
 .target
 
@@ -62,3 +63,4 @@ src/main.yr.ydump*
 /.deps
 /__doc
 
+gyllir.toml.override

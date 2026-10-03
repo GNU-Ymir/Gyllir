@@ -1,0 +1,320 @@
+in coverage;
+
+use gyllir::config;
+use gyllir::doc::coverage;
+use gyllir::doc::html::{coverage, formatter, ressources};
+
+use std::{config::_, fs::_, fs::errors, stream};
+use std::algorithm::sorting;
+
+/**
+ * @returns: true iif the command line of 'gyllir doc' asks for the coverage pages, which
+ *   '--coverage-file' and '--coverage-only' both imply
+ * */
+pub fn coverageRequested(args: &Config)-> bool {
+    if let Ok(Bool(value-> _ = true)) = args["coverage"]? { return true; }
+    if let Ok(Bool(value-> _ = true)) = args["coverage-only"]? { return true; }
+    if let Ok(Str(value-> _)) = args["coverage-file"]? { return true; }
+
+    false
+}
+
+/**
+ * Renders the coverage of the last test run of a package as html pages ('gyllir doc --coverage'),
+ * in the '__coverage' sub directory of the documentation directory:
+ *    - 'index.html', the summary of the report, one row per source file;
+ *    - one page per source file, its source annotated with the coverage of each line;
+ *    - 'coverage.json', the totals of the summary, for the tools that would otherwise parse the
+ *      terminal report of the test runtime.
+ *
+ * The coverage is read from the files the unittest executable writes into the root of the package
+ * (see '__COVERAGE_REPORT_FILE__'), not from the compiler, so it needs nothing but the sources.
+ * */
+pub record RepoCoverageBuilder {
+
+    // The root directory of the package
+    let _cwd: Path;
+
+    // The command line options
+    let _args: &Config;
+
+    // The package configuration (empty when there is no 'gyllir.toml')
+    let _cfg: GyllirPackageConfiguration;
+
+    pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration)
+        with _cwd = path
+        , _args = args
+        , _cfg = cfg
+    {}
+
+    /**
+     * Render the coverage pages
+     * @info: exits if no coverage file can be found or read
+     * */
+    pub fn run(self) {
+        self.checkRessources();
+
+        let report = coverage::fromConfigs(self.loadFiles(self.coverageFiles()));
+        let outDir = self.outputDir();
+
+        utils::log::info("Generate", "coverage pages in '", outDir.toStr(), "'");
+        self.prepare(outDir);
+
+        let project = self._cfg.name;
+        let links   = self.docLinks();
+        let index   = outDir.push("index." ~ defaults::__HTML_EXTENSION__);
+        self.writePage(index,
+                       copy CoveragePage(project, "coverage", report, copy CoverageSummary(project, report), links-> links));
+
+        for f in report.files {
+            let (source, found) = self.readSource(f.name);
+            self.writePage(outDir.push(pageName(f.name) ~ "." ~ defaults::__HTML_EXTENSION__),
+                           copy CoveragePage(project, f.name, report, copy CoverageSource(f, source, found-> found), links-> links));
+        }
+
+        self.writeSummary(outDir.push(defaults::__COVERAGE_SUMMARY_FILE__), report);
+
+        let (c, t) = report.lines();
+        utils::log::info("Coverage", c, "/", t, " lines (", percentOf(c, t), "%) in ", report.files.len, " files, see '",
+                         index.toStr(), "'");
+    }
+
+    /**
+     * @returns: the directory the pages are rendered in, '<doc output>/__coverage'
+     * */
+    pub fn outputDir(self)-> Path {
+        self.docDir().push(defaults::__COVERAGE_DIR__)
+    }
+
+    /**
+     * @returns: the documentation directory, '__doc' or the one of '--output'
+     * */
+    fn docDir(self)-> Path {
+        if let Ok(Str(value-> dir)) = self._args["output"]? {
+            Path(dir)
+        } else {
+            self._cwd.push(defaults::__DOC_DIR__)
+        }
+    }
+
+    /**
+     * @returns: the links of the coverage pages to the documentation already generated next to
+     *    them (label, url relative to the pages): its index, or the index of each target of a
+     *    package documented one sub directory per target
+     * */
+    pub fn docLinks(self)-> [([c8], [c8])] {
+        let index = "index." ~ defaults::__HTML_EXTENSION__;
+        let base  = self.docDir();
+        if (isFile(base.push(index))) {
+            return copy [("Documentation", "../" ~ index)];
+        }
+
+        let mut names: [mut [c8]] = [];
+        for name, _ in self._cfg.targets() {
+            if (isFile(base.push(name).push(index))) { names ~= [name]; }
+        }
+
+        sort(alias names, |x, y| => { x < y });
+
+        let mut res: [([c8], [c8])] = [];
+        for n in names {
+            res ~= [(n ~ " documentation", "../" ~ n ~ "/" ~ index)];
+        }
+
+        res
+    }
+
+    /**
+     * @returns: the coverage files to read: the one named by '--coverage-file', or the merged
+     *    report of the last test run, or failing that the per process files of that run
+     * @info: exits if there is none
+     * */
+    pub fn coverageFiles(self)-> [Path] {
+        if let Ok(Str(value-> file)) = self._args["coverage-file"]? {
+            return copy [Path(file)];
+        }
+
+        let report = self._cwd.push(defaults::__COVERAGE_REPORT_FILE__);
+        if (isFile(report)) { return copy [report]; }
+
+        let pids = self.pidFiles();
+        if (pids.len == 0us) {
+            utils::log::error("Error",
+                              "no coverage file found in '",
+                              self._cwd.toStr(),
+                              "', run the unittests with '-cov' first");
+            etc::c::process::_yrt_exit(-1);
+        }
+
+        utils::log::warn("Warning",
+                         "no '",
+                         defaults::__COVERAGE_REPORT_FILE__,
+                         "' found, the functions no test entered are missing from the coverage pages ",
+                         "(the unittests write it when run with '-cov', on a midgard newer than 1.16.0)");
+        pids
+    }
+
+    /**
+     * @returns: the per process coverage files in the root of the package, sorted by name
+     * */
+    fn pidFiles(self)-> [Path] {
+        let mut res: [mut Path] = [];
+        for i in readDir(self._cwd) match i {
+            FsEntry(kind-> FsEntryKind::FILE, path-> p) => {
+                let name = p.file();
+                if (name.len > defaults::__COVERAGE_PID_PREFIX__.len + defaults::__COVERAGE_PID_SUFFIX__.len
+                    && name[0us .. defaults::__COVERAGE_PID_PREFIX__.len] == defaults::__COVERAGE_PID_PREFIX__
+                    && name[$ - defaults::__COVERAGE_PID_SUFFIX__.len .. $] == defaults::__COVERAGE_PID_SUFFIX__) {
+                    res ~= [p];
+                }
+            }
+        }
+
+        sort(alias res, |x, y| => { x.toStr() < y.toStr() });
+        res
+    } catch {
+        FsError() => []
+    }
+
+    /**
+     * @returns: the content of the coverage files
+     * @info: exits if one of them cannot be read or parsed
+     * */
+    fn loadFiles(self, files: [Path])-> [&Config] {
+        let mut res: [&Config] = [];
+        for f in files {
+            res ~= [self.loadFile(f)];
+        }
+
+        res
+    }
+
+    fn loadFile(self, file: Path)-> &Config {
+        json::parse(readFile(file))
+    } catch {
+        _ => {
+            utils::log::error("Error", "failed to read coverage file '", file.toStr(), "'");
+            etc::c::process::_yrt_exit(-1);
+            panic;
+        }
+    }
+
+    /**
+     * @returns:
+     *    - .0: the content of a source file of the report, "" if it cannot be read
+     *    - .1: false iif it cannot be read
+     * @params:
+     *    - name: the path of the source file, as the compiler named it (relative to the package)
+     * */
+    fn readSource(self, name: [c8])-> ([c8], bool) {
+        let p    = Path(name);
+        let path = if (p.isAbsolute()) { p } else { self._cwd.push(name) };
+
+        (readFile(path), true)
+    } catch {
+        _ => ("", false)
+    }
+
+    /**
+     * Make sure the templates and assets of the pages are installed (see 'ressources::RES_ROOT'): a
+     * missing template reads as an empty one, and would render every page as an empty file
+     * @info: exits if one of them is missing
+     * */
+    fn checkRessources(self) {
+        let res = ressources::RES_ROOT;
+        let mut missing: [[c8]] = [];
+        for f in [GyllirHtmlFiles::COVERAGE_PAGE,
+                  GyllirHtmlFiles::COVERAGE_SUMMARY,
+                  GyllirHtmlFiles::COVERAGE_ROW,
+                  GyllirHtmlFiles::COVERAGE_SOURCE,
+                  GyllirHtmlFiles::COVERAGE_LINE] {
+            if (!isFile(res.push(f))) { missing ~= [f]; }
+        }
+
+        for f in ["css/coverage.css", "js/coverage.js"] {
+            if (!isFile(res.push(f))) { missing ~= [f]; }
+        }
+
+        if (missing.len != 0us) {
+            let dmut list = copy StringStream();
+            for i, m in missing {
+                if (i != 0us) { list:.write(", "); }
+                list:.write("'", m, "'");
+            }
+
+            utils::log::error("Error", "the coverage pages need ", list[], " in '", res.toStr(),
+                              "', which the installed gyllir resources lack (they are older than this gyllir)");
+            etc::c::process::_yrt_exit(-1);
+        }
+    }
+
+    /**
+     * Create the output directory, fill it with the static assets of the pages (the js/, css/ and
+     * ico/ directories of the installed gyllir, see 'ressources::RES_ROOT'), and remove the pages of
+     * a previous run, so a source file that is no longer covered does not leave its page behind
+     * */
+    fn prepare(self, outDir: Path) {
+        let res = ressources::RES_ROOT;
+        copyDir(res.push("js"), outDir.push("js"), recursive-> true, create-> true);
+        copyDir(res.push("css"), outDir.push("css"), recursive-> true, create-> true);
+        copyDir(res.push("ico"), outDir.push("ico"), recursive-> true, create-> true);
+
+        for i in readDir(outDir) match i {
+            FsEntry(kind-> FsEntryKind::FILE, path-> p) if p.extension() == defaults::__HTML_EXTENSION__ => {
+                removeFile(p);
+            }
+        }
+    } catch {
+        FsError() => {
+            utils::log::error("Error", "failed to create directory '", outDir.toStr(), "'");
+            etc::c::process::_yrt_exit(-1);
+            panic;
+        }
+    }
+
+    fn writePage(self, path: Path, page: &CoveragePage) {
+        let dmut stream = copy StringStream();
+        page.dumpHtml(alias stream);
+        writeFile(path, stream[]);
+    } catch {
+        _ => {
+            utils::log::warn("Error", "failed to write coverage page '", path.toStr(), "'");
+        }
+    }
+
+    /**
+     * Write the totals of the report, as json:
+     * '{"lines": {"covered", "total", "percent"}, "branches": {...}, "files": [{"file", "page", "lines", "branches"}]}'
+     * */
+    fn writeSummary(self, path: Path, report: &CoverageReport) {
+        let dmut files = copy Array();
+        for f in report.files {
+            let dmut entry = copy Dict();
+            entry["file"] = copy Str(f.name);
+            entry["page"] = copy Str(pageName(f.name) ~ "." ~ defaults::__HTML_EXTENSION__);
+            entry["lines"] = self.totalsOf(f.lines());
+            entry["branches"] = self.totalsOf(f.branches());
+            files:.push(entry);
+        }
+
+        let dmut root = copy Dict();
+        root["lines"] = self.totalsOf(report.lines());
+        root["branches"] = self.totalsOf(report.branches());
+        root["files"] = files;
+
+        writeFile(path, json::dump(root));
+    } catch {
+        _ => {
+            utils::log::warn("Error", "failed to write coverage summary '", path.toStr(), "'");
+        }
+    }
+
+    fn totalsOf(self, counts: (usize, usize))-> &Config {
+        let (covered, total) = counts;
+        let dmut res         = copy Dict();
+        res["covered"] = copy Int(cast!i64(covered));
+        res["total"] = copy Int(cast!i64(total));
+        res["percent"] = copy Int(cast!i64(percentOf(covered, total)));
+        res
+    }
+}

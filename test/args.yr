@@ -347,6 +347,19 @@ __test doc_option_values_are_not_target {
     } else assert(false, "-i should be parsed as input");
 }
 
+__test doc_coverage_flags {
+    // 'doc' takes the coverage flags, and the value of '--coverage-file' is not a target
+    let doc = sub(parse(copy ["gyllir", "doc", "--coverage-only", "--coverage-file", "cov.json", "cli"]), "doc");
+
+    assert(target(doc) == "cli", "the target should be parsed");
+    assert(flag(doc, "coverage-only"), "--coverage-only should be parsed");
+    assert(!flag(doc, "coverage"), "--coverage should default to false");
+
+    if let Ok(Str(value-> f)) = doc["coverage-file"]? {
+        assert(f == "cov.json", "the coverage file should not be taken as the target");
+    } else assert(false, "--coverage-file should be parsed");
+}
+
 __test sub_command_name_not_target {
     // The name of the sub command itself is never taken as a target
     let doc = sub(parse(copy ["gyllir", "doc", "--output", "/tmp/out"]), "doc");
@@ -444,6 +457,20 @@ __test doc_serve_with_every_option {
     if let Ok(Int(value-> p)) = doc["port"]? {
         assert(p == 9090i64, "-p should be parsed as an integer");
     } else assert(false, "-p should be parsed");
+}
+
+__test doc_serve_with_coverage {
+    // 'doc serve' renders the coverage pages too, with the same flags as 'doc'
+    let doc = sub(parse(copy ["gyllir", "doc", "serve", "--coverage-file", "cov.json", "cli"]), "doc");
+
+    assert(flag(doc, "serve"), "\"serve\" should be set");
+    assert(target(doc) == "cli", "the target should not be taken for the coverage file");
+    if let Ok(Str(value-> f)) = doc["coverage-file"]? {
+        assert(f == "cov.json", "--coverage-file should be parsed");
+    } else assert(false, "--coverage-file should be parsed");
+
+    let cov = sub(parse(copy ["gyllir", "doc", "serve", "--coverage"]), "doc");
+    assert(flag(cov, "coverage"), "--coverage should be parsed");
 }
 
 __test doc_serve_target_may_appear_among_flags {

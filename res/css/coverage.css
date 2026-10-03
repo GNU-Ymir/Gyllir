@@ -1,0 +1,288 @@
+/*
+ * Gyllir generated coverage report — loaded after style.css by the pages of res/html/coverage*.html.
+ * The thresholds of the high/medium/low levels are the ones of the test runtime's terminal report
+ * (100%, 80% and below), see gyllir/doc/html/coverage.yr.
+ */
+
+:root {
+    --cov-high: #2f9e44;
+    --cov-medium: #e67700;
+    --cov-low: #c92a2a;
+    --cov-none: #868e96;
+
+    --cov-hit-bg: #e6f6ea;
+    --cov-partial-bg: #fff3d6;
+    --cov-miss-bg: #fde8e8;
+}
+
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --cov-high: #51cf66;
+        --cov-medium: #fcc419;
+        --cov-low: #ff6b6b;
+        --cov-none: #868e96;
+
+        --cov-hit-bg: #15301d;
+        --cov-partial-bg: #3a3012;
+        --cov-miss-bg: #3d1a1a;
+    }
+}
+
+:root[data-theme="dark"] {
+    --cov-high: #51cf66;
+    --cov-medium: #fcc419;
+    --cov-low: #ff6b6b;
+    --cov-none: #868e96;
+
+    --cov-hit-bg: #15301d;
+    --cov-partial-bg: #3a3012;
+    --cov-miss-bg: #3d1a1a;
+}
+
+.cov-high { --cov-level: var(--cov-high); }
+.cov-medium { --cov-level: var(--cov-medium); }
+.cov-low { --cov-level: var(--cov-low); }
+.cov-none { --cov-level: var(--cov-none); }
+
+/* ==========================================================================
+   Totals
+   ========================================================================== */
+
+.coverage-title {
+    margin: 0 0 1rem;
+    font-size: 1.5rem;
+    word-break: break-all;
+}
+
+.coverage-breadcrumb {
+    font-size: .9rem;
+}
+
+.coverage-totals {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin: 0 0 1.5rem;
+}
+
+.coverage-total {
+    display: flex;
+    flex-direction: column;
+    min-width: 10rem;
+    padding: .75rem 1rem;
+    background: var(--color-bg-raised);
+    border: 1px solid var(--color-border);
+    border-left: 4px solid var(--cov-level, var(--color-border));
+    border-radius: var(--radius-sm);
+}
+
+.coverage-total-label {
+    color: var(--color-text-muted);
+    font-size: .75rem;
+    font-weight: 600;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+}
+
+.coverage-total-pct {
+    color: var(--cov-level, inherit);
+    font-size: 1.6rem;
+    font-weight: 700;
+    line-height: 1.2;
+}
+
+.coverage-total-count {
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: .85rem;
+}
+
+/* ==========================================================================
+   Summary table
+   ========================================================================== */
+
+.coverage-table td, .coverage-table th {
+    padding-right: 1rem;
+    white-space: nowrap;
+}
+
+.coverage-table .cov-file {
+    width: 100%;
+    font-family: var(--font-mono);
+    font-size: .85rem;
+    white-space: normal;
+    word-break: break-all;
+}
+
+.coverage-table tfoot th, .coverage-table tfoot td {
+    border-bottom: none;
+    border-top: 2px solid var(--color-border);
+    font-weight: 600;
+}
+
+.coverage-table thead th[data-sort] {
+    cursor: pointer;
+    user-select: none;
+}
+
+.coverage-table thead th[aria-sort="ascending"]::after {
+    content: " ▲";
+}
+
+.coverage-table thead th[aria-sort="descending"]::after {
+    content: " ▼";
+}
+
+.cov-pct {
+    color: var(--cov-level, inherit);
+    font-weight: 600;
+    text-align: right;
+}
+
+.cov-count {
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: .85rem;
+}
+
+.cov-bar-cell {
+    width: 8rem;
+}
+
+.cov-bar {
+    display: block;
+    width: 8rem;
+    height: .5rem;
+    background: var(--color-bg-inset);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.cov-bar-fill {
+    display: block;
+    height: 100%;
+    background: var(--cov-level, var(--cov-none));
+}
+
+/* ==========================================================================
+   Annotated source
+   ========================================================================== */
+
+.coverage-legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1.25rem;
+    margin: 0 0 1rem;
+    padding: 0;
+    list-style: none;
+    color: var(--color-text-muted);
+    font-size: .85rem;
+}
+
+.coverage-legend li {
+    display: flex;
+    align-items: center;
+    gap: .4rem;
+}
+
+.cov-swatch {
+    display: inline-block;
+    width: .9rem;
+    height: .9rem;
+    border: 1px solid var(--color-border);
+    border-radius: 3px;
+}
+
+.coverage-notice {
+    padding: .75rem 1rem;
+    background: var(--cov-partial-bg);
+    border-radius: var(--radius-sm);
+}
+
+.coverage-source-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+}
+
+.coverage-source {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: .8rem;
+    line-height: 1.45;
+}
+
+.coverage-source th, .coverage-source td {
+    padding: 0 .5rem;
+    border-bottom: none;
+}
+
+.coverage-source thead th {
+    padding: .4rem .5rem;
+    border-bottom: 1px solid var(--color-border);
+    background: var(--color-bg-raised);
+}
+
+.coverage-source .cov-ln, .coverage-source .cov-hits, .coverage-source .cov-br {
+    color: var(--color-text-muted);
+    text-align: right;
+    white-space: nowrap;
+    user-select: none;
+    border-right: 1px solid var(--color-border);
+}
+
+.coverage-source .cov-ln a {
+    color: inherit;
+}
+
+.coverage-source .cov-src {
+    width: 100%;
+    white-space: pre;
+    tab-size: 4;
+}
+
+tr.cov-hit, .cov-swatch.cov-hit {
+    background: var(--cov-hit-bg);
+}
+
+tr.cov-partial, .cov-swatch.cov-partial {
+    background: var(--cov-partial-bg);
+}
+
+tr.cov-miss, .cov-swatch.cov-miss {
+    background: var(--cov-miss-bg);
+}
+
+.coverage-source tbody .cov-ln {
+    border-left: 4px solid transparent;
+}
+
+tr.cov-hit .cov-ln {
+    border-left-color: var(--cov-high);
+}
+
+tr.cov-partial .cov-ln {
+    border-left-color: var(--cov-medium);
+}
+
+tr.cov-miss .cov-ln {
+    border-left-color: var(--cov-low);
+}
+
+tr.cov-hit .cov-hits {
+    color: var(--cov-high);
+}
+
+tr.cov-partial .cov-br {
+    color: var(--cov-medium);
+    font-weight: 600;
+}
+
+tr.cov-miss .cov-hits {
+    color: var(--cov-low);
+    font-weight: 600;
+}
+
+.coverage-source tr:target td {
+    box-shadow: inset 0 0 0 9999px var(--color-highlight);
+}

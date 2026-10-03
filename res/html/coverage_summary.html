@@ -1,0 +1,39 @@
+<h1 class="coverage-title">Coverage of $(Project)</h1>
+
+<div class="coverage-totals">
+  <div class="coverage-total cov-$(LineLevel)">
+    <span class="coverage-total-label">Lines</span>
+    <span class="coverage-total-pct">$(LinePct)%</span>
+    <span class="coverage-total-count">$(LineCovered) / $(LineTotal)</span>
+  </div>
+  <div class="coverage-total cov-$(BranchLevel)">
+    <span class="coverage-total-label">Branches</span>
+    <span class="coverage-total-pct">$(BranchPct)</span>
+    <span class="coverage-total-count">$(BranchCount)</span>
+  </div>
+</div>
+
+<table class="coverage-table sortable">
+  <thead>
+    <tr>
+      <th scope="col" data-sort="text">File</th>
+      <th scope="col" data-sort="num" colspan="2">Lines</th>
+      <th scope="col" data-sort="num">Covered</th>
+      <th scope="col" data-sort="num">Branches</th>
+      <th scope="col" data-sort="num">Covered</th>
+    </tr>
+  </thead>
+  <tbody>
+    $(Rows)
+  </tbody>
+  <tfoot>
+    <tr>
+      <th scope="row">Total</th>
+      <td class="cov-bar-cell"><span class="cov-bar cov-$(LineLevel)"><span class="cov-bar-fill" style="width: $(LinePct)%"></span></span></td>
+      <td class="cov-pct cov-$(LineLevel)">$(LinePct)%</td>
+      <td class="cov-count">$(LineCovered)/$(LineTotal)</td>
+      <td class="cov-pct cov-$(BranchLevel)">$(BranchPct)</td>
+      <td class="cov-count">$(BranchCount)</td>
+    </tr>
+  </tfoot>
+</table>

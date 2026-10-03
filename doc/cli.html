@@ -145,7 +145,8 @@ testable.</p>
 
 <h2 id="doc">gyllir doc</h2>
 
-<pre><code>gyllir doc [target] [-o outputDir] [-i input.doc.json] [--locked] [--offline] [-v]</code></pre>
+<pre><code>gyllir doc [target] [-o outputDir] [-i input.doc.json] [--locked] [--offline] [-v]
+           [--coverage] [--coverage-file coverage.json] [--coverage-only]</code></pre>
 
 <div class="table-wrap">
 <table>
@@ -154,6 +155,9 @@ testable.</p>
     <tr><td><code>--locked</code> / <code>--offline</code></td><td>As for <a href="#build"><code>gyllir build</code></a>.</td></tr>
     <tr><td><code>-i</code>, <code>--input</code></td><td>Render a <code>.doc.json</code> file produced by an earlier run instead of recompiling the sources.</td></tr>
     <tr><td><code>-v</code>, <code>--verbose</code></td><td>Verbose mode.</td></tr>
+    <tr><td><code>--coverage</code></td><td>Also render the coverage of the last unit test run, see <a href="#doc-coverage">below</a>.</td></tr>
+    <tr><td><code>--coverage-file</code></td><td>Render this coverage json file instead of the one of the last run (implies <code>--coverage</code>).</td></tr>
+    <tr><td><code>--coverage-only</code></td><td>Render the coverage alone: nothing is compiled, and no documentation page is generated (implies <code>--coverage</code>).</td></tr>
 </table>
 </div>
 
@@ -163,9 +167,33 @@ package with several targets, each target gets its own sub-directory:
 cache at <code>.target/&lt;target&gt;/doc/&lt;output&gt;.doc.json</code>, which is what
 <code>-i</code> expects.</p>
 
+<h3 id="doc-coverage">Coverage pages</h3>
+
+<pre><code>./&lt;output&gt;.test -cov
+gyllir doc --coverage-only</code></pre>
+
+<p>A unit test executable run with <code>-cov</code> leaves its coverage in the root of the package:
+<code>.ymir_coverage.json</code>, the report it printed, and one <code>.ymir_coverage_&lt;pid&gt;.json</code>
+per process. <code>--coverage</code> renders it into <code>__coverage/</code> of the output directory
+(<code>__doc/__coverage/</code> by default, one directory for the whole package whatever its targets):
+<code>index.html</code> lists every source file with its line and branch coverage, and links a page per
+file showing its source, each line marked covered, not covered, or holding a conditional that was not
+taken both ways. Its totals are the ones of the <code>TOTAL:</code> line of the terminal report, and
+<code>coverage.json</code> next to the pages holds them for scripts.</p>
+
+<p>The two sites link each other from their top bar: the documentation pages get a <em>Coverage</em>
+link once coverage pages are rendered with them (or were left in the output directory by an earlier
+run), and the coverage pages link back to the documentation index, or to the index of each target of
+a package documented one sub-directory per target. The command also prints the path of the coverage
+<code>index.html</code>.</p>
+
+<p>Only <code>.ymir_coverage.json</code> lists the functions no test entered: it is written by the
+test runtime of the midgard releases after 1.16.0. Without it, the per process files are merged instead, and
+such functions are missing from the pages (a warning says so).</p>
+
 <h2 id="doc-serve">gyllir doc serve</h2>
 
-<pre><code>gyllir doc serve [target] [-o outputDir] [--host address] [-p port]</code></pre>
+<pre><code>gyllir doc serve [target] [-o outputDir] [--host address] [-p port] [--coverage] [--coverage-file coverage.json]</code></pre>
 
 <div class="table-wrap">
 <table>
@@ -173,6 +201,8 @@ cache at <code>.target/&lt;target&gt;/doc/&lt;output&gt;.doc.json</code>, which 
     <tr><td><code>-o</code>, <code>--output</code></td><td>Directory to serve. Defaults to <code>__doc/</code>, and to <code>__doc/&lt;target&gt;/</code> when a target is named.</td></tr>
     <tr><td><code>--host</code></td><td>Address to listen on. Defaults to <code>127.0.0.1</code>.</td></tr>
     <tr><td><code>-p</code>, <code>--port</code></td><td>Port to listen on. Defaults to <code>8000</code>.</td></tr>
+    <tr><td><code>--coverage</code></td><td>Also render the <a href="#doc-coverage">coverage pages</a> before serving, at <code>/__coverage/</code>.</td></tr>
+    <tr><td><code>--coverage-file</code></td><td>As for <a href="#doc"><code>gyllir doc</code></a> (implies <code>--coverage</code>).</td></tr>
 </table>
 </div>
 

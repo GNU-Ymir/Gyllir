@@ -250,6 +250,18 @@ pub record RepoBuilder {
     }
 
     /**
+     * @returns: the configuration files an entry of the package can come from, as named in an
+     *    error message: 'gyllir.toml', and its override when there is one
+     * */
+    prv fn configFiles(self)-> [c8] {
+        if (fs::sys::isFile(self._cwd.push(defaults::__GYLLIR_OVERRIDE_FILENAME__))) {
+            return defaults::__GYLLIR_CONFIG_FILENAME__ ~ " or " ~ defaults::__GYLLIR_OVERRIDE_FILENAME__;
+        }
+
+        defaults::__GYLLIR_CONFIG_FILENAME__
+    }
+
+    /**
      * Report a failure of the compiler
      * @params:
      *    - what: what gyllir was asking the compiler to do
@@ -263,7 +275,7 @@ pub record RepoBuilder {
                               "compiler '",
                               self._cfg.compiler,
                               "' could not be run, install it or fix the 'compiler' entry of ",
-                              defaults::__GYLLIR_CONFIG_FILENAME__);
+                              self.configFiles());
         } else {
             utils::log::error("Error", what, " '", self._target.name, "' of '", self._cfg.name, "'");
         }
@@ -1119,7 +1131,7 @@ pub record RepoBuilder {
                                       ", declared by '[commands.",
                                       k,
                                       "]' of ",
-                                      defaults::__GYLLIR_CONFIG_FILENAME__);
+                                      self.configFiles());
                     etc::c::process::_yrt_exit(-1);
                 }
             }

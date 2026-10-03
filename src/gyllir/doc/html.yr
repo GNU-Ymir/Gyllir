@@ -5,6 +5,7 @@ pub mod ::formatter;
 pub mod ::body;
 pub mod ::head;
 pub mod ::foot;
+pub mod ::coverage;
 
 use std::stream;
 

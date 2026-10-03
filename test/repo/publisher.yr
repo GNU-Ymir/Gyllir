@@ -88,6 +88,30 @@ __test publish_local_bumps_patch_and_tags {
            "the sources should be copied to the registry");
 }
 
+__test publish_with_an_override_writes_only_the_tracked_configuration {
+    // The override is part of the build of this machine, not of the published version: the new
+    // version is written to gyllir.toml alone, and the copy in the registry carries no override
+    let registry = sys::tempDirectory(prefix-> "gyllir_registry_");
+    sys::removeDir(registry, recursive-> true);
+
+    let (dir, _) = mkPublishableProject("git:git@github.com:me/myapp.git");
+    writeSource(dir.push(defaults::__GYLLIR_OVERRIDE_FILENAME__),
+                "registry = { local = \"" ~ registry.toStr() ~ "\" }\n");
+
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "clean"]);
+    let cfg      = mgr:.loadToml(dir);
+    let tracked  = mgr:.loadToml(dir, withOverride-> false);
+    RepoPublisher(dir, mkPublishArgs("patch"), cfg, tracked-> tracked).run(alias mgr);
+
+    assert(sys::isFile(registry.push(defaults::__GYLLIR_CONFIG_FILENAME__)),
+           "the project should be published to the registry the override declares");
+    assert(!sys::isFile(registry.push(defaults::__GYLLIR_OVERRIDE_FILENAME__)),
+           "the override should not be published");
+    assert(readVersion(dir) == Version(1u32, 0u32, 1u32), "the new version should be written to gyllir.toml");
+    assert(readToml(dir).registry.toStr() == "git:git@github.com:me/myapp.git",
+           "gyllir.toml should not gain what the override declares");
+}
+
 __test minor_and_major_bump_versions {
     // "--minor" and "--major" bump the other version numbers
     let registry = sys::tempDirectory(prefix-> "gyllir_registry_");

@@ -1,0 +1,306 @@
+in coverage;
+
+use gyllir::doc::coverage;
+
+use std::{char, stream};
+
+/**
+ * @returns: the name of the page of a source file of the report (without its extension), every
+ *    character that is not a letter, a digit, '.' or '-' replaced by '_' (so "src/app/main.yr"
+ *    becomes "src_app_main.yr")
+ * */
+pub fn pageName(file: [c8])-> [c8] {
+    if (file.len == 0us) { return "_unknown"; }
+
+    let dmut stream = copy StringStream();
+    for c in file {
+        if (isAlpha(c) || isDigit(c) || c == '.' || c == '-') {
+            stream:.write(c);
+        } else {
+            stream:.write('_');
+        }
+    }
+
+    stream[]
+}
+
+/**
+ * @returns: the level of a coverage, the suffix of the 'cov-*' class of its css: "high" at 100%,
+ *    "medium" from 80%, "low" below, the thresholds of the terminal report of the test runtime,
+ *    and "none" when there is nothing to cover
+ * */
+pub fn levelOf(covered: usize, total: usize)-> [c8] {
+    if (total == 0us) return "none";
+
+    let pct = percentOf(covered, total);
+    if (pct == 100us) {
+        "high"
+    } else if (pct >= 80us) {
+        "medium"
+    } else {
+        "low"
+    }
+}
+
+/**
+ * Set the values of the '$(Line*)'/'$(Branch*)' placeholders the coverage templates share
+ * @params:
+ *    - res: the placeholder values to complete
+ *    - lines: the covered and instrumented lines
+ *    - branches: the conditionals taken both ways, and the conditionals
+ * */
+fn fillTotals(mut res: [[c8] => mut [c8]], lines: (usize, usize), branches: (usize, usize)) {
+    let (lc, lt) = lines;
+    let (bc, bt) = branches;
+
+    res["LineCovered"] = toStr(lc);
+    res["LineTotal"] = toStr(lt);
+    res["LinePct"] = toStr(percentOf(lc, lt));
+    res["LineLevel"] = levelOf(lc, lt);
+    res["BranchTotal"] = toStr(bt);
+    res["BranchLevel"] = levelOf(bc, bt);
+
+    if (bt == 0us) {
+        res["BranchPct"] = "–";
+        res["BranchValue"] = "-1";
+        res["BranchCount"] = "–";
+    } else {
+        res["BranchPct"] = toStr(percentOf(bc, bt)) ~ "%";
+        res["BranchValue"] = toStr(percentOf(bc, bt));
+        res["BranchCount"] = toStr(bc) ~ "/" ~ toStr(bt);
+    }
+}
+
+fn toStr(i: usize)-> [c8] {
+    let dmut stream = copy StringStream();
+    stream:.write(i);
+    stream[]
+}
+
+/**
+ * A page of the coverage site: the summary of the report, or a source file of it
+ * */
+@final
+pub class CoveragePage over HtmlNode {
+
+    // The name of the project
+    let _project: [c8];
+
+    // The title of the page
+    let _title: [c8];
+
+    // The report the page belongs to, listed in the sidebar of the page
+    let _report: &CoverageReport;
+
+    // The content of the page
+    let _body: &HtmlNode;
+
+    // The links of the top bar to the documentation pages of the project
+    let _links: [([c8], [c8])];
+
+    /**
+     * @params:
+     *    - links: the links of the top bar to the documentation of the project, (label, url
+     *      relative to the page)
+     * */
+    pub self (project: [c8], title: [c8], report: &CoverageReport, body: &HtmlNode, links: [([c8], [c8])] = [])
+        with _project = project
+        , _title = title
+        , _report = report
+        , _body = body
+        , _links = links
+    {}
+
+    /**
+     * Dump the html content into the stream
+     * @params:
+     *   - stream: the stream to populate
+     */
+    pub over dumpHtml(self, dmut stream: &StringStream) {
+        let dmut files = copy StringStream();
+        for f in self._report.files {
+            let (c, t) = f.lines();
+            let name   = formatter::htmlEscape(f.name);
+            formatter::format(alias files,
+                              ressources::LEAF_NODE,
+                              copy ["Url" => pageName(f.name),
+                                    "Name" => name,
+                                    "Title" => name ~ " (" ~ toStr(percentOf(c, t)) ~ "%)"]);
+        }
+
+        let dmut links = copy StringStream();
+        for l in self._links {
+            links:.write("<a class=\"topbar-link\" href=\"", formatter::htmlEscape(l._1), "\">",
+                         formatter::htmlEscape(l._0), "</a>");
+        }
+
+        let dmut body = copy StringStream();
+        self._body.dumpHtml(alias body);
+
+        formatter::format(alias stream,
+                          ressources::COVERAGE_PAGE,
+                          copy ["Title" => formatter::htmlEscape(self._title),
+                                "Project" => formatter::htmlEscape(self._project),
+                                "Files" => files[],
+                                "Links" => links[],
+                                "Body" => body[]]);
+    }
+}
+
+/**
+ * The summary of a coverage report, one row per source file
+ * */
+@final
+pub class CoverageSummary over HtmlNode {
+
+    // The name of the project
+    let _project: [c8];
+
+    // The summarized report
+    let _report: &CoverageReport;
+
+    pub self (project: [c8], report: &CoverageReport)
+        with _project = project
+        , _report = report
+    {}
+
+    /**
+     * Dump the html content into the stream
+     * @params:
+     *   - stream: the stream to populate
+     */
+    pub over dumpHtml(self, dmut stream: &StringStream) {
+        let dmut rows = copy StringStream();
+        for f in self._report.files {
+            let mut values: [[c8] => mut [c8]] = copy [];
+            fillTotals(alias values, f.lines(), f.branches());
+            values["File"] = formatter::htmlEscape(f.name);
+            values["Url"] = pageName(f.name);
+            formatter::format(alias rows, ressources::COVERAGE_ROW, values);
+        }
+
+        let mut values: [[c8] => mut [c8]] = copy [];
+        fillTotals(alias values, self._report.lines(), self._report.branches());
+        values["Project"] = formatter::htmlEscape(self._project);
+        values["Rows"] = rows[];
+
+        formatter::format(alias stream, ressources::COVERAGE_SUMMARY, values);
+    }
+}
+
+/**
+ * The source of a file of a coverage report, each line annotated with its coverage
+ * */
+@final
+pub class CoverageSource over HtmlNode {
+
+    // The coverage of the file
+    let _file: &CoverageFile;
+
+    // The lines of the file
+    let _lines: [[c8]];
+
+    // False iif the file could not be read
+    let _found: bool;
+
+    /**
+     * @params:
+     *    - file: the coverage of the file
+     *    - source: the content of the file
+     *    - found: false iif the file could not be read
+     * */
+    pub self (file: &CoverageFile, source: [c8], found: bool = true)
+        with _file = file
+        , _lines = splitLines(source)
+        , _found = found
+    {}
+
+    /**
+     * Dump the html content into the stream
+     * @params:
+     *   - stream: the stream to populate
+     */
+    pub over dumpHtml(self, dmut stream: &StringStream) {
+        let lines = self._lines;
+
+        let mut nb = cast!usize(self._file.lastLine());
+        if (lines.len > nb) { nb = lines.len; }
+
+        let dmut rows = copy StringStream();
+        for i in 0us .. nb {
+            let text = if (i < lines.len) { lines[i] } else { "" };
+            self.dumpLine(alias rows, cast!u32(i + 1us), text);
+        }
+
+        let mut values: [[c8] => mut [c8]] = copy [];
+        fillTotals(alias values, self._file.lines(), self._file.branches());
+        values["File"] = formatter::htmlEscape(self._file.name);
+        values["Lines"] = rows[];
+        values["Notice"] = if (self._found) {
+            ""
+        } else {
+            "<p class=\"coverage-notice\">The source of this file could not be read, only the lines it covers are listed.</p>"
+        };
+
+        formatter::format(alias stream, ressources::COVERAGE_SOURCE, values);
+    }
+
+    /**
+     * Dump the row of a line of the source
+     * */
+    fn dumpLine(self, dmut stream: &StringStream, line: u32, text: [c8]) {
+        let branches = self._file.branchesOf(line);
+
+        let mut both   = 0us;
+        let dmut title = copy StringStream();
+        for i, b in branches {
+            if (b._0 > 0u32 && b._1 > 0u32) { both += 1us; }
+            if (i != 0us) { title:.write(", "); }
+            title:.write("taken ", b._0, ", not taken ", b._1);
+        }
+
+        let hits = self._file.hitsOf(line);
+        let state = if let Ok(h) = hits && h == 0u32 {
+            "cov-miss"
+        } else if (both < branches.len) {
+            "cov-partial"
+        } else if let Ok(_) = hits {
+            "cov-hit"
+        } else if (branches.len != 0us) {
+            "cov-hit"
+        } else {
+            ""
+        };
+
+        let lineStr = toStr(cast!usize(line));
+        formatter::format(
+            alias stream,
+            ressources::COVERAGE_LINE,
+            copy ["State" => state,
+                  "Line" => lineStr,
+                  "Hits" => if let Ok(h) = hits { toStr(cast!usize(h)) } else { "" },
+                  "Branches" => if (branches.len != 0us) { toStr(both) ~ "/" ~ toStr(branches.len) } else { "" },
+                  "BranchTitle" => title[],
+                  "Source" => formatter::htmlEscape(text)]
+        );
+    }
+}
+
+/**
+ * @returns: the lines of 'content', without their line terminator
+ * */
+fn splitLines(content: [c8])-> [[c8]] {
+    let mut res: [[c8]] = [];
+    let mut start       = 0us;
+    for i, c in content if (c == '\n') {
+        let end = if (i > start && content[i - 1us] == '\r') { i - 1us } else { i };
+        res ~= [content[start .. end]];
+        start = i + 1us;
+    }
+
+    if (start < content.len) {
+        res ~= [content[start .. $]];
+    }
+
+    res
+}

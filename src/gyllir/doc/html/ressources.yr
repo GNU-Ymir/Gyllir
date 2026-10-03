@@ -17,17 +17,22 @@ pub lazy RES_ROOT = {
 };
 
 pub enum GyllirHtmlFiles
-| LEAF_NODE    = "html/leaf_node.html"
-| DECLARATION  = "html/declaration.html"
-| INLINE_CODE  = "html/inline_code.html"
-| MEMBERS      = "html/members.html"
-| MEMBER_HEAD  = "html/member_head.html"
-| MODULE_HEAD  = "html/module_head.html"
-| HEADER       = "html/header.html"
-| FOOTER       = "html/footer.html"
-| SUBMODULE    = "html/submodule.html"
-| MODULE_TABLE = "html/module_table.html"
-| ERROR        = "html/error.html";
+| LEAF_NODE        = "html/leaf_node.html"
+| DECLARATION      = "html/declaration.html"
+| INLINE_CODE      = "html/inline_code.html"
+| MEMBERS          = "html/members.html"
+| MEMBER_HEAD      = "html/member_head.html"
+| MODULE_HEAD      = "html/module_head.html"
+| HEADER           = "html/header.html"
+| FOOTER           = "html/footer.html"
+| SUBMODULE        = "html/submodule.html"
+| MODULE_TABLE     = "html/module_table.html"
+| ERROR            = "html/error.html"
+| COVERAGE_PAGE    = "html/coverage.html"
+| COVERAGE_SUMMARY = "html/coverage_summary.html"
+| COVERAGE_ROW     = "html/coverage_row.html"
+| COVERAGE_SOURCE  = "html/coverage_source.html"
+| COVERAGE_LINE    = "html/coverage_line.html";
 
 pub lazy LEAF_NODE = {
     {
@@ -122,6 +127,51 @@ pub lazy MODULE_TABLE = {
 pub lazy ERROR = {
     {
         let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::ERROR));
+        f:.readAll()
+    } catch {
+        _ => ""
+    }
+};
+
+pub lazy COVERAGE_PAGE = {
+    {
+        let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::COVERAGE_PAGE));
+        f:.readAll()
+    } catch {
+        _ => ""
+    }
+};
+
+pub lazy COVERAGE_SUMMARY = {
+    {
+        let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::COVERAGE_SUMMARY));
+        f:.readAll()
+    } catch {
+        _ => ""
+    }
+};
+
+pub lazy COVERAGE_ROW = {
+    {
+        let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::COVERAGE_ROW));
+        f:.readAll()
+    } catch {
+        _ => ""
+    }
+};
+
+pub lazy COVERAGE_SOURCE = {
+    {
+        let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::COVERAGE_SOURCE));
+        f:.readAll()
+    } catch {
+        _ => ""
+    }
+};
+
+pub lazy COVERAGE_LINE = {
+    {
+        let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::COVERAGE_LINE));
         f:.readAll()
     } catch {
         _ => ""

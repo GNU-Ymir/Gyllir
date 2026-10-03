@@ -102,6 +102,11 @@ calls `run()`; every sub-command is dispatched and implemented from there.
   - `version.yr` / `version/filter.yr` — `Version` (major.minor.patch or named) and
     `VersionFilter` (`>`, `>=`, `<`, `<=`, `=` comparators used to pick a dependency's version).
   - `command.yr` — `Command`/`CustomCommandList`: user-declared pre/post build commands.
+  - `overlay.yr` — `mergeOverride`: lays a `gyllir.toml.override` (machine-local, gitignored)
+    onto the raw `gyllir.toml`, before the merge is validated — tables merge key by key, other values
+    replace, and an url (`registry`, every `url`) is replaced whole since the TOML parser cannot
+    tell an inline table from a `[table]`. `redeclaresDependencies` tells whether the override
+    touches `[dependencies]`/`[std]`, which makes the run leave `gyllir.lock` alone.
   - `lock.yr` — `LockedPackage`/`LockFile`: the `gyllir.lock` schema (`lock-version`, one
     `[[package]]` array-of-tables entry per resolved package: `name`, `url`, `version`, `sha` for
     a `git:` source, `dependencies`), plus `matches()` (does an entry still resolve a declaration), `prune()`
@@ -112,6 +117,10 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     `selectDependencyVersion`: clones (`git:`) or symlinks (`local:`) each declared dependency
     into `.deps/<name>`, checks out the version matching its `VersionFilter`, recurses into the
     dependency's own `gyllir.toml` (cycle-guarded via the `_depPackages` map), then builds it.
+    `loadToml` reads `gyllir.toml`, validated on its own first so that an error appearing only
+    after the merge is reported against the override, then the override on top of it
+    (`withOverride-> false` for `bump`/`publish`, which write the tracked file back, and for a
+    `git:` dependency, whose override would be someone else's).
     Also the lock lifecycle of a command — `loadLock` before the build, `recordResolution` per
     dependency, `writeLock` after — the `--locked`/`--offline` flags, and `gyllir update`, which
     is a `dry` build pass (dependencies resolved, nothing compiled) followed by a rewrite.
@@ -132,12 +141,23 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     (`local:` or `git:`). Note `publish --dry` means "skip building and testing", not what
     `bump --dry` means.
   - `doc.yr` — `RepoDocBuilder`: entry point for `gyllir doc`, wiring `gyllir/doc/*` together.
+  - `coverage.yr` — `RepoCoverageBuilder`: `gyllir doc --coverage`/`--coverage-file`/
+    `--coverage-only`, renders the coverage the unittest executable left in the package root into
+    `<doc output>/__coverage/` (a summary, a page per source file, and a `coverage.json` of the
+    totals). It prefers `.ymir_coverage.json`, the merged report test-rt writes when it prints one
+    (`-cov`) and the only file listing the functions no test entered, and falls back to merging
+    the `.ymir_coverage_<pid>.json` files. The pages need only the sources, not the compiler.
+    The two sites link each other: `RepoDocBuilder` gives the doc pages a `Coverage` top-bar link
+    whenever coverage is requested or `__coverage/index.html` already exists (and regenerates
+    otherwise up-to-date pages when that link changes), `docLinks()` links the coverage pages back.
   - `doc_server.yr` — `RepoDocServer`: `gyllir doc serve`, an `std::net` `HttpServer` over an
     already-generated documentation directory. Beyond the files, it answers `POST /symbol`
     (`{"query", "type"}`) from a `doc::index::SymbolIndex` preloaded from the target's
     `.doc.json`, and adds a `serve: true` flag to the `window.GYLLIR_DOC` object of every page it
     serves — that flag is what makes `res/js/main.js` query the endpoint instead of searching only
-    the page being viewed.
+    the page being viewed. `--coverage` renders the coverage pages before serving; a file missing
+    from a served target sub-directory is looked up in the doc root, which is where `__coverage/`
+    and the other targets' sites live.
   - `defaults.yr` — every shared filename/dirname/extension constant (`gyllir.toml`, `.deps/`,
     `.target/...`, file extensions like `.yil`/`.doc.json`) — check here before hardcoding a path
     elsewhere.
@@ -152,6 +172,11 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     `formatter.yr`, `ressources.yr`), using the static assets under `res/`.
   - `loader.yr` — loads a previously-produced `*.doc.json` (the `-i`/`--input` flag of
     `gyllir doc`), so docs can be regenerated without recompiling the whole project.
+  - `coverage.yr` — `CoverageReport`/`CoverageFile`: the coverage json of test-rt folded per
+    source file. `fromConfigs` merges like test-rt's `CoverageConv` (keyed by `(file, func)`, the
+    first file's locations, hits summed; lambdas and empty functions dropped), so the totals match
+    the terminal `TOTAL:` line exactly; `html/coverage.yr` renders it with the `res/html/coverage*`
+    templates, `res/css/coverage.css` and `res/js/coverage.js`.
   - `index.yr` — `SymbolIndex`: the flat, searchable list of every symbol of a site, built from
     that same loaded tree and queried by `repo/doc_server.yr`'s `/symbol`. Its names and kinds
     mirror what `html/body.yr` writes into the pages, so a result can be resolved against the page

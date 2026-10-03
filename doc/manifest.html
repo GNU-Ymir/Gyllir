@@ -164,6 +164,54 @@ the <code>[commands.&lt;name&gt;]</code> table it came from.</p>
 pre-build command, which would run it at the wrong moment.</p>
 </div>
 
+<h2 id="override">Machine-local settings: gyllir.toml.override</h2>
+
+<p>Some settings only hold on one machine: a dependency taken from a checkout next to the package,
+the path of a compiler, a <code>local:</code> registry. Rather than writing them into the tracked
+<code>gyllir.toml</code>, put them in a <code>gyllir.toml.override</code> next to it. Gyllir reads
+it on top of <code>gyllir.toml</code>, and <a href="getting-started.html"><code>gyllir init</code></a>
+already lists it in the <code>.gitignore</code> it writes; add it yourself to an older package.</p>
+
+<pre><code>[dependencies.yassimp]
+version = "*"
+url = { local = "/home/jane/balder-dev/repos/yassimp" }</code></pre>
+
+<ul>
+    <li>A table merges with the table of the same name, key by key: <code>[dependencies.yassimp]</code>
+    above changes the <code>version</code> and <code>url</code> of that dependency, and keeps its
+    <code>link-targets</code> and the other dependencies.</li>
+    <li>Any other value — a string, a number, an array — replaces the one of
+    <code>gyllir.toml</code>.</li>
+    <li>An <a href="#urls">URL</a> is a single value however it is written:
+    <code>registry</code> and every <code>url</code> are replaced as a whole, so
+    <code>{ local = … }</code> over <code>{ git = … }</code> swaps one for the other.</li>
+    <li>An entry only the override declares is added.</li>
+</ul>
+
+<p><code>gyllir.toml</code> must be valid on its own, since it is the file every other machine
+reads; the result of the merge is then validated like any manifest, and an error the override
+introduces names <code>gyllir.toml.override</code>.</p>
+
+<p>The override shapes the build of this machine only:</p>
+
+<ul>
+    <li><code>gyllir bump</code> and <code>gyllir publish</code> write the new version into
+    <code>gyllir.toml</code> without anything the override declares, and a version published to a
+    <code>local:</code> registry does not carry the override. <code>publish</code> still builds,
+    and pushes to the <code>registry</code>, of the merged configuration.</li>
+    <li>While an override redeclares <code>[dependencies]</code> or <code>[std]</code>, what it
+    resolves only holds on this machine, so <a href="dependencies.html#lock"><code>gyllir.lock</code></a>
+    is left as it is.</li>
+    <li>The override of a <code>local:</code> dependency is read when it is built — that checkout is
+    yours. The one of a git dependency is not: it would come from somebody else's machine.</li>
+</ul>
+
+<div class="warn">
+<p><strong>Declare <code>version = "*"</code> for a local checkout.</strong> A <code>local:</code>
+dependency is still checked out at the version its filter selects. A checkout on a branch that
+does not pass the filter is moved to a tag; <code>"*"</code> accepts the branch it is on.</p>
+</div>
+
 <h2>Error messages</h2>
 
 <p>Gyllir validates the whole manifest before doing any work, and every message names the entry to

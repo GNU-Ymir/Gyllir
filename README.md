@@ -99,8 +99,11 @@ tools/install.sh --destdir /pkg   # stage the layout under a directory instead, 
   test suite (`--dry` to only compile, not run).
 - `gyllir clean [-a|--all] [--doc]` — remove generated build outputs; `--doc` also removes
   generated documentation, `--all` also removes resolved dependencies.
-- `gyllir doc [-i input.doc.json] [-o outputDir] [--locked] [--offline]` — generate the HTML
-  documentation site.
+- `gyllir doc [-i input.doc.json] [-o outputDir] [--locked] [--offline] [--coverage]
+  [--coverage-file coverage.json] [--coverage-only]` — generate the HTML documentation site;
+  `--coverage` also renders the coverage of the last `./<name>.test -cov` run into
+  `__doc/__coverage/` (linked from the documentation pages), `--coverage-only` renders nothing
+  else. `gyllir doc serve` takes `--coverage`/`--coverage-file` too.
 - `gyllir update [--std] [dependency...]` — resolve the dependencies again and rewrite
   `gyllir.lock`, without compiling anything; naming none updates every one of them. `--std`
   updates the std lib resolved by `[std]`, which is never named positionally.
@@ -136,6 +139,25 @@ url = "git:https://github.com/example/somelib"
 Dependencies are resolved into `.deps/<name>` (git-cloned or symlinked for `local:` urls),
 version-filtered per the declared `VersionFilter` (`>`, `>=`, `<`, `<=`, `=`), and built
 recursively before the current package.
+
+### Machine-local settings (`gyllir.toml.override`)
+
+A `gyllir.toml.override` next to `gyllir.toml` is read on top of it, for the settings that only
+hold on one machine — a dependency taken from a local checkout, a compiler path, a `local:`
+registry — so they stay out of the tracked file. `gyllir init` lists it in the `.gitignore` it
+writes.
+
+```toml
+[dependencies.somelib]
+version = "*"
+url = { local = "/home/jane/src/somelib" }
+```
+
+Tables merge key by key, any other value replaces the one of `gyllir.toml`, and an url
+(`registry`, every `url`) is replaced as a whole. `bump` and `publish` write the new version to
+`gyllir.toml` alone, and `gyllir.lock` is left as it is while the override redeclares
+`[dependencies]` or `[std]`. The override of a `local:` dependency applies when it is built, the
+one of a git dependency does not.
 
 ### Lock file (`gyllir.lock`)
 

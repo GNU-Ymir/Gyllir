@@ -14,6 +14,19 @@ extern (C) fn fflush(i: *void);
 extern (C) static stdout: *void;
 
 /**
+ * @returns: the content of the TOML file at 'file'
+ * */
+fn readConfigFile(file: Path)-> &Config
+    throws FsError, SyntaxError
+{
+    let dmut f = File::open(file);
+    let cfg    = std::config::toml::parse(f:.readAll());
+    f:.close();
+
+    cfg
+}
+
+/**
  * The gyllir manager if the core of gyllir
  */
 pub class GyllirManager {
@@ -30,6 +43,10 @@ pub class GyllirManager {
 
     // The dependencies resolved by this run, the content 'gyllir.lock' is rewritten with
     let dmut _resolved: [[c8] => LockedPackage] = copy [];
+
+    // The override files read so far that redeclare dependencies(see 'loadToml'): what they resolve
+    // is machine local, so the lock file is left alone while there is any
+    let dmut _machineLocal: [[c8] => ()] = copy [];
 
     // True iif the lock file is only ever read, never rewritten ('--locked')
     let mut _lockedMode: bool = false;
@@ -60,13 +77,13 @@ pub class GyllirManager {
             RepoInitializer(c).run(self)
         } else if let Ok(c) = self._args["build"]? {
             let cwd = env::currentDir();
-            let cfg = self.loadToml(cwd);
+            let cfg = self:.loadToml(cwd);
             self:.loadLock(cwd, c, cfg);
             self:.buildTargets(cwd, c, cfg, self.selectTargets(cfg, c));
             self.writeLock(cwd, cfg);
         } else if let Ok(c) = self._args["run"]? {
             let cwd                 = env::currentDir();
-            let cfg                 = self.loadToml(cwd);
+            let cfg                 = self:.loadToml(cwd);
             let (target, forwarded) = self.selectRunTarget(cfg, c);
 
             // every argument of 'gyllir run' is forwarded to the executable, so it carries no flag
@@ -78,20 +95,22 @@ pub class GyllirManager {
             etc::c::process::_yrt_exit(RepoRunner(cwd, forwarded, cfg, target, forUnitTest-> false).run());
         } else if let Ok(c) = self._args["update"]? {
             let cwd = env::currentDir();
-            let cfg = self.loadToml(cwd);
+            let cfg = self:.loadToml(cwd);
             self:.loadLock(cwd, c, cfg);
             self:.selectUpdated(c, cfg);
             self:.buildTargets(cwd, c, cfg, self.selectTargets(cfg, c), dry-> true);
             self.writeLock(cwd, cfg);
         } else if let Ok(c) = self._args["clean"]? {
-            RepoCleaner(env::currentDir(), c, self.loadToml(env::currentDir())).run(alias self);
+            RepoCleaner(env::currentDir(), c, self:.loadToml(env::currentDir())).run(alias self);
         } else if let Ok(c) = self._args["bump"]? {
-            RepoBumper(env::currentDir(), c, self.loadToml(env::currentDir())).run();
+            // the version is written back to 'gyllir.toml', which must not gain what the override declares
+            RepoBumper(env::currentDir(), c, self:.loadToml(env::currentDir(), withOverride-> false)).run();
         } else if let Ok(c) = self._args["publish"]? {
-            RepoPublisher(env::currentDir(), c, self.loadToml(env::currentDir())).run(alias self);
+            let cwd = env::currentDir();
+            RepoPublisher(cwd, c, self:.loadToml(cwd), tracked-> self:.loadToml(cwd, withOverride-> false)).run(alias self);
         } else if let Ok(c) = self._args["test"]? {
             let cwd = env::currentDir();
-            let cfg = self.loadToml(cwd);
+            let cfg = self:.loadToml(cwd);
             self:.loadLock(cwd, c, cfg);
             let (built, _, _) = self:.buildTargets(cwd, c, cfg, self.selectTestTargets(cfg, c), forUnitTest-> true);
             self.writeLock(cwd, cfg);
@@ -102,16 +121,22 @@ pub class GyllirManager {
         } else if let Ok(c) = self._args["doc"]? {
             let cwd = env::currentDir();
             if let Ok(Bool(value-> _ = true)) = c["serve"]? {
-                let cfg = self.loadToml(cwd);
+                let cfg = self:.loadToml(cwd);
                 self:.buildTargets(cwd, c, cfg, self.selectTargets(cfg, c), forDoc-> true);
+                if (coverageRequested(c)) { RepoCoverageBuilder(cwd, c, cfg).run(); }
                 (copy RepoDocServer(cwd, c, cfg)).run();
+            } else if let Ok(Bool(value-> _ = true)) = c["coverage-only"]? {
+                RepoCoverageBuilder(cwd, c, self.tryLoadToml(cwd)).run();
             } else if let Ok(Str(value-> file)) = c["input"]? {
-                RepoDocBuilder(cwd, c, self.tryLoadToml(cwd), input-> file, fromFile-> true).run(alias self);
+                let cfg = self.tryLoadToml(cwd);
+                RepoDocBuilder(cwd, c, cfg, input-> file, fromFile-> true).run(alias self);
+                if (coverageRequested(c)) { RepoCoverageBuilder(cwd, c, cfg).run(); }
             } else {
-                let cfg = self.loadToml(cwd);
+                let cfg = self:.loadToml(cwd);
                 self:.loadLock(cwd, c, cfg);
                 self:.buildTargets(cwd, c, cfg, self.selectTargets(cfg, c), forDoc-> true);
                 self.writeLock(cwd, cfg);
+                if (coverageRequested(c)) { RepoCoverageBuilder(cwd, c, cfg).run(); }
             }
         } else panic;
     } catch {
@@ -136,36 +161,64 @@ pub class GyllirManager {
      */
 
     /**
-     * Load the configuration file
+     * Load the configuration of a package: its 'gyllir.toml', with the 'gyllir.toml.override' sitting
+     * next to it, if any, read on top of it(see 'gyllir::config::overlay')
+     * @params:
+     *    - path: the root directory of the package
+     *    - withOverride: false to ignore the override, and get the configuration 'gyllir.toml'
+     *      declares on its own, the one a command rewriting that file starts from
+     * @warning: exits if either file cannot be read, or does not describe a valid package
      * */
-    prv fn loadToml(self, path: Path)-> GyllirPackageConfiguration {
-        let dmut f = File::open(path.push(defaults::__GYLLIR_CONFIG_FILENAME__));
-        let cfg    = std::config::toml::parse(f:.readAll());
-        f:.close();
+    pub fn loadToml(mut self, path: Path, withOverride: bool = true)-> GyllirPackageConfiguration {
+        let tracked = self.parseToml(path, defaults::__GYLLIR_CONFIG_FILENAME__);
 
-        GyllirPackageConfiguration(cfg)
+        // 'gyllir.toml' has to be valid on its own, it is the file every other machine reads: an
+        // error that only shows once the override is laid on top of it is the override's own
+        let cfg = self.readPackage(path, defaults::__GYLLIR_CONFIG_FILENAME__, tracked);
+        if (!withOverride || !fs::sys::isFile(path.push(defaults::__GYLLIR_OVERRIDE_FILENAME__))) {
+            return cfg;
+        }
+
+        let overriding = self.parseToml(path, defaults::__GYLLIR_OVERRIDE_FILENAME__);
+        let file       = self.namedFile(path, defaults::__GYLLIR_OVERRIDE_FILENAME__);
+        if (redeclaresDependencies(overriding)) {
+            self._machineLocal[file] = ();
+        }
+
+        self.readPackage(path, defaults::__GYLLIR_OVERRIDE_FILENAME__, mergeOverride(tracked, overriding))
+    }
+
+    /**
+     * Parse a configuration file of a package
+     * @params:
+     *    - path: the root directory of the package
+     *    - name: the name of the file, 'gyllir.toml' or 'gyllir.toml.override'
+     * @warning: exits if the file cannot be read, or is not TOML
+     * */
+    prv fn parseToml(self, path: Path, name: [c8])-> &Config {
+        readConfigFile(path.push(name))
     } catch {
         FsError() => {
-            if (!fs::sys::isFile(path.push(defaults::__GYLLIR_CONFIG_FILENAME__))) {
+            if (!fs::sys::isFile(path.push(name))) {
                 utils::log::error("Error",
                                   "no ",
-                                  defaults::__GYLLIR_CONFIG_FILENAME__,
+                                  name,
                                   " in '",
                                   path.toStr(),
                                   "', run 'gyllir init' to create a package there");
             } else {
-                utils::log::error("Error", "failed to read '", self.configFile(path), "'");
+                utils::log::error("Error", "failed to read '", self.namedFile(path, name), "'");
             }
 
             etc::c::process::_yrt_exit(-1);
             panic;
         }
-        // a gyllir.toml that is not even TOML: the parser locates the character it choked on, which
-        // is all the user needs, a stack trace into the parser is noise
+        // a file that is not even TOML: the parser locates the character it choked on, which is
+        // all the user needs, a stack trace into the parser is noise
         s: &SyntaxError => {
             utils::log::error("Error",
                               "'",
-                              self.configFile(path),
+                              self.namedFile(path, name),
                               "' is not valid TOML, line ",
                               s.line,
                               " column ",
@@ -175,28 +228,33 @@ pub class GyllirManager {
             etc::c::process::_yrt_exit(-1);
             panic;
         }
-        // a malformed gyllir.toml: the message names the entry the user has to fix, a stack trace
-        // into the configuration parser would only bury it
+    }
+
+    /**
+     * Read the configuration of a package out of the content of its configuration file(s)
+     * @params:
+     *    - path: the root directory of the package
+     *    - name: the name of the file an error is reported against
+     *    - cfg: the parsed configuration
+     * @warning: exits if the configuration does not describe a valid package
+     * */
+    prv fn readPackage(self, path: Path, name: [c8], cfg: &Config)-> GyllirPackageConfiguration {
+        GyllirPackageConfiguration(cfg)
+    } catch {
+        // a malformed configuration: the message names the entry the user has to fix, a stack
+        // trace into the configuration parser would only bury it
         a: &AssertError => {
-            utils::log::error("Error", "in '", self.configFile(path), "', ", a.msg);
+            utils::log::error("Error", "in '", self.namedFile(path, name), "', ", a.msg);
             etc::c::process::_yrt_exit(-1);
             panic;
         }
     }
 
     /**
-     * @returns: the path of the configuration file of a package, as it is named in an error
-     *    message: relative to the current directory for the package being built, absolute for a
-     *    dependency resolved somewhere else, so that an error never leaves the user wondering which
-     *    of the two configuration files it comes from
-     * */
-    prv fn configFile(self, path: Path)-> [c8] {
-        self.namedFile(path, defaults::__GYLLIR_CONFIG_FILENAME__)
-    }
-
-    /**
      * @returns: the path of a file of a package, as it is named in an error message: relative to
-     *    the current directory when it is under it, absolute otherwise
+     *    the current directory for the package being built, absolute for a dependency resolved
+     *    somewhere else, so that an error never leaves the user wondering which of the two
+     *    configuration files it comes from
      * */
     prv fn namedFile(self, path: Path, name: [c8])-> [c8] {
         let file = path.push(name);
@@ -209,14 +267,17 @@ pub class GyllirManager {
     }
 
     /**
-     * Load the configuration file(but return a empty configuration if not found)
+     * Load the configuration of a package, override included(but return a empty configuration if
+     * either file is missing or malformed)
      * */
     prv fn tryLoadToml(self, path: Path)-> GyllirPackageConfiguration {
-        let dmut f = File::open(path.push(defaults::__GYLLIR_CONFIG_FILENAME__));
-        let cfg    = std::config::toml::parse(f:.readAll());
-        f:.close();
+        let tracked  = readConfigFile(path.push(defaults::__GYLLIR_CONFIG_FILENAME__));
+        let overFile = path.push(defaults::__GYLLIR_OVERRIDE_FILENAME__);
+        if (!fs::sys::isFile(overFile)) {
+            return GyllirPackageConfiguration(tracked);
+        }
 
-        GyllirPackageConfiguration(cfg)
+        GyllirPackageConfiguration(mergeOverride(tracked, readConfigFile(overFile)))
     } catch {
         _ => { GyllirPackageConfiguration::empty() }
     }
@@ -461,6 +522,18 @@ pub class GyllirManager {
     pub fn writeLock(self, cwd: Path, cfg: GyllirPackageConfiguration) {
         // a package with no dependency at all never gains a lock file
         if (self._resolved.len == 0us && self._lock[].len == 0us) { return; }
+
+        // the lock file is committed: a resolution that only holds on this machine has no place in
+        // it, and neither has the absence of the ones the override replaced
+        if (self._machineLocal.len != 0us) {
+            utils::log::info("Lock",
+                             "'",
+                             self.namedFile(cwd, defaults::__GYLLIR_LOCK_FILENAME__),
+                             "' is left as it is: the dependencies redeclared by ",
+                             self.quotedNames(self.sortedNames(self._machineLocal)),
+                             " only hold on this machine");
+            return;
+        }
 
         let dmut merged = copy LockFile();
         for k, p in self._lock[] {
@@ -1412,32 +1485,54 @@ pub class GyllirManager {
 
                 if isLink(depPath) {
                     removeFsEntry(depPath);
+                } else if isDir(depPath) {
+                    // the clone of the git url the dependency had until now(an override taking it
+                    // from a local checkout instead): the link would be made inside it, and the
+                    // clone built in place of the checkout
+                    utils::log::info("Resolving", "dependency ", name, " now comes from ", dependency.url.toStr(),
+                                     ", its clone is replaced by a link");
+                    removeDir(depPath, recursive-> true);
                 }
 
                 self.runProcess("ln"s8, copy ["-s"s8, dependency.url.path.toStr(), depPath.toStr()]);
                 utils::log::info("Fetched", "local dependency ", name);
                 false
-            } else if !isDir(depPath) {
-                if (self._offline) {
-                    throw copy AssertError("dependency '" ~ name
-                                           ~ "' has never been fetched, it cannot be cloned offline");
+            } else {
+                // the link to the local checkout the dependency had until now: following it would
+                // re-point the remote of the user's own checkout, only the link goes
+                if isLink(depPath) {
+                    utils::log::info("Resolving", "dependency ", name, " now comes from ", dependency.url.toStr(),
+                                     ", its link is replaced by a clone");
+                    removeFsEntry(depPath);
                 }
 
-                gM.clone(dependency.url.path.toStr());
-                true
-            } else {
-                self.followRemote(gM, name, dependency);
-                false
+                if !isDir(depPath) {
+                    if (self._offline) {
+                        throw copy AssertError("dependency '" ~ name
+                                               ~ "' has never been fetched, it cannot be cloned offline");
+                    }
+
+                    gM.clone(dependency.url.path.toStr());
+                    true
+                } else {
+                    self.followRemote(gM, name, dependency);
+                    false
+                }
             };
 
             let (version, sha) = self:.checkoutDependency(gM, name, dependency, locked);
+
+            // the override of a local dependency is read, its checkout belongs to the user just as
+            // the override does; the one of a cloned dependency was committed by mistake, from
+            // somebody else's machine
+            let readOverride = dependency.url.type == UrlType::LOCAL;
 
             // a git dependency's own 'gyllir.toml' can declare a 'version' that drifts from the
             // tag it was actually resolved at(e.g. a repository that does not bump it on every
             // release) - the tag/lock-derived 'version' above is the one gyllir itself vetted
             // against the declared filter, so it - not whatever the checked out file says - is
             // what every 'Compiling ... v<version>' log line and the lock file report from here on
-            let dmut conf = self.loadToml(depPath);
+            let dmut conf = self:.loadToml(depPath, withOverride-> readOverride);
             conf:.setVersion(version);
             self:.recordResolution(name, dependency, version, sha, conf);
 
@@ -1704,7 +1799,7 @@ pub class GyllirManager {
         if (dependency.url.type == UrlType::LOCAL) {
             {
                 self._depPackages[dependency.url] = ();
-                let conf = self.loadToml(depPath);
+                let conf = self:.loadToml(depPath);
                 RepoCleaner(depPath, args, conf).run(alias self);
                 self._depPackages:.remove(dependency.url);
             } catch {

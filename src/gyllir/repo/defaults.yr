@@ -8,6 +8,12 @@ use std::fs::path;
 pub def __GYLLIR_CONFIG_FILENAME__ = "gyllir.toml";
 
 /**
+ * The filename of the machine local configuration, read on top of '__GYLLIR_CONFIG_FILENAME__'
+ * when it exists(see 'gyllir::config::overlay'), and never tracked
+ */
+pub def __GYLLIR_OVERRIDE_FILENAME__ = "gyllir.toml.override";
+
+/**
  * The filename of the dependency lock file
  */
 pub def __GYLLIR_LOCK_FILENAME__ = "gyllir.lock";
@@ -59,6 +65,9 @@ __test {
  *   back
  */
 pub def __GITIGNORE_CONTENT__ = str #{
+# Machine local configuration
+gyllir.toml.override
+
 # Dependencies resolved by gyllir
 .deps/
 
@@ -69,6 +78,7 @@ __doc/
 # Left behind by a test run
 .ymir_test_success
 .ymir_coverage_*
+.ymir_coverage.json
 
 # Produced artifacts
 };
@@ -78,13 +88,14 @@ __doc/
  */
 pub def __SRC_DIR__ = "src";
 
-pub def __DEBUG_DIR__   = "debug";
-pub def __RELEASE_DIR__ = "release";
-pub def __LIB_DIR__     = "__libs";
-pub def __TEST_DIR__    = "test";
-pub def __DOC_DIR__     = "__doc";
-pub def __YIL_DIR__     = "yils";
-pub def __DEPENCY_DIR__ = ".deps";
+pub def __DEBUG_DIR__    = "debug";
+pub def __RELEASE_DIR__  = "release";
+pub def __LIB_DIR__      = "__libs";
+pub def __TEST_DIR__     = "test";
+pub def __DOC_DIR__      = "__doc";
+pub def __COVERAGE_DIR__ = "__coverage";
+pub def __YIL_DIR__      = "yils";
+pub def __DEPENCY_DIR__  = ".deps";
 
 /**
  * The name under which a resolved std lib(midgard) is cloned into '__DEPENCY_DIR__', when it is
@@ -105,6 +116,22 @@ pub def __YMIR_VERSION_FILENAME__ = "YMIR_VERSION";
  * is done, never left behind as part of the resolved dependency tree
  */
 pub def __STD_PROBE_DIR__ = ".std-probe";
+
+/**
+ * The coverage files a unittest executable writes into the directory it runs in(the root of the
+ * package): one per process ('<prefix><pid><suffix>'), listing the functions the process entered,
+ * and, when it printed a coverage report ('-cov'), the merged report it printed, which also lists
+ * the functions no test entered
+ * @info: named by midgard's test runtime ('test-rt/utils/coverage/store.yr')
+ */
+pub def __COVERAGE_REPORT_FILE__ = ".ymir_coverage.json";
+pub def __COVERAGE_PID_PREFIX__  = ".ymir_coverage_";
+pub def __COVERAGE_PID_SUFFIX__  = ".json";
+
+/**
+ * The machine readable summary written next to the coverage pages(see 'repo::coverage')
+ */
+pub def __COVERAGE_SUMMARY_FILE__ = "coverage.json";
 
 /**
  * The build cache of a package, holding one sub directory per target

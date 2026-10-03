@@ -17,7 +17,6 @@ _gyllir() {
 		run
 		clean
 		publish
-		bump
 		test
 		doc
 		update"
@@ -44,10 +43,10 @@ _gyllir() {
 		-h --help -v --verbose --dry --release --locked --offline"
 
     DOC_OPTIONS="\
-    		-h --help -v --verbose --locked --offline -i --input -o --output"
+    		-h --help -v --verbose --locked --offline -i --input -o --output --coverage --coverage-file --coverage-only"
 
     DOC_SERVE_OPTIONS="\
-    		-h --help -o --output --host -p --port"
+    		-h --help -o --output --host -p --port --coverage --coverage-file"
 
     UPDATE_OPTIONS="\
     		-h --help -v --verbose"

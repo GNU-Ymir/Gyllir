@@ -1,0 +1,85 @@
+in overlay;
+
+use std::config::data;
+
+/*!
+ * A 'gyllir.toml.override' sitting next to a 'gyllir.toml' is read on top of it, so that the
+ * settings that only make sense on one machine(a dependency taken from a local checkout, the path
+ * of a compiler or of a local registry) live in a file that is not tracked:
+ *
+ *    - a table merges with the table of the same name, key by key and recursively:
+ *      '[dependencies.foo]' in the override only changes the entries it declares;
+ *    - any other value(a string, a number, an array) replaces the one of 'gyllir.toml';
+ *    - an entry that only the override declares is added.
+ *
+ * The TOML parser does not tell an inline table from a '[table]' header, so both merge. The
+ * exception is an url('registry', and every 'url' entry): it is one value however it is written,
+ * '{ git = ... }' and '{ local = ... }' being two shapes of it, so it is replaced as a whole -
+ * merging them would declare both at once.
+ * */
+
+/**
+ * @params:
+ *    - tracked: the content of 'gyllir.toml'
+ *    - overriding: the content of 'gyllir.toml.override'
+ * @returns: the configuration 'overriding' overlaid onto 'tracked', none of the two being modified
+ * */
+pub fn mergeOverride(tracked: &Config, overriding: &Config)-> &Config {
+    overlayTable(tracked, overriding, top-> true)
+}
+
+/**
+ * @params:
+ *    - overriding: the content of 'gyllir.toml.override'
+ * @returns: true iif the override changes how the dependencies of the package are resolved: it
+ *    declares a '[dependencies]' or a '[std]' table, whose resolutions are then as machine local as
+ *    the override itself
+ * */
+pub fn redeclaresDependencies(overriding: &Config)-> bool {
+    if let d: &Dict = overriding {
+        return "dependencies" in d || "std" in d;
+    }
+
+    false
+}
+
+/**
+ * @params:
+ *    - tracked: a value of the base configuration
+ *    - overriding: the value overlaid onto it
+ *    - top: true iif both are the top level table of their file
+ * @returns: the merge of the two tables, or 'overriding' when either is not a table
+ * */
+fn overlayTable(tracked: &Config, overriding: &Config, top: bool)-> &Config {
+    if let t: &Dict = tracked {
+        if let l: &Dict = overriding {
+            let dmut res = copy Dict();
+            for k, v in t[] {
+                res[k] = v;
+            }
+
+            for k, v in l[] {
+                if let Ok(prev) = t[k]? {
+                    if (isUrl(k, top-> top)) {
+                        res[k] = v;
+                    } else {
+                        res[k] = overlayTable(prev, v, top-> false);
+                    }
+                } else {
+                    res[k] = v;
+                }
+            }
+
+            return res;
+        }
+    }
+
+    overriding
+}
+
+/**
+ * @returns: true iif the entry named 'key' holds an url, which is replaced rather than merged
+ * */
+fn isUrl(key: [c8], top: bool)-> bool {
+    key == "url" || (top && key == "registry")
+}

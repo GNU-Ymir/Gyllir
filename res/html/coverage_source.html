@@ -1,0 +1,37 @@
+<nav class="breadcrumb coverage-breadcrumb" aria-label="Breadcrumb">
+  <a href="index.html">Coverage</a> / <span>$(File)</span>
+</nav>
+
+<h1 class="coverage-title">$(File)</h1>
+
+<div class="coverage-totals">
+  <div class="coverage-total cov-$(LineLevel)">
+    <span class="coverage-total-label">Lines</span>
+    <span class="coverage-total-pct">$(LinePct)%</span>
+    <span class="coverage-total-count">$(LineCovered) / $(LineTotal)</span>
+  </div>
+  <div class="coverage-total cov-$(BranchLevel)">
+    <span class="coverage-total-label">Branches</span>
+    <span class="coverage-total-pct">$(BranchPct)</span>
+    <span class="coverage-total-count">$(BranchCount)</span>
+  </div>
+</div>
+
+<ul class="coverage-legend">
+  <li><span class="cov-swatch cov-hit"></span>covered</li>
+  <li><span class="cov-swatch cov-partial"></span>conditional not taken both ways</li>
+  <li><span class="cov-swatch cov-miss"></span>not covered</li>
+</ul>
+
+$(Notice)
+
+<div class="coverage-source-wrap">
+  <table class="coverage-source">
+    <thead>
+      <tr><th scope="col">Line</th><th scope="col">Hits</th><th scope="col">Branches</th><th scope="col">Source</th></tr>
+    </thead>
+    <tbody>
+      $(Lines)
+    </tbody>
+  </table>
+</div>

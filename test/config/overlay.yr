@@ -1,0 +1,124 @@
+use gyllir::config::_;
+use gyllir::config::overlay;
+
+use std::config::toml;
+use std::syntax::errors;
+
+/**
+ * A complete 'gyllir.toml', depending on 'yassimp' from git
+ * */
+def __TRACKED__ = str #{name = "balder"
+license = "MIT"
+description = "a game engine"
+version = "1.0.0"
+compiler = "gyc"
+authors = ["me"]
+registry = { git = "git@github.com:me/balder.git" }
+
+[dependencies.yassimp]
+version = ">=1.0.0"
+url = { git = "git@github.com:me/yassimp.git" }
+link-targets = ["yassimp"]
+
+[dependencies.ymath]
+version = "*"
+url = "git:git@github.com:me/ymath.git"
+};
+
+/**
+ * @returns: the package configuration 'overriding' lays on top of '__TRACKED__'
+ * */
+fn overridden(overriding: [c8])-> GyllirPackageConfiguration
+    throws AssertError, SyntaxError
+{
+    GyllirPackageConfiguration(mergeOverride(toml::parse(__TRACKED__), toml::parse(overriding)))
+}
+
+/**
+ * @returns: the dependency 'cfg' declares under 'name'
+ * */
+fn dependency(cfg: GyllirPackageConfiguration, name: [c8])-> Dependency
+    throws AssertError
+{
+    if let Ok(d) = cfg.dependencies[][name] {
+        return d;
+    }
+
+    throw copy AssertError("no dependency named '" ~ name ~ "'");
+}
+
+__test override_table_changes_only_the_keys_it_declares {
+    // '[dependencies.yassimp]' in the override changes its url, and keeps the entries it does not
+    // declare, as well as the dependencies it does not name
+    let cfg = overridden("[dependencies.yassimp]\nurl = { local = \"/home/me/yassimp\" }\n");
+
+    let yassimp = dependency(cfg, "yassimp");
+    assert(yassimp.url.toStr() == "local:/home/me/yassimp", "the url of yassimp should come from the override");
+    assert(yassimp.version.pass(Version(1u32, 2u32, 0u32)) && !yassimp.version.pass(Version(0u32, 9u32, 0u32)),
+           "the version filter of yassimp should be kept from gyllir.toml");
+    assert(yassimp.targets == ["yassimp"], "the link targets of yassimp should be kept from gyllir.toml");
+    assert(dependency(cfg, "ymath").url.toStr() == "git:git@github.com:me/ymath.git",
+           "a dependency the override does not name should be left alone");
+    assert(cfg.name == "balder", "the entries the override does not declare should be kept");
+}
+
+__test override_url_is_replaced_as_a_whole {
+    // '{ git = ... }' and '{ local = ... }' are two shapes of one url: merging them would declare
+    // both, which is rejected, so an url is replaced whatever it is written as
+    let cfg = overridden("registry = { local = \"/srv/registry\" }\n"
+                         ~ "[dependencies.ymath]\nurl = { local = \"/home/me/ymath\" }\n");
+
+    assert(cfg.registry.toStr() == "local:/srv/registry", "the registry should be replaced");
+    assert(dependency(cfg, "ymath").url.toStr() == "local:/home/me/ymath",
+           "a string url should be replaced by a table one");
+}
+
+__test override_values_replace_and_new_keys_are_added {
+    // a string or an array replaces the one of gyllir.toml, an entry gyllir.toml does not declare
+    // is added
+    let cfg = overridden("compiler = \"/opt/ymir/bin/gyc\"\nauthors = [\"someone else\"]\n"
+                         ~ "flags = [\"-Wall\"]\n");
+
+    assert(cfg.compiler == "/opt/ymir/bin/gyc", "the compiler should be replaced");
+    assert(cfg.authors == ["someone else"], "an array should be replaced, not concatenated");
+    assert(cfg.flags == ["-Wall"], "an entry only the override declares should be added");
+}
+
+__test override_dependency_only_in_the_override_is_added {
+    // a dependency gyllir.toml does not declare is added, and validated like any other
+    let cfg = overridden("[dependencies.yharfbuzz]\nversion = \"*\"\nurl = \"local:/home/me/yharfbuzz\"\n");
+    assert(cfg.dependencies[].len == 3us, "the dependency of the override should be added");
+
+    let mut msg = "";
+    {
+        overridden("[dependencies.yfreetype]\nurl = \"local:/home/me/yfreetype\"\n");
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+        _               => { msg = "not an AssertError"; }
+    }
+
+    assert(msg == "'[dependencies.yfreetype]', missing required entry 'version', for example: "
+           ~ "version = \">=1.0.0\", or \"*\" for any version",
+           "a dependency of the override should be validated like one of gyllir.toml: " ~ msg);
+}
+
+__test override_leaves_its_inputs_untouched {
+    // the merge builds a new configuration, gyllir.toml is not modified by it
+    let tracked = toml::parse(__TRACKED__);
+    mergeOverride(tracked, toml::parse("name = \"other\"\n[dependencies.ymath]\nversion = \"1.0.0\"\n"));
+
+    let cfg = GyllirPackageConfiguration(tracked);
+    assert(cfg.name == "balder", "the top level of gyllir.toml should not be modified");
+    assert(dependency(cfg, "ymath").version.pass(Version(3u32, 0u32, 0u32)),
+           "a table of gyllir.toml should not be modified");
+}
+
+__test override_redeclaring_dependencies {
+    // an override that touches '[dependencies]' or '[std]' changes what is resolved, one that does
+    // not changes nothing the lock file records
+    assert(redeclaresDependencies(toml::parse("[dependencies.yassimp]\nversion = \"*\"\n")),
+           "a '[dependencies]' table redeclares dependencies");
+    assert(redeclaresDependencies(toml::parse("[std]\nversion = \"*\"\n")), "a '[std]' table redeclares dependencies");
+    assert(!redeclaresDependencies(toml::parse("compiler = \"/opt/gyc\"\n[registry]\nlocal = \"/srv\"\n")),
+           "the compiler and the registry are not dependencies");
+}
