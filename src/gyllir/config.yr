@@ -10,6 +10,7 @@ pub mod ::lock;
 pub mod ::target;
 pub mod ::type;
 pub mod ::errors;
+pub mod ::overlay;
 
 use gyllir::config::_;
 use gyllir::config::version::filter;
