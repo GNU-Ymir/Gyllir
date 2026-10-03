@@ -114,7 +114,7 @@ pub class RepoDocServer {
         if (!fs::sys::isFile(fsPath)) {
             return self.errorPage(404,
                                   "Page not found",
-                                  "There is nothing at <code>" ~ htmlEscape(rqt.url.toStr())
+                                  "There is nothing at <code>" ~ formatter::htmlEscape(rqt.url.toStr())
                                   ~ "</code> in this documentation.");
         }
 
@@ -279,25 +279,6 @@ pub class RepoDocServer {
  * The route answering the symbol queries of the search box of a served page
  * */
 pub def __SYMBOL_ROUTE__ = "/symbol";
-
-/**
- * @returns: 'content', with the characters that would otherwise be read as markup by the error
- *   page it is inserted in replaced by their html entity
- * */
-pub fn htmlEscape(content: [c8])-> [c8] {
-    let dmut stream = copy StringStream();
-    for c in content {
-        match c {
-            '&'c8 => { stream:.write("&amp;"); }
-            '<'c8 => { stream:.write("&lt;"); }
-            '>'c8 => { stream:.write("&gt;"); }
-            '"'c8 => { stream:.write("&quot;"); }
-            _     => { stream:.write(c); }
-        }
-    }
-
-    stream[]
-}
 
 /**
  * @returns: the content of a page, with the flag telling its javascript that it is served by

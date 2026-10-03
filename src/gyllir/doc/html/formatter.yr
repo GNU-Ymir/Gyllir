@@ -26,6 +26,25 @@ pub fn format(dmut stream: &StringStream, content: [c8], values: [[c8] => [c8]])
 }
 
 /**
+ * @returns: 'content', with the characters that would otherwise be read as markup replaced by their
+ *   html entity
+ * */
+pub fn htmlEscape(content: [c8])-> [c8] {
+    let dmut stream = copy StringStream();
+    for c in content {
+        match c {
+            '&'c8 => { stream:.write("&amp;"); }
+            '<'c8 => { stream:.write("&lt;"); }
+            '>'c8 => { stream:.write("&gt;"); }
+            '"'c8 => { stream:.write("&quot;"); }
+            _     => { stream:.write(c); }
+        }
+    }
+
+    stream[]
+}
+
+/**
  * Format git url that can be in ssh format to http format
  * */
 pub fn formatGitUrl(url: [c8], version: [c8] = "main")-> [c8] {
