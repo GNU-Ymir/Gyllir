@@ -14,20 +14,36 @@ pub record RepoPublisher {
     // The command line options
     let _args: &Config;
 
-    // The package configuration
+    // The package configuration, override included: the one the package is built, tested and
+    // published with on this machine
     let _cfg: GyllirPackageConfiguration;
+
+    // The package configuration 'gyllir.toml' declares on its own, the one the new version is
+    // written back to
+    let _tracked: GyllirPackageConfiguration;
 
     // The git manager util
     let _git: GitManager;
 
     /**
      * @params:
-     *    - cfg: the configuration of the repo
+     *    - cfg: the configuration of a repo that has no override
      * */
     pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration)
+        with self (path, args, cfg, tracked-> cfg)
+    {}
+
+    /**
+     * @params:
+     *    - cfg: the configuration of the repo
+     *    - tracked: the configuration its 'gyllir.toml' declares, without the override(see
+     *      'gyllir::config::overlay')
+     * */
+    pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration, tracked: GyllirPackageConfiguration)
         with _cwd = path
         , _args = args
         , _cfg = cfg
+        , _tracked = tracked
         , _git = GitManager(cwd-> path)
     {}
 
@@ -86,7 +102,7 @@ pub record RepoPublisher {
         }
 
         // computed before anything is built, so that a version that cannot be bumped fails right away
-        let bumper  = RepoBumper(self._cwd, self._args, self._cfg);
+        let bumper  = RepoBumper(self._cwd, self._args, self._tracked);
         let version = bumper.nextVersion();
 
         self.compileProject(alias context);
@@ -106,6 +122,13 @@ pub record RepoPublisher {
         utils::log::info("Publish", "to ", path.toStr());
 
         context.runProcess("cp", copy ["-r", self._cwd.push(".").toStr(), path.toStr()]);
+
+        // the settings of this machine are not part of the version, and a local registry is read as
+        // a local dependency, whose override would apply to whoever depends on it
+        let overFile = path.push(defaults::__GYLLIR_OVERRIDE_FILENAME__);
+        if (fs::sys::isFile(overFile)) {
+            fs::sys::removeFile(overFile)?;
+        }
 
         return (true, npack.version);
     }

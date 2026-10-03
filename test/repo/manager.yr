@@ -1016,3 +1016,71 @@ __test link_targets_names_synthesized_target {
     assert(includes.len == 2us, "both root files should still be exported");
     assert(hasFile(app, "myapp"), "the executable should be produced");
 }
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * ===================================          OVERRIDE          =====================================
+ * ====================================================================================================
+ * ====================================================================================================
+ * A 'gyllir.toml.override' read on top of 'gyllir.toml'
+ */
+
+/**
+ * Write the 'gyllir.toml.override' of a package
+ * */
+fn writeOverride(dir: Path, content: [c8])
+    throws FsError
+{
+    writeSource(dir.push(defaults::__GYLLIR_OVERRIDE_FILENAME__), content);
+}
+
+__test override_is_read_on_top_of_the_configuration {
+    // The override changes what it declares, unless the tracked configuration alone is asked for
+    let app = mkExecutableProject("myapp");
+    writeToml(app, mkConfig("myapp", "executable"));
+    writeOverride(app, "compiler = \"/opt/ymir/bin/gyc\"\n");
+
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    assert(mgr:.loadToml(app).compiler == "/opt/ymir/bin/gyc", "the override should be read on top of gyllir.toml");
+    assert(mgr:.loadToml(app, withOverride-> false).compiler == "gyc",
+           "the configuration of gyllir.toml alone should not see the override");
+}
+
+__test override_of_a_local_dependency_is_read {
+    // A local dependency is a checkout of the user: its own override applies when it is built
+    let lib = mkLibraryProject();
+    writeToml(lib, mkConfig("mylib", "library"));
+    gitInit(lib);
+    writeOverride(lib, "package-root = \"helper\"\n");
+
+    let app      = mkExecutableProject("myapp");
+    let cfg      = mkConfigWithDependency("myapp", "executable", "mylib", lib);
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    let (includes, _) = RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
+
+    let depPath = app.push(defaults::__DEPENCY_DIR__).push("mylib");
+    assert(includes[0] == depPath.push(defaults::__SRC_DIR__).push("helper").addExtension(defaults::__YMIR_EXTENSION__),
+           "the package root declared by the override of the dependency should be used");
+}
+
+__test override_of_a_git_dependency_is_ignored {
+    // A cloned dependency is somebody else's package: an override it carries was committed by
+    // mistake, from another machine
+    let lib = mkLibraryProject();
+    writeToml(lib, mkConfig("mylib", "library"));
+    writeOverride(lib, "package-root = \"helper\"\n");
+    gitInit(lib);
+    commitAndTag(lib, "v1.0.0");
+
+    let app      = mkExecutableProject("myapp");
+    let cfg      = mkConfigWithGitDependency("myapp", "executable", "mylib", lib, version-> ">=1.0.0");
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    let (includes, _) = RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
+
+    let depPath = app.push(defaults::__DEPENCY_DIR__).push("mylib");
+    assert(includes[0] == depPath.push(defaults::__SRC_DIR__).push(defaults::__LIB_FILE__),
+           "the override committed in a git dependency should not be read");
+}
