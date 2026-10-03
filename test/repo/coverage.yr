@@ -1,0 +1,143 @@
+use ::repo::fixture;
+
+use gyllir::config;
+use gyllir::repo::{coverage, defaults};
+use gyllir::doc::index;
+
+use std::{config::_, config::json, fs::_};
+
+/**
+ * The coverage of 'src/main.yr' as written by the test runtime: lines 3 and 4 instrumented, only
+ * line 3 reached
+ * */
+prv def __MAIN_COVERAGE__ = "{\"functions\": [{\"file\": \"src/main.yr\", \"func\": \"main\", "
+                            ~ "\"locations\": [[3, 1, 0], [4, 1, 0]], \"hits\": [1, 0]}], \"callTree\": []}";
+
+/**
+ * @returns: a project holding 'src/main.yr', and the coverage files 'files' (name => content) at its root
+ * */
+prv fn mkCoveredProject(files: [([c8], [c8])])-> Path
+    throws FsError
+{
+    let dir = sys::tempDirectory(prefix-> "gyllir_coverage_");
+    writeSource(dir.push("src").push("main.yr"), "use std::io;\n\nfn main() {\n    println(1);\n}\n");
+    for f in files {
+        writeSource(dir.push(f._0), f._1);
+    }
+
+    dir
+}
+
+/**
+ * @returns: the content of the summary written next to the pages of 'dir'
+ * */
+prv fn summaryOf(dir: Path)-> &Config
+    throws FsError, std::syntax::errors::SyntaxError
+{
+    json::parse(sys::readFile(dir
+                                  .push(defaults::__DOC_DIR__)
+                                  .push(defaults::__COVERAGE_DIR__)
+                                  .push(defaults::__COVERAGE_SUMMARY_FILE__)))
+}
+
+prv fn intOf(cfg: &Config, a: [c8], b: [c8])-> i64 {
+    if let Ok(sub) = cfg[a]? {
+        if let Ok(Int(value-> v)) = sub[b]? { return v; }
+    }
+
+    return -1i64;
+}
+
+__test coverage_flags_request_the_pages {
+    // '--coverage-file' and '--coverage-only' both imply '--coverage'
+    assert(!coverageRequested(copy Dict()), "no flag should request no page");
+    assert(coverageRequested(mkArgs(copy ["coverage"])), "--coverage should request the pages");
+    assert(coverageRequested(mkArgs(copy ["coverage-only"])), "--coverage-only should request the pages");
+
+    let dmut args = copy Dict();
+    args["coverage-file"] = copy Str("cov.json");
+    assert(coverageRequested(args), "--coverage-file should request the pages");
+}
+
+__test coverage_pages_are_rendered_from_the_merged_report {
+    // The merged report of the last run is rendered into '__doc/__coverage', a page per source file
+    let dir = mkCoveredProject(copy [(defaults::__COVERAGE_REPORT_FILE__, __MAIN_COVERAGE__)]);
+    let out = dir.push(defaults::__DOC_DIR__).push(defaults::__COVERAGE_DIR__);
+
+    // the page of a file no longer covered is removed
+    writeSource(out.push("src_old.yr.html"), "");
+
+    RepoCoverageBuilder(dir, copy Dict(), mkConfig("myapp", "executable")).run();
+
+    assert(sys::isFile(out.push("index.html")), "the summary should be rendered as 'index.html'");
+    assert(sys::isFile(out.push("src_main.yr.html")), "the source file should have its page");
+    assert(!sys::isFile(out.push("src_old.yr.html")), "the page of a file no longer covered should be removed");
+    assert(sys::isDir(out.push("css")) && sys::isDir(out.push("js")),
+           "the static assets should be copied next to the pages");
+
+    let summary = summaryOf(dir);
+    assert(intOf(summary, "lines", "covered") == 1i64 && intOf(summary, "lines", "total") == 2i64,
+           "the summary should hold the totals of the report");
+    assert(intOf(summary, "lines", "percent") == 50i64, "the summary should hold the percentage of the report");
+}
+
+__test merged_report_wins_over_pid_files {
+    // The merged report is preferred, the per process files are only a fallback
+    let pid = "{\"functions\": [{\"file\": \"src/main.yr\", \"func\": \"main\", \"locations\": [[3, 1, 0]], \"hits\": "
+              ~ "[1]}]}";
+    let dir = mkCoveredProject(copy [(defaults::__COVERAGE_REPORT_FILE__, __MAIN_COVERAGE__),
+                                     (".ymir_coverage_12.json", pid)]);
+
+    let files = RepoCoverageBuilder(dir, copy Dict(), mkConfig("myapp", "executable")).coverageFiles();
+    assert(files.len == 1us && files[0].file() == defaults::__COVERAGE_REPORT_FILE__,
+           "the merged report should be read alone");
+}
+
+__test pid_files_are_merged_without_report {
+    // Without a merged report, every per process file of the run is merged
+    let a = "{\"functions\": [{\"file\": \"src/main.yr\", \"func\": \"main\", \"locations\": [[3, 1, 0], [4, 1, 0]], "
+            ~ "\"hits\": [1, 0]}]}";
+    let b = "{\"functions\": [{\"file\": \"src/main.yr\", \"func\": \"main\", \"locations\": [[3, 1, 0], [4, 1, 0]], "
+            ~ "\"hits\": [0, 2]}]}";
+    let dir = mkCoveredProject(copy [(".ymir_coverage_12.json", a),
+                                     (".ymir_coverage_13.json", b),
+                                     (".ymir_coverage_x.txt", "")]);
+
+    let builder = RepoCoverageBuilder(dir, copy Dict(), mkConfig("myapp", "executable"));
+    assert(builder.coverageFiles().len == 2us, "only the per process json files should be read");
+
+    builder.run();
+    let summary = summaryOf(dir);
+    assert(intOf(summary, "lines", "covered") == 2i64, "the hits of both files should be merged");
+}
+
+__test coverage_file_and_output_flags {
+    // '--coverage-file' names the file to render, and '--output' the directory the pages go to
+    let dir = mkCoveredProject(copy [("elsewhere.json", __MAIN_COVERAGE__)]);
+    let out = sys::tempDirectory(prefix-> "gyllir_coverage_out_");
+
+    let dmut args = copy Dict();
+    args["coverage-file"] = copy Str(dir.push("elsewhere.json").toStr());
+    args["output"] = copy Str(out.toStr());
+
+    RepoCoverageBuilder(dir, args, mkConfig("myapp", "executable")).run();
+
+    assert(sys::isFile(out.push(defaults::__COVERAGE_DIR__).push("src_main.yr.html")),
+           "the pages should be rendered in the requested directory");
+}
+
+__test coverage_pages_link_the_documentation {
+    // The coverage pages link the documentation generated next to them, once there is one
+    let dir     = mkCoveredProject(copy [(defaults::__COVERAGE_REPORT_FILE__, __MAIN_COVERAGE__)]);
+    let builder = RepoCoverageBuilder(dir, copy Dict(), mkConfig("myapp", "executable"));
+    assert(builder.docLinks().len == 0us, "there is no documentation to link yet");
+
+    writeSource(dir.push(defaults::__DOC_DIR__).push("index.html"), "");
+    let links = builder.docLinks();
+    assert(links.len == 1us && links[0]._1 == "../index.html", "the index of the documentation should be linked");
+
+    builder.run();
+    let page = sys::readFile(dir.push(defaults::__DOC_DIR__).push(defaults::__COVERAGE_DIR__).push("src_main.yr.html"));
+    let linked = if let Ok(_) = index::findSub(page, "href=\"../index.html\">Documentation</a>") { true } else { false };
+    assert(linked, "every coverage page should link the documentation");
+}

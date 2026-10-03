@@ -28,18 +28,24 @@ pub class HtmlHeader over HtmlNode {
     // The body of the page
     let _body: &HtmlBody;
 
+    // The url of the coverage pages of the project, relative to the page ("" if there are none)
+    let _coverage: [c8];
+
     /**
      * Create a header for a page
      * @params:
      *   - name: the name of the page
+     *   - coverageUrl: the url of the index of the coverage pages, relative to the page ("" for no
+     *     link to them)
      */
-    pub self (project: [c8], git: [c8], version: [c8], name: [c8], table: [c8], body: &HtmlBody)
+    pub self (project: [c8], git: [c8], version: [c8], name: [c8], table: [c8], body: &HtmlBody, coverageUrl: [c8] = "")
         with _project = project
         , _git = git
         , _version = version
         , _name = name
         , _table = table
         , _body = body
+        , _coverage = coverageUrl
     {}
 
     /**
@@ -54,8 +60,26 @@ pub class HtmlHeader over HtmlNode {
         let mp = copy ["Title" => (self._project ~ " " ~ self._name),
                        "GitURL" => formatter::formatGitUrl(self._git, version-> self._version),
                        "Modules" => self._table,
+                       "Links" => coverageLink(self._coverage),
                        "Body" => streamBody[]];
 
         formatter::format(alias stream, ressources::HEADER, mp);
     }
+}
+
+/**
+ * The class of the link to the coverage pages, which tells a page that has one from a page that
+ * does not
+ * */
+pub def __COVERAGE_LINK_CLASS__ = "topbar-link coverage-link";
+
+/**
+ * @returns: the link of the top bar of a documentation page to the coverage pages, "" if there is
+ *    no coverage page to link to
+ * @params:
+ *    - url: the url of the index of the coverage pages, relative to the page
+ * */
+pub fn coverageLink(url: [c8])-> [c8] {
+    if (url.len == 0us) { return ""; }
+    "<a class=\"" ~ __COVERAGE_LINK_CLASS__ ~ "\" href=\"" ~ formatter::htmlEscape(url) ~ "\">Coverage</a>"
 }

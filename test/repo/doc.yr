@@ -1,7 +1,8 @@
 use ::repo::fixture;
 
 use gyllir::config;
-use gyllir::repo::{builder, defaults, doc, manager};
+use gyllir::doc::index;
+use gyllir::repo::{builder, coverage, defaults, doc, manager};
 
 use std::fs::_;
 use std::config::data;
@@ -20,6 +21,11 @@ fn nbPages(dir: Path)-> usize
     }
 
     nb
+}
+
+prv fn contains(content: [c8], what: [c8])-> bool {
+    if let Ok(_) = index::findSub(content, what) { return true; }
+    false
 }
 
 __test doc_build_renders_page_per_module {
@@ -99,6 +105,22 @@ __test doc_build_removes_stale_pages {
     assert(nbPages(docDir) == nb, "the pages of the modules that are still there should be rendered again");
 }
 
+__test doc_pages_link_the_coverage_pages {
+    // The pages link the coverage pages when they are rendered too, and are rendered again when that
+    // link comes, even if the documentation itself did not change
+    let dir      = mkExecutableProject("myapp");
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "doc"]);
+    let cfg      = mkConfig("myapp", "executable");
+    let index    = dir.push(defaults::__DOC_DIR__).push("index.html");
+    let link     = "href=\"" ~ defaults::__COVERAGE_DIR__ ~ "/index.html\">Coverage</a>";
+
+    RepoDocBuilder(dir, mkBuildArgs(), cfg, target-> soleTarget(cfg)).run(alias mgr);
+    assert(!contains(sys::readFile(index), link), "the pages should not link coverage pages that are not rendered");
+
+    RepoDocBuilder(dir, mkBuildArgs(flags-> copy ["coverage"]), cfg, target-> soleTarget(cfg)).run(alias mgr);
+    assert(contains(sys::readFile(index), link), "the pages should link the coverage pages rendered with them");
+}
+
 __test doc_build_renders_every_symbol_kind {
     // A project holding one declaration of about every kind is documented end to end: gyc produces
     // the documentation file, the loader rebuilds the symbol tree out of it, and every symbol is
@@ -170,6 +192,18 @@ __test doc_multi_target_renders_separate_sites {
     }
 
     assert(!sys::isFile(docDir.push("index.html")), "a multi target package should not render a flat site");
+
+    // the coverage pages of the package sit next to the sites, which link them, and link them back
+    let dmut args = copy Dict();
+    args["coverage-file"] = copy Str(dir.push("cov.json").toStr());
+    writeSource(dir.push("cov.json"), "{\"functions\": []}");
+
+    RepoCoverageBuilder(dir, args, cfg).run();
+    let cov = sys::readFile(docDir.push(defaults::__COVERAGE_DIR__).push("index.html"));
+    for name in copy ["cli", "mylib", "tool"] {
+        assert(contains(cov, "href=\"../" ~ name ~ "/index.html\""),
+               "the coverage pages should link the site of '" ~ name ~ "'");
+    }
     assert(nbPages(docDir.push("cli")) > 0us, "the pages of a target should sit in its own directory");
 }
 

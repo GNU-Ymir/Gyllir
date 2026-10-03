@@ -105,13 +105,18 @@ pub class GyllirManager {
                 let cfg = self.loadToml(cwd);
                 self:.buildTargets(cwd, c, cfg, self.selectTargets(cfg, c), forDoc-> true);
                 (copy RepoDocServer(cwd, c, cfg)).run();
+            } else if let Ok(Bool(value-> _ = true)) = c["coverage-only"]? {
+                RepoCoverageBuilder(cwd, c, self.tryLoadToml(cwd)).run();
             } else if let Ok(Str(value-> file)) = c["input"]? {
-                RepoDocBuilder(cwd, c, self.tryLoadToml(cwd), input-> file, fromFile-> true).run(alias self);
+                let cfg = self.tryLoadToml(cwd);
+                RepoDocBuilder(cwd, c, cfg, input-> file, fromFile-> true).run(alias self);
+                if (coverageRequested(c)) { RepoCoverageBuilder(cwd, c, cfg).run(); }
             } else {
                 let cfg = self.loadToml(cwd);
                 self:.loadLock(cwd, c, cfg);
                 self:.buildTargets(cwd, c, cfg, self.selectTargets(cfg, c), forDoc-> true);
                 self.writeLock(cwd, cfg);
+                if (coverageRequested(c)) { RepoCoverageBuilder(cwd, c, cfg).run(); }
             }
         } else panic;
     } catch {

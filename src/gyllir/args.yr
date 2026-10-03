@@ -460,9 +460,16 @@ pub class GyllirArgumentParser {
             :.option!{[c8]} ("input",
                              short-> "i",
                              comments-> "input json file already produced by a previous compilation")
-            :.option!{[c8]} ("output", short-> "o", comments-> "output directory");
+            :.option!{[c8]} ("output", short-> "o", comments-> "output directory")
+            :.flag("coverage",
+                   comments-> "also render the coverage of the last unittest run (" ~ repo::defaults::__COVERAGE_DIR__
+                              ~ "/ in the output directory)")
+            :.option!{[c8]} ("coverage-file",
+                             comments-> "coverage json file to render (default: the one of the last unittest run, "
+                                        ~ "implies --coverage)")
+            :.flag("coverage-only", comments-> "only render the coverage, not the documentation (implies --coverage)");
 
-        let (rest, target) = self.extractTarget(args, copy ["input", "i", "output", "o"]);
+        let (rest, target) = self.extractTarget(args, copy ["input", "i", "output", "o", "coverage-file"]);
         return ({
             self.withTarget(parser.parse(rest), target)
         } catch {
