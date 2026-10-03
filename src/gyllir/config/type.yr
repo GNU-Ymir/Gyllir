@@ -9,7 +9,6 @@ enum BuildTypeEnum
 | EXECUTABLE = (0u8, "executable")
 | LIBRARY    = (1u8, "library");
 
-
 /**
  * Record used to transform configuration into a build type
  * */
@@ -45,9 +44,7 @@ pub record BuildType {
     {
         if let Str(value-> type) = cfg {
             self:.parseType(type, entry);
-        }
-
-        else throw copy AssertError(entry ~ " must be a string, one of " ~ typeNames());
+        } else throw copy AssertError(entry ~ " must be a string, one of " ~ typeNames());
     }
 
     /*!
@@ -111,7 +108,8 @@ pub record BuildType {
             }
         }
 
-        throw copy AssertError(entry ~ " is invalid: \"" ~ value ~ "\" is not a build type, expecting one of " ~ typeNames());
+        throw copy AssertError(entry ~ " is invalid: \"" ~ value ~ "\" is not a build type, expecting one of "
+                               ~ typeNames());
     }
 }
 

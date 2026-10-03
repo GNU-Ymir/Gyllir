@@ -1,10 +1,9 @@
-use gyllir::doc::types::option;
-use gyllir::doc::types::scalar;
+use gyllir::doc::types::{option, scalar};
 
 use std::stream;
 
 __test option_type_renders_inner_type {
-    let o = copy OptionType("", copy ScalarType("i32", ""));
+    let o           = copy OptionType("", copy ScalarType("i32", ""));
     let dmut stream = copy StringStream();
     stream:.write(o);
 

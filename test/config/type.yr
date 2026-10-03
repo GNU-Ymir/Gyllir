@@ -43,8 +43,11 @@ __test unknown_type_error_names_entry {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'[targets.cli]', 'type' is invalid: \"unknown\" is not a build type, expecting one of \"executable\", \"library\"",
-           "unexpected error: " ~ msg);
+    assert(
+        msg
+        == "'[targets.cli]', 'type' is invalid: \"unknown\" is not a build type, expecting one of \"executable\", \"library\"",
+        "unexpected error: " ~ msg
+    );
 }
 
 __test parse_build_type_from_config_node {

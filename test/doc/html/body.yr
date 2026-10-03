@@ -1,35 +1,11 @@
+use gyllir::doc::{types::_, types::array, types::class_, types::enum_, types::fptr, types::map, types::option, types::pointer, types::range, types::scalar, types::slice, types::tuple};
 use gyllir::doc::html::body;
-use gyllir::doc::symbols::_;
-use gyllir::doc::symbols::module;
-use gyllir::doc::symbols::function;
-use gyllir::doc::symbols::global;
-use gyllir::doc::symbols::def_;
-use gyllir::doc::symbols::enum_;
-use gyllir::doc::symbols::macro_;
-use gyllir::doc::symbols::class_;
-use gyllir::doc::symbols::variable;
-use gyllir::doc::symbols::ctor;
-use gyllir::doc::symbols::method;
-use gyllir::doc::symbols::trait_;
-use gyllir::doc::symbols::template_::_;
-use gyllir::doc::symbols::template_::var;
-use gyllir::doc::types::_;
-use gyllir::doc::types::scalar;
-use gyllir::doc::types::class_;
-use gyllir::doc::types::enum_;
-use gyllir::doc::types::array;
-use gyllir::doc::types::slice;
-use gyllir::doc::types::map;
-use gyllir::doc::types::tuple;
-use gyllir::doc::types::option;
-use gyllir::doc::types::pointer;
-use gyllir::doc::types::range;
-use gyllir::doc::types::fptr;
+use gyllir::doc::symbols::{_, class_, ctor, def_, enum_, function, global, macro_, method, module, template_::_, template_::var, trait_, variable};
 
 use std::stream;
 
 fn dump(mod_: &Module)-> [c8] {
-    let body = copy HtmlBody("MyProject", mod_);
+    let body        = copy HtmlBody("MyProject", mod_);
     let dmut stream = copy StringStream();
     body.dumpHtml(alias stream);
     stream[]
@@ -37,126 +13,111 @@ fn dump(mod_: &Module)-> [c8] {
 
 __test bare_function_declaration {
     // A function with defaults (no params, no ret_type, no throwers) renders via the "declaration" template
-    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+    let dmut mod_  = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let f: &Symbol = copy Function("foo", "", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [f];
 
-    assert(dump(mod_) ==
-        "<details class=\"declaration y_decl\" open>\n" ~
-        "  <summary>\n" ~
-        "    <span class=\"symbol-target\" id=\"foo\">&nbsp;</span>\n" ~
-        "    <span class=\"y_symbol_kind kind-fn\" data-kind=\"fn\">fn</span>\n" ~
-        "    <span class=\"y_symbol_name symbol-link\">foo</span>\n" ~
-        "    \n" ~
-        "  </summary>\n" ~
-        "  <div class=\"declaration-content\" id=\"foo-content\"><pre><code class=\"language-ymir\">pub fn foo ()-> </code></pre>\n" ~
-        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n" ~
-        "</details>\n",
-        "unexpected html for a bare function");
+    assert(
+        dump(mod_)
+        == "<details class=\"declaration y_decl\" open>\n" ~ "  <summary>\n"
+           ~ "    <span class=\"symbol-target\" id=\"foo\">&nbsp;</span>\n"
+           ~ "    <span class=\"y_symbol_kind kind-fn\" data-kind=\"fn\">fn</span>\n"
+           ~ "    <span class=\"y_symbol_name symbol-link\">foo</span>\n" ~ "    \n" ~ "  </summary>\n"
+           ~ "  <div class=\"declaration-content\" id=\"foo-content\"><pre><code class=\"language-ymir\">pub fn foo ()-> </code></pre>\n"
+           ~ "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n" ~ "</details>\n",
+        "unexpected html for a bare function"
+    );
 }
 
 __test global_default_type {
     // A Global with the default (empty) type omits the type annotation entirely
-    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+    let dmut mod_  = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let g: &Symbol = copy Global("MAX", "", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [g];
 
-    assert(dump(mod_) ==
-        "<details class=\"declaration y_decl\" open>\n" ~
-        "  <summary>\n" ~
-        "    <span class=\"symbol-target\" id=\"MAX\">&nbsp;</span>\n" ~
-        "    <span class=\"y_symbol_kind kind-let\" data-kind=\"let\">let</span>\n" ~
-        "    <span class=\"y_symbol_name symbol-link\">MAX</span>\n" ~
-        "    \n" ~
-        "  </summary>\n" ~
-        "  <div class=\"declaration-content\" id=\"MAX-content\"><pre><code class=\"language-ymir\">pub lazy MAX</code></pre>\n" ~
-        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n" ~
-        "</details>\n",
-        "unexpected html for a global with no type");
+    assert(
+        dump(mod_)
+        == "<details class=\"declaration y_decl\" open>\n" ~ "  <summary>\n"
+           ~ "    <span class=\"symbol-target\" id=\"MAX\">&nbsp;</span>\n"
+           ~ "    <span class=\"y_symbol_kind kind-let\" data-kind=\"let\">let</span>\n"
+           ~ "    <span class=\"y_symbol_name symbol-link\">MAX</span>\n" ~ "    \n" ~ "  </summary>\n"
+           ~ "  <div class=\"declaration-content\" id=\"MAX-content\"><pre><code class=\"language-ymir\">pub lazy MAX</code></pre>\n"
+           ~ "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n" ~ "</details>\n",
+        "unexpected html for a global with no type"
+    );
 }
 
 __test type_alias_def {
     // A def (type alias)
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
-    let dmut d = copy Def("MyInt", "", INTERNAL_LOCATION, Protection::PUB);
+    let dmut d    = copy Def("MyInt", "", INTERNAL_LOCATION, Protection::PUB);
     d.type = copy ScalarType("i32", "");
     let d2: &Symbol = d;
     mod_.childs = copy [d2];
 
-    assert(dump(mod_) ==
-        "<details class=\"declaration y_decl\" open>\n" ~
-        "  <summary>\n" ~
-        "    <span class=\"symbol-target\" id=\"MyInt\">&nbsp;</span>\n" ~
-        "    <span class=\"y_symbol_kind kind-def\" data-kind=\"def\">def</span>\n" ~
-        "    <span class=\"y_symbol_name symbol-link\">MyInt</span>\n" ~
-        "    \n" ~
-        "  </summary>\n" ~
-        "  <div class=\"declaration-content\" id=\"MyInt-content\"><pre><code class=\"language-ymir\">pub def MyInt : i32</code></pre>\n" ~
-        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n" ~
-        "</details>\n",
-        "unexpected html for a type def");
+    assert(
+        dump(mod_)
+        == "<details class=\"declaration y_decl\" open>\n" ~ "  <summary>\n"
+           ~ "    <span class=\"symbol-target\" id=\"MyInt\">&nbsp;</span>\n"
+           ~ "    <span class=\"y_symbol_kind kind-def\" data-kind=\"def\">def</span>\n"
+           ~ "    <span class=\"y_symbol_name symbol-link\">MyInt</span>\n" ~ "    \n" ~ "  </summary>\n"
+           ~ "  <div class=\"declaration-content\" id=\"MyInt-content\"><pre><code class=\"language-ymir\">pub def MyInt : i32</code></pre>\n"
+           ~ "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n" ~ "</details>\n",
+        "unexpected html for a type def"
+    );
 }
 
 __test enum_self_referential_type {
     // An enum: EnumSymbol.type must itself hold an EnumType (self-referential) for the proxy to render
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
-    let dmut e = copy EnumSymbol("Color", "", INTERNAL_LOCATION, Protection::PUB);
+    let dmut e    = copy EnumSymbol("Color", "", INTERNAL_LOCATION, Protection::PUB);
     e.type = copy EnumType("Color", "", copy ScalarType("u8", ""));
     e.fields = copy [("RED", "0", "")];
     let e2: &Symbol = e;
     mod_.childs = copy [e2];
 
-    assert(dump(mod_) ==
-        "<details class=\"declaration y_decl\" open>\n" ~
-        "  <summary>\n" ~
-        "    <span class=\"symbol-target\" id=\"Color\">&nbsp;</span>\n" ~
-        "    <span class=\"y_symbol_kind kind-enum\" data-kind=\"enum\">enum</span>\n" ~
-        "    <span class=\"y_symbol_name symbol-link\">Color</span>\n" ~
-        "    \n" ~
-        "  </summary>\n" ~
-        "  <div class=\"declaration-content\" id=\"Color-content\"><pre><code class=\"language-ymir\">pub enum Color: u8</code></pre>\n" ~
-        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div><div class=\"member-list\"><details class=\"declaration y_decl\" open>\n" ~
-        "  <summary>\n" ~
-        "    <span class=\"symbol-target\" id=\"RED\">&nbsp;</span>\n" ~
-        "    <span class=\"y_symbol_kind kind-let\" data-kind=\"let\">let</span>\n" ~
-        "    <span class=\"y_symbol_name symbol-link\">RED</span>\n" ~
-        "    \n" ~
-        "  </summary>\n" ~
-        "  <div class=\"declaration-content\" id=\"RED-content\"><pre><code class=\"language-ymir\">RED = 0</code></pre>\n" ~
-        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n" ~
-        "</details>\n" ~
-        "</div>\n" ~
-        "</div>\n" ~
-        "</details>\n",
-        "unexpected html for an enum with a field");
+    assert(
+        dump(mod_)
+        == "<details class=\"declaration y_decl\" open>\n" ~ "  <summary>\n"
+           ~ "    <span class=\"symbol-target\" id=\"Color\">&nbsp;</span>\n"
+           ~ "    <span class=\"y_symbol_kind kind-enum\" data-kind=\"enum\">enum</span>\n"
+           ~ "    <span class=\"y_symbol_name symbol-link\">Color</span>\n" ~ "    \n" ~ "  </summary>\n"
+           ~ "  <div class=\"declaration-content\" id=\"Color-content\"><pre><code class=\"language-ymir\">pub enum Color: u8</code></pre>\n"
+           ~ "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div><div class=\"member-list\"><details class=\"declaration y_decl\" open>\n"
+           ~ "  <summary>\n" ~ "    <span class=\"symbol-target\" id=\"RED\">&nbsp;</span>\n"
+           ~ "    <span class=\"y_symbol_kind kind-let\" data-kind=\"let\">let</span>\n"
+           ~ "    <span class=\"y_symbol_name symbol-link\">RED</span>\n" ~ "    \n" ~ "  </summary>\n"
+           ~ "  <div class=\"declaration-content\" id=\"RED-content\"><pre><code class=\"language-ymir\">RED = 0</code></pre>\n"
+           ~ "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n" ~ "</details>\n" ~ "</div>\n"
+           ~ "</div>\n" ~ "</details>\n",
+        "unexpected html for an enum with a field"
+    );
 }
 
 __test empty_macro {
     // A macro with no ctors/rules still renders its own declaration wrapper, with an empty member-list
-    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+    let dmut mod_  = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let m: &Symbol = copy Macro("mymacro", "", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [m];
 
-    assert(dump(mod_) ==
-        "<details class=\"declaration y_decl\" open>\n" ~
-        "  <summary>\n" ~
-        "    <span class=\"symbol-target\" id=\"mymacro\">&nbsp;</span>\n" ~
-        "    <span class=\"y_symbol_kind kind-macro\" data-kind=\"macro\">macro</span>\n" ~
-        "    <span class=\"y_symbol_name symbol-link\">mymacro</span>\n" ~
-        "    \n" ~
-        "  </summary>\n" ~
-        "  <div class=\"declaration-content\" id=\"mymacro-content\"><pre><code class=\"language-ymir\">pub macro mymacro</code></pre>\n" ~
-        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div><div class=\"member-list\"></div>\n" ~
-        "</div>\n" ~
-        "</details>\n",
-        "unexpected html for an empty macro");
+    assert(
+        dump(mod_)
+        == "<details class=\"declaration y_decl\" open>\n" ~ "  <summary>\n"
+           ~ "    <span class=\"symbol-target\" id=\"mymacro\">&nbsp;</span>\n"
+           ~ "    <span class=\"y_symbol_kind kind-macro\" data-kind=\"macro\">macro</span>\n"
+           ~ "    <span class=\"y_symbol_name symbol-link\">mymacro</span>\n" ~ "    \n" ~ "  </summary>\n"
+           ~ "  <div class=\"declaration-content\" id=\"mymacro-content\"><pre><code class=\"language-ymir\">pub macro mymacro</code></pre>\n"
+           ~ "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div><div class=\"member-list\"></div>\n"
+           ~ "</div>\n" ~ "</details>\n",
+        "unexpected html for an empty macro"
+    );
 }
 
 __test class_field_module_links {
     // A class with a field whose type lives in the same module (a "#Name" link) and one in
     // another module ("othermod.html#Name"), a ctor and a method
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
-    let dmut c = copy ClassSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
+    let dmut c    = copy ClassSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
 
     let dmut localField = copy Variable("x", "", INTERNAL_LOCATION, Protection::PUB);
     localField.type = copy ClassType("mymod::Bar", "", false);
@@ -190,31 +151,26 @@ __test class_field_module_links {
 
 __test submodule_table {
     // Two nested modules populate the submodule table, sorted and formatted with an underscore-joined url
-    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+    let dmut mod_    = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let sub: &Symbol = copy Module("mymod::sub", "docs for sub", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [sub];
 
-    assert(dump(mod_) ==
-        "<details class=\"member-group\" open>\n" ~
-        "  <summary>Inner modules</summary>\n" ~
-        "  <div class=\"member-group-body\">\n" ~
-        "    <table class=\"book\">\n" ~
-        "      <thead>\n" ~
-        "        <tr><th class=\"fst\" scope=\"col\">Submodule</th><th class=\"fst\" scope=\"col\">Protection</th><th scope=\"col\">Documentation</th></tr>\n" ~
-        "      </thead>\n" ~
-        "      <tbody>\n" ~
-        "        <tr><td><a href=\"mymod_sub.html\">sub</a></td><td><em>pub</em></td><td>docs for sub</td></tr>\n\n" ~
-        "      </tbody>\n" ~
-        "    </table>\n" ~
-        "  </div>\n" ~
-        "</details>\n",
-        "unexpected html for a submodule table");
+    assert(
+        dump(mod_)
+        == "<details class=\"member-group\" open>\n" ~ "  <summary>Inner modules</summary>\n"
+           ~ "  <div class=\"member-group-body\">\n" ~ "    <table class=\"book\">\n" ~ "      <thead>\n"
+           ~ "        <tr><th class=\"fst\" scope=\"col\">Submodule</th><th class=\"fst\" scope=\"col\">Protection</th><th scope=\"col\">Documentation</th></tr>\n"
+           ~ "      </thead>\n" ~ "      <tbody>\n"
+           ~ "        <tr><td><a href=\"mymod_sub.html\">sub</a></td><td><em>pub</em></td><td>docs for sub</td></tr>\n\n"
+           ~ "      </tbody>\n" ~ "    </table>\n" ~ "  </div>\n" ~ "</details>\n",
+        "unexpected html for a submodule table"
+    );
 }
 
 __test trait_with_method {
     // A trait with a method
     let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
-    let dmut t = copy TraitSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
+    let dmut t    = copy TraitSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
     t.methods = copy [copy Method("bar", "", INTERNAL_LOCATION, Protection::PUB)];
     let t2: &Symbol = t;
     mod_.childs = copy [t2];
@@ -222,7 +178,7 @@ __test trait_with_method {
     let out = dump(mod_);
     assert(out.len > 0us, "sanity: output should not be empty");
 
-    let needle = "<span class=\"y_symbol_kind kind-trait\" data-kind=\"trait\">trait</span>";
+    let needle    = "<span class=\"y_symbol_kind kind-trait\" data-kind=\"trait\">trait</span>";
     let mut found = false;
     for i in 0us .. out.len {
         if (out.len - i >= needle.len && out[i .. i + needle.len] == needle) { found = true; }
@@ -232,14 +188,14 @@ __test trait_with_method {
 
 __test functions_sorted_alphabetically {
     // Functions are sorted alphabetically by name, regardless of declaration order
-    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+    let dmut mod_   = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let f1: &Symbol = copy Function("zeta", "", INTERNAL_LOCATION, Protection::PUB);
     let f2: &Symbol = copy Function("alpha", "", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [f1, f2];
 
-    let out = dump(mod_);
+    let out      = dump(mod_);
     let alphaPos = findFirst(out, "id=\"alpha\"");
-    let zetaPos = findFirst(out, "id=\"zeta\"");
+    let zetaPos  = findFirst(out, "id=\"zeta\"");
 
     assert(alphaPos.0 && zetaPos.0, "both function markers should be present");
     assert(alphaPos.1 < zetaPos.1, "alpha should be rendered before zeta, alphabetically");
@@ -260,19 +216,17 @@ __test templated_function {
     let tmplSym: &Symbol = tmpl;
     mod_.childs = copy [tmplSym];
 
-    assert(dump(mod_) ==
-        "<details class=\"declaration y_decl\" open>\n" ~
-        "  <summary>\n" ~
-        "    <span class=\"symbol-target\" id=\"foo\">&nbsp;</span>\n" ~
-        "    <span class=\"y_symbol_kind kind-fn\" data-kind=\"fn\">fn</span>\n" ~
-        "    <span class=\"y_symbol_name symbol-link\">foo</span>\n" ~
-        "     {class T}\n" ~
-        "  </summary>\n" ~
-        "  <div class=\"declaration-content\" id=\"foo-content\"><pre><code class=\"language-ymir\">pub fn if (T != U)\n" ~
-        "       foo {class T} ()-> </code></pre>\n" ~
-        "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n" ~
-        "</details>\n",
-        "unexpected html for a templated function");
+    assert(
+        dump(mod_)
+        == "<details class=\"declaration y_decl\" open>\n" ~ "  <summary>\n"
+           ~ "    <span class=\"symbol-target\" id=\"foo\">&nbsp;</span>\n"
+           ~ "    <span class=\"y_symbol_kind kind-fn\" data-kind=\"fn\">fn</span>\n"
+           ~ "    <span class=\"y_symbol_name symbol-link\">foo</span>\n" ~ "     {class T}\n" ~ "  </summary>\n"
+           ~ "  <div class=\"declaration-content\" id=\"foo-content\"><pre><code class=\"language-ymir\">pub fn if (T != U)\n"
+           ~ "       foo {class T} ()-> </code></pre>\n"
+           ~ "<div class=\"doc\"><dt class=\"head\"></dt><dd></dd></div></div>\n" ~ "</details>\n",
+        "unexpected html for a templated function"
+    );
 }
 
 fn findFirst(haystack: [c8], needle: [c8])-> (bool, usize) {
@@ -315,15 +269,14 @@ fn mkParam(name: [c8], type: &Type)-> &Variable {
 __test every_type_rendered {
     // Every kind of type is rendered in the signature of the function taking it as a parameter
     let dmut f = copy Function("everyType", "", INTERNAL_LOCATION, Protection::PUB);
-    f.parameters = copy [
-        mkParam("arr", copy ArrayType("", copy ScalarType("i32", ""), 3us)),
-        mkParam("sli", copy SliceType("", copy ScalarType("u8", ""))),
-        mkParam("map", copy MapType("", copy ScalarType("i32", ""), copy ScalarType("f64", ""))),
-        mkParam("tup", copy TupleType("", copy [copy ScalarType("i32", ""), copy ScalarType("bool", "")])),
-        mkParam("opt", copy OptionType("", copy ScalarType("i32", ""))),
-        mkParam("ptr", copy PointerType("", copy ScalarType("void", ""))),
-        mkParam("rng", copy RangeType("", copy ScalarType("i32", "")))
-    ];
+    f.parameters = copy [mkParam("arr", copy ArrayType("", copy ScalarType("i32", ""), 3us)),
+                         mkParam("sli", copy SliceType("", copy ScalarType("u8", ""))),
+                         mkParam("map", copy MapType("", copy ScalarType("i32", ""), copy ScalarType("f64", ""))),
+                         mkParam("tup",
+                                 copy TupleType("", copy [copy ScalarType("i32", ""), copy ScalarType("bool", "")])),
+                         mkParam("opt", copy OptionType("", copy ScalarType("i32", ""))),
+                         mkParam("ptr", copy PointerType("", copy ScalarType("void", ""))),
+                         mkParam("rng", copy RangeType("", copy ScalarType("i32", "")))];
 
     let out = dumpOne(f);
 
@@ -339,12 +292,22 @@ __test every_type_rendered {
 __test function_pointer_and_delegate_types {
     // Function pointer and delegate types, and the mutability prefix of a type
     let dmut f = copy Function("pointers", "", INTERNAL_LOCATION, Protection::PUB);
-    f.parameters = copy [
-        mkParam("fptr", copy FuncPtrType("", false, copy [copy ScalarType("i32", "")], copy [false], copy [false], copy ScalarType("bool", ""))),
-        mkParam("dg", copy FuncPtrType("", true, copy [copy ScalarType("i32", ""), copy ScalarType("u8", "")], copy [true, false], copy [false, true], copy ScalarType("void", ""))),
-        mkParam("mutSlice", copy SliceType("mut", copy ScalarType("i32", ""))),
-        mkParam("dmutSlice", copy SliceType("dmut", copy ScalarType("i32", "")))
-    ];
+    f.parameters = copy [mkParam("fptr",
+                                 copy FuncPtrType("",
+                                                  false,
+                                                  copy [copy ScalarType("i32", "")],
+                                                  copy [false],
+                                                  copy [false],
+                                                  copy ScalarType("bool", ""))),
+                         mkParam("dg",
+                                 copy FuncPtrType("",
+                                                  true,
+                                                  copy [copy ScalarType("i32", ""), copy ScalarType("u8", "")],
+                                                  copy [true, false],
+                                                  copy [false, true],
+                                                  copy ScalarType("void", ""))),
+                         mkParam("mutSlice", copy SliceType("mut", copy ScalarType("i32", ""))),
+                         mkParam("dmutSlice", copy SliceType("dmut", copy ScalarType("i32", "")))];
 
     let out = dumpOne(f);
 
@@ -375,7 +338,8 @@ __test function_attributes_and_params {
 
     let out = dumpOne(f);
 
-    assert(contains(out, "@{unsafe, inline}"), "a function that is both inline and unsafe should carry both attributes");
+    assert(contains(out, "@{unsafe, inline}"),
+           "a function that is both inline and unsafe should carry both attributes");
     assert(contains(out, "prv fn"), "the protection of the function should be rendered");
     assert(contains(out, "ref byRef : i32"), "a reference parameter should be annotated");
     assert(contains(out, "mut byMut : i32 = 0"), "a mutable parameter and its default value should be rendered");
@@ -422,9 +386,11 @@ __test record_with_ancestor {
     assert(contains(out, "over "), "the ancestor of the class should be rendered");
     assert(contains(out, "impl "), "the implemented traits should be rendered");
     assert(contains(out, "Assertions"), "the assertions should get a section of their own");
-    assert(contains(out, "cte assert (sizeof(T) > 0, \"a type of its own\")"), "unexpected rendering of a cte assertion");
+    assert(contains(out, "cte assert (sizeof(T) > 0, \"a type of its own\")"),
+           "unexpected rendering of a cte assertion");
     assert(contains(out, "Fields"), "the fields should get a section of their own");
-    assert(contains(out, "prv let mut value : i32 = 0;"), "unexpected rendering of a mutable field with a default value");
+    assert(contains(out, "prv let mut value : i32 = 0;"),
+           "unexpected rendering of a mutable field with a default value");
 }
 
 __test conditional_and_templated_members {
@@ -565,7 +531,7 @@ __test module_description_rendered_when_documented {
 
 __test submodule_table_strips_template {
     // The submodule table strips the template instantiation off the name of a templated module
-    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+    let dmut mod_    = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
     let sub: &Symbol = copy Module("mymod::vec!{i32}", "a templated module", INTERNAL_LOCATION, Protection::PUB);
     mod_.childs = copy [sub];
 

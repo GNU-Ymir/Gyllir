@@ -1,8 +1,4 @@
-use gyllir::doc::symbols::_;
-use gyllir::doc::symbols::ctor;
-use gyllir::doc::symbols::variable;
-use gyllir::doc::types::_;
-use gyllir::doc::types::scalar;
+use gyllir::doc::{symbols::_, symbols::ctor, symbols::variable, types::_, types::scalar};
 
 use std::stream;
 
@@ -13,7 +9,7 @@ __test unsafe_ctor_with_thrower {
     let dmut p = copy Variable("x", "", INTERNAL_LOCATION, Protection::PUB);
     p.type = copy ScalarType("i32", "");
     c.parameters = copy [p];
-    c.throwers = copy [cast!(&Type) (copy ScalarType("Err", ""))];
+    c.throwers = copy [cast!(&Type)(copy ScalarType("Err", ""))];
 
     let dmut stream = copy StringStream();
     stream:.write(c);

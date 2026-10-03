@@ -1,10 +1,9 @@
-use gyllir::doc::types::range;
-use gyllir::doc::types::scalar;
+use gyllir::doc::types::{range, scalar};
 
 use std::stream;
 
 __test range_type_renders_inner_type {
-    let r = copy RangeType("", copy ScalarType("i32", ""));
+    let r           = copy RangeType("", copy ScalarType("i32", ""));
     let dmut stream = copy StringStream();
     stream:.write(r);
 

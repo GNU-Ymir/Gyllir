@@ -1,7 +1,6 @@
 use gyllir::config::version;
 
-use std::config::_;
-use std::config::conv;
+use std::config::{_, conv};
 
 pub mod ::filter;
 
@@ -82,9 +81,9 @@ __test increment_numbered_version {
 
 __test equality_and_ordering {
     // Equality and ordering
-    let a = Version(1u32, 2u32, 3u32);
-    let b = Version("1.2.3");
-    let c = Version(1u32, 2u32, 4u32);
+    let a     = Version(1u32, 2u32, 3u32);
+    let b     = Version("1.2.3");
+    let c     = Version(1u32, 2u32, 4u32);
     let named = Version("master");
 
     assert(a == b, "two versions parsed to the same numbers should be equal");
@@ -100,8 +99,8 @@ __test equality_and_ordering {
 __test serialize_round_trips_to_string {
     // Serializing round-trips into a string configuration node
     let numbered = Version("1.2.3");
-    let named = Version("master");
+    let named    = Version("master");
 
-    assert(to!{[c8]}(numbered.serialize()) == "1.2.3", "unexpected serialized numbered version");
-    assert(to!{[c8]}(named.serialize()) == "master", "unexpected serialized named version");
+    assert(to!{[c8]} (numbered.serialize()) == "1.2.3", "unexpected serialized numbered version");
+    assert(to!{[c8]} (named.serialize()) == "master", "unexpected serialized named version");
 }

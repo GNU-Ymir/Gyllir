@@ -3,7 +3,7 @@ use gyllir::doc::symbols::template_::variadic;
 use std::stream;
 
 __test type_variadic_param_rendering {
-    let p = copy TemplateVariadicParam("T", false);
+    let p           = copy TemplateVariadicParam("T", false);
     let dmut stream = copy StringStream();
     stream:.write(p);
 
@@ -12,7 +12,7 @@ __test type_variadic_param_rendering {
 
 __test value_variadic_param_rendering {
     // A value variadic gets a " : " marker before the "..."
-    let p = copy TemplateVariadicParam("T", true);
+    let p           = copy TemplateVariadicParam("T", true);
     let dmut stream = copy StringStream();
     stream:.write(p);
 

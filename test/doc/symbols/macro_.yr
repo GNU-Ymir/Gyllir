@@ -1,5 +1,4 @@
-use gyllir::doc::symbols::_;
-use gyllir::doc::symbols::macro_;
+use gyllir::doc::symbols::{_, macro_};
 
 use std::stream;
 
@@ -21,6 +20,9 @@ __test macro_with_ctor_and_rule {
     let dmut stream = copy StringStream();
     stream:.write(m);
 
-    assert(stream[] == "Macro mymacro => :(0,0)\n\tCtor c1 => :(0,0)\n\t\texpr ()\n\t\n\tRule r1 => :(0,0)\n\t\texpr (+ | -)\n\t\n",
-           "unexpected rendering for a macro with a ctor rule and a normal rule");
+    assert(
+        stream[]
+        == "Macro mymacro => :(0,0)\n\tCtor c1 => :(0,0)\n\t\texpr ()\n\t\n\tRule r1 => :(0,0)\n\t\texpr (+ | -)\n\t\n",
+        "unexpected rendering for a macro with a ctor rule and a normal rule"
+    );
 }

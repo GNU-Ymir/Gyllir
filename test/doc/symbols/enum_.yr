@@ -1,5 +1,4 @@
-use gyllir::doc::symbols::_;
-use gyllir::doc::symbols::enum_;
+use gyllir::doc::symbols::{_, enum_};
 
 use std::stream;
 

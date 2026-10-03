@@ -1,6 +1,5 @@
 in def_;
 
-
 use gyllir::doc::types;
 use gyllir::doc::types::any;
 
@@ -9,11 +8,11 @@ use std::stream;
 @final
 pub class Def over Symbol {
     pub let mut isValue: bool = false;
-    pub let mut type: &Type = EMPTY_ANY;
-    pub let mut value: [c8] = [];
+    pub let mut type: &Type   = EMPTY_ANY;
+    pub let mut value: [c8]   = [];
 
     pub self (name: [c8], doc: [c8], loc: Location, protection: Protection)
-        with super (name, doc, loc, protection)
+        with super(name, doc, loc, protection)
     {}
 
     impl Streamable {
@@ -28,5 +27,4 @@ pub class Def over Symbol {
             stream:.detabing();
         }
     }
-
 }

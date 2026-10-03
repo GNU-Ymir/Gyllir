@@ -4,7 +4,7 @@ use std::stream;
 
 __test multi_segment_name_splits_module_path {
     // A multi-segment name is split into a module path and a final name
-    let a = copy AnyType("foo::bar::Baz", "");
+    let a           = copy AnyType("foo::bar::Baz", "");
     let dmut stream = copy StringStream();
     stream:.write(a);
     assert(stream[] == "Any (foo::bar::Baz)", "unexpected rendering for a multi-segment name");
@@ -12,7 +12,7 @@ __test multi_segment_name_splits_module_path {
 
 __test single_segment_name_has_no_module {
     // A single-segment name has no module
-    let a = copy AnyType("foo", "");
+    let a           = copy AnyType("foo", "");
     let dmut stream = copy StringStream();
     stream:.write(a);
     assert(stream[] == "Any (foo)", "unexpected rendering for a single-segment name");
@@ -20,7 +20,7 @@ __test single_segment_name_has_no_module {
 
 __test template_instantiation_kept_attached {
     // A template instantiation ("!{...}") is kept attached to the base name, not split off as a module part
-    let a = copy AnyType("mod::Vec!{i32}", "");
+    let a           = copy AnyType("mod::Vec!{i32}", "");
     let dmut stream = copy StringStream();
     stream:.write(a);
     assert(stream[] == "Any (mod::Vec!{i32})", "unexpected rendering for a templated name");
@@ -28,7 +28,7 @@ __test template_instantiation_kept_attached {
 
 __test non_alpha_led_name_kept_opaque {
     // A name starting with a non-alpha character is kept as an opaque, unsplit name
-    let a = copy AnyType("!weird::Name", "");
+    let a           = copy AnyType("!weird::Name", "");
     let dmut stream = copy StringStream();
     stream:.write(a);
     assert(stream[] == "Any (!weird::Name)", "unexpected rendering for a non-alpha-led name");

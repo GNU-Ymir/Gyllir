@@ -21,8 +21,11 @@ __test class_with_field_ctor_method {
     let dmut stream = copy StringStream();
     stream:.write(c);
 
-    assert(stream[] == "Type Foo => :(0,0)\n\tclass {\n\t\t(pub x : Scalar (i32))\n\t\tpub Ctor self => :(0,0)\n\t\t\tfn ()\n\t\t\n\t\tpub Method foo => :(0,0)\n\t\t\tfn (self)-> Any ()\n\t\t\n\t}\n",
-           "unexpected rendering for a class with a field, a ctor and a method");
+    assert(
+        stream[]
+        == "Type Foo => :(0,0)\n\tclass {\n\t\t(pub x : Scalar (i32))\n\t\tpub Ctor self => :(0,0)\n\t\t\tfn ()\n\t\t\n\t\tpub Method foo => :(0,0)\n\t\t\tfn (self)-> Any ()\n\t\t\n\t}\n",
+        "unexpected rendering for a class with a field, a ctor and a method"
+    );
 }
 
 __test record_and_entity_rendering {

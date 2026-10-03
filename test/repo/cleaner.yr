@@ -1,14 +1,12 @@
 use ::repo::fixture;
-use gyllir::repo::cleaner;
 use gyllir::config::_;
+use gyllir::repo::cleaner;
 
-use std::config::_;
-use std::config::json;
-use std::fs::_;
+use std::{config::_, config::json, fs::_};
 
 __test clean_doc_removes_doc_directory {
     // cleanDoc() removes the "__doc" directory under the repo's cwd
-    let dir = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
+    let dir    = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
     let docDir = dir.push("__doc");
     sys::createDir(docDir);
     let dmut f = File::create(docDir.push("index.html"), write-> true);
@@ -17,7 +15,7 @@ __test clean_doc_removes_doc_directory {
 
     assert(sys::isDir(docDir), "sanity: __doc should exist before cleaning");
 
-    let cfg = GyllirPackageConfiguration::empty();
+    let cfg     = GyllirPackageConfiguration::empty();
     let cleaner = RepoCleaner(dir, copy Dict(), cfg);
     cleaner.cleanDoc();
 
@@ -26,13 +24,17 @@ __test clean_doc_removes_doc_directory {
 
 __test clean_outputs_removes_target_and_executable {
     // cleanOutputs() removes .target, and the built executable/test file named after the config
-    let dir = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
+    let dir       = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
     let targetDir = dir.push(".target");
     sys::createDir(targetDir);
 
-    let cfg = GyllirPackageConfiguration(
-        "myexe", "MIT", "d", BuildType("executable"), Url("local:some/registry"), Version(1u32, 0u32, 0u32), []
-    );
+    let cfg = GyllirPackageConfiguration("myexe",
+                                         "MIT",
+                                         "d",
+                                         BuildType("executable"),
+                                         Url("local:some/registry"),
+                                         Version(1u32, 0u32, 0u32),
+                                         []);
 
     let exePath = dir.push("myexe");
     let dmut ef = File::create(exePath, write-> true);
@@ -40,7 +42,7 @@ __test clean_outputs_removes_target_and_executable {
     ef:.close();
 
     let testPath = dir.push("myexe").addExtension("test");
-    let dmut tf = File::create(testPath, write-> true);
+    let dmut tf  = File::create(testPath, write-> true);
     tf:.write("test binary");
     tf:.close();
 
@@ -55,12 +57,16 @@ __test clean_outputs_removes_target_and_executable {
 __test clean_outputs_removes_library_archive {
     // For a library config, cleanOutputs() removes "lib<name>.a" instead of a bare executable
     let dir = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
-    let cfg = GyllirPackageConfiguration(
-        "mylib", "MIT", "d", BuildType("library"), Url("local:some/registry"), Version(1u32, 0u32, 0u32), []
-    );
+    let cfg = GyllirPackageConfiguration("mylib",
+                                         "MIT",
+                                         "d",
+                                         BuildType("library"),
+                                         Url("local:some/registry"),
+                                         Version(1u32, 0u32, 0u32),
+                                         []);
 
     let libPath = dir.push("libmylib.a");
-    let dmut f = File::create(libPath, write-> true);
+    let dmut f  = File::create(libPath, write-> true);
     f:.write("archive");
     f:.close();
 
@@ -82,7 +88,7 @@ __test clean_outputs_removes_all_target_artifacts {
     // cleanOutputs() removes the artifact and the unittest executable of every declared target,
     // whatever "output" named them
     let dir = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
-    let cfg = mkTargetsConfig("multi", json#{
+    let cfg = mkTargetsConfig("multi", json #{
         "mylib" : {"type" : "library"},
         "cli" : {"type" : "executable"},
         "tool" : {"type" : "executable", "output" : "renamed"}
@@ -107,7 +113,7 @@ __test clean_outputs_removes_all_target_artifacts {
 __test clean_outputs_missing_artifact_is_not_error {
     // The artifact of a target that was never built is simply not there, cleaning is not an error
     let dir = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
-    let cfg = mkTargetsConfig("multi", json#{"cli" : {"type" : "executable"}});
+    let cfg = mkTargetsConfig("multi", json #{"cli" : {"type" : "executable"}});
 
     RepoCleaner(dir, copy Dict(), cfg).cleanOutputs();
 

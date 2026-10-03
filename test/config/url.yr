@@ -1,7 +1,6 @@
 use gyllir::config::url;
 
-use std::config::_;
-use std::config::{conv, json};
+use std::config::{_, conv, json};
 
 __test default_url_is_empty_local_invalid {
     // A default-constructed url is empty, of type LOCAL, and invalid
@@ -37,8 +36,8 @@ __test unprefixed_url_defaults_to_git {
 
 __test deserialize_from_local_key {
     // Deserializing from a configuration containing a "local" key
-    let cfg = json#{"local" : "some/dir"};
-    let u = Url(cfg);
+    let cfg = json #{"local" : "some/dir"};
+    let u   = Url(cfg);
 
     assert(u.type == UrlType::LOCAL, "expected a LOCAL url type");
     assert(u.path.toStr() == "some/dir", "unexpected path for a \"local\" configuration");
@@ -47,8 +46,8 @@ __test deserialize_from_local_key {
 
 __test deserialize_from_git_key {
     // Deserializing from a configuration containing a "git" key
-    let cfg = json#{"git" : "some/repo"};
-    let u = Url(cfg);
+    let cfg = json #{"git" : "some/repo"};
+    let u   = Url(cfg);
 
     assert(u.type == UrlType::GIT, "expected a GIT url type");
     assert(u.path.toStr() == "some/repo", "unexpected path for a \"git\" configuration");
@@ -66,7 +65,7 @@ __test deserialize_from_raw_string_node {
 
 __test dict_without_local_or_git_key_rejected {
     // A dictionnary without a "local" or "git" key is rejected as malformed
-    let cfg = json#{"unknown" : "some/dir"};
+    let cfg     = json #{"unknown" : "some/dir"};
     let mut msg = "";
     {
         Url(cfg);
@@ -74,8 +73,10 @@ __test dict_without_local_or_git_key_rejected {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'url' is invalid: expecting a string like \"git:<remote>\" or \"local:<path>\", "
-           ~ "or a table declaring a 'git' or a 'local' entry", "unexpected error: " ~ msg);
+    assert(msg
+           == "'url' is invalid: expecting a string like \"git:<remote>\" or \"local:<path>\", "
+              ~ "or a table declaring a 'git' or a 'local' entry",
+           "unexpected error: " ~ msg);
 }
 
 __test non_string_entry_names_the_entry {
@@ -83,12 +84,13 @@ __test non_string_entry_names_the_entry {
     // the generic message, which would say nothing about what is actually wrong
     let mut msg = "";
     {
-        Url(json#{"git" : 12});
+        Url(json #{"git" : 12});
     } catch {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'url' is invalid: 'git' must be a string, the remote of a git repository", "unexpected error: " ~ msg);
+    assert(msg == "'url' is invalid: 'git' must be a string, the remote of a git repository",
+           "unexpected error: " ~ msg);
 }
 
 __test entry_the_url_was_read_from_is_named {
@@ -96,20 +98,22 @@ __test entry_the_url_was_read_from_is_named {
     // dependency urls as it declares dependencies
     let mut msg = "";
     {
-        Url(json#{"unknown" : "some/dir"}, entry-> "'registry'");
+        Url(json #{"unknown" : "some/dir"}, entry-> "'registry'");
     } catch {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'registry' is invalid: expecting a string like \"git:<remote>\" or \"local:<path>\", "
-           ~ "or a table declaring a 'git' or a 'local' entry", "unexpected error: " ~ msg);
+    assert(msg
+           == "'registry' is invalid: expecting a string like \"git:<remote>\" or \"local:<path>\", "
+              ~ "or a table declaring a 'git' or a 'local' entry",
+           "unexpected error: " ~ msg);
 }
 
 __test extra_entry_rejected {
     // A "local" or "git" table declaring an extra entry is rejected rather than ignoring it
     let mut msg = "";
     {
-        Url(json#{"local" : "some/dir", "branch" : "main"});
+        Url(json #{"local" : "some/dir", "branch" : "main"});
     } catch {
         a: &AssertError => { msg = a.msg; }
     }
@@ -150,10 +154,10 @@ __test to_str_round_trips_through_the_parser {
 __test serialize_local_and_git_urls {
     // Serializing a local url produces a "local" entry, a git url a "git" entry
     let localUrl = Url("local:some/dir");
-    let gitUrl = Url("git:some/repo");
+    let gitUrl   = Url("git:some/repo");
 
     let localCfg = localUrl.serialize();
-    let gitCfg = gitUrl.serialize();
+    let gitCfg   = gitUrl.serialize();
 
     assert(to!{[c8]} (localCfg["local"]) == "some/dir", "unexpected serialized path for a local url");
     assert(to!{[c8]} (gitCfg["git"]) == "some/repo", "unexpected serialized path for a git url");

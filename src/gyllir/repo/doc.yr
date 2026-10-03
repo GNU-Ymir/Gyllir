@@ -45,7 +45,14 @@ pub record RepoDocBuilder {
      *    - subDir: true iif the pages go to '<output>/<target>' instead of '<output>'
      *    - extraFlags: extra compiler flags gyllir itself needs for this build
      * */
-    pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration, target: Target = Target("", BuildType()), input: [c8] = "", fromFile: bool = false, subDir: bool = false, extraFlags: [[c8]] = [])
+    pub self (path: Path,
+              args: &Config,
+              cfg: GyllirPackageConfiguration,
+              target: Target = Target("", BuildType()),
+              input: [c8] = "",
+              fromFile: bool = false,
+              subDir: bool = false,
+              extraFlags: [[c8]] = [])
         with _cwd = path
         , _args = args
         , _cfg = cfg
@@ -73,7 +80,8 @@ pub record RepoDocBuilder {
         } else { "main" };
 
         let jsonFile = defaults::targetCacheDir(self._cwd, self._target.name, defaults::__CACHE_DOC_DIR__)
-            .push(self._target.outputName()).addExtension(defaults::__DOC_EXTENSION__);
+            .push(self._target.outputName())
+            .addExtension(defaults::__DOC_EXTENSION__);
 
         // Captured before recompiling, so it can be compared against the freshly produced json
         // below : 'gyc -fdoc' rewrites the file (and its mtime) on every compile regardless of
@@ -82,8 +90,12 @@ pub record RepoDocBuilder {
         let previousContent = if (!self._fromFile) { self.tryReadFile(jsonFile) } else { "" };
 
         let inputFile = if (!self._fromFile) {
-            RepoBuilder(self._cwd, self._args, self._cfg, self._target, forUnitTest-> false, forDoc-> true, extraFlags-> self._extraFlags)
-                .run(alias context, targetIncludes-> targetIncludes, targetLinks-> targetLinks);
+            RepoBuilder(self._cwd, self._args, self._cfg, self._target,
+                        forUnitTest-> false,
+                        forDoc-> true,
+                        extraFlags-> self._extraFlags).run(alias context,
+                                                           targetIncludes-> targetIncludes,
+                                                           targetLinks-> targetLinks);
             jsonFile
         } else {
             Path(self._input)
@@ -101,7 +113,7 @@ pub record RepoDocBuilder {
 
         let content = {
             let dmut file = File::open(inputFile, read-> true);
-            let c = file:.readAll();
+            let c         = file:.readAll();
             file:.close();
             c
         } catch {
@@ -122,7 +134,7 @@ pub record RepoDocBuilder {
             }
         };
 
-        let symbol = (SymbolLoader()).load(docConfig);
+        let symbol               = (SymbolLoader()).load(docConfig);
         let (htmlTable, modules) = self.createHtmlTable(symbol);
 
         // Copied on every run, even when the pages themselves are up to date : the assets come from
@@ -173,7 +185,7 @@ pub record RepoDocBuilder {
         if (!fs::sys::isFile(p)) { return ""; }
 
         let dmut f = File::open(p, read-> true);
-        let c = f:.readAll();
+        let c      = f:.readAll();
         f:.close();
         c
     } catch {
@@ -198,7 +210,6 @@ pub record RepoDocBuilder {
         for m in modules {
             self.generatePage(self._cfg.name, self._cfg.registry.path.toStr(), version, htmlTable, m, outDir);
         }
-
     }
 
     /**
@@ -288,7 +299,7 @@ pub record RepoDocBuilder {
      *    - .1: the list of modules found in the tree
      * */
     fn createHtmlTable(self, symbol: &Symbol)-> ([c8], [&Module]) {
-        let dmut stream = copy StringStream();
+        let dmut stream                = copy StringStream();
         let mut modules: [mut &Module] = [];
         if let m: &Module = symbol {
             self.dumpModuleTable(m, alias stream, ref modules);
@@ -304,7 +315,9 @@ pub record RepoDocBuilder {
         modules ~= [module];
 
         let path = Path(module.name, sep-> "::");
-        let mp = copy ["Url" => path.toStr(sep-> "_"), "Name" => path.toStr(sep-> "::"), "Title" => path.toStr(sep-> "::")];
+        let mp = copy ["Url" => path.toStr(sep-> "_"),
+                       "Name" => path.toStr(sep-> "::"),
+                       "Title" => path.toStr(sep-> "::")];
         if module.name.len > 0 {
             formatter::format(alias stream, html::ressources::LEAF_NODE, mp);
         }
@@ -316,5 +329,4 @@ pub record RepoDocBuilder {
             }
         }
     }
-
 }

@@ -15,7 +15,8 @@ __test target_defaults_fall_back_to_name {
     assert(t.outputName() == "cli", "the artifact should default to the name of the target");
     assert(t.packageRoot == "" && t.testRoot == "" && t.output == "", "the unset entries should be empty");
     assert(t.tests, "tests should default to enabled");
-    assert(t.flags == [] && t.libraries == [] && t.dependencies == [] && t.targets == [] && t.cSources == [] && t.cFlags == [],
+    assert(t.flags == [] && t.libraries == [] && t.dependencies == [] && t.targets == [] && t.cSources == []
+           && t.cFlags == [],
            "the unset lists should be empty");
     assert(!t.synthesized, "a target built by hand is not a synthesized one");
 }
@@ -55,7 +56,7 @@ __test synthesized_target_links_every_dependency {
 
 __test every_target_table_entry_parsed {
     // Every entry of a "[targets.<name>]" table is parsed
-    let lst = copy TargetList(json#{
+    let lst = copy TargetList(json #{
         "cli" : {
             "type" : "library",
             "description" : "the cli target",
@@ -95,7 +96,7 @@ __test every_target_table_entry_parsed {
 
 __test target_declaring_only_type_rooted_at_own_name {
     // A target table declaring only its type is rooted at a module named after it
-    let lst = copy TargetList(json#{"tool" : {"type" : "executable"}});
+    let lst = copy TargetList(json #{"tool" : {"type" : "executable"}});
 
     if let Ok(t) = lst[]["tool"] {
         assert(t.type.isExecutable(), "a target declaring no type should be an executable");
@@ -107,7 +108,7 @@ __test target_declaring_only_type_rooted_at_own_name {
 
 __test several_targets_parsed_under_own_names {
     // Several targets are parsed, each under its own name
-    let lst = copy TargetList(json#{
+    let lst = copy TargetList(json #{
         "mylib" : {"type" : "library"},
         "cli" : {"targets" : ["mylib"]}
     });
@@ -127,7 +128,7 @@ __test non_dict_target_table_rejected_names_target {
     // the target it comes from, there may well be several of them
     let mut msg = "";
     {
-        copy TargetList(json#{"cli" : {"package-root" : 12}});
+        copy TargetList(json #{"cli" : {"package-root" : 12}});
     } catch {
         a: &AssertError => { msg = a.msg; }
     }
@@ -139,7 +140,7 @@ __test unknown_target_field_rejected {
     // An entry that is not a known field of a target table is rejected rather than ignored
     let mut msg = "";
     {
-        copy TargetList(json#{"cli" : {"type" : "executable", "sources" : "src"}});
+        copy TargetList(json #{"cli" : {"type" : "executable", "sources" : "src"}});
     } catch {
         a: &AssertError => { msg = a.msg; }
     }
@@ -152,18 +153,21 @@ __test unknown_build_type_rejected_names_target {
     // declaring one, prefixed by the name of the target
     let mut msg = "";
     {
-        copy TargetList(json#{"cli" : {"type" : "app"}});
+        copy TargetList(json #{"cli" : {"type" : "app"}});
     } catch {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'[targets.cli]', 'type' is invalid: \"app\" is not a build type, expecting one of \"executable\", \"library\"",
-           "unexpected error: " ~ msg);
+    assert(
+        msg
+        == "'[targets.cli]', 'type' is invalid: \"app\" is not a build type, expecting one of \"executable\", \"library\"",
+        "unexpected error: " ~ msg
+    );
 }
 
 __test tests_false_defaults_others_to_enabled {
     // "tests" set to false is parsed, and defaults every other target to enabled
-    let lst = copy TargetList(json#{
+    let lst = copy TargetList(json #{
         "cli" : {"type" : "executable", "tests" : false},
         "tool" : {"type" : "executable"}
     });
@@ -181,12 +185,13 @@ __test tests_false_with_test_dir_rejected {
     // "tests" set to false next to a declared "test-dir" is rejected: the two are exclusive
     let mut msg = "";
     {
-        copy TargetList(json#{"cli" : {"tests" : false, "test-dir" : "second_test"}});
+        copy TargetList(json #{"cli" : {"tests" : false, "test-dir" : "second_test"}});
     } catch {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'[targets.cli]', 'tests' is set to false, the target declares no unittest, it cannot declare 'test-dir'",
+    assert(msg
+           == "'[targets.cli]', 'tests' is set to false, the target declares no unittest, it cannot declare 'test-dir'",
            "unexpected error: " ~ msg);
 }
 
@@ -194,20 +199,23 @@ __test tests_false_with_test_root_rejected {
     // "tests" set to false next to a declared "test-root" is rejected the same way
     let mut msg = "";
     {
-        copy TargetList(json#{"cli" : {"tests" : false, "test-root" : "__test__"}});
+        copy TargetList(json #{"cli" : {"tests" : false, "test-root" : "__test__"}});
     } catch {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'[targets.cli]', 'tests' is set to false, the target declares no unittest, it cannot declare 'test-root'",
-           "unexpected error: " ~ msg);
+    assert(
+        msg
+        == "'[targets.cli]', 'tests' is set to false, the target declares no unittest, it cannot declare 'test-root'",
+        "unexpected error: " ~ msg
+    );
 }
 
 __test non_boolean_tests_rejected {
     // A non boolean "tests" is rejected
     let mut msg = "";
     {
-        copy TargetList(json#{"cli" : {"tests" : "false"}});
+        copy TargetList(json #{"cli" : {"tests" : "false"}});
     } catch {
         a: &AssertError => { msg = a.msg; }
     }
@@ -219,7 +227,7 @@ __test scalar_instead_of_array_rejected {
     // A list entry given a scalar instead of an array is rejected
     let mut msg = "";
     {
-        copy TargetList(json#{"cli" : {"dependencies" : "midgard"}});
+        copy TargetList(json #{"cli" : {"dependencies" : "midgard"}});
     } catch {
         a: &AssertError => { msg = a.msg; }
     }
@@ -231,7 +239,7 @@ __test array_with_non_string_element_rejected {
     // A list entry holding something else than strings is rejected the same way
     let mut msg = "";
     {
-        copy TargetList(json#{"cli" : {"flags" : ["-Wall", 12]}});
+        copy TargetList(json #{"cli" : {"flags" : ["-Wall", 12]}});
     } catch {
         a: &AssertError => { msg = a.msg; }
     }
@@ -254,7 +262,7 @@ __test non_dict_target_list_rejected {
 __test serialize_writes_only_declared_entries {
     // Serializing writes back every declared entry, and nothing else: the entries a target left
     // to its default must not appear, so that a "gyllir publish" round trip does not grow the file
-    let lst = copy TargetList(json#{
+    let lst = copy TargetList(json #{
         "cli" : {
             "type" : "executable",
             "package-root" : "main",
@@ -266,11 +274,11 @@ __test serialize_writes_only_declared_entries {
 
     let serialized = lst.serialize();
     if let Ok(cli) = serialized["cli"]? {
-        assert(to!{[c8]}(cli["type"]) == "executable", "unexpected serialized type");
-        assert(to!{[c8]}(cli["package-root"]) == "main", "unexpected serialized package root");
-        assert(to!{[[c8]]}(cli["flags"]) == copy ["-O0"], "unexpected serialized flags");
-        assert(to!{[[c8]]}(cli["dependencies"]) == copy ["midgard"], "unexpected serialized dependencies");
-        assert(to!{[[c8]]}(cli["targets"]) == copy ["mylib"], "unexpected serialized linked targets");
+        assert(to!{[c8]} (cli["type"]) == "executable", "unexpected serialized type");
+        assert(to!{[c8]} (cli["package-root"]) == "main", "unexpected serialized package root");
+        assert(to!{[[c8]]} (cli["flags"]) == copy ["-O0"], "unexpected serialized flags");
+        assert(to!{[[c8]]} (cli["dependencies"]) == copy ["midgard"], "unexpected serialized dependencies");
+        assert(to!{[[c8]]} (cli["targets"]) == copy ["mylib"], "unexpected serialized linked targets");
 
         assert("description" !in cli, "an undeclared description should not be written back");
         assert("source-dir" !in cli, "a default source directory should not be written back");
@@ -286,7 +294,7 @@ __test serialize_writes_only_declared_entries {
 
 __test declared_entries_survive_round_trip {
     // The declared entries survive a serialization round trip
-    let lst = copy TargetList(json#{
+    let lst = copy TargetList(json #{
         "cli" : {
             "type" : "library",
             "description" : "the cli target",
@@ -316,11 +324,11 @@ __test declared_entries_survive_round_trip {
 
 __test tests_false_survives_round_trip {
     // "tests" set to false survives a serialization round trip
-    let lst = copy TargetList(json#{"cli" : {"type" : "executable", "tests" : false}});
+    let lst = copy TargetList(json #{"cli" : {"type" : "executable", "tests" : false}});
 
     let serialized = lst.serialize();
     if let Ok(cli) = serialized["cli"]? {
-        assert(!to!{bool}(cli["tests"]), "the tests flag should be written back as false");
+        assert(!to!{bool} (cli["tests"]), "the tests flag should be written back as false");
     } else assert(false, "expected a serialized \"cli\" target");
 
     let back = copy TargetList(serialized);

@@ -80,8 +80,7 @@ __test midgard_version_line_extracted {
 
 __test midgard_version_line_other_lines_ignored {
     // Any line that isn't the "Midgard version ..." one reports no version
-    assert(midgardVersionOfLine("Ymir version 1.3.2 20260818") == "",
-           "an unrelated line should report no version");
+    assert(midgardVersionOfLine("Ymir version 1.3.2 20260818") == "", "an unrelated line should report no version");
     assert(midgardVersionOfLine("") == "", "an empty line should report no version");
     assert(midgardVersionOfLine("Midgard version") == "",
            "a truncated line with no version after it should report no version");
@@ -95,8 +94,7 @@ __test ymir_version_line_extracted {
 
 __test ymir_version_line_other_lines_ignored {
     // Any line that isn't the "Ymir version ..." one reports no version
-    assert(ymirVersionOfLine("Midgard version 1.3.0 20260818") == "",
-           "an unrelated line should report no version");
+    assert(ymirVersionOfLine("Midgard version 1.3.0 20260818") == "", "an unrelated line should report no version");
     assert(ymirVersionOfLine("") == "", "an empty line should report no version");
 }
 
@@ -148,8 +146,8 @@ __test run_forwards_arguments {
 
     if let a: &Array = run {
         assert(a[].len == 2us, "both arguments should be forwarded");
-        assert(to!{[c8]}(a[][0]) == "--some-flag", "unexpected first forwarded argument");
-        assert(to!{[c8]}(a[][1]) == "positional", "unexpected second forwarded argument");
+        assert(to!{[c8]} (a[][0]) == "--some-flag", "unexpected first forwarded argument");
+        assert(to!{[c8]} (a[][1]) == "positional", "unexpected second forwarded argument");
     } else assert(false, "the run arguments should be forwarded as an array");
 }
 
@@ -181,6 +179,40 @@ __test publish_dry_and_major_together {
     let publish = sub(parse(copy ["gyllir", "publish", "--dry", "--major", "m"]), "publish");
 
     assert(flag(publish, "dry") && flag(publish, "major"), "--dry and --major should be parsed");
+}
+
+__test bump_defaults_change_the_file_only {
+    // 'bump' alone: a patch bump, written but neither committed nor tagged
+    let bump = sub(parse(copy ["gyllir", "bump"]), "bump");
+
+    for f in ["major", "minor", "patch", "dry", "commit", "tag"] {
+        assert(!flag(bump, f), f ~ " should default to false");
+    }
+
+    assert("set" !in bump, "set should be absent by default");
+    assert("message" !in bump, "message should be absent by default");
+}
+
+__test bump_with_every_option {
+    // 'bump' with an increment, the git options and a commit message
+    let bump = sub(parse(copy ["gyllir", "bump", "--minor", "--dry", "--commit", "--tag", "-m", "a release"]), "bump");
+
+    assert(flag(bump, "minor") && !flag(bump, "major") && !flag(bump, "patch"), "only --minor should be parsed");
+    assert(flag(bump, "dry") && flag(bump, "commit") && flag(bump, "tag"),
+           "--dry, --commit and --tag should be parsed");
+
+    if let Ok(Str(value-> msg)) = bump["message"]? {
+        assert(msg == "a release", "unexpected bump message");
+    } else assert(false, "-m should be parsed as message");
+}
+
+__test bump_set_takes_a_version {
+    // 'bump --set <version>'
+    let bump = sub(parse(copy ["gyllir", "bump", "--set", "2.0.0"]), "bump");
+
+    if let Ok(Str(value-> v)) = bump["set"]? {
+        assert(v == "2.0.0", "unexpected --set value");
+    } else assert(false, "--set should be parsed");
 }
 
 __test clean_defaults_to_outputs_only {
@@ -347,7 +379,7 @@ __test update_named_packages_are_parsed {
 
     if let Ok(a: &Array) = update["packages"]? {
         assert(a[].len == 2us, "both dependency names should be extracted");
-        assert(to!{[c8]}(a[][0]) == "mylib" && to!{[c8]}(a[][1]) == "myother", "unexpected dependency names");
+        assert(to!{[c8]} (a[][0]) == "mylib" && to!{[c8]} (a[][1]) == "myother", "unexpected dependency names");
     } else assert(false, "\"packages\" should be parsed as an array");
 }
 
@@ -357,7 +389,7 @@ __test update_packages_alongside_flags {
 
     assert(flag(update, "verbose"), "-v should still be parsed as verbose");
     if let Ok(a: &Array) = update["packages"]? {
-        assert(a[].len == 1us && to!{[c8]}(a[][0]) == "mylib", "unexpected dependency names");
+        assert(a[].len == 1us && to!{[c8]} (a[][0]) == "mylib", "unexpected dependency names");
     } else assert(false, "\"packages\" should be parsed as an array");
 }
 
@@ -375,7 +407,7 @@ __test update_std_flag_alongside_packages {
 
     assert(flag(update, "std"), "\"std\" should be set");
     if let Ok(a: &Array) = update["packages"]? {
-        assert(a[].len == 1us && to!{[c8]}(a[][0]) == "mylib", "unexpected dependency names");
+        assert(a[].len == 1us && to!{[c8]} (a[][0]) == "mylib", "unexpected dependency names");
     } else assert(false, "\"packages\" should be parsed as an array");
 }
 
@@ -420,5 +452,4 @@ __test doc_serve_target_may_appear_among_flags {
 
     assert(flag(doc, "serve"), "\"serve\" should be set");
     assert(target(doc) == "cli", "the target should be parsed among the flags");
-
 }

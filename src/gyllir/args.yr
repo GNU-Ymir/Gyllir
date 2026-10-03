@@ -1,10 +1,8 @@
 in args;
 
-use std::config::_;
-use std::{io, stream, concurrency::process};
+use std::{config::_, fs::_, io, stream};
+use std::concurrency::process;
 use std::syntax::tokenizer;
-use std::fs::_;
-
 
 /**
  * The version of the gyllir binary.
@@ -12,7 +10,6 @@ use std::fs::_;
  *   declared as a pre build command in the '[commands]' table of gyllir.toml.
  * */
 pub def __GYLLIR_VERSION__ = "1.8.0";
-
 
 /**
  * Format the version banner of gyllir
@@ -42,7 +39,7 @@ pub fn compilerVersion(compiler: [c8] = "gyc")-> [c8] {
 
     if (proc:.wait() != 0) return "";
 
-    let dmut pipe = alias proc.stdout;
+    let dmut pipe      = alias proc.stdout;
     let dmut res: [c8] = [];
     while let Ok(c) = pipe:.read!c8()? {
         if (c == '\n') break;
@@ -67,7 +64,7 @@ pub fn compilerStdVersion(compiler: [c8] = "gyc")-> [c8] {
 
     if (proc:.wait() != 0) return "";
 
-    let dmut pipe = alias proc.stdout;
+    let dmut pipe       = alias proc.stdout;
     let dmut line: [c8] = [];
     while let Ok(c) = pipe:.read!c8()? {
         if (c == '\n') {
@@ -104,7 +101,7 @@ pub fn compilerCoreVersionDir(compiler: [c8] = "gyc")-> [Path] {
 
     if (proc:.wait() != 0) return [];
 
-    let dmut pipe = alias proc.stdout;
+    let dmut pipe      = alias proc.stdout;
     let dmut res: [c8] = [];
     while let Ok(c) = pipe:.read!c8()? {
         if (c == '\n') break;
@@ -114,7 +111,8 @@ pub fn compilerCoreVersionDir(compiler: [c8] = "gyc")-> [Path] {
     let mut empty: [Path] = [];
 
     let progPath = Path(res);
-    if (!progPath.isAbsolute()) return empty; // 'gcc -print-prog-name' echoes the bare name back when it can't locate the program
+    if (!progPath.isAbsolute())
+        return empty; // 'gcc -print-prog-name' echoes the bare name back when it can't locate the program
 
     let includeRoot = progPath.parent().push("include"s8).push("ymir"s8);
     if (!isDir(includeRoot)) return empty;
@@ -171,7 +169,6 @@ fn versionOfLine(line: [c8], word0: [c8], word1: [c8])-> [c8] {
     ""
 }
 
-
 /**
  * Argument parser of the gyllir building tool
  * */
@@ -194,15 +191,31 @@ pub class GyllirArgumentParser {
         self._mainParser:.help("help", short-> "h", comments-> "print this help and exit");
         self._mainParser:.flag("version", short-> "V", comments-> "print version information and exit");
 
-        self._mainParser:.sub("init", cmd-> &self.parseInit, comments-> "initialize a gyllir repository and create the config file.", hyphenated-> false);
-        self._mainParser:.sub("build", &self.parseBuild, comments-> "build the project in the current directory", hyphenated-> false);
-        self._mainParser:.sub("run", &self.parseRun, comments-> "build the project and run the produced executable", hyphenated-> false);
-        self._mainParser:.sub("publish", &self.parsePublish, comments-> "publish a version to the package registry", hyphenated-> false);
-        self._mainParser:.sub("clean", &self.parseClean, comments-> "clean the project (remove generated files)", hyphenated-> false);
+        self._mainParser:.sub("init",
+                              cmd-> &self.parseInit,
+                              comments-> "initialize a gyllir repository and create the config file.",
+                              hyphenated-> false);
+        self._mainParser:.sub("build", &self.parseBuild,
+                              comments-> "build the project in the current directory",
+                              hyphenated-> false);
+        self._mainParser:.sub("run", &self.parseRun,
+                              comments-> "build the project and run the produced executable",
+                              hyphenated-> false);
+        self._mainParser:.sub("publish", &self.parsePublish,
+                              comments-> "publish a version to the package registry",
+                              hyphenated-> false);
+        self._mainParser:.sub("bump", &self.parseBump,
+                              comments-> "bump the version of the package in "
+                                         ~ repo::defaults::__GYLLIR_CONFIG_FILENAME__,
+                              hyphenated-> false);
+        self._mainParser:.sub("clean", &self.parseClean,
+                              comments-> "clean the project (remove generated files)",
+                              hyphenated-> false);
         self._mainParser:.sub("doc", &self.parseDoc, comments-> "build the documentation", hyphenated-> false);
         self._mainParser:.sub("test", &self.parseTest, comments-> "build and run the unit tests", hyphenated-> false);
         self._mainParser:.sub("update", &self.parseUpdate,
-                              comments-> "resolve the dependencies again, and rewrite " ~ repo::defaults::__GYLLIR_LOCK_FILENAME__,
+                              comments-> "resolve the dependencies again, and rewrite "
+                                         ~ repo::defaults::__GYLLIR_LOCK_FILENAME__,
                               hyphenated-> false);
     }
 
@@ -221,7 +234,7 @@ pub class GyllirArgumentParser {
             }
 
             let mut found = false;
-            for i in ["init", "build", "run", "publish", "clean", "doc", "test", "update"] {
+            for i in ["init", "build", "run", "publish", "bump", "clean", "doc", "test", "update"] {
                 if (i in ret) {
                     found = true;
                     break;
@@ -257,8 +270,7 @@ pub class GyllirArgumentParser {
      *    - args: the argument passed to the sub command
      * */
     prv fn parseInit(self, args: [[c8]])-> (&Config)? {
-        let dmut parser = (copy ArgumentParser)
-            :.help("help", short-> "h", comments-> "print this help and exit");
+        let dmut parser = (copy ArgumentParser):.help("help", short-> "h", comments-> "print this help and exit");
 
         return ({
             parser.parse(args)
@@ -282,7 +294,9 @@ pub class GyllirArgumentParser {
             :.help("help", short-> "h", comments-> "print this help and exit")
             :.flag("release", comments-> "build the release mode (debug by default)")
             :.option!{i32} ("j", comments-> "number of parallel threads to spawn")
-            :.flag("locked", comments-> "fail if the dependency versions differ from the ones " ~ repo::defaults::__GYLLIR_LOCK_FILENAME__ ~ " pins")
+            :.flag("locked",
+                   comments-> "fail if the dependency versions differ from the ones "
+                              ~ repo::defaults::__GYLLIR_LOCK_FILENAME__ ~ " pins")
             :.flag("offline", comments-> "resolve the dependencies without any network access (implies --locked)")
             :.flag("verbose", short-> "v", comments-> "verbose mode");
 
@@ -329,7 +343,7 @@ pub class GyllirArgumentParser {
             :.position!{[c8]} ("message", comments-> "the message of the version");
 
         return ({
-            let res = parser.parse(args);
+            let res    = parser.parse(args);
             let mut nb = 0;
             for i in ["major", "minor", "patch"] {
                 if let Ok(Bool(value-> _ = true)) = res[i]? {
@@ -347,6 +361,55 @@ pub class GyllirArgumentParser {
         } catch {
             err: &std::config::args::errors::HelpRequestError => {
                 std::io::println(parser.explain(err, usage-> "gyllir publish"));
+                etc::c::process::_yrt_exit(-1);
+                panic;
+            }
+            e => throw e;
+        })?;
+    }
+
+    /**
+     * Parse the version bump sub command
+     * @params:
+     *    - args: the arguments passed to the sub command
+     * */
+    prv fn parseBump(self, args: [[c8]])-> (&Config)? {
+        let dmut parser = (copy ArgumentParser)
+            :.help("help", short-> "h", comments-> "print this help and exit")
+            :.flag("major", comments-> "bump the major version")
+            :.flag("minor", comments-> "bump the minor version")
+            :.flag("patch", comments-> "bump the patch version (the default)")
+            :.option!{[c8]} ("set", comments-> "set the version to the given one instead of incrementing it")
+            :.flag("dry", comments-> "print the new version, but change nothing")
+            :.flag("commit", comments-> "commit the change of " ~ repo::defaults::__GYLLIR_CONFIG_FILENAME__)
+            :.flag("tag", comments-> "tag the new version as 'v<version>' (implies --commit)")
+            :.option!{[c8]} ("message",
+                             short-> "m",
+                             comments-> "the message of the commit (default: 'chore: bump version <old> -> <new>')");
+
+        return ({
+            let res    = parser.parse(args);
+            let mut nb = 0;
+            for i in ["major", "minor", "patch"] {
+                if let Ok(Bool(value-> _ = true)) = res[i]? {
+                    nb += 1;
+                }
+            }
+
+            if let Ok(_) = res["set"]? {
+                nb += 1;
+            }
+
+            if nb > 1 {
+                std::io::eprintln(parser.getUsage(usage-> "gyllir bump"));
+                utils::log::error("Error", "flags 'major', 'minor', 'patch' and 'set' are exclusive");
+                etc::c::process::_yrt_exit(-1);
+            }
+
+            res
+        } catch {
+            err: &std::config::args::errors::HelpRequestError => {
+                std::io::println(parser.explain(err, usage-> "gyllir bump"));
                 etc::c::process::_yrt_exit(-1);
                 panic;
             }
@@ -390,9 +453,13 @@ pub class GyllirArgumentParser {
         let dmut parser = (copy ArgumentParser)
             :.help("help", short-> "h", comments-> "print this help and exit")
             :.flag("verbose", short-> "v", comments-> "verbose mode")
-            :.flag("locked", comments-> "fail if the dependency versions differ from the ones " ~ repo::defaults::__GYLLIR_LOCK_FILENAME__ ~ " pins")
+            :.flag("locked",
+                   comments-> "fail if the dependency versions differ from the ones "
+                              ~ repo::defaults::__GYLLIR_LOCK_FILENAME__ ~ " pins")
             :.flag("offline", comments-> "resolve the dependencies without any network access (implies --locked)")
-            :.option!{[c8]} ("input", short-> "i", comments-> "input json file already produced by a previous compilation")
+            :.option!{[c8]} ("input",
+                             short-> "i",
+                             comments-> "input json file already produced by a previous compilation")
             :.option!{[c8]} ("output", short-> "o", comments-> "output directory");
 
         let (rest, target) = self.extractTarget(args, copy ["input", "i", "output", "o"]);
@@ -444,7 +511,9 @@ pub class GyllirArgumentParser {
             :.flag("verbose", short-> "v", comments-> "clean the documentation")
             :.flag("dry", comments-> "only compile the test executable, but does not run them")
             :.flag("release", comments-> "compile tests in release mode (debug by default)")
-            :.flag("locked", comments-> "fail if the dependency versions differ from the ones " ~ repo::defaults::__GYLLIR_LOCK_FILENAME__ ~ " pins")
+            :.flag("locked",
+                   comments-> "fail if the dependency versions differ from the ones "
+                              ~ repo::defaults::__GYLLIR_LOCK_FILENAME__ ~ " pins")
             :.flag("offline", comments-> "resolve the dependencies without any network access (implies --locked)")
             :.option!{i32} ("j", comments-> "number of parallel threads to spawn");
 
@@ -510,7 +579,7 @@ pub class GyllirArgumentParser {
      * */
     prv fn extractTarget(self, args: [[c8]], valued: [[c8]])-> ([[c8]], [c8]) {
         let mut rest: [[c8]] = [];
-        let mut target = "";
+        let mut target       = "";
 
         let mut i = 0us;
         while i < args.len {
@@ -524,9 +593,7 @@ pub class GyllirArgumentParser {
                     i += 1us;
                     rest ~= [args[i]];
                 }
-            }
-
-            else if (i != 0us && target == "") {
+            } else if (i != 0us && target == "") {
                 target = a;
                 rest = rest[0 .. $ - 1us];
             }
@@ -572,7 +639,7 @@ pub class GyllirArgumentParser {
      *    - .1: the names of the dependencies to update, [] when the command line names none
      * */
     prv fn extractPackages(self, args: [[c8]])-> ([[c8]], [[c8]]) {
-        let mut rest: [[c8]] = [];
+        let mut rest: [[c8]]     = [];
         let mut packages: [[c8]] = [];
 
         for i, a in args {
@@ -643,5 +710,4 @@ pub class GyllirArgumentParser {
         res["serve"] = copy Bool(true);
         res
     }
-
 }

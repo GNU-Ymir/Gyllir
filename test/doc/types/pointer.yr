@@ -1,10 +1,9 @@
-use gyllir::doc::types::pointer;
-use gyllir::doc::types::scalar;
+use gyllir::doc::types::{pointer, scalar};
 
 use std::stream;
 
 __test pointer_type_renders_inner_type {
-    let p = copy PointerType("", copy ScalarType("i32", ""));
+    let p           = copy PointerType("", copy ScalarType("i32", ""));
     let dmut stream = copy StringStream();
     stream:.write(p);
 

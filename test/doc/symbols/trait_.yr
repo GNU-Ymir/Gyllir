@@ -1,14 +1,11 @@
-use gyllir::doc::symbols::_;
-use gyllir::doc::symbols::trait_;
-use gyllir::doc::symbols::method;
-use gyllir::doc::symbols::assertion;
+use gyllir::doc::symbols::{_, assertion, method, trait_};
 
 use std::stream;
 
 __test trait_with_assert_and_method {
     // A compile-time assert is rendered before the (protection-prefixed) methods
     let dmut t = copy TraitSymbol("Foo", "", INTERNAL_LOCATION, Protection::PUB);
-    let m = copy Method("foo", "", INTERNAL_LOCATION, Protection::PUB);
+    let m      = copy Method("foo", "", INTERNAL_LOCATION, Protection::PUB);
     t.methods = copy [m];
 
     let mut a = Assertion();
@@ -19,8 +16,11 @@ __test trait_with_assert_and_method {
     let dmut stream = copy StringStream();
     stream:.write(t);
 
-    assert(stream[] == "Trait Foo => :(0,0)\n\tcte assert (is!{T}{i32}, must be i32)\n\tpub Method foo => :(0,0)\n\t\tfn (self)-> Any ()\n\t\n",
-           "unexpected rendering for a trait with an assert and a method");
+    assert(
+        stream[]
+        == "Trait Foo => :(0,0)\n\tcte assert (is!{T}{i32}, must be i32)\n\tpub Method foo => :(0,0)\n\t\tfn (self)-> Any ()\n\t\n",
+        "unexpected rendering for a trait with an assert and a method"
+    );
 }
 
 __test empty_trait_rendering {

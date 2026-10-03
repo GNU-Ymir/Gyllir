@@ -1,11 +1,9 @@
-use gyllir::doc::symbols::_;
-use gyllir::doc::symbols::module;
-use gyllir::doc::symbols::function;
+use gyllir::doc::symbols::{_, function, module};
 
 use std::stream;
 
 __test module_with_one_child {
-    let dmut m = copy Module("m", "", INTERNAL_LOCATION, Protection::PUB);
+    let dmut m     = copy Module("m", "", INTERNAL_LOCATION, Protection::PUB);
     let f: &Symbol = copy Function("f", "", INTERNAL_LOCATION, Protection::PUB);
     m.childs = copy [f];
 

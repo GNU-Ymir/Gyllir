@@ -20,29 +20,28 @@ pub def __GITIGNORE_FILENAME__ = ".gitignore";
 /**
  * The name of the initial file
  */
-pub def __MAIN_FILE__ = "main.yr";
-pub def __LIB_FILE__ = "__lib__.yr";
+pub def __MAIN_FILE__     = "main.yr";
+pub def __LIB_FILE__      = "__lib__.yr";
 pub def __FST_TEST_FILE__ = "__test__.yr";
 
 /**
  * The content of the initial file
  */
-pub def __MAIN_CONTENT__ = str#{use std::io;
+pub def __MAIN_CONTENT__ = str #{use std::io;
 
 fn main() {
     println("Hello World!");
 }
 };
 
-pub def __LIB_CONTENT__ = str#{use std::io;
+pub def __LIB_CONTENT__ = str #{use std::io;
 
 pub fn foo() {
     println("Hello from lib");
 }
 };
 
-
-pub def __FST_TEST_CONTENT__ = str#{use std::io;
+pub def __FST_TEST_CONTENT__ = str #{use std::io;
 
 __test {
     println("Example of first test");
@@ -59,7 +58,7 @@ __test {
  *   would take '.github/', '.vscode/' and the like with it, with no negation able to bring them
  *   back
  */
-pub def __GITIGNORE_CONTENT__ = str#{
+pub def __GITIGNORE_CONTENT__ = str #{
 # Dependencies resolved by gyllir
 .deps/
 
@@ -73,8 +72,6 @@ __doc/
 
 # Produced artifacts
 };
-
-
 
 /**
  * The source directory name
@@ -109,7 +106,6 @@ pub def __YMIR_VERSION_FILENAME__ = "YMIR_VERSION";
  */
 pub def __STD_PROBE_DIR__ = ".std-probe";
 
-
 /**
  * The build cache of a package, holding one sub directory per target
  * @info: '__CACHE_TMP_DIR__' is the only one shared by every target, gyllir builds the targets of
@@ -139,7 +135,6 @@ pub def __CACHE_TEST_DIR__         = "test";
 pub fn targetCacheDir(cwd: Path, target: [c8], kind: [c8])-> Path {
     cwd.push(__CACHE_ALL_DIR__).push(target).push(kind)
 }
-
 
 pub def __YMIR_EXTENSION__     = "yr";
 pub def __OBJECT_EXTENSION__   = "o";

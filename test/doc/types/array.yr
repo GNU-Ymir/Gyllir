@@ -1,10 +1,9 @@
-use gyllir::doc::types::array;
-use gyllir::doc::types::scalar;
+use gyllir::doc::types::{array, scalar};
 
 use std::stream;
 
 __test array_type_renders_with_length {
-    let a = copy ArrayType("", copy ScalarType("i32", ""), 3us);
+    let a           = copy ArrayType("", copy ScalarType("i32", ""), 3us);
     let dmut stream = copy StringStream();
     stream:.write(a);
 

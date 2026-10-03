@@ -43,8 +43,10 @@ __test comparator_requires_numbered_version {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'version' is invalid: \">master\" compares against \"master\", which is not a numbered version, "
-           ~ "only a version like \"1.0.0\" can be compared", "unexpected error: " ~ msg);
+    assert(msg
+           == "'version' is invalid: \">master\" compares against \"master\", which is not a numbered version, "
+              ~ "only a version like \"1.0.0\" can be compared",
+           "unexpected error: " ~ msg);
 }
 
 __test filter_not_comparator_plus_version_rejected {
@@ -56,8 +58,9 @@ __test filter_not_comparator_plus_version_rejected {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'version' is invalid: \"><1.0.0\" is not a version filter, expecting a version like \"1.0.0\", "
-           ~ "a name like \"master\", or \"*\" for any of them, optionally prefixed by '>', '>=', '<' or '<='",
+    assert(msg
+           == "'version' is invalid: \"><1.0.0\" is not a version filter, expecting a version like \"1.0.0\", "
+              ~ "a name like \"master\", or \"*\" for any of them, optionally prefixed by '>', '>=', '<' or '<='",
            "unexpected error: " ~ msg);
 }
 
@@ -71,8 +74,9 @@ __test entry_the_filter_was_read_from_is_named {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'[dependencies.foo]', 'version' is invalid: \">master\" compares against \"master\", "
-           ~ "which is not a numbered version, only a version like \"1.0.0\" can be compared",
+    assert(msg
+           == "'[dependencies.foo]', 'version' is invalid: \">master\" compares against \"master\", "
+              ~ "which is not a numbered version, only a version like \"1.0.0\" can be compared",
            "unexpected error: " ~ msg);
 }
 
@@ -106,7 +110,8 @@ __test non_string_array_element_rejected {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'version' must be an array of version filter strings, for example: version = [\">=1.0.0\", \"<2.0.0\"]",
+    assert(msg
+           == "'version' must be an array of version filter strings, for example: version = [\">=1.0.0\", \"<2.0.0\"]",
            "unexpected error: " ~ msg);
 }
 
@@ -127,11 +132,9 @@ __test select_returns_highest_passing_candidate {
     // select() returns the most recent (highest) candidate that passes every filter,
     // not just the first one that happens to pass
     let vf = VersionFilter(copy [">1.0.0"]);
-    let candidates = copy [
-        (Version(0u32, 9u32, 0u32), "too-old"),
-        (Version(1u32, 5u32, 0u32), "good"),
-        (Version(2u32, 0u32, 0u32), "best")
-    ];
+    let candidates = copy [(Version(0u32, 9u32, 0u32), "too-old"),
+                           (Version(1u32, 5u32, 0u32), "good"),
+                           (Version(2u32, 0u32, 0u32), "best")];
 
     let (selected, name) = vf.select(candidates);
     assert(name == "best", "expected the highest passing candidate to be selected");
@@ -142,12 +145,10 @@ __test select_order_of_candidates_does_not_matter {
     // The order of the candidate list must not matter: the highest passing version wins
     // even when it isn't the last (or first) one in the list
     let vf = VersionFilter(copy [">1.0.0"]);
-    let candidates = copy [
-        (Version(1u32, 5u32, 0u32), "good"),
-        (Version(3u32, 0u32, 0u32), "best"),
-        (Version(2u32, 0u32, 0u32), "also-good"),
-        (Version(0u32, 5u32, 0u32), "too-old")
-    ];
+    let candidates = copy [(Version(1u32, 5u32, 0u32), "good"),
+                           (Version(3u32, 0u32, 0u32), "best"),
+                           (Version(2u32, 0u32, 0u32), "also-good"),
+                           (Version(0u32, 5u32, 0u32), "too-old")];
 
     let (selected, name) = vf.select(candidates);
     assert(name == "best", "expected the highest passing candidate to be selected regardless of list order");
@@ -157,7 +158,7 @@ __test select_order_of_candidates_does_not_matter {
 __test select_rejects_when_no_candidate_passes {
     // select() rejects when no candidate passes every filter, and lists what was offered: the
     // filter alone leaves the user guessing which versions the dependency actually publishes
-    let vf = VersionFilter(copy [">1.0.0"]);
+    let vf         = VersionFilter(copy [">1.0.0"]);
     let candidates = copy [(Version(0u32, 1u32, 0u32), "too-old")];
 
     let mut msg = "";
@@ -172,7 +173,7 @@ __test select_rejects_when_no_candidate_passes {
 
 __test named_select_rejection_names_dependency {
     // Named, the rejection says which dependency could not be resolved
-    let vf = VersionFilter(copy [">1.0.0"]);
+    let vf         = VersionFilter(copy [">1.0.0"]);
     let candidates = copy [(Version(0u32, 1u32, 0u32), "too-old")];
 
     let mut msg = "";
@@ -205,15 +206,15 @@ __test select_rejection_when_no_version_at_all {
 __test serialize_single_filter_round_trips {
     // Serializing a single filter round-trips into a string configuration node
     let vf = VersionFilter(copy [">1.0.0"]);
-    assert(to!{[c8]}(vf.serialize()) == ">1.0.0", "unexpected serialized single filter");
+    assert(to!{[c8]} (vf.serialize()) == ">1.0.0", "unexpected serialized single filter");
 
     let anyVf = VersionFilter(copy ["*"]);
-    assert(to!{[c8]}(anyVf.serialize()) == "*", "unexpected serialized ignore filter");
+    assert(to!{[c8]} (anyVf.serialize()) == "*", "unexpected serialized ignore filter");
 }
 
 __test textual_representation_of_single_filter {
     // A textual representation of a single filter
-    let vf = VersionFilter(copy [">1.0.0"]);
+    let vf       = VersionFilter(copy [">1.0.0"]);
     let dmut str = copy StringStream();
     str:.write(vf);
 
@@ -222,7 +223,7 @@ __test textual_representation_of_single_filter {
 
 __test textual_representation_of_several_filters {
     // A textual representation of several filters, comma separated
-    let vf = VersionFilter(copy [">1.0.0", "<2.0.0"]);
+    let vf       = VersionFilter(copy [">1.0.0", "<2.0.0"]);
     let dmut str = copy StringStream();
     str:.write(vf);
 
@@ -231,8 +232,10 @@ __test textual_representation_of_several_filters {
 
 __test serialize_keeps_comparator_in_front {
     // Serializing a single filter keeps the comparator in front of the version
-    for c in copy [(">1.0.0", ">1.0.0"), (">=1.0.0", ">=1.0.0"),
-                   ("<1.0.0", "<1.0.0"), ("<=1.0.0", "<=1.0.0"),
+    for c in copy [(">1.0.0", ">1.0.0"),
+                   (">=1.0.0", ">=1.0.0"),
+                   ("<1.0.0", "<1.0.0"),
+                   ("<=1.0.0", "<=1.0.0"),
                    ("1.0.0", "=1.0.0")] {
         let serialized = to!{[c8]} (VersionFilter(copy [c.0]).serialize());
         assert(serialized == c.1, "unexpected serialization of the filter " ~ c.0 ~ " : " ~ serialized);

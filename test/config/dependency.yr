@@ -12,7 +12,7 @@ __test hand_built_dependency_defaults_empty_targets {
 
 __test link_targets_parsed_into_selection {
     // "link-targets" is parsed into the sub-targets a dependency selects to link
-    let lst = copy DependencyList(json#{
+    let lst = copy DependencyList(json #{
         "foo" : {"version" : "1.0.0", "url" : {"local" : "../foo"}, "link-targets" : ["libfoo", "libbar"]}
     });
 
@@ -23,7 +23,7 @@ __test link_targets_parsed_into_selection {
 
 __test missing_link_targets_defaults_to_every_target {
     // Omitting "link-targets" defaults to selecting every (library) target of the dependency
-    let lst = copy DependencyList(json#{
+    let lst = copy DependencyList(json #{
         "foo" : {"version" : "1.0.0", "url" : {"local" : "../foo"}}
     });
 
@@ -56,7 +56,8 @@ __test empty_link_targets_rejected {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'[dependencies.foo]', 'link-targets' is empty, omit the entry to link every target of the dependency",
+    assert(msg
+           == "'[dependencies.foo]', 'link-targets' is empty, omit the entry to link every target of the dependency",
            "unexpected error: " ~ msg);
 }
 
@@ -64,7 +65,7 @@ __test non_array_link_targets_rejected {
     // A non array "link-targets" is rejected, like every other string array entry of the config
     let mut msg = "";
     {
-        copy DependencyList(json#{
+        copy DependencyList(json #{
             "foo" : {"version" : "1.0.0", "url" : {"local" : "../foo"}, "link-targets" : "libfoo"}
         });
     } catch {
@@ -80,13 +81,14 @@ __test std_named_dependency_rejected {
     // '[std]', and a dependency sharing it would collide in the lock file and in '.deps/'
     let mut msg = "";
     {
-        copy DependencyList(json#{"std" : {"version" : "1.0.0", "url" : {"local" : "../foo"}}});
+        copy DependencyList(json #{"std" : {"version" : "1.0.0", "url" : {"local" : "../foo"}}});
     } catch {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'[dependencies.std]', 'std' is reserved for the std lib resolved by '[std]', "
-           ~ "name this dependency differently",
+    assert(msg
+           == "'[dependencies.std]', 'std' is reserved for the std lib resolved by '[std]', "
+              ~ "name this dependency differently",
            "unexpected error: " ~ msg);
 }
 
@@ -95,52 +97,61 @@ __test missing_version_names_the_entry {
     // tag to check out, it is not a shorthand for "any version"
     let mut msg = "";
     {
-        copy DependencyList(json#{"foo" : {"url" : {"local" : "../foo"}}});
+        copy DependencyList(json #{"foo" : {"url" : {"local" : "../foo"}}});
     } catch {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'[dependencies.foo]', missing required entry 'version', for example: version = \">=1.0.0\", or \"*\" for any version",
-           "unexpected error: " ~ msg);
+    assert(
+        msg
+        == "'[dependencies.foo]', missing required entry 'version', for example: version = \">=1.0.0\", or \"*\" for any version",
+        "unexpected error: " ~ msg
+    );
 }
 
 __test missing_url_names_the_entry {
     // A dependency declaring no url is named by the error, and the example is written for it
     let mut msg = "";
     {
-        copy DependencyList(json#{"foo" : {"version" : "1.0.0"}});
+        copy DependencyList(json #{"foo" : {"version" : "1.0.0"}});
     } catch {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'[dependencies.foo]', missing required entry 'url', for example: url = \"git:git@github.com:me/foo.git\"",
-           "unexpected error: " ~ msg);
+    assert(
+        msg
+        == "'[dependencies.foo]', missing required entry 'url', for example: url = \"git:git@github.com:me/foo.git\"",
+        "unexpected error: " ~ msg
+    );
 }
 
 __test malformed_url_named_by_dependency {
     // A malformed url is reported against the dependency that declares it, not as a bare "malformed url"
     let mut msg = "";
     {
-        copy DependencyList(json#{"foo" : {"version" : "1.0.0", "url" : 12}});
+        copy DependencyList(json #{"foo" : {"version" : "1.0.0", "url" : 12}});
     } catch {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'[dependencies.foo]', 'url' is invalid: expecting a string like \"git:<remote>\" or \"local:<path>\", "
-           ~ "or a table declaring a 'git' or a 'local' entry", "unexpected error: " ~ msg);
+    assert(msg
+           == "'[dependencies.foo]', 'url' is invalid: expecting a string like \"git:<remote>\" or \"local:<path>\", "
+              ~ "or a table declaring a 'git' or a 'local' entry",
+           "unexpected error: " ~ msg);
 }
 
 __test malformed_version_filter_named_by_dependency {
     // A malformed version filter is reported the same way
     let mut msg = "";
     {
-        copy DependencyList(json#{"foo" : {"version" : ">master", "url" : {"local" : "../foo"}}});
+        copy DependencyList(json #{"foo" : {"version" : ">master", "url" : {"local" : "../foo"}}});
     } catch {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'[dependencies.foo]', 'version' is invalid: \">master\" compares against \"master\", "
-           ~ "which is not a numbered version, only a version like \"1.0.0\" can be compared",
+    assert(msg
+           == "'[dependencies.foo]', 'version' is invalid: \">master\" compares against \"master\", "
+              ~ "which is not a numbered version, only a version like \"1.0.0\" can be compared",
            "unexpected error: " ~ msg);
 }
 
@@ -148,7 +159,7 @@ __test unknown_dependency_field_rejected {
     // An entry that is not a known field of a dependency table is rejected rather than ignored
     let mut msg = "";
     {
-        copy DependencyList(json#{
+        copy DependencyList(json #{
             "foo" : {"version" : "1.0.0", "url" : {"local" : "../foo"}, "branch" : "main"}
         });
     } catch {
@@ -174,7 +185,7 @@ __test non_table_dependency_list_rejected {
 __test serialize_link_targets_only_when_set {
     // Serializing writes "link-targets" only for a dependency that actually declares a selection, so
     // a dependency that never set it round-trips through "gyllir publish" unchanged
-    let lst = copy DependencyList(json#{
+    let lst = copy DependencyList(json #{
         "foo" : {"version" : "1.0.0", "url" : {"local" : "../foo"}, "link-targets" : ["libfoo"]},
         "bar" : {"version" : "1.0.0", "url" : {"local" : "../bar"}}
     });
@@ -182,7 +193,7 @@ __test serialize_link_targets_only_when_set {
     let serialized = lst.serialize();
 
     if let Ok(foo) = serialized["foo"]? {
-        assert(to!{[[c8]]}(foo["link-targets"]) == copy ["libfoo"], "unexpected serialized selection");
+        assert(to!{[[c8]]} (foo["link-targets"]) == copy ["libfoo"], "unexpected serialized selection");
     } else assert(false, "expected a serialized \"foo\" dependency");
 
     if let Ok(bar) = serialized["bar"]? {
@@ -192,7 +203,7 @@ __test serialize_link_targets_only_when_set {
 
 __test link_targets_survive_round_trip {
     // The selection survives a full serialize/parse round trip
-    let lst = copy DependencyList(json#{
+    let lst = copy DependencyList(json #{
         "foo" : {"version" : "1.0.0", "url" : {"local" : "../foo"}, "link-targets" : ["libfoo", "libbar"]}
     });
 

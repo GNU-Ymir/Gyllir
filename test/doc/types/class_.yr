@@ -4,7 +4,7 @@ use std::stream;
 
 __test default_class_renders_as_class {
     // Default (not an entity, not a record) renders as "Class"
-    let c = copy ClassType("foo::Bar", "", false);
+    let c           = copy ClassType("foo::Bar", "", false);
     let dmut stream = copy StringStream();
     stream:.write(c);
 
@@ -15,7 +15,7 @@ __test default_class_renders_as_class {
 
 __test entity_renders_as_entity {
     // An entity renders as "Entity"
-    let c = copy ClassType("foo::Bar", "", true, isEntity-> true);
+    let c           = copy ClassType("foo::Bar", "", true, isEntity-> true);
     let dmut stream = copy StringStream();
     stream:.write(c);
 
@@ -26,7 +26,7 @@ __test entity_renders_as_entity {
 
 __test record_renders_as_record {
     // A record renders as "Record"
-    let c = copy ClassType("foo::Bar", "", false, isRecord-> true);
+    let c           = copy ClassType("foo::Bar", "", false, isRecord-> true);
     let dmut stream = copy StringStream();
     stream:.write(c);
 
@@ -36,7 +36,7 @@ __test record_renders_as_record {
 
 __test template_instantiation_kept_attached_class {
     // A template instantiation is kept attached to the base name
-    let c = copy ClassType("mod::Vec!{i32}", "", false);
+    let c           = copy ClassType("mod::Vec!{i32}", "", false);
     let dmut stream = copy StringStream();
     stream:.write(c);
 

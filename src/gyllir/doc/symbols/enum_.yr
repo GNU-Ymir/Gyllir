@@ -1,6 +1,5 @@
 in enum_;
 
-
 use gyllir::doc::types;
 use gyllir::doc::types::any;
 
@@ -9,10 +8,10 @@ use std::stream;
 @final
 pub class EnumSymbol over Symbol {
     pub let mut fields: [([c8], [c8], [c8])] = [];
-    pub let mut type: &Type = EMPTY_ANY;
+    pub let mut type: &Type                  = EMPTY_ANY;
 
     pub self (name: [c8], doc: [c8], loc: Location, protection: Protection)
-        with super (name, doc, loc, protection)
+        with super(name, doc, loc, protection)
     {}
 
     impl Streamable {
@@ -25,5 +24,4 @@ pub class EnumSymbol over Symbol {
             stream:.detabing();
         }
     }
-
 }

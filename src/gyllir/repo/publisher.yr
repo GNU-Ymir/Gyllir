@@ -1,7 +1,7 @@
 in publisher;
 
 use gyllir::{config::_, utils::_};
-use gyllir::repo::manager;
+use gyllir::repo::{bump, manager};
 
 use std::{config::_, env, fs::_, fs::errors, fs::path, io, stream};
 use std::concurrency::process;
@@ -59,7 +59,13 @@ pub record RepoPublisher {
             self.publishGit(alias context, tmpDir, version);
         }
 
-        utils::log::info("Published", "project ", self._cfg.name, " v", version[], " to ", self._cfg.registry.path.toStr());
+        utils::log::info("Published",
+                         "project ",
+                         self._cfg.name,
+                         " v",
+                         version[],
+                         " to ",
+                         self._cfg.registry.path.toStr());
     }
 
     /**
@@ -79,22 +85,19 @@ pub record RepoPublisher {
             etc::c::process::_yrt_exit(-1);
         }
 
-        self.compileProject(alias context);
-        let mut npack = self._cfg;
-        npack:.setVersion(self.incrementVersion());
+        // computed before anything is built, so that a version that cannot be bumped fails right away
+        let bumper  = RepoBumper(self._cwd, self._args, self._cfg);
+        let version = bumper.nextVersion();
 
-        {
-            let dmut f = File::create(self._cwd.push(defaults::__GYLLIR_CONFIG_FILENAME__), write-> true);
-            f:.write(std::config::toml::dump(npack.serialize()));
-            f:.close();
-        }
+        self.compileProject(alias context);
+        let npack = bumper.write(version);
 
         self._git.add(self._cwd.push("."));
         if let Ok(Str(value-> msg)) = self._args["message"]? {
             self._git.commit(msg);
         } else panic;
 
-        self._git.createTag("v" ~ npack.version[]);
+        self._git.createTag(bumper.tagName(npack.version));
         if (fs::sys::isDir(path)) {
             fs::sys::removeDir(path, recursive-> true);
         }
@@ -135,27 +138,10 @@ pub record RepoPublisher {
             }
 
             let (built, _, _) = context:.buildTargets(self._cwd, copy Dict(), self._cfg, all, forUnitTest-> true);
-            let code = context.runUnitTests(self._cwd, self._cfg, built);
+            let code          = context.runUnitTests(self._cwd, self._cfg, built);
             if (code != 0) {
                 etc::c::process::_yrt_exit(code);
             }
-        }
-    }
-
-    /**
-     * Increment the version of the project
-     * */
-    fn incrementVersion(self)-> Version {
-        if let Ok(Bool(value-> _ = true)) = self._args["major"]? {
-            return self._cfg.version.increment(major-> true, minor-> false);
-        }
-
-        else if let Ok(Bool(value-> _ = true)) = self._args["minor"]? {
-            return self._cfg.version.increment(major-> false, minor-> true);
-        }
-
-        else {
-            return self._cfg.version.increment(major-> false, minor-> false);
         }
     }
 }

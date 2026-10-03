@@ -8,5 +8,6 @@ pub mod ::defaults;
 pub mod ::runner;
 pub mod ::cleaner;
 pub mod ::publisher;
+pub mod ::bump;
 pub mod ::doc;
 pub mod ::doc_server;

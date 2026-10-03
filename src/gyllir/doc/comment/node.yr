@@ -69,8 +69,8 @@ pub class CommentNode {
      * The capitalized version of the head
      * */
     pub fn capitalizedHead(self)-> [c8] {
-        let tzer = Tokenizer!{c8} ([" ", "\n", "\r", "\t"]);
-        let tokens = tzer.tokenize(self._head);
+        let tzer        = Tokenizer!{c8} ([" ", "\n", "\r", "\t"]);
+        let tokens      = tzer.tokenize(self._head);
         let dmut stream = copy StringStream();
         for s in tokens if s.len > 0 {
             stream:.write(copy [toUpper(s[0])] ~ s[1 .. $]);
@@ -106,18 +106,18 @@ pub class CommentNode {
         }
 
         match self._head {
-            "param" | "params" => { stream:.write("Parameters"); }
+            "param" | "params"   => { stream:.write("Parameters"); }
             "return" | "returns" => { stream:.write("Returns"); }
-            "throw" | "throws" => { stream:.write("Throws"); }
-            "complexity" => { stream:.write("Complexity"); }
+            "throw" | "throws"   => { stream:.write("Throws"); }
+            "complexity"         => { stream:.write("Complexity"); }
             "assume" | "assumes" => { stream:.write("Assumes"); }
             "assert" | "asserts" => { stream:.write("Assertions"); }
-            "example" => { stream:.write("Example"); }
-            "warning" => { stream:.write("Warning"); }
-            "info" | "infos" => { stream:.write("Information"); }
+            "example"            => { stream:.write("Example"); }
+            "warning"            => { stream:.write("Warning"); }
+            "info" | "infos"     => { stream:.write("Information"); }
             "authors" | "author" => { stream:.write("Authors"); }
-            "license" => { stream:.write("License"); }
-            _ => { stream:.write(self.capitalizedHead()); }
+            "license"            => { stream:.write("License"); }
+            _                    => { stream:.write(self.capitalizedHead()); }
         }
 
         stream:.write("</dt><dd>", innerStream[], "</dd>");

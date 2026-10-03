@@ -9,7 +9,7 @@ pub class MapType over Type {
     pub let value: &Type;
 
     pub self (mutability: [c8], key: &Type, value: &Type)
-        with super (mutability-> mutability)
+        with super(mutability-> mutability)
         , key = key
         , value = value
     {}

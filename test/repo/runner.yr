@@ -1,11 +1,9 @@
 use ::repo::fixture;
-use gyllir::repo::runner;
 use gyllir::config::_;
+use gyllir::repo::runner;
 
-use std::config::_;
-use std::config::json;
+use std::{config::_, config::json, fs::_};
 use std::concurrency::process;
-use std::fs::_;
 
 /**
  * Write an executable shell script exiting with a given code, standing in for an artifact that
@@ -68,9 +66,13 @@ fn mkSignalKilledArtifact(dir: Path, name: [c8])
 
 __test reject_library_target_run {
     // run() on a library target (not forUnitTest) rejects before doing anything else
-    let cfg = GyllirPackageConfiguration(
-        "mylib", "MIT", "d", BuildType("library"), Url("local:some/registry"), Version(1u32, 0u32, 0u32), []
-    );
+    let cfg = GyllirPackageConfiguration("mylib",
+                                         "MIT",
+                                         "d",
+                                         BuildType("library"),
+                                         Url("local:some/registry"),
+                                         Version(1u32, 0u32, 0u32),
+                                         []);
 
     let runner = RepoRunner(Path("."), copy Dict(), cfg, soleTarget(cfg), false);
 
@@ -79,7 +81,7 @@ __test reject_library_target_run {
         runner.run();
     } catch {
         a: &AssertError => { msg = a.msg; }
-        _: &FsError => { msg = ""; }
+        _: &FsError     => { msg = ""; }
     }
 
     assert(msg == "target 'mylib' is a library, 'gyllir run' only runs an executable target",
@@ -96,7 +98,8 @@ __test run_returns_artifact_exit_code {
     assert(RepoRunner(dir, copy Dict(), cfg, soleTarget(cfg), false).run() == 0, "a passing artifact should report 0");
 
     mkArtifact(dir, "myapp", "3");
-    assert(RepoRunner(dir, copy Dict(), cfg, soleTarget(cfg), false).run() == 3, "the exit code of the artifact should be reported");
+    assert(RepoRunner(dir, copy Dict(), cfg, soleTarget(cfg), false).run() == 3,
+           "the exit code of the artifact should be reported");
 }
 
 __test unittest_run_executes_test_binary {
@@ -106,13 +109,14 @@ __test unittest_run_executes_test_binary {
     mkArtifact(dir, "myapp", "1");
     mkArtifact(dir, "myapp.test", "0");
 
-    assert(RepoRunner(dir, copy Dict(), cfg, soleTarget(cfg), true).run() == 0, "the unittest executable should be the one run");
+    assert(RepoRunner(dir, copy Dict(), cfg, soleTarget(cfg), true).run() == 0,
+           "the unittest executable should be the one run");
 }
 
 __test run_executes_renamed_output_artifact {
     // The runner executes the artifact of the target, which "output" may have renamed
     let dir = sys::tempDirectory(prefix-> "gyllir_runner_test_");
-    let cfg = mkTargetsConfig("myapp", json#{"app" : {"output" : "renamed"}});
+    let cfg = mkTargetsConfig("myapp", json #{"app" : {"output" : "renamed"}});
     mkArtifact(dir, "renamed", "5");
 
     assert(RepoRunner(dir, copy Dict(), cfg, namedTarget(cfg, "app"), false).run() == 5,
@@ -122,7 +126,7 @@ __test run_executes_renamed_output_artifact {
 __test library_target_unittest_runs_normally {
     // A library target is only a library for 'gyllir run': its unittest executable is run like any other
     let dir = sys::tempDirectory(prefix-> "gyllir_runner_test_");
-    let cfg = mkTargetsConfig("multi", json#{"mylib" : {"type" : "library"}});
+    let cfg = mkTargetsConfig("multi", json #{"mylib" : {"type" : "library"}});
     mkArtifact(dir, "mylib.test", "2");
 
     assert(RepoRunner(dir, copy Dict(), cfg, namedTarget(cfg, "mylib"), true).run() == 2,
@@ -141,7 +145,7 @@ __test run_forwards_command_line_arguments_to_the_artifact {
 
     assert(RepoRunner(dir, args, cfg, soleTarget(cfg), false).run() == 0, "the recording artifact should exit 0");
 
-    let dmut f = File::open(dir.push("witness.txt"), read-> true);
+    let dmut f  = File::open(dir.push("witness.txt"), read-> true);
     let content = f:.readAll();
     f:.close();
 

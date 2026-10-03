@@ -1,5 +1,4 @@
-use gyllir::doc::symbols::_;
-use gyllir::doc::symbols::global;
+use gyllir::doc::symbols::{_, global};
 
 use std::stream;
 

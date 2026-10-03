@@ -5,7 +5,7 @@ use std::stream;
 
 __test bare_variable_rendering {
     // Defaults: no mut/ref/lazy, no default value, and an empty type
-    let v = copy Variable("x", "", INTERNAL_LOCATION, Protection::PUB);
+    let v           = copy Variable("x", "", INTERNAL_LOCATION, Protection::PUB);
     let dmut stream = copy StringStream();
     stream:.write(v);
 

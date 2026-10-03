@@ -27,18 +27,19 @@ __test to_version_list_dedups_and_skips_detached {
     // present (any value) alongside the real subcommand, e.g. ["gyllir", "clean"]
     let mgr = copy GyllirManager(copy ["gyllir", "clean"]);
 
-    let list = "master\n(HEAD detached at abc123)\nv1.0.0\nv1.0.0\nv2.0.0\n";
+    let list     = "master\n(HEAD detached at abc123)\nv1.0.0\nv1.0.0\nv2.0.0\n";
     let versions = mgr.toVersionList(list);
 
     assert(versions.len == 3us, "expected 3 unique, non-detached versions");
     assert(versions[0]._1 == "master" && versions[0]._0[] == "master", "unexpected first entry");
     assert(versions[1]._1 == "v1.0.0" && versions[1]._0[] == "1.0.0", "unexpected second entry");
-    assert(versions[2]._1 == "v2.0.0" && versions[2]._0[] == "2.0.0", "unexpected third entry (duplicate v1.0.0 should be dropped)");
+    assert(versions[2]._1 == "v2.0.0" && versions[2]._0[] == "2.0.0",
+           "unexpected third entry (duplicate v1.0.0 should be dropped)");
 }
 
 __test to_version_list_empty_input {
     // toVersionList() on an empty list returns an empty list
-    let mgr = copy GyllirManager(copy ["gyllir", "clean"]);
+    let mgr      = copy GyllirManager(copy ["gyllir", "clean"]);
     let versions = mgr.toVersionList("");
 
     assert(versions.len == 0us, "an empty tag list should produce no versions");
@@ -56,7 +57,8 @@ __test run_process_missing_command_reports_failure {
     // runProcess() on a command that doesn't exist reports failure rather than throwing
     let mgr = copy GyllirManager(copy ["gyllir", "clean"]);
 
-    assert(!mgr.runProcess("this-command-does-not-exist-xyz", []), "a missing command should report failure, not throw");
+    assert(!mgr.runProcess("this-command-does-not-exist-xyz", []),
+           "a missing command should report failure, not throw");
 }
 
 /*!
@@ -74,19 +76,21 @@ __test local_dependency_symlinked_built_and_exported {
     writeToml(lib, mkConfig("mylib", "library"));
     gitInit(lib);
 
-    let app = mkExecutableProject("myapp");
-    let cfg = mkConfigWithDependency("myapp", "executable", "mylib", lib);
+    let app      = mkExecutableProject("myapp");
+    let cfg      = mkConfigWithDependency("myapp", "executable", "mylib", lib);
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
 
     let (includes, links) = RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
 
-    assert(sys::isLink(app.push(defaults::__DEPENCY_DIR__).push("mylib")), "a local dependency should be symlinked into .deps");
+    assert(sys::isLink(app.push(defaults::__DEPENCY_DIR__).push("mylib")),
+           "a local dependency should be symlinked into .deps");
     assert(hasFile(lib, "libmylib.a"), "the dependency should have been built");
 
     assert(includes.len == 2us, "both the dependency root file and the project's own should be exported");
     // the dependency is built through its symlink, so it exports paths rooted in ".deps"
     let depPath = app.push(defaults::__DEPENCY_DIR__).push("mylib");
-    assert(includes[0] == depPath.push(defaults::__SRC_DIR__).push(defaults::__LIB_FILE__), "unexpected dependency root file");
+    assert(includes[0] == depPath.push(defaults::__SRC_DIR__).push(defaults::__LIB_FILE__),
+           "unexpected dependency root file");
     assert(links.len == 1us && links[0] == depPath.push("libmylib.a"), "the dependency archive should be linked");
     assert(hasFile(app, "myapp"), "the executable should be produced");
 }
@@ -97,14 +101,15 @@ __test resolving_dependency_twice_reuses_symlink {
     writeToml(lib, mkConfig("mylib", "library"));
     gitInit(lib);
 
-    let app = mkExecutableProject("myapp");
-    let cfg = mkConfigWithDependency("myapp", "executable", "mylib", lib);
+    let app      = mkExecutableProject("myapp");
+    let cfg      = mkConfigWithDependency("myapp", "executable", "mylib", lib);
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
 
     RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
     RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
 
-    assert(sys::isLink(app.push(defaults::__DEPENCY_DIR__).push("mylib")), "the dependency symlink should still be there");
+    assert(sys::isLink(app.push(defaults::__DEPENCY_DIR__).push("mylib")),
+           "the dependency symlink should still be there");
     assert(hasFile(app, "myapp"), "the executable should be produced");
 }
 
@@ -114,11 +119,11 @@ __test dependency_cycle_is_reported {
     writeToml(lib, mkConfigWithDependency("selfdep", "library", "selfdep", lib));
     gitInit(lib);
 
-    let app = mkExecutableProject("myapp");
-    let cfg = mkConfigWithDependency("myapp", "executable", "selfdep", lib);
+    let app      = mkExecutableProject("myapp");
+    let cfg      = mkConfigWithDependency("myapp", "executable", "selfdep", lib);
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
 
-    let target = soleTarget(cfg);
+    let target    = soleTarget(cfg);
     let mut threw = false;
     {
         RepoBuilder(app, mkBuildArgs(), cfg, target, forUnitTest-> false).run(alias mgr);
@@ -135,8 +140,8 @@ __test clean_all_removes_dependencies_recursively {
     writeToml(lib, mkConfig("mylib", "library"));
     gitInit(lib);
 
-    let app = mkExecutableProject("myapp");
-    let cfg = mkConfigWithDependency("myapp", "executable", "mylib", lib);
+    let app      = mkExecutableProject("myapp");
+    let cfg      = mkConfigWithDependency("myapp", "executable", "mylib", lib);
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
 
     RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
@@ -171,7 +176,7 @@ __test progress_bar_renders_partial_and_complete {
 __test dependency_resolved_through_fetched_tags {
     // A dependency whose version filter rejects the branch it sits on is resolved through the tags
     // fetched from its remote
-    let remote = sys::tempDirectory(prefix-> "gyllir_dep_remote_");
+    let remote    = sys::tempDirectory(prefix-> "gyllir_dep_remote_");
     let dmut init = copy SubProcess("git", copy ["init", "--bare"], cwd-> remote);
     init:.start();
     init:.wait();
@@ -364,7 +369,8 @@ __test lock_file_records_the_transitive_graph {
     assert(direct.dependencies[0].path.toStr() == sub.toStr(), "unexpected recorded dependency url");
 
     let indirect = lockedPackage(app, "mysub");
-    assert(indirect.version == Version(1u32, 0u32, 0u32), "the indirect dependency should be locked at its resolved version");
+    assert(indirect.version == Version(1u32, 0u32, 0u32),
+           "the indirect dependency should be locked at its resolved version");
     assert(indirect.pinned(), "the indirect dependency should be pinned to a commit");
 }
 
@@ -393,16 +399,17 @@ __test package_without_dependency_gains_no_lock_file {
 
     buildWithLock(app, cfg, mkBuildArgs());
 
-    assert(!hasFile(app, defaults::__GYLLIR_LOCK_FILENAME__), "a package with no dependency should not gain a lock file");
+    assert(!hasFile(app, defaults::__GYLLIR_LOCK_FILENAME__),
+           "a package with no dependency should not gain a lock file");
 }
 
 __test std_only_package_keeps_its_lock_file {
     // A package resolving a remote std lib through '[std]', but declaring no '[dependencies]' of
     // its own, still has something to lock: 'std' must be a prune root just like any other
     // dependency, or its entry is unreachable and the lock file is written empty, then deleted
-    let app = mkExecutableProject("myapp");
+    let app    = mkExecutableProject("myapp");
     let stdUrl = "git:https://example.com/fake-std.git";
-    let cfg = GyllirPackageConfiguration(json#{
+    let cfg = GyllirPackageConfiguration(json #{
         "name" : "myapp",
         "license" : "MIT",
         "description" : "d",
@@ -436,7 +443,7 @@ __test resolve_std_reports_an_unreachable_remote_instead_of_no_matching_version 
     // A remote std lib repository that cannot be reached is reported as such, not silently turned
     // into "no version matching the filter" the way a genuinely tagless remote would be
     let app = mkExecutableProject("myapp");
-    let cfg = GyllirPackageConfiguration(json#{
+    let cfg = GyllirPackageConfiguration(json #{
         "name" : "myapp",
         "license" : "MIT",
         "description" : "d",
@@ -453,7 +460,7 @@ __test resolve_std_reports_an_unreachable_remote_instead_of_no_matching_version 
     {
         mgr:.resolveStd(mkBuildArgs(), app, cfg, false);
     } catch {
-        a: &AssertError => { msg = a.msg; }
+        a: &AssertError         => { msg = a.msg; }
         _: &RecursiveDependency => { assert(false, "no recursive dependency should be detected here"); }
     }
 
@@ -469,7 +476,7 @@ __test update_std_flag_accepted_before_it_is_ever_locked {
     // 'selectUpdated' exits the process on an unrecognized name, so reaching past this call is
     // itself the assertion
     let app = mkExecutableProject("myapp");
-    let cfg = GyllirPackageConfiguration(json#{
+    let cfg = GyllirPackageConfiguration(json #{
         "name" : "myapp",
         "license" : "MIT",
         "description" : "d",
@@ -504,12 +511,13 @@ __test dropping_the_last_dependency_removes_the_lock_file {
     assert(hasFile(app, defaults::__GYLLIR_LOCK_FILENAME__), "sanity: the build should have written a lock file");
 
     // the same package, with its dependency taken out of 'gyllir.toml'
-    let dropped = mkConfig("myapp", "executable");
+    let dropped  = mkConfig("myapp", "executable");
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
     mgr:.loadLock(app, mkBuildArgs(), dropped);
     mgr.writeLock(app, dropped);
 
-    assert(!hasFile(app, defaults::__GYLLIR_LOCK_FILENAME__), "a lock file with nothing left to lock should be removed");
+    assert(!hasFile(app, defaults::__GYLLIR_LOCK_FILENAME__),
+           "a lock file with nothing left to lock should be removed");
 }
 
 /*!
@@ -578,7 +586,7 @@ __test select_test_targets_skips_opted_out {
     // selectTestTargets() with no target named on the command line selects every testable target,
     // skipping the ones that opted out
     let mgr = copy GyllirManager(copy ["gyllir", "test"]);
-    let cfg = mkTargetsConfig("multi", json#{
+    let cfg = mkTargetsConfig("multi", json #{
         "cli" : {"type" : "executable"},
         "tool" : {"type" : "executable", "tests" : false}
     });
@@ -591,7 +599,7 @@ __test select_test_targets_skips_opted_out {
 __test select_test_targets_named_opted_out_rejected {
     // selectTestTargets() naming a target that opted out of unittesting is rejected
     let mgr = copy GyllirManager(copy ["gyllir", "test"]);
-    let cfg = mkTargetsConfig("multi", json#{"tool" : {"type" : "executable", "tests" : false}});
+    let cfg = mkTargetsConfig("multi", json #{"tool" : {"type" : "executable", "tests" : false}});
 
     let dmut args = copy Dict();
     args["target"] = copy Str("tool");
@@ -609,7 +617,7 @@ __test select_test_targets_named_opted_out_rejected {
 __test select_test_targets_no_testable_target_rejected {
     // selectTestTargets() with no target named, and no testable target at all, is rejected the same way
     let mgr = copy GyllirManager(copy ["gyllir", "test"]);
-    let cfg = mkTargetsConfig("multi", json#{"tool" : {"type" : "executable", "tests" : false}});
+    let cfg = mkTargetsConfig("multi", json #{"tool" : {"type" : "executable", "tests" : false}});
 
     let mut msg = "";
     {
@@ -647,7 +655,7 @@ __test ordered_targets_orders_linked_and_alphabetical {
     let cfg = mkMultiTargetConfig();
 
     let ordered = mgr.orderedTargets(cfg, cfg.targets());
-    let names = copy [t.name for t in ordered];
+    let names   = copy [t.name for t in ordered];
 
     assert(names == copy ["mylib", "tool", "cli"], "unexpected build order");
 }
@@ -655,7 +663,7 @@ __test ordered_targets_orders_linked_and_alphabetical {
 __test ordered_targets_mutual_cycle_rejected {
     // Two targets linking each other are reported instead of blocking the build forever
     let mgr = copy GyllirManager(copy ["gyllir", "build"]);
-    let cfg = mkTargetsConfig("multi", json#{
+    let cfg = mkTargetsConfig("multi", json #{
         "a" : {"targets" : ["b"]},
         "b" : {"targets" : ["a"]}
     });
@@ -665,7 +673,7 @@ __test ordered_targets_mutual_cycle_rejected {
         mgr.orderedTargets(cfg, cfg.targets());
     } catch {
         r: &RecursiveDependency => { msg = r.msg; }
-        a: &AssertError => { msg = a.msg; }
+        a: &AssertError         => { msg = a.msg; }
     }
 
     assert(msg == "targets of 'multi', 'a', 'b'", "unexpected recursion error: " ~ msg);
@@ -674,13 +682,13 @@ __test ordered_targets_mutual_cycle_rejected {
 __test ordered_targets_self_link_rejected {
     // A target linking itself is a cycle of its own, reported before the build order is even computed
     let mgr = copy GyllirManager(copy ["gyllir", "build"]);
-    let cfg = mkTargetsConfig("multi", json#{"a" : {"targets" : ["a"]}});
+    let cfg = mkTargetsConfig("multi", json #{"a" : {"targets" : ["a"]}});
 
     let mut msg = "";
     {
         mgr.orderedTargets(cfg, cfg.targets());
     } catch {
-        a: &AssertError => { msg = a.msg; }
+        a: &AssertError         => { msg = a.msg; }
         r: &RecursiveDependency => { msg = r.msg; }
     }
 
@@ -690,13 +698,13 @@ __test ordered_targets_self_link_rejected {
 __test ordered_targets_unknown_linked_target_rejected {
     // A target linking a target the package does not declare is rejected
     let mgr = copy GyllirManager(copy ["gyllir", "build"]);
-    let cfg = mkTargetsConfig("multi", json#{"a" : {"targets" : ["nope"]}});
+    let cfg = mkTargetsConfig("multi", json #{"a" : {"targets" : ["nope"]}});
 
     let mut msg = "";
     {
         mgr.orderedTargets(cfg, cfg.targets());
     } catch {
-        a: &AssertError => { msg = a.msg; }
+        a: &AssertError         => { msg = a.msg; }
         r: &RecursiveDependency => { msg = r.msg; }
     }
 
@@ -706,13 +714,13 @@ __test ordered_targets_unknown_linked_target_rejected {
 __test ordered_targets_unknown_dependency_rejected {
     // "dependencies" selects among the "[dependencies.*]" of the package, it never declares one
     let mgr = copy GyllirManager(copy ["gyllir", "build"]);
-    let cfg = mkTargetsConfig("multi", json#{"a" : {"dependencies" : ["nope"]}});
+    let cfg = mkTargetsConfig("multi", json #{"a" : {"dependencies" : ["nope"]}});
 
     let mut msg = "";
     {
         mgr.orderedTargets(cfg, cfg.targets());
     } catch {
-        a: &AssertError => { msg = a.msg; }
+        a: &AssertError         => { msg = a.msg; }
         r: &RecursiveDependency => { msg = r.msg; }
     }
 
@@ -727,7 +735,8 @@ __test unique_paths_drops_duplicate_keeps_first {
     let unique = mgr.uniquePaths(copy [Path("/a/libx.a"), Path("/b/liby.a"), Path("/a/libx.a")]);
 
     assert(unique.len == 2us, "the duplicated path should have been dropped");
-    assert(unique[0] == Path("/a/libx.a") && unique[1] == Path("/b/liby.a"), "the first occurrence of each path should be kept");
+    assert(unique[0] == Path("/a/libx.a") && unique[1] == Path("/b/liby.a"),
+           "the first occurrence of each path should be kept");
 }
 
 __test select_run_target_single_target_no_name {
@@ -757,7 +766,7 @@ __test select_run_target_named_forwards_arguments {
     assert(target.name == "cli", "the named target should be selected");
     if let a: &Array = forwarded {
         assert(a[].len == 1us, "the arguments of the program should be forwarded");
-        assert(to!{[c8]}(a[][0]) == "--flag-for-the-program", "unexpected forwarded argument");
+        assert(to!{[c8]} (a[][0]) == "--flag-for-the-program", "unexpected forwarded argument");
     } else assert(false, "the forwarded arguments should be an array");
 }
 
@@ -774,7 +783,7 @@ __test select_run_target_double_dash_forwards_all {
 
     assert(target.name == "myapp", "the single target should still be selected");
     if let a: &Array = forwarded {
-        assert(a[].len == 1us && to!{[c8]}(a[][0]) == "cli", "everything after \"--\" should be forwarded");
+        assert(a[].len == 1us && to!{[c8]} (a[][0]) == "cli", "everything after \"--\" should be forwarded");
     } else assert(false, "the forwarded arguments should be an array");
 }
 
@@ -805,11 +814,11 @@ __test select_run_target_multi_target_needs_name {
 __test build_targets_produces_artifact_per_target {
     // Building every target of a package produces one artifact per target, in an order where a
     // linked target comes first
-    let dir = mkMultiTargetProject();
-    let cfg = mkMultiTargetConfig();
+    let dir      = mkMultiTargetProject();
+    let cfg      = mkMultiTargetConfig();
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
 
-    let selected = mgr.selectTargets(cfg, copy Dict());
+    let selected      = mgr.selectTargets(cfg, copy Dict());
     let (built, _, _) = mgr:.buildTargets(dir, mkBuildArgs(), cfg, selected);
 
     assert(built.len == 3us, "every selected target should be reported as built");
@@ -817,21 +826,23 @@ __test build_targets_produces_artifact_per_target {
 
     assert(hasFile(dir, "libmylib.a"), "the library target should produce its archive");
     assert(hasFile(dir, "cli") && hasFile(dir, "tool"), "both executable targets should produce their binary");
-    assert(hasCacheFile(dir, "cli", defaults::__CACHE_DEBUG_DIR__, "cli.a"), "every target should cache under its own name");
-    assert(hasCacheFile(dir, "mylib", defaults::__CACHE_DEBUG_DIR__, "mylib.a"), "every target should cache under its own name");
+    assert(hasCacheFile(dir, "cli", defaults::__CACHE_DEBUG_DIR__, "cli.a"),
+           "every target should cache under its own name");
+    assert(hasCacheFile(dir, "mylib", defaults::__CACHE_DEBUG_DIR__, "mylib.a"),
+           "every target should cache under its own name");
 }
 
 __test build_targets_single_target_builds_links_only {
     // Building a single target builds the targets it links, and nothing else
-    let dir = mkMultiTargetProject();
-    let cfg = mkMultiTargetConfig();
+    let dir      = mkMultiTargetProject();
+    let cfg      = mkMultiTargetConfig();
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
 
     let dmut args = copy Dict();
     args["target"] = copy Str("cli");
     args["j"] = copy Int(1i64);
 
-    let selected = mgr.selectTargets(cfg, args);
+    let selected      = mgr.selectTargets(cfg, args);
     let (built, _, _) = mgr:.buildTargets(dir, args, cfg, selected);
 
     assert(built.len == 1us && built[0].name == "cli", "only the named target should be reported as built");
@@ -845,15 +856,16 @@ __test test_builds_and_runs_unittest_per_target {
     let dir = mkMultiTargetProject();
     addUnitTests(dir);
 
-    let cfg = mkMultiTargetConfig();
+    let cfg      = mkMultiTargetConfig();
     let dmut mgr = copy GyllirManager(copy ["gyllir", "test"]);
 
-    let selected = mgr.selectTargets(cfg, copy Dict());
+    let selected      = mgr.selectTargets(cfg, copy Dict());
     let (built, _, _) = mgr:.buildTargets(dir, mkBuildArgs(), cfg, selected, forUnitTest-> true);
 
     assert(hasFile(dir, "cli.test") && hasFile(dir, "mylib.test") && hasFile(dir, "tool.test"),
            "every target should produce a unittest executable of its own");
-    assert(hasCacheFile(dir, "tool", defaults::__CACHE_UNIT_DEBUG_DIR__, "tool.a"), "the unittest build has a cache of its own");
+    assert(hasCacheFile(dir, "tool", defaults::__CACHE_UNIT_DEBUG_DIR__, "tool.a"),
+           "the unittest build has a cache of its own");
 
     assert(mgr.runUnitTests(dir, cfg, built) == 0, "the tests of every target should pass");
 }
@@ -865,8 +877,8 @@ __test build_targets_dependency_skips_executable_targets {
     writeToml(lib, mkMultiTargetConfig());
     gitInit(lib);
 
-    let app = mkExecutableProject("myapp");
-    let cfg = mkConfigWithDependency("myapp", "executable", "multi", lib);
+    let app      = mkExecutableProject("myapp");
+    let cfg      = mkConfigWithDependency("myapp", "executable", "multi", lib);
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
 
     let (includes, links) = RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
@@ -896,8 +908,8 @@ __test link_targets_absent_links_every_library {
     writeToml(lib, mkMultiLibConfig());
     gitInit(lib);
 
-    let app = mkExecutableProject("myapp");
-    let cfg = mkConfigWithDependency("myapp", "executable", "multilib", lib);
+    let app      = mkExecutableProject("myapp");
+    let cfg      = mkConfigWithDependency("myapp", "executable", "multilib", lib);
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
 
     let (_, links) = RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
@@ -915,8 +927,8 @@ __test link_targets_narrows_to_named_subtargets {
     writeToml(lib, mkMultiLibConfig());
     gitInit(lib);
 
-    let app = mkExecutableProject("myapp");
-    let cfg = mkConfigWithSelectedDependency("myapp", "executable", "multilib", lib, copy ["foo"]);
+    let app      = mkExecutableProject("myapp");
+    let cfg      = mkConfigWithSelectedDependency("myapp", "executable", "multilib", lib, copy ["foo"]);
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
 
     let (includes, links) = RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
@@ -936,23 +948,25 @@ __test select_dependency_targets_empty_selection_keeps_all {
     // catch that calls "etc::c::process::_yrt_exit(-1)", which would take the test binary down with
     // it instead of letting the test observe the exception -- the same reason "orderedTargets" and
     // "linkedTargets" are tested directly for YMI-72's own target-selection errors.
-
     // An empty selection is left untouched: it is what "absent link-targets" means
-    let mgr = copy GyllirManager(copy ["gyllir", "build"]);
-    let cfg = mkMultiTargetConfig();
+    let mgr        = copy GyllirManager(copy ["gyllir", "build"]);
+    let cfg        = mkMultiTargetConfig();
     let libTargets = libTargetsOf(cfg);
 
-    let selected = mgr.selectDependencyTargets("multi", Dependency(VersionFilter(copy ["*"]), Url("local:some/dir")), cfg.targets(), libTargets);
+    let selected = mgr.selectDependencyTargets("multi",
+                                               Dependency(VersionFilter(copy ["*"]), Url("local:some/dir")),
+                                               cfg.targets(),
+                                               libTargets);
 
     assert(selected.len == 1us && "mylib" in selected, "an empty selection should keep every library target");
 }
 
 __test select_dependency_targets_unknown_target_rejected {
     // A "link-targets" naming a target the dependency does not declare is rejected
-    let mgr = copy GyllirManager(copy ["gyllir", "build"]);
-    let cfg = mkMultiTargetConfig();
+    let mgr        = copy GyllirManager(copy ["gyllir", "build"]);
+    let cfg        = mkMultiTargetConfig();
     let libTargets = libTargetsOf(cfg);
-    let dep = Dependency(VersionFilter(copy ["*"]), Url("local:some/dir"), targets-> copy ["nope"]);
+    let dep        = Dependency(VersionFilter(copy ["*"]), Url("local:some/dir"), targets-> copy ["nope"]);
 
     let mut msg = "";
     {
@@ -968,10 +982,10 @@ __test select_dependency_targets_unknown_target_rejected {
 __test select_dependency_targets_executable_rejected {
     // A "link-targets" naming an executable target of the dependency is rejected: an executable is
     // never linked into the package that depends on it
-    let mgr = copy GyllirManager(copy ["gyllir", "build"]);
-    let cfg = mkMultiTargetConfig();
+    let mgr        = copy GyllirManager(copy ["gyllir", "build"]);
+    let cfg        = mkMultiTargetConfig();
     let libTargets = libTargetsOf(cfg);
-    let dep = Dependency(VersionFilter(copy ["*"]), Url("local:some/dir"), targets-> copy ["cli"]);
+    let dep        = Dependency(VersionFilter(copy ["*"]), Url("local:some/dir"), targets-> copy ["cli"]);
 
     let mut msg = "";
     {
@@ -991,8 +1005,8 @@ __test link_targets_names_synthesized_target {
     writeToml(lib, mkConfig("mylib", "library"));
     gitInit(lib);
 
-    let app = mkExecutableProject("myapp");
-    let cfg = mkConfigWithSelectedDependency("myapp", "executable", "mylib", lib, copy ["mylib"]);
+    let app      = mkExecutableProject("myapp");
+    let cfg      = mkConfigWithSelectedDependency("myapp", "executable", "mylib", lib, copy ["mylib"]);
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
 
     let (includes, links) = RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);

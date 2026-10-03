@@ -1,7 +1,8 @@
 in url;
 
-use std::{config::_, fs::path, stream};
+use std::{config::_, stream};
 use std::algorithm::searching;
+use std::fs::path;
 
 /**
  * There are two types of url for the moment
@@ -15,7 +16,6 @@ pub enum UrlType
 pub enum UrlStarts
 | LOCAL = "local:"
 | GIT   = "git:";
-
 
 /**
  * An url that is used to get refer to package repositories
@@ -77,9 +77,7 @@ pub record Url {
             self._path = Path(url);
             self._type = UrlType::LOCAL;
             self._valid = true;
-        }
-
-        else if let Ok(Str(value-> url)) = cfg["git"]? {
+        } else if let Ok(Str(value-> url)) = cfg["git"]? {
             if let d: &Dict = cfg {
                 gyllir::config::errors::rejectUnknown(d, entry ~ " ", "git");
             }
@@ -87,26 +85,19 @@ pub record Url {
             self._path = Path(url);
             self._type = UrlType::GIT;
             self._valid = true;
-        }
-
-
-        else if let Str(value-> url)  = cfg {
+        } else if let Str(value-> url) = cfg {
             self:.parseStr(url);
             self._valid = true;
         }
-
         // a table declaring the right key, but not with a string, otherwise falls in the generic
         // message below, which says nothing about the key that is actually at fault
         else if let Ok(_) = cfg["local"]? {
             throw copy AssertError(entry ~ " is invalid: 'local' must be a string, the path of a local package");
-        }
-
-        else if let Ok(_) = cfg["git"]? {
+        } else if let Ok(_) = cfg["git"]? {
             throw copy AssertError(entry ~ " is invalid: 'git' must be a string, the remote of a git repository");
-        }
-
-        else throw copy AssertError(entry ~ " is invalid: expecting a string like \"git:<remote>\" or \"local:<path>\", "
-                                    ~ "or a table declaring a 'git' or a 'local' entry");
+        } else
+            throw copy AssertError(entry ~ " is invalid: expecting a string like \"git:<remote>\" or \"local:<path>\", "
+                                   ~ "or a table declaring a 'git' or a 'local' entry");
     }
 
     /*!
@@ -193,14 +184,10 @@ pub record Url {
         if startsWith(url, UrlStarts::LOCAL) {
             self._path = Path(url[UrlStarts::LOCAL.len .. $]);
             self._type = UrlType::LOCAL;
-        }
-
-        else if (startsWith(url, UrlStarts::GIT)) {
+        } else if (startsWith(url, UrlStarts::GIT)) {
             self._path = Path(url[UrlStarts::GIT.len .. $]);
             self._type = UrlType::GIT;
-        }
-
-        else {
+        } else {
             self._path = Path(url);
             self._type = UrlType::GIT;
         }
@@ -233,5 +220,4 @@ pub record Url {
             d
         }
     }
-
 }

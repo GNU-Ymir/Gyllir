@@ -1,0 +1,226 @@
+use ::repo::fixture;
+
+use gyllir::{config::_, utils::_};
+use gyllir::repo::{bump, defaults};
+
+use std::{config::_, config::toml, fs::_};
+use std::concurrency::process;
+
+/**
+ * A project whose version can be bumped: its sources, its 'gyllir.toml' and a git repository
+ * holding them
+ * @params:
+ *    - version: the version the project starts at
+ * @returns:
+ *    - .0: the root directory of the project
+ *    - .1: its configuration
+ * */
+fn mkBumpableProject(version: Version = Version(1u32, 0u32, 0u32))-> (Path, GyllirPackageConfiguration)
+    throws FsError, GitError, AssertError
+{
+    let dir = mkExecutableProject("myapp");
+    let cfg = GyllirPackageConfiguration("myapp",
+                                         "MIT",
+                                         "an integration test project",
+                                         BuildType("executable"),
+                                         Url("local:some/registry"),
+                                         version,
+                                         []);
+    writeToml(dir, cfg);
+    gitInit(dir);
+
+    (dir, cfg)
+}
+
+/**
+ * The command line of a bump
+ * @params:
+ *    - flags: the name of the boolean flags to set to true
+ *    - set: the value of '--set', "" for none
+ *    - message: the value of '--message', "" for none
+ * */
+fn mkBumpArgs(flags: [[c8]] = [], set: [c8] = "", message: [c8] = "")-> &Config {
+    let dmut d = copy Dict();
+    for f in flags {
+        d[f] = copy Bool(true);
+    }
+
+    if (set != "") { d["set"] = copy Str(set); }
+    if (message != "") { d["message"] = copy Str(message); }
+
+    d
+}
+
+/**
+ * @returns: true iif the shell command 'cmd' succeeds in 'dir'
+ * */
+fn sh(dir: Path, cmd: [c8])-> bool
+    throws FsError
+{
+    let dmut proc = copy SubProcess("sh", copy ["-c", cmd], cwd-> dir);
+    proc:.start();
+
+    proc:.wait() == 0
+}
+
+/**
+ * @returns: the message of the error thrown by bumping the project in 'dir', "" if none was thrown
+ * */
+fn bumpError(dir: Path, args: &Config, cfg: GyllirPackageConfiguration)-> [c8] {
+    let mut msg = "";
+    {
+        RepoBumper(dir, args, cfg).run();
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+        _               => { msg = "not an AssertError"; }
+    }
+
+    msg
+}
+
+__test bump_defaults_to_patch_and_touches_nothing_else {
+    // Without any flag, the patch number is bumped, and nothing is committed nor tagged
+    let (dir, cfg) = mkBumpableProject();
+    let head       = GitManager(cwd-> dir).getCommitSha();
+
+    RepoBumper(dir, mkBumpArgs(), cfg).run();
+
+    assert(readVersion(dir) == Version(1u32, 0u32, 1u32), "a default bump should bump the patch number");
+    assert(GitManager(cwd-> dir).getCommitSha() == head, "nothing should have been committed");
+    assert(!GitManager(cwd-> dir).hasTag("v1.0.1"), "nothing should have been tagged");
+}
+
+__test bump_major_minor_and_patch {
+    // "--major", "--minor" and "--patch" bump their own number, resetting the ones below it
+    let start = Version(1u32, 2u32, 3u32);
+    for bump in [("major", "2.0.0"), ("minor", "1.3.0"), ("patch", "1.2.4")] {
+        let (dir, cfg) = mkBumpableProject(version-> start);
+        RepoBumper(dir, mkBumpArgs(flags-> copy [bump.0]), cfg).run();
+
+        assert(readVersion(dir)[] == bump.1, "unexpected version after a " ~ bump.0 ~ " bump: " ~ readVersion(dir)[]);
+    }
+}
+
+__test bump_set_writes_the_given_version {
+    // "--set" writes the version it names instead of incrementing the current one
+    let (dir, cfg) = mkBumpableProject();
+    RepoBumper(dir, mkBumpArgs(set-> "3.1.4"), cfg).run();
+
+    assert(readVersion(dir) == Version(3u32, 1u32, 4u32), "the version given to --set should be written");
+}
+
+__test bump_set_rejects_named_and_current_versions {
+    // "--set" only accepts a numbered version, other than the one the package is already at; and
+    // a rejected one leaves the configuration untouched
+    let (dir, cfg) = mkBumpableProject();
+
+    let named = bumpError(dir, mkBumpArgs(set-> "master"), cfg);
+    assert(named == "'master' is not a numbered version, for example: --set 1.2.0", "unexpected error: " ~ named);
+
+    let same = bumpError(dir, mkBumpArgs(set-> "1.0.0"), cfg);
+    assert(same == "the package is already at version 1.0.0", "unexpected error: " ~ same);
+
+    assert(readVersion(dir) == Version(1u32, 0u32, 0u32), "a rejected bump should leave the configuration untouched");
+}
+
+__test bump_named_version_is_an_error {
+    // A named version has no number to increment: that is reported, rather than silently writing
+    // the same version back, and '--set' is the way out of it
+    let (dir, cfg) = mkBumpableProject(version-> Version("master"));
+
+    let msg = bumpError(dir, mkBumpArgs(flags-> copy ["minor"]), cfg);
+    assert(msg
+           == "the version 'master' of the package is not numbered, there is nothing to increment: "
+              ~ "set one with --set, for example: --set 0.1.0",
+           "unexpected error: " ~ msg);
+    assert(readVersion(dir) == Version("master"), "a rejected bump should leave the configuration untouched");
+
+    RepoBumper(dir, mkBumpArgs(set-> "0.1.0"), cfg).run();
+    assert(readVersion(dir) == Version(0u32, 1u32, 0u32), "--set should give a numbered version to a named one");
+}
+
+__test bump_dry_changes_nothing {
+    // "--dry" only reports the new version: the configuration is not written, even with "--tag"
+    let (dir, cfg) = mkBumpableProject();
+    let head       = GitManager(cwd-> dir).getCommitSha();
+
+    RepoBumper(dir, mkBumpArgs(flags-> copy ["dry", "minor", "tag"]), cfg).run();
+
+    assert(readVersion(dir) == Version(1u32, 0u32, 0u32), "a dry bump should not write the configuration");
+    assert(GitManager(cwd-> dir).getCommitSha() == head, "a dry bump should not commit");
+    assert(!GitManager(cwd-> dir).hasTag("v1.1.0"), "a dry bump should not tag");
+}
+
+__test bump_commit_only_commits_the_configuration {
+    // "--commit" commits the bumped configuration, under a default message, and nothing else of
+    // the working tree
+    let (dir, cfg) = mkBumpableProject();
+    writeSource(dir.push("notes.txt"), "not part of the bump");
+
+    RepoBumper(dir, mkBumpArgs(flags-> copy ["commit"]), cfg).run();
+
+    assert(sh(dir, "git diff --quiet HEAD -- " ~ defaults::__GYLLIR_CONFIG_FILENAME__),
+           "the bumped configuration should be committed");
+    assert(sh(dir, "test \"$(git log -1 --format=%s)\" = 'chore: bump version 1.0.0 -> 1.0.1'"),
+           "unexpected commit message");
+    assert(!sh(dir, "git ls-files --error-unmatch notes.txt"), "the rest of the working tree should not be committed");
+    assert(!GitManager(cwd-> dir).hasTag("v1.0.1"), "--commit alone should not tag");
+}
+
+__test bump_tag_commits_and_tags_the_new_version {
+    // "--tag" implies "--commit", and tags that very commit; "--message" replaces the default one
+    let (dir, cfg) = mkBumpableProject();
+
+    RepoBumper(dir, mkBumpArgs(flags-> copy ["tag", "major"], message-> "release 2"), cfg).run();
+
+    assert(GitManager(cwd-> dir).hasTag("v2.0.0"), "the new version should be tagged");
+    assert(sh(dir, "test \"$(git rev-parse 'v2.0.0^{commit}')\" = \"$(git rev-parse HEAD)\""),
+           "the tag should point at the bump commit");
+    assert(sh(dir, "test \"$(git log -1 --format=%s)\" = 'release 2'"),
+           "the message given to --message should be used");
+    assert(sh(dir, "git diff --quiet HEAD -- " ~ defaults::__GYLLIR_CONFIG_FILENAME__),
+           "the bumped configuration should be committed");
+}
+
+__test bump_existing_tag_is_an_error_before_anything_is_written {
+    // A tag that already exists is reported before the configuration is written or committed
+    let (dir, cfg) = mkBumpableProject();
+    GitManager(cwd-> dir).createTag("v1.0.1");
+    let head = GitManager(cwd-> dir).getCommitSha();
+
+    let msg = bumpError(dir, mkBumpArgs(flags-> copy ["tag"]), cfg);
+
+    assert(msg == "tag 'v1.0.1' already exists", "unexpected error: " ~ msg);
+    assert(readVersion(dir) == Version(1u32, 0u32, 0u32), "the configuration should be left untouched");
+    assert(GitManager(cwd-> dir).getCommitSha() == head, "nothing should have been committed");
+}
+
+__test bump_round_trips_the_rest_of_the_configuration {
+    // The rewritten configuration reads back as the original one, but for its version: neither the
+    // targets, nor the dependencies, nor any other entry is lost or changed on the way
+    let dep = mkLibraryProject();
+    for cfg in [mkMultiTargetConfig(), mkConfigWithDependency("app", "executable", "mylib", dep, version-> ">=1.0.0")] {
+        let dir = sys::tempDirectory(prefix-> "gyllir_bump_");
+        writeToml(dir, cfg);
+
+        let bumper  = RepoBumper(dir, mkBumpArgs(flags-> copy ["minor"]), cfg);
+        let written = bumper.write(bumper.nextVersion());
+
+        let mut expected = cfg;
+        expected:.setVersion(cfg.version.increment(major-> false, minor-> true));
+
+        assert(written.version == expected.version, "the configuration written should hold the new version");
+        assert(toml::dump(readToml(dir).serialize()) == toml::dump(expected.serialize()),
+               "the configuration should read back unchanged, but for its version");
+    }
+}
+
+__test bump_tag_name_parses_back_to_the_version {
+    // The tag marking a version is the one a dependency resolution parses back into that version
+    let (dir, cfg) = mkBumpableProject();
+    let bumper     = RepoBumper(dir, mkBumpArgs(), cfg);
+    let v          = Version(1u32, 4u32, 2u32);
+
+    assert(bumper.tagName(v) == "v1.4.2", "unexpected tag name: " ~ bumper.tagName(v));
+    assert(Version(bumper.tagName(v)) == v, "the tag name should parse back to the version it marks");
+}

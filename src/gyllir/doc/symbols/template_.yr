@@ -17,12 +17,12 @@ pub class TemplateParam {
 @final
 pub class Template over Symbol {
 
-    pub let mut test: [c8] = [];
+    pub let mut test: [c8]               = [];
     pub let mut params: [&TemplateParam] = [];
-    pub let mut inners: [&Symbol] = [];
+    pub let mut inners: [&Symbol]        = [];
 
     pub self (name: [c8], doc: [c8], loc: Location, protection: Protection)
-        with super (name, doc, loc, protection)
+        with super(name, doc, loc, protection)
     {}
 
     impl Streamable {

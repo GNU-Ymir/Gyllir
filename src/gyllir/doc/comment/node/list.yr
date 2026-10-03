@@ -7,7 +7,7 @@ pub class CommentList over CommentNode {
 
     pub over dumpHtml(self, dmut stream: &StringStream) {
         stream:.write("<ul>");
-        for i in self._childrens  {
+        for i in self._childrens {
             i.dumpHtml(alias stream);
         }
         stream:.write("</ul>");

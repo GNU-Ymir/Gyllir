@@ -1,6 +1,5 @@
 in utf;
 
-
 lazy ESCAPE_CHARS = copy ['a' => 7u8,
                           'b' => 8u8,
                           'f' => 12u8,
@@ -12,11 +11,10 @@ lazy ESCAPE_CHARS = copy ['a' => 7u8,
                           '\'' => 39u8,
                           '\"' => 34u8];
 
-
 pub fn escapeChars(content: [c8])-> [c8] {
     let dmut stream: [c8] = [];
-    let mut it = 0us;
-    let mut cutStars = true;
+    let mut it            = 0us;
+    let mut cutStars      = true;
     while it < content.len {
         if (content[it] == '\\') {
             if (it + 1us < content.len) {
@@ -38,8 +36,7 @@ pub fn escapeChars(content: [c8])-> [c8] {
         it += 1us;
 
         if (stream.len > 0) {
-            if (stream[$ - 1] == '\n') { cutStars = true; }
-            else if (stream[$ - 1] != ' ') { cutStars = false; }
+            if (stream[$ - 1] == '\n') { cutStars = true; } else if (stream[$ - 1] != ' ') { cutStars = false; }
         }
     }
 

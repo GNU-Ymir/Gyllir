@@ -4,8 +4,8 @@ use std::stream;
 
 @final
 pub class TemplateOfVarParam over TemplateParam {
-    pub let var: [c8] = [];
-    pub let kind: [c8] = [];
+    pub let var: [c8]     = [];
+    pub let kind: [c8]    = [];
     pub let content: [c8] = [];
 
     pub self (var: [c8], kind: [c8], content: [c8])
@@ -19,5 +19,4 @@ pub class TemplateOfVarParam over TemplateParam {
             stream:.write(self.var, " ", self.kind, " ", self.content);
         }
     }
-
 }

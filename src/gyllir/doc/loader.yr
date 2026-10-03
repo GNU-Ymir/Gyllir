@@ -5,7 +5,6 @@ use gyllir::doc::symbols::{_, template_::_};
 
 use std::config::data;
 
-
 pub record SymbolLoader {
 
     /**
@@ -19,19 +18,19 @@ pub record SymbolLoader {
     pub fn load(self, config: &Config)-> &Symbol {
         if let d: &Dict = config && "kind" in d {
             if let Ok(x) = d["kind"]? match x {
-                Str(value-> "module") => { return self.loadModule(d); }
+                Str(value-> "module")   => { return self.loadModule(d); }
                 Str(value-> "function") => { return self.loadFunction(d); }
-                Str(value-> "method") => { return self.loadMethod(d); }
-                Str(value-> "ctor") => { return self.loadCtor(d); }
-                Str(value-> "class") => { return self.loadClass(d); }
-                Str(value-> "entity") => { return self.loadClass(d, isEntity-> true); }
-                Str(value-> "record") => { return self.loadClass(d, isRecord-> true); }
+                Str(value-> "method")   => { return self.loadMethod(d); }
+                Str(value-> "ctor")     => { return self.loadCtor(d); }
+                Str(value-> "class")    => { return self.loadClass(d); }
+                Str(value-> "entity")   => { return self.loadClass(d, isEntity-> true); }
+                Str(value-> "record")   => { return self.loadClass(d, isRecord-> true); }
                 Str(value-> "template") => { return self.loadTemplate(d); }
-                Str(value-> "trait") => { return self.loadTrait(d); }
-                Str(value-> "enum") => { return self.loadEnum(d); }
-                Str(value-> "global") => { return self.loadGlobal(d); }
-                Str(value-> "def") => { return self.loadDef(d); }
-                Str(value-> "macro") => { return self.loadMacro(d); }
+                Str(value-> "trait")    => { return self.loadTrait(d); }
+                Str(value-> "enum")     => { return self.loadEnum(d); }
+                Str(value-> "global")   => { return self.loadGlobal(d); }
+                Str(value-> "def")      => { return self.loadDef(d); }
+                Str(value-> "macro")    => { return self.loadMacro(d); }
                 Str(value-> kind) => {
                     utils::log::warn("Warning", "undefined symbol kind: '", kind, "'");
                 }
@@ -54,7 +53,7 @@ pub record SymbolLoader {
      * */
     fn loadModule(self, module: &Dict)-> &Module {
         let (name, doc, loc, protection) = self.loadStandard(module);
-        let dmut result = copy Module(name, doc, loc, protection);
+        let dmut result                  = copy Module(name, doc, loc, protection);
 
         if let Ok(ch) = module["childs"]? match ch {
             a: &Array => {
@@ -78,13 +77,12 @@ pub record SymbolLoader {
      * ====================================================================================================
      */
 
-
     /**
      * Load a configuration of a function documentation
      * */
     fn loadFunction(self, func: &Dict)-> &Function {
         let (name, doc, loc, protection) = self.loadStandard(func);
-        let dmut result = copy Function(name, doc, loc, protection);
+        let dmut result                  = copy Function(name, doc, loc, protection);
 
         result.parameters = self.loadParams(func);
         if let Ok(attrs: &Array) = func["attributes"]? {
@@ -107,7 +105,7 @@ pub record SymbolLoader {
      * */
     fn loadCtor(self, func: &Dict)-> &Ctor {
         let (name, doc, loc, protection) = self.loadStandard(func);
-        let dmut result = copy Ctor(name, doc, loc, protection);
+        let dmut result                  = copy Ctor(name, doc, loc, protection);
 
         result.parameters = self.loadParams(func);
         if let Ok(attrs: &Array) = func["attributes"]? {
@@ -125,21 +123,19 @@ pub record SymbolLoader {
      * */
     fn loadMethod(self, func: &Dict)-> &Method {
         let (name, doc, loc, protection) = self.loadStandard(func);
-        let dmut result = copy Method(name, doc, loc, protection);
+        let dmut result                  = copy Method(name, doc, loc, protection);
 
         result.parameters = self.loadParams(func);
         if let Ok(attrs: &Array) = func["attributes"]? {
             for a in attrs[] match a {
-                Str(value-> "unsafe") => { result.isUnsafe = true; }
-                Str(value-> "field") => { result.isField = true; }
-                Str(value-> "final") => { result.isFinal = true; }
+                Str(value-> "unsafe")   => { result.isUnsafe = true; }
+                Str(value-> "field")    => { result.isField = true; }
+                Str(value-> "final")    => { result.isFinal = true; }
                 Str(value-> "abstract") => { result.isEmpty = true; }
             }
         }
 
-        result.isMutable = if let Ok(Str(value-> "true")) = func["mutable"]? {
-            true
-        } else { false };
+        result.isMutable = self.isTrue(func, "mutable");
 
         result.throwers = self.loadThrowers(func);
         if let Ok(d: &Dict) = func["ret_type"]? {
@@ -157,19 +153,17 @@ pub record SymbolLoader {
         if let Ok(params: &Array) = func["params"]? {
             for a in params[] {
                 let (name, doc, loc, protection) = self.loadStandard(a);
-                let dmut var = copy Variable(name, doc, loc, protection);
+                let dmut var                     = copy Variable(name, doc, loc, protection);
 
-                if let Ok(type: &Dict) =  a["type"]? { var.type = self.loadType(type); }
-                if let Ok(Str(value-> "true")) = a["ref"]? { var.isRef = true; }
-                if let Ok(Str(value-> "true")) = a["lazy"]? { var.isLazy = true; }
+                if let Ok(type: &Dict) = a["type"]? { var.type = self.loadType(type); }
+                if self.isTrue(a, "ref") { var.isRef = true; }
+                if self.isTrue(a, "lazy") { var.isLazy = true; }
                 if let Ok(Str(value-> default)) = a["value"]? { var.defaultValue = default; }
 
-                if let Ok(Str(value-> m)) =  a["mutability"]? {
-                    var.isMut = (if (m == "mut") { true }
-                                 else { false });
+                if let Ok(Str(value-> m)) = a["mutability"]? {
+                    var.isMut = (if (m == "mut") { true } else { false });
 
-                    var.isDMut = (if (m == "dmut") { true }
-                                  else { false });
+                    var.isDMut = (if (m == "dmut") { true } else { false });
                 }
 
                 vars ~= [var];
@@ -206,13 +200,13 @@ pub record SymbolLoader {
      * */
     fn loadClass(self, cl: &Dict, isEntity: bool = false, isRecord: bool = false)-> &ClassSymbol {
         let (name, doc, loc, protection) = self.loadStandard(cl);
-        let dmut result = copy ClassSymbol(name, doc, loc, protection);
+        let dmut result                  = copy ClassSymbol(name, doc, loc, protection);
         result.isEntity = isEntity;
         result.isRecord = isRecord;
 
-        if let Ok(Str(value-> "true")) = cl["has_dtor"]? { result.hasDtor = true; }
-        if let Ok(Str(value-> "true")) = cl["abstract"]? { result.isAbstract = true; }
-        if let Ok(Str(value-> "true")) = cl["final"]? { result.isFinal = true; }
+        if self.isTrue(cl, "has_dtor") { result.hasDtor = true; }
+        if self.isTrue(cl, "abstract") { result.isAbstract = true; }
+        if self.isTrue(cl, "final") { result.isFinal = true; }
         if let Ok(anc: &Dict) = cl["ancestor"]? { result.ancestor = self.loadType(anc); }
 
         if let Ok(arr: &Array) = cl["fields"]? {
@@ -280,18 +274,16 @@ pub record SymbolLoader {
      * */
     fn loadField(self, fi: &Dict)-> &Variable {
         let (name, doc, loc, protection) = self.loadStandard(fi);
-        let dmut var = copy Variable(name, doc, loc, protection);
+        let dmut var                     = copy Variable(name, doc, loc, protection);
 
-        if let Ok(type: &Dict) =  fi["type"]? { var.type = self.loadType(type); }
-        if let Ok(Str(value-> "true")) = fi["ref"]? { var.isRef = true; }
-        if let Ok(Str(value-> "true")) = fi["lazy"]? { var.isLazy = true; }
+        if let Ok(type: &Dict) = fi["type"]? { var.type = self.loadType(type); }
+        if self.isTrue(fi, "ref") { var.isRef = true; }
+        if self.isTrue(fi, "lazy") { var.isLazy = true; }
         if let Ok(Str(value-> default)) = fi["value"]? { var.defaultValue = default; }
 
-        if let Ok(Str(value-> m)) =  fi["mutability"]? {
-            var.isMut = (if (m == "mut") { true }
-                         else { false });
-            var.isDMut = (if (m == "dmut") { true }
-                          else { false });
+        if let Ok(Str(value-> m)) = fi["mutability"]? {
+            var.isMut = (if (m == "mut") { true } else { false });
+            var.isDMut = (if (m == "dmut") { true } else { false });
         }
 
         var
@@ -336,7 +328,6 @@ pub record SymbolLoader {
         (type, condition)
     }
 
-
     /*!
      * ====================================================================================================
      * ====================================================================================================
@@ -350,7 +341,7 @@ pub record SymbolLoader {
      * */
     fn loadTrait(self, tr: &Dict)-> &TraitSymbol {
         let (name, doc, loc, protection) = self.loadStandard(tr);
-        let dmut result = copy TraitSymbol(name, doc, loc, protection);
+        let dmut result                  = copy TraitSymbol(name, doc, loc, protection);
 
         if let Ok(arr: &Array) = tr["methods"]? {
             for a in arr[] if let d: &Dict = a {
@@ -385,7 +376,7 @@ pub record SymbolLoader {
      * */
     fn loadEnum(self, en: &Dict)-> &EnumSymbol {
         let (name, doc, loc, protect) = self.loadStandard(en);
-        let dmut result = copy EnumSymbol(name, doc, loc, protect);
+        let dmut result               = copy EnumSymbol(name, doc, loc, protect);
 
         if let Ok(et: &Dict) = en["type"]? {
             result.type = self.loadType(et);
@@ -425,13 +416,13 @@ pub record SymbolLoader {
      * */
     fn loadGlobal(self, glb: &Dict)-> &Global {
         let (name, doc, loc, protect) = self.loadStandard(glb);
-        let dmut result = copy Global(name, doc, loc, protect);
+        let dmut result               = copy Global(name, doc, loc, protect);
 
-        if let Ok(Str(value-> "true")) = glb["thread_local"]? {
+        if self.isTrue(glb, "thread_local") {
             result.isThreadLocal = true;
         }
 
-        if let Ok(Str(value-> "true")) = glb["static"]? {
+        if self.isTrue(glb, "static") {
             result.isStatic = true;
         }
 
@@ -463,7 +454,7 @@ pub record SymbolLoader {
      * */
     fn loadDef(self, def_: &Dict)-> &Def {
         let (name, doc, loc, protect) = self.loadStandard(def_);
-        let dmut result = copy Def(name, doc, loc, protect);
+        let dmut result               = copy Def(name, doc, loc, protect);
 
         if let Ok(Str(value-> value)) = def_["value"]? {
             result.isValue = true;
@@ -489,7 +480,7 @@ pub record SymbolLoader {
      * */
     fn loadMacro(self, m: &Dict)-> &Macro {
         let (name, doc, loc, protect) = self.loadStandard(m);
-        let dmut result = copy Macro(name, doc, loc, protect);
+        let dmut result               = copy Macro(name, doc, loc, protect);
 
         if let Ok(arr: &Array) = m["ctors"]? {
             for a in arr[] if let d: &Dict = a {
@@ -511,7 +502,7 @@ pub record SymbolLoader {
      * */
     fn loadMacroRule(self, m: &Dict)-> &MacroRule {
         let (name, doc, loc, protect) = self.loadStandard(m);
-        let dmut result = copy MacroRule(name, doc, loc, protect);
+        let dmut result               = copy MacroRule(name, doc, loc, protect);
 
         if let Ok(Str(value-> "ctor")) = m["kind"]? {
             result.isCtor = true;
@@ -545,7 +536,7 @@ pub record SymbolLoader {
      * */
     fn loadTemplate(self, tmpl: &Dict)-> &Template {
         let (name, doc, loc, protection) = self.loadStandard(tmpl);
-        let dmut result = copy Template(name, doc, loc, protection);
+        let dmut result                  = copy Template(name, doc, loc, protection);
         result.params = self.loadTemplateParams(tmpl);
 
         if let Ok(Str(value-> test)) = tmpl["test"]? {
@@ -582,7 +573,7 @@ pub record SymbolLoader {
      * */
     fn loadTemplateParam(self, param: &Dict)-> &TemplateParam {
         if let Ok(x) = param["kind"]? match x {
-            Str(value-> "and") => return self.loadTemplateAndParam(param);
+            Str(value-> "and")                                             => return self.loadTemplateAndParam(param);
             Str(value-> "of" | "over" | "impl") => return self.loadTemplateOfVarParam(param);
             Str(value-> "class" | "record" | "entity" | "tuple" | "alias") => return self.loadTemplateVarParam(param);
             Str(value-> "variadic") => return self.loadTemplateVariadicParam(param);
@@ -649,9 +640,7 @@ pub record SymbolLoader {
             content
         } else { "" };
 
-        let isValue = if let Ok(Str(value-> "true")) = param["value"]? {
-            true
-        } else { false };
+        let isValue = self.isTrue(param, "value");
 
         copy TemplateVariadicParam(var, isValue)
     }
@@ -684,19 +673,19 @@ pub record SymbolLoader {
         } else { "" };
 
         if let Ok(x) = ty["kind"]? match x {
-            Str(value-> "fptr") => { return self.loadFuncPtrType(ty, mutability, isDelegate-> false); }
+            Str(value-> "fptr")     => { return self.loadFuncPtrType(ty, mutability, isDelegate-> false); }
             Str(value-> "delegate") => { return self.loadFuncPtrType(ty, mutability, isDelegate-> true); }
-            Str(value-> "array") => { return self.loadArrayType(ty, mutability); }
-            Str(value-> "class") => { return self.loadClassType(ty, mutability); }
-            Str(value-> "record") => { return self.loadClassType(ty, mutability, isRecord-> true); }
-            Str(value-> "entity") => { return self.loadClassType(ty, mutability, isEntity-> true); }
-            Str(value-> "enum") => { return self.loadEnumType(ty, mutability); }
-            Str(value-> "option") => { return self.loadOptionType(ty, mutability); }
-            Str(value-> "pointer") => { return self.loadPointerType(ty, mutability); }
-            Str(value-> "range") => { return self.loadRangeType(ty, mutability); }
-            Str(value-> "slice") => { return self.loadSliceType(ty, mutability); }
-            Str(value-> "tuple") => { return self.loadTupleType(ty, mutability); }
-            Str(value-> "map") => { return self.loadMapType(ty, mutability); }
+            Str(value-> "array")    => { return self.loadArrayType(ty, mutability); }
+            Str(value-> "class")    => { return self.loadClassType(ty, mutability); }
+            Str(value-> "record")   => { return self.loadClassType(ty, mutability, isRecord-> true); }
+            Str(value-> "entity")   => { return self.loadClassType(ty, mutability, isEntity-> true); }
+            Str(value-> "enum")     => { return self.loadEnumType(ty, mutability); }
+            Str(value-> "option")   => { return self.loadOptionType(ty, mutability); }
+            Str(value-> "pointer")  => { return self.loadPointerType(ty, mutability); }
+            Str(value-> "range")    => { return self.loadRangeType(ty, mutability); }
+            Str(value-> "slice")    => { return self.loadSliceType(ty, mutability); }
+            Str(value-> "tuple")    => { return self.loadTupleType(ty, mutability); }
+            Str(value-> "map")      => { return self.loadMapType(ty, mutability); }
             Str(value-> "scalar") => {
                 let name = if let Ok(Str(value-> name)) = ty["name"]? {
                     name
@@ -721,8 +710,8 @@ pub record SymbolLoader {
      * */
     fn loadFuncPtrType(self, d: &Dict, mutability: [c8], isDelegate: bool)-> &Type {
         let mut params: [mut &Type] = [];
-        let mut refs: [mut bool] = [];
-        let mut lazys: [mut bool] = [];
+        let mut refs: [mut bool]    = [];
+        let mut lazys: [mut bool]   = [];
         if let Ok(a: &Array) = d["params"]? {
             for i in a[] if let inner: &Dict = i {
                 params ~= [self.loadType(inner)];
@@ -730,15 +719,11 @@ pub record SymbolLoader {
         }
 
         if let Ok(a: &Array) = d["refs"]? {
-            for i in a[] if let Str(value-> b) = i {
-                refs ~= [b == "true"];
-            }
+            for i in a[] { refs ~= [self.isTrueValue(i)]; }
         }
 
         if let Ok(a: &Array) = d["lazys"]? {
-            for i in a[] if let Str(value-> b) = i {
-                lazys ~= [b == "true"];
-            }
+            for i in a[] { lazys ~= [self.isTrueValue(i)]; }
         }
 
         if (params.len != refs.len || params.len != lazys.len) {
@@ -819,9 +804,11 @@ pub record SymbolLoader {
     fn loadTupleType(self, d: &Dict, mutability: [c8])-> &Type {
         let mut inners: [mut &Type] = [];
         if let Ok(inner: &Array) = d["inners"]? {
-            for a in inner[] if let i: &Dict = a {
-                inners ~= [self.loadType(i)];
-            } else { inners ~= [EMPTY_ANY]; }
+            for a in inner[] {
+                if let i: &Dict = a {
+                    inners ~= [self.loadType(i)];
+                } else { inners ~= [EMPTY_ANY]; }
+            }
         }
 
         copy TupleType(mutability, inners)
@@ -835,9 +822,8 @@ pub record SymbolLoader {
             name
         } else { "" };
 
-        let innerMut = if let Ok(Str(value-> m)) =  d["mutability"]? {
-            if (m == "dmut") { true }
-            else { false }
+        let innerMut = if let Ok(Str(value-> m)) = d["mutability"]? {
+            if (m == "dmut") { true } else { false }
         } else { false };
 
         copy ClassType(name, mutability, innerMut, isEntity-> isEntity, isRecord-> isRecord)
@@ -884,7 +870,27 @@ pub record SymbolLoader {
     /**
      * Load the standard information of a symbol
      * */
-    fn loadStandard(self, cfg: &Config, defaultProtection: Protection = Protection::PRV)-> ([c8], [c8], Location, Protection) {
+    /**
+     * @returns: true iif the entry 'key' of 'cfg' is true (see 'isTrueValue')
+     * */
+    fn isTrue(self, cfg: &Config, key: [c8])-> bool {
+        if let Ok(v) = cfg[key]? { return self.isTrueValue(v); }
+        false
+    }
+
+    /**
+     * @returns: true iif 'value' is true, as a boolean or as the string "true" older compilers wrote
+     * */
+    fn isTrueValue(self, value: &Config)-> bool {
+        if let Bool(value-> _ = true) = value { return true; }
+        if let Str(value-> "true") = value { return true; }
+        false
+    }
+
+    fn loadStandard(self, cfg: &Config, defaultProtection: Protection = Protection::PRV)-> ([c8],
+                                                                                            [c8],
+                                                                                            Location,
+                                                                                            Protection) {
         if let doc: &Dict = cfg {
             let name = if let Ok(Str(value-> name)) = doc["name"]? {
                 name
@@ -894,11 +900,11 @@ pub record SymbolLoader {
                 file
             } else { "" };
 
-            let line = if let Ok(Int(value-> i)) = doc["loc_line"]?  {
+            let line = if let Ok(Int(value-> i)) = doc["loc_line"]? {
                 cast!u64(i)
             } else { 0 };
 
-            let col = if let Ok(Int(value-> i)) = doc["loc_col"]?  {
+            let col = if let Ok(Int(value-> i)) = doc["loc_col"]? {
                 cast!u64(i)
             } else { 0 };
 
@@ -907,9 +913,13 @@ pub record SymbolLoader {
             } else { "" };
 
             let protect = if let Ok(Str(value-> prt)) = doc["protect"]? {
-                if (prt == "pub") { Protection::PUB }
-                else if (prt == "prot") { Protection::PROT }
-                else { Protection::PRV }
+                if (prt == "pub") {
+                    Protection::PUB
+                } else if (prt == "prot") {
+                    Protection::PROT
+                } else {
+                    Protection::PRV
+                }
             } else { defaultProtection };
 
             return (name, comm, Location(filename, line, col), protect);

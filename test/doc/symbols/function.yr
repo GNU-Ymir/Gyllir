@@ -1,13 +1,9 @@
-use gyllir::doc::symbols::_;
-use gyllir::doc::symbols::function;
-use gyllir::doc::symbols::variable;
-use gyllir::doc::types::_;
-use gyllir::doc::types::scalar;
+use gyllir::doc::{symbols::_, symbols::function, symbols::variable, types::_, types::scalar};
 
 use std::stream;
 
 __test unsafe_function_with_thrower {
-    let loc = Location("foo.yr", 3u64, 5u64);
+    let loc    = Location("foo.yr", 3u64, 5u64);
     let dmut f = copy Function("bar", "docs", loc, Protection::PUB);
     f.retType = copy ScalarType("i32", "");
 
@@ -15,12 +11,13 @@ __test unsafe_function_with_thrower {
     f.parameters = copy [p];
 
     f.isUnsafe = true;
-    f.throwers = copy [cast!(&Type) (copy ScalarType("Err", ""))];
+    f.throwers = copy [cast!(&Type)(copy ScalarType("Err", ""))];
 
     let dmut stream = copy StringStream();
     stream:.write(f);
 
-    assert(stream[] == "Function bar => foo.yr:(3,5)\n\t@unsafe\n\tfn (x : Any ())-> Scalar (i32)\n\t\tthrows Scalar (Err)\n",
+    assert(stream[]
+           == "Function bar => foo.yr:(3,5)\n\t@unsafe\n\tfn (x : Any ())-> Scalar (i32)\n\t\tthrows Scalar (Err)\n",
            "unexpected rendering for an unsafe function with a thrower");
 }
 
@@ -39,9 +36,9 @@ __test inline_unsafe_function {
 
 __test function_default_fields {
     let name = "bar";
-    let doc = "some documentation";
-    let loc = Location("foo.yr", 1u64, 1u64);
-    let f = copy Function(name, doc, loc, Protection::PROT);
+    let doc  = "some documentation";
+    let loc  = Location("foo.yr", 1u64, 1u64);
+    let f    = copy Function(name, doc, loc, Protection::PROT);
 
     assert(f.name == name, "unexpected name");
     assert(f.doc == doc, "unexpected doc");

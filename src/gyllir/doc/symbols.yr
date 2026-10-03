@@ -1,6 +1,7 @@
 in symbols;
 
-use std::{stream, fs::path};
+use std::stream;
+use std::fs::path;
 
 pub mod ::class_;
 pub mod ::ctor;
@@ -23,7 +24,6 @@ pub enum Protection
 | PUB  = 0
 | PROT = 1
 | PRV  = 2;
-
 
 pub fn streamProtection(protect: Protection, dmut stream: &StringStream) {
     if protect == Protection::PUB {
@@ -69,5 +69,4 @@ pub class Symbol {
     {}
 
     impl Streamable;
-
 }

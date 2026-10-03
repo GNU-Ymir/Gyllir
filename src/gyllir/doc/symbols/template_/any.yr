@@ -15,5 +15,4 @@ pub class TemplateAnyParam over TemplateParam {
             stream:.write(self.content);
         }
     }
-
 }

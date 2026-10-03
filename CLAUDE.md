@@ -31,6 +31,16 @@ The branch currently checked out is generally named `GYL-<issue_number>-<short-d
 (e.g. `GYL-34-plane-ci`) — the `GYL-<issue_number>` part is the Plane work item key, so it
 can be used to look up the item this branch's work is tracked against.
 
+## Commit policy
+
+- split work in logical commits
+- rewrite history when a new commit is modifying something that was introduced by another commit
+  of the same branch
+- there's no need for tests to pass, and code to compile between commits, as long as the last
+  commit of the branch compiles and its tests succeed
+- don't add co-authors
+- commit messages are just one line long
+
 ## What this is
 
 Gyllir is the build system and package manager for GNU-Ymir (`gyc`) projects — the `cargo`/`dub`
@@ -78,8 +88,8 @@ Entry point `src/main.yr` constructs a `gyllir::repo::manager::GyllirManager` fr
 calls `run()`; every sub-command is dispatched and implemented from there.
 
 - `src/gyllir/args.yr` — `GyllirArgumentParser`, built on `std::config::ArgumentParser`: one
-  sub-parser per command (`init`, `build`, `run`, `test`, `clean`, `doc`, `publish`, `update`),
-  each returning a `&Config` of parsed flags consumed by the matching `repo/*.yr` runner.
+  sub-parser per command (`init`, `build`, `run`, `test`, `clean`, `doc`, `publish`, `bump`,
+  `update`), each returning a `&Config` of parsed flags consumed by the matching `repo/*.yr` runner.
 - `src/gyllir/config/` — the `gyllir.toml` schema, all `Serializable`/deserializable via
   `std::config`:
   - `config.yr` — `GyllirPackageConfiguration`: name, license, description, `compiler` (default
@@ -113,8 +123,14 @@ calls `run()`; every sub-command is dispatched and implemented from there.
   - `runner.yr` — `RepoRunner`: executes the built executable or test binary as a subprocess.
   - `cleaner.yr` — `RepoCleaner`: removes `.target/` outputs, optionally `__doc/` and resolved
     `.deps/` (recursively, reusing `manager.yr`'s dependency graph).
-  - `publisher.yr` — `RepoPublisher`: bumps `Version` (major/minor/patch) and pushes the new
-    version to the `registry` `Url` (`local:` or `git:`).
+  - `bump.yr` — `RepoBumper`: `gyllir bump`, the next `Version` (`--major`/`--minor`/`--patch`,
+    or `--set`) written back to `gyllir.toml`; committing (`gyllir.toml` alone) and tagging
+    (`v<version>`) are opt-in, and `--dry` changes nothing. A named version is an error, not a
+    silent no-op.
+  - `publisher.yr` — `RepoPublisher`: bumps `Version` through `RepoBumper` (`nextVersion`/
+    `write`, so the two cannot drift) and pushes the new version to the `registry` `Url`
+    (`local:` or `git:`). Note `publish --dry` means "skip building and testing", not what
+    `bump --dry` means.
   - `doc.yr` — `RepoDocBuilder`: entry point for `gyllir doc`, wiring `gyllir/doc/*` together.
   - `doc_server.yr` — `RepoDocServer`: `gyllir doc serve`, an `std::net` `HttpServer` over an
     already-generated documentation directory. Beyond the files, it answers `POST /symbol`
