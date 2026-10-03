@@ -459,6 +459,20 @@ __test doc_serve_with_every_option {
     } else assert(false, "-p should be parsed");
 }
 
+__test doc_serve_with_coverage {
+    // 'doc serve' renders the coverage pages too, with the same flags as 'doc'
+    let doc = sub(parse(copy ["gyllir", "doc", "serve", "--coverage-file", "cov.json", "cli"]), "doc");
+
+    assert(flag(doc, "serve"), "\"serve\" should be set");
+    assert(target(doc) == "cli", "the target should not be taken for the coverage file");
+    if let Ok(Str(value-> f)) = doc["coverage-file"]? {
+        assert(f == "cov.json", "--coverage-file should be parsed");
+    } else assert(false, "--coverage-file should be parsed");
+
+    let cov = sub(parse(copy ["gyllir", "doc", "serve", "--coverage"]), "doc");
+    assert(flag(cov, "coverage"), "--coverage should be parsed");
+}
+
 __test doc_serve_target_may_appear_among_flags {
     // 'doc serve' takes the same optional '<target>' as the other sub commands
     let doc = sub(parse(copy ["gyllir", "doc", "serve", "-p", "9090", "cli"]), "doc");

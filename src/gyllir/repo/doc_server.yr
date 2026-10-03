@@ -98,17 +98,15 @@ pub class RepoDocServer {
      * Answer any request by serving the matching file in the documentation directory, or a 404
      * */
     fn onRequest(self, rqt: HttpRequest)-> HttpResponse {
-        let outDir     = self.outputDir();
-        let mut fsPath = outDir;
-        let mut isRoot = true;
-        for p in rqt.url.parts() {
-            if (p == "" || p == "." || p == "..") continue;
-            fsPath = fsPath.push(p);
-            isRoot = false;
-        }
+        let mut fsPath = self.resolve(self.outputDir(), rqt.url);
 
-        if (isRoot || fs::sys::isDir(fsPath)) {
-            fsPath = fsPath.push("index.html");
+        // the site of a target sits in a sub directory of the documentation directory, next to the
+        // coverage pages ('../__coverage/' from its pages, '/__coverage/' once served) and the sites
+        // of the other targets the coverage pages link: what the served sub directory lacks is
+        // looked for there
+        if (!fs::sys::isFile(fsPath) && self.baseDir().toStr() != self.outputDir().toStr()) {
+            let fromBase = self.resolve(self.baseDir(), rqt.url);
+            if (fs::sys::isFile(fromBase)) { fsPath = fromBase; }
         }
 
         if (!fs::sys::isFile(fsPath)) {
@@ -129,6 +127,26 @@ pub class RepoDocServer {
         HttpResponse(200, body-> body, contentType-> self.contentType(fsPath))
     } catch {
         _ => self.errorPage(500, "Internal server error", "The documentation directory could not be read.")
+    }
+
+    /**
+     * @returns: the file a request url names in 'root' (its 'index.html' for a directory), the
+     *    '.' and '..' of the url ignored so nothing outside of 'root' can be reached
+     * */
+    fn resolve(self, root: Path, url: Path)-> Path {
+        let mut fsPath = root;
+        let mut isRoot = true;
+        for p in url.parts() {
+            if (p == "" || p == "." || p == "..") continue;
+            fsPath = fsPath.push(p);
+            isRoot = false;
+        }
+
+        if (isRoot || fs::sys::isDir(fsPath)) {
+            fsPath = fsPath.push("index.html");
+        }
+
+        fsPath
     }
 
     /**
@@ -253,16 +271,21 @@ pub class RepoDocServer {
      *   resolution as 'gyllir doc'
      * */
     fn outputDir(self)-> Path {
-        let baseDir = if let Ok(Str(value-> dir)) = self._args["output"]? {
+        if let Ok(Str(value-> t)) = self._args["target"]? {
+            self.baseDir().push(t)
+        } else {
+            self.baseDir()
+        }
+    }
+
+    /**
+     * @returns: the documentation directory, holding the site of every target and the coverage pages
+     * */
+    fn baseDir(self)-> Path {
+        if let Ok(Str(value-> dir)) = self._args["output"]? {
             Path(dir)
         } else {
             self._cwd.push(defaults::__DOC_DIR__)
-        };
-
-        if let Ok(Str(value-> t)) = self._args["target"]? {
-            baseDir.push(t)
-        } else {
-            baseDir
         }
     }
 }

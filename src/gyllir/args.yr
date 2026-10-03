@@ -492,9 +492,15 @@ pub class GyllirArgumentParser {
             :.help("help", short-> "h", comments-> "print this help and exit")
             :.option!{[c8]} ("output", short-> "o", comments-> "documentation directory to serve (default: '__doc')")
             :.option!{[c8]} ("host", comments-> "address to listen on (default: '127.0.0.1')")
-            :.option!{i32} ("port", short-> "p", comments-> "port to listen on (default: 8000)");
+            :.option!{i32} ("port", short-> "p", comments-> "port to listen on (default: 8000)")
+            :.flag("coverage",
+                   comments-> "also render and serve the coverage of the last unittest run ("
+                              ~ repo::defaults::__COVERAGE_DIR__ ~ "/ in the output directory)")
+            :.option!{[c8]} ("coverage-file",
+                             comments-> "coverage json file to render (default: the one of the last unittest run, "
+                                        ~ "implies --coverage)");
 
-        let (rest, target) = self.extractTarget(args, copy ["output", "o", "host", "port", "p"]);
+        let (rest, target) = self.extractTarget(args, copy ["output", "o", "host", "port", "p", "coverage-file"]);
         return ({
             self.withServe(self.withTarget(parser.parse(rest), target))
         } catch {

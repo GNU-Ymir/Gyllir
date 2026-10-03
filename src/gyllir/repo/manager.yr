@@ -104,6 +104,7 @@ pub class GyllirManager {
             if let Ok(Bool(value-> _ = true)) = c["serve"]? {
                 let cfg = self.loadToml(cwd);
                 self:.buildTargets(cwd, c, cfg, self.selectTargets(cfg, c), forDoc-> true);
+                if (coverageRequested(c)) { RepoCoverageBuilder(cwd, c, cfg).run(); }
                 (copy RepoDocServer(cwd, c, cfg)).run();
             } else if let Ok(Bool(value-> _ = true)) = c["coverage-only"]? {
                 RepoCoverageBuilder(cwd, c, self.tryLoadToml(cwd)).run();
