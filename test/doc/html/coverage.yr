@@ -1,0 +1,100 @@
+use gyllir::doc::{coverage, index};
+use gyllir::doc::html::coverage;
+
+use std::stream;
+use std::config::json;
+
+/**
+ * @returns: a report of a single file 'src/a.yr': line 1 reached, line 2 never, line 3 holding a
+ *    conditional only taken one way
+ * */
+prv fn sampleReport()-> &CoverageReport {
+    coverage::fromConfigs(copy [json #{
+        "functions" : [{
+            "file" : "src/a.yr", "func" : "a::f",
+            "locations" : [[1, 1, 0], [2, 1, 0], [3, 1, 0], [3, 5, 1], [3, 5, 2]],
+            "hits" : [3, 0, 1, 1, 0]
+        }]
+    }])
+}
+
+prv fn dump(node: &HtmlNode)-> [c8] {
+    let dmut stream = copy StringStream();
+    node.dumpHtml(alias stream);
+    stream[]
+}
+
+prv fn contains(content: [c8], what: [c8])-> bool {
+    if let Ok(_) = index::findSub(content, what) { return true; }
+    false
+}
+
+__test page_names_are_flat {
+    // The page of a source file is named after its path, flattened
+    assert(html::coverage::pageName("src/app/main.yr") == "src_app_main.yr", "unexpected page of a relative path");
+    assert(html::coverage::pageName("/usr/a b.yr") == "_usr_a_b.yr", "unexpected page of an absolute path");
+    assert(html::coverage::pageName("") == "_unknown", "unexpected page of an unnamed file");
+}
+
+__test levels_follow_the_terminal_report {
+    // The thresholds of the levels are the ones of the colors of the terminal report
+    assert(levelOf(3us, 3us) == "high", "100% is high");
+    assert(levelOf(4us, 5us) == "medium", "80% is medium");
+    assert(levelOf(3us, 4us) == "low", "75% is low");
+    assert(levelOf(0us, 0us) == "none", "nothing to cover has no level");
+}
+
+__test summary_lists_every_file_with_its_totals {
+    // The summary links the page of every file, and the totals of the report
+    let html = dump(copy CoverageSummary("myapp", sampleReport()));
+
+    assert(contains(html, "href=\"src_a.yr.html\""), "the summary should link the page of the file");
+    assert(contains(html, "2/3"), "the summary should give the lines covered out of the instrumented ones");
+    assert(contains(html, "66%"), "the summary should give the truncated percentage of the lines");
+    assert(contains(html, "0/1"), "the summary should give the conditionals taken both ways");
+}
+
+__test source_lines_are_annotated {
+    // Each line of the source is marked covered, not covered, or partially covered, and escaped
+    let report = sampleReport();
+    let html = dump(copy CoverageSource(report.files[0],
+                                        "let a = 1;\nlet b = a < 2;\nif (a) {}\n// not instrumented\n"));
+
+    assert(contains(html, "<tr class=\"cov-hit\" id=\"L1\">"), "line 1 should be covered");
+    assert(contains(html, "<tr class=\"cov-miss\" id=\"L2\">"), "line 2 should not be covered");
+    assert(contains(html, "<tr class=\"cov-partial\" id=\"L3\">"), "line 3 should be partially covered");
+    assert(contains(html, "<tr class=\"\" id=\"L4\">"), "line 4 should not be instrumented");
+    assert(contains(html, "a &lt; 2"), "the source should be escaped");
+    assert(!contains(html, "coverage-notice"), "a file that was read should have no notice");
+}
+
+__test unread_source_lists_covered_lines {
+    // A file whose source cannot be read still lists its coverable lines, with a notice
+    let report = sampleReport();
+    let html   = dump(copy CoverageSource(report.files[0], "", found-> false));
+
+    assert(contains(html, "coverage-notice"), "the page should tell the source could not be read");
+    assert(contains(html, "id=\"L3\""), "the coverable lines should be listed");
+    assert(!contains(html, "id=\"L4\""), "no line should be listed past the last coverable one");
+}
+
+__test page_lists_files_in_sidebar {
+    // Every page of the site lists the files of the report
+    let report = sampleReport();
+    let html   = dump(copy CoveragePage("myapp", "coverage", report, copy CoverageSummary("myapp", report)));
+
+    assert(contains(html, "<title>coverage</title>"), "the page should be titled");
+    assert(contains(html, "href=\"src_a.yr.html\" title=\"src/a.yr (66%)\""), "the sidebar should link the file");
+}
+
+__test page_links_the_documentation {
+    // The top bar of a page links the documentation it was given, and nothing else
+    let report = sampleReport();
+    let alone  = dump(copy CoveragePage("myapp", "coverage", report, copy CoverageSummary("myapp", report)));
+    assert(!contains(alone, "topbar-link"), "a page without documentation should link none");
+
+    let html = dump(copy CoveragePage("myapp", "coverage", report, copy CoverageSummary("myapp", report),
+                                      links-> copy [("Documentation", "../index.html")]));
+    assert(contains(html, "<a class=\"topbar-link\" href=\"../index.html\">Documentation</a>"),
+           "the page should link the documentation");
+}

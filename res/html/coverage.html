@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
+    <link href="./css/style.css" rel="stylesheet">
+    <link href="./css/highlight.css" rel="stylesheet">
+    <link href="./css/coverage.css" rel="stylesheet">
+
+    <link rel="icon" href="./ico/favicon.svg" type="image/svg+xml">
+    <link rel="alternate icon" href="./ico/favicon-32.png" sizes="32x32">
+
+    <title>$(Title)</title>
+  </head>
+  <body>
+
+    <header class="topbar">
+      <button type="button" class="sidebar-toggle" aria-label="Toggle navigation" aria-controls="sidebar">☰</button>
+      <a class="brand" href="index.html">$(Project) coverage</a>
+      $(Links)
+      <button type="button" class="theme-toggle" aria-label="Toggle theme">☾</button>
+    </header>
+
+    <div class="layout">
+      <nav class="sidebar" id="sidebar">
+        <section class="sidebar-section">
+          <h2>Files</h2>
+          <ul class="tree coverage-files">
+            $(Files)
+          </ul>
+        </section>
+      </nav>
+
+      <main class="content coverage">
+        $(Body)
+      </main>
+    </div><!-- /.layout -->
+
+    <footer class="site-footer">
+      <p>Generated with <a href="https://github.com/GNU-Ymir/Gyllir">Gyllir</a>.</p>
+    </footer>
+
+    <script>
+      window.GYLLIR_DOC = { title: "$(Title)" };
+    </script>
+
+    <script src="js/highlight.js"></script>
+    <script src="js/main.js"></script>
+    <script src="js/coverage.js"></script>
+
+  </body>
+</html>
