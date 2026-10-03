@@ -19,7 +19,7 @@ with `gyc --version`) — this repo does not build `gyc` itself, only the `gylli
 
 - `src/main.yr` — entry point, hands off to `gyllir::repo::manager::GyllirManager`.
 - `src/gyllir/args.yr` — CLI argument parsing (`GyllirArgumentParser`), one sub-parser per
-  command (`init`, `build`, `run`, `test`, `clean`, `doc`, `publish`).
+  command (`init`, `build`, `run`, `test`, `clean`, `doc`, `publish`, `bump`, `update`).
 - `src/gyllir/config/` — `gyllir.toml` schema: package metadata (`config.yr`), dependencies and
   version filters (`dependency.yr`, `version.yr`, `version/filter.yr`), dependency/registry URLs
   (`url.yr`, `local:`/`git:`), build type (`type.yr`), custom pre/post commands (`command.yr`).
@@ -34,8 +34,10 @@ with `gyc --version`) — this repo does not build `gyc` itself, only the `gylli
   - `runner.yr` — `gyllir run`/the run step of `gyllir test`: executes the built binary.
   - `cleaner.yr` — `gyllir clean`: removes generated outputs (`.target/`), docs (`__doc/`), and
     optionally resolved dependencies.
-  - `publisher.yr` — `gyllir publish`: bumps the package version and pushes it to the configured
-    registry (a `local:` or `git:` `Url`).
+  - `bump.yr` — `gyllir bump`: computes the next package version and writes it back to
+    `gyllir.toml`, optionally committing and tagging it.
+  - `publisher.yr` — `gyllir publish`: bumps the package version (through `bump.yr`) and pushes it
+    to the configured registry (a `local:` or `git:` `Url`).
   - `doc.yr` — `gyllir doc`: drives documentation generation (see below).
   - `defaults.yr` — shared filenames/paths/extensions (`gyllir.toml`, `.deps/`, `.target/`, ...).
 - `src/gyllir/doc/` — documentation generator: `comment/` parses doc comments into a small AST
@@ -102,6 +104,11 @@ tools/install.sh --destdir /pkg   # stage the layout under a directory instead, 
 - `gyllir update [--std] [dependency...]` — resolve the dependencies again and rewrite
   `gyllir.lock`, without compiling anything; naming none updates every one of them. `--std`
   updates the std lib resolved by `[std]`, which is never named positionally.
+- `gyllir bump [--major|--minor|--patch|--set <version>] [--dry] [--commit] [--tag] [-m message]`
+  — bump the package version in `gyllir.toml` (a patch bump by default) and nothing else; `--dry`
+  only prints the new version, `--commit` commits `gyllir.toml` alone, `--tag` tags the new
+  version as `v<version>` (and implies `--commit`). A named version cannot be incremented, set a
+  numbered one with `--set`.
 - `gyllir publish <message> [--major|--minor|--patch] [--dry] [-y]` — bump the package version
   and publish it to the registry declared in `gyllir.toml`.
 
