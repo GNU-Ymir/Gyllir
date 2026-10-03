@@ -63,3 +63,4 @@ src/main.yr.ydump*
 /.deps
 /__doc
 
+gyllir.toml.override

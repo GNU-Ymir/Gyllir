@@ -65,6 +65,9 @@ __test {
  *   back
  */
 pub def __GITIGNORE_CONTENT__ = str #{
+# Machine local configuration
+gyllir.toml.override
+
 # Dependencies resolved by gyllir
 .deps/
 
