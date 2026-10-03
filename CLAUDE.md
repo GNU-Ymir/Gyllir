@@ -31,6 +31,16 @@ The branch currently checked out is generally named `GYL-<issue_number>-<short-d
 (e.g. `GYL-34-plane-ci`) — the `GYL-<issue_number>` part is the Plane work item key, so it
 can be used to look up the item this branch's work is tracked against.
 
+## Commit policy
+
+- split work in logical commits
+- rewrite history when a new commit is modifying something that was introduced by another commit
+  of the same branch
+- there's no need for tests to pass, and code to compile between commits, as long as the last
+  commit of the branch compiles and its tests succeed
+- don't add co-authors
+- commit messages are just one line long
+
 ## What this is
 
 Gyllir is the build system and package manager for GNU-Ymir (`gyc`) projects — the `cargo`/`dub`
