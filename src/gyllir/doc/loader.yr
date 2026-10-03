@@ -135,9 +135,7 @@ pub record SymbolLoader {
             }
         }
 
-        result.isMutable = if let Ok(Str(value-> "true")) = func["mutable"]? {
-            true
-        } else { false };
+        result.isMutable = self.isTrue(func, "mutable");
 
         result.throwers = self.loadThrowers(func);
         if let Ok(d: &Dict) = func["ret_type"]? {
@@ -158,8 +156,8 @@ pub record SymbolLoader {
                 let dmut var                     = copy Variable(name, doc, loc, protection);
 
                 if let Ok(type: &Dict) = a["type"]? { var.type = self.loadType(type); }
-                if let Ok(Str(value-> "true")) = a["ref"]? { var.isRef = true; }
-                if let Ok(Str(value-> "true")) = a["lazy"]? { var.isLazy = true; }
+                if self.isTrue(a, "ref") { var.isRef = true; }
+                if self.isTrue(a, "lazy") { var.isLazy = true; }
                 if let Ok(Str(value-> default)) = a["value"]? { var.defaultValue = default; }
 
                 if let Ok(Str(value-> m)) = a["mutability"]? {
@@ -206,9 +204,9 @@ pub record SymbolLoader {
         result.isEntity = isEntity;
         result.isRecord = isRecord;
 
-        if let Ok(Str(value-> "true")) = cl["has_dtor"]? { result.hasDtor = true; }
-        if let Ok(Str(value-> "true")) = cl["abstract"]? { result.isAbstract = true; }
-        if let Ok(Str(value-> "true")) = cl["final"]? { result.isFinal = true; }
+        if self.isTrue(cl, "has_dtor") { result.hasDtor = true; }
+        if self.isTrue(cl, "abstract") { result.isAbstract = true; }
+        if self.isTrue(cl, "final") { result.isFinal = true; }
         if let Ok(anc: &Dict) = cl["ancestor"]? { result.ancestor = self.loadType(anc); }
 
         if let Ok(arr: &Array) = cl["fields"]? {
@@ -279,8 +277,8 @@ pub record SymbolLoader {
         let dmut var                     = copy Variable(name, doc, loc, protection);
 
         if let Ok(type: &Dict) = fi["type"]? { var.type = self.loadType(type); }
-        if let Ok(Str(value-> "true")) = fi["ref"]? { var.isRef = true; }
-        if let Ok(Str(value-> "true")) = fi["lazy"]? { var.isLazy = true; }
+        if self.isTrue(fi, "ref") { var.isRef = true; }
+        if self.isTrue(fi, "lazy") { var.isLazy = true; }
         if let Ok(Str(value-> default)) = fi["value"]? { var.defaultValue = default; }
 
         if let Ok(Str(value-> m)) = fi["mutability"]? {
@@ -420,11 +418,11 @@ pub record SymbolLoader {
         let (name, doc, loc, protect) = self.loadStandard(glb);
         let dmut result               = copy Global(name, doc, loc, protect);
 
-        if let Ok(Str(value-> "true")) = glb["thread_local"]? {
+        if self.isTrue(glb, "thread_local") {
             result.isThreadLocal = true;
         }
 
-        if let Ok(Str(value-> "true")) = glb["static"]? {
+        if self.isTrue(glb, "static") {
             result.isStatic = true;
         }
 
@@ -642,9 +640,7 @@ pub record SymbolLoader {
             content
         } else { "" };
 
-        let isValue = if let Ok(Str(value-> "true")) = param["value"]? {
-            true
-        } else { false };
+        let isValue = self.isTrue(param, "value");
 
         copy TemplateVariadicParam(var, isValue)
     }
@@ -723,15 +719,11 @@ pub record SymbolLoader {
         }
 
         if let Ok(a: &Array) = d["refs"]? {
-            for i in a[] if let Str(value-> b) = i {
-                refs ~= [b == "true"];
-            }
+            for i in a[] { refs ~= [self.isTrueValue(i)]; }
         }
 
         if let Ok(a: &Array) = d["lazys"]? {
-            for i in a[] if let Str(value-> b) = i {
-                lazys ~= [b == "true"];
-            }
+            for i in a[] { lazys ~= [self.isTrueValue(i)]; }
         }
 
         if (params.len != refs.len || params.len != lazys.len) {
@@ -878,6 +870,23 @@ pub record SymbolLoader {
     /**
      * Load the standard information of a symbol
      * */
+    /**
+     * @returns: true iif the entry 'key' of 'cfg' is true (see 'isTrueValue')
+     * */
+    fn isTrue(self, cfg: &Config, key: [c8])-> bool {
+        if let Ok(v) = cfg[key]? { return self.isTrueValue(v); }
+        false
+    }
+
+    /**
+     * @returns: true iif 'value' is true, as a boolean or as the string "true" older compilers wrote
+     * */
+    fn isTrueValue(self, value: &Config)-> bool {
+        if let Bool(value-> _ = true) = value { return true; }
+        if let Str(value-> "true") = value { return true; }
+        false
+    }
+
     fn loadStandard(self, cfg: &Config, defaultProtection: Protection = Protection::PRV)-> ([c8],
                                                                                             [c8],
                                                                                             Location,
