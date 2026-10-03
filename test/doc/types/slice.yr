@@ -1,10 +1,9 @@
-use gyllir::doc::types::slice;
-use gyllir::doc::types::scalar;
+use gyllir::doc::types::{scalar, slice};
 
 use std::stream;
 
 __test slice_type_renders_inner_type {
-    let s = copy SliceType("", copy ScalarType("i32", ""));
+    let s           = copy SliceType("", copy ScalarType("i32", ""));
     let dmut stream = copy StringStream();
     stream:.write(s);
 

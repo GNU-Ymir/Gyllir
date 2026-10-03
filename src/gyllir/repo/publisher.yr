@@ -59,7 +59,13 @@ pub record RepoPublisher {
             self.publishGit(alias context, tmpDir, version);
         }
 
-        utils::log::info("Published", "project ", self._cfg.name, " v", version[], " to ", self._cfg.registry.path.toStr());
+        utils::log::info("Published",
+                         "project ",
+                         self._cfg.name,
+                         " v",
+                         version[],
+                         " to ",
+                         self._cfg.registry.path.toStr());
     }
 
     /**
@@ -135,7 +141,7 @@ pub record RepoPublisher {
             }
 
             let (built, _, _) = context:.buildTargets(self._cwd, copy Dict(), self._cfg, all, forUnitTest-> true);
-            let code = context.runUnitTests(self._cwd, self._cfg, built);
+            let code          = context.runUnitTests(self._cwd, self._cfg, built);
             if (code != 0) {
                 etc::c::process::_yrt_exit(code);
             }
@@ -148,13 +154,9 @@ pub record RepoPublisher {
     fn incrementVersion(self)-> Version {
         if let Ok(Bool(value-> _ = true)) = self._args["major"]? {
             return self._cfg.version.increment(major-> true, minor-> false);
-        }
-
-        else if let Ok(Bool(value-> _ = true)) = self._args["minor"]? {
+        } else if let Ok(Bool(value-> _ = true)) = self._args["minor"]? {
             return self._cfg.version.increment(major-> false, minor-> true);
-        }
-
-        else {
+        } else {
             return self._cfg.version.increment(major-> false, minor-> false);
         }
     }

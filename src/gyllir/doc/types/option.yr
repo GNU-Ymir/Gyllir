@@ -9,7 +9,7 @@ pub class OptionType over Type {
     pub let child: &Type;
 
     pub self (mutability: [c8], inner: &Type)
-        with super (mutability-> mutability)
+        with super(mutability-> mutability)
         , child = inner
     {}
 
@@ -18,5 +18,4 @@ pub class OptionType over Type {
             stream:.write("Option (", self.child, ")");
         }
     }
-
 }

@@ -3,7 +3,6 @@
  * tiny gyllir project in a temporary directory, so 'RepoBuilder'/'GyllirManager' & co can be
  * driven end to end against the real 'gyc' toolchain rather than against mocks.
  * */
-
 use gyllir::{config::_, utils::_};
 use gyllir::repo::defaults;
 
@@ -72,7 +71,8 @@ pub fn addUnitTests(dir: Path)
 {
     // the asserted value is read at runtime: gyc rejects an assertion it can prove statically
     writeSource(dir.push(defaults::__TEST_DIR__).push(defaults::__FST_TEST_FILE__),
-                "use std::env;\n\n__test {\n    assert(currentDir().toStr().len > 0us, \"the fixture unittest should pass\");\n}\n");
+                "use std::env;\n\n__test {\n    assert(currentDir().toStr().len > 0us, \"the fixture unittest should "
+                ~ "pass\");\n}\n");
 }
 
 /**
@@ -84,8 +84,13 @@ pub fn addUnitTests(dir: Path)
 pub fn mkConfig(name: [c8], type: [c8])-> GyllirPackageConfiguration
     throws AssertError
 {
-    GyllirPackageConfiguration(name, "MIT", "an integration test project", BuildType(type),
-                               Url("local:some/registry"), Version(1u32, 0u32, 0u32), [])
+    GyllirPackageConfiguration(name,
+                               "MIT",
+                               "an integration test project",
+                               BuildType(type),
+                               Url("local:some/registry"),
+                               Version(1u32, 0u32, 0u32),
+                               [])
 }
 
 /**
@@ -216,7 +221,7 @@ pub fn gitInit(dir: Path)
 pub fn commitAndTag(dir: Path, tag: [c8])
     throws GitError, FsError
 {
-    let git = GitManager(cwd-> dir);
+    let git    = GitManager(cwd-> dir);
     let marker = dir.push("VERSION");
 
     let dmut f = File::create(marker, write-> true);
@@ -238,7 +243,11 @@ pub fn commitAndTag(dir: Path, tag: [c8])
  *    - depPath: the repository the dependency is cloned from
  *    - version: the version filter of the dependency, accepting anything by default
  * */
-pub fn mkConfigWithGitDependency(name: [c8], type: [c8], depName: [c8], depPath: Path, version: [c8] = "*")-> GyllirPackageConfiguration
+pub fn mkConfigWithGitDependency(name: [c8],
+                                 type: [c8],
+                                 depName: [c8],
+                                 depPath: Path,
+                                 version: [c8] = "*")-> GyllirPackageConfiguration
     throws AssertError
 {
     let dmut url = copy Dict();
@@ -306,7 +315,7 @@ pub fn mkConfigWithGitDependencies(name: [c8], type: [c8], deps: [([c8], Path)])
 pub fn readLockFile(dir: Path)-> &LockFile
     throws FsError, SyntaxError, AssertError
 {
-    let dmut f = File::open(dir.push(defaults::__GYLLIR_LOCK_FILENAME__));
+    let dmut f  = File::open(dir.push(defaults::__GYLLIR_LOCK_FILENAME__));
     let content = f:.readAll();
     f:.close();
 
@@ -352,7 +361,11 @@ pub fn resolvedCommitOf(dir: Path, name: [c8])-> [c8]
  *    - depPath: the directory holding the dependency
  *    - version: the version filter of the dependency, accepting anything by default
  * */
-pub fn mkConfigWithDependency(name: [c8], type: [c8], depName: [c8], depPath: Path, version: [c8] = "*")-> GyllirPackageConfiguration
+pub fn mkConfigWithDependency(name: [c8],
+                              type: [c8],
+                              depName: [c8],
+                              depPath: Path,
+                              version: [c8] = "*")-> GyllirPackageConfiguration
     throws AssertError
 {
     let dmut url = copy Dict();
@@ -410,7 +423,7 @@ pub fn mkMultiTargetProject()-> Path
 pub fn mkMultiTargetConfig()-> GyllirPackageConfiguration
     throws AssertError
 {
-    GyllirPackageConfiguration(json#{
+    GyllirPackageConfiguration(json #{
         "name" : "multi",
         "license" : "MIT",
         "description" : "an integration test project",
@@ -438,10 +451,8 @@ pub fn mkMultiLibProject()-> Path
     let dir = sys::tempDirectory(prefix-> "gyllir_it_multilib_");
     let src = dir.push(defaults::__SRC_DIR__);
 
-    writeSource(src.push("foo").addExtension(defaults::__YMIR_EXTENSION__),
-                "pub fn foo()-> i32 {\n    1\n}\n");
-    writeSource(src.push("bar").addExtension(defaults::__YMIR_EXTENSION__),
-                "pub fn bar()-> i32 {\n    2\n}\n");
+    writeSource(src.push("foo").addExtension(defaults::__YMIR_EXTENSION__), "pub fn foo()-> i32 {\n    1\n}\n");
+    writeSource(src.push("bar").addExtension(defaults::__YMIR_EXTENSION__), "pub fn bar()-> i32 {\n    2\n}\n");
 
     dir
 }
@@ -452,7 +463,7 @@ pub fn mkMultiLibProject()-> Path
 pub fn mkMultiLibConfig()-> GyllirPackageConfiguration
     throws AssertError
 {
-    GyllirPackageConfiguration(json#{
+    GyllirPackageConfiguration(json #{
         "name" : "multilib",
         "license" : "MIT",
         "description" : "an integration test project",
@@ -475,7 +486,11 @@ pub fn mkMultiLibConfig()-> GyllirPackageConfiguration
  *    - depPath: the directory holding the dependency
  *    - targets: the names of the dependency's targets to select
  * */
-pub fn mkConfigWithSelectedDependency(name: [c8], type: [c8], depName: [c8], depPath: Path, targets: [[c8]])-> GyllirPackageConfiguration
+pub fn mkConfigWithSelectedDependency(name: [c8],
+                                      type: [c8],
+                                      depName: [c8],
+                                      depPath: Path,
+                                      targets: [[c8]])-> GyllirPackageConfiguration
     throws AssertError
 {
     let dmut url = copy Dict();
@@ -509,7 +524,10 @@ pub fn mkConfigWithSelectedDependency(name: [c8], type: [c8], depName: [c8], dep
  *    - depName: the name of the dependency, "" for a package declaring none
  *    - depPath: the directory holding the dependency
  * */
-pub fn mkTargetsConfig(name: [c8], targets: &Config, depName: [c8] = "", depPath: Path = Path(""))-> GyllirPackageConfiguration
+pub fn mkTargetsConfig(name: [c8],
+                       targets: &Config,
+                       depName: [c8] = "",
+                       depPath: Path = Path(""))-> GyllirPackageConfiguration
     throws AssertError
 {
     let dmut cfg = copy Dict();
@@ -567,7 +585,7 @@ pub fn mkCSourceProject()-> Path
 pub fn mkCSourceConfig()-> GyllirPackageConfiguration
     throws AssertError
 {
-    GyllirPackageConfiguration(json#{
+    GyllirPackageConfiguration(json #{
         "name" : "csrc-demo",
         "license" : "MIT",
         "description" : "an integration test project",
@@ -585,7 +603,7 @@ pub fn mkCSourceConfig()-> GyllirPackageConfiguration
  * about: every kind of symbol, every kind of type, and doc comments using the markup of
  * 'gyllir::doc::comment'
  * */
-def __RICH_ROOT__ = str#{/**
+def __RICH_ROOT__ = str #{/**
  * A module exercising most of the constructs the documentation generator knows about.
  * */
 
@@ -724,7 +742,7 @@ fn main() {
 }
 };
 
-def __RICH_SUB__ = str#{/**
+def __RICH_SUB__ = str #{/**
  * A sub module
  * */
 
@@ -744,7 +762,8 @@ pub fn mkRichProject()-> Path
 {
     let dir = sys::tempDirectory(prefix-> "gyllir_it_rich_");
     writeSource(dir.push(defaults::__SRC_DIR__).push(defaults::__MAIN_FILE__), __RICH_ROOT__);
-    writeSource(dir.push(defaults::__SRC_DIR__).push("main").push("sub").addExtension(defaults::__YMIR_EXTENSION__), __RICH_SUB__);
+    writeSource(dir.push(defaults::__SRC_DIR__).push("main").push("sub").addExtension(defaults::__YMIR_EXTENSION__),
+                __RICH_SUB__);
 
     dir
 }

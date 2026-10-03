@@ -1,7 +1,7 @@
 in command;
 
-use std::{config::_, fs::path, config::conv};
-use std::stream;
+use std::{config::_, config::conv, stream};
+use std::fs::path;
 
 /**
  * A custom command line to run
@@ -115,7 +115,8 @@ pub class CustomCommandList {
             } else if let Ok(_) = v["cmd"]? {
                 throw copy AssertError(ctx ~ "'cmd' must be a string, the command line to run");
             } else {
-                throw copy AssertError(ctx ~ "missing required entry 'cmd', for example: cmd = \"./tools/" ~ k ~ ".sh\"");
+                throw copy AssertError(ctx ~ "missing required entry 'cmd', for example: cmd = \"./tools/" ~ k
+                                       ~ ".sh\"");
             };
 
             // a mistyped 'post' used to be read as a pre build command, silently running it at the
@@ -171,5 +172,4 @@ pub class CustomCommandList {
             ret
         }
     }
-
 }

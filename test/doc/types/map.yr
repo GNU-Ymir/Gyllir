@@ -1,10 +1,9 @@
-use gyllir::doc::types::map;
-use gyllir::doc::types::scalar;
+use gyllir::doc::types::{map, scalar};
 
 use std::stream;
 
 __test map_type_renders_key_value {
-    let m = copy MapType("", copy ScalarType("i32", ""), copy ScalarType("[c8]", ""));
+    let m           = copy MapType("", copy ScalarType("i32", ""), copy ScalarType("[c8]", ""));
     let dmut stream = copy StringStream();
     stream:.write(m);
 

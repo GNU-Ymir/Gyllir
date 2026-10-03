@@ -1,6 +1,7 @@
 in formatter;
 
-use std::{io, stream, algorithm::searching};
+use std::{io, stream};
+use std::algorithm::searching;
 
 /**
  * Format a text and write it in 'stream'
@@ -62,9 +63,9 @@ prv fn findNext(content: [c8])-> ([c8], [c8], [c8]) {
             }
 
             if (nb_close == 0) {
-                let form = content[i + 2us .. j];
+                let form  = content[i + 2us .. j];
                 let start = content[0us .. i];
-                let rest = content[j + 1us .. $];
+                let rest  = content[j + 1us .. $];
 
                 return (start, form, rest);
             }
@@ -75,15 +76,16 @@ prv fn findNext(content: [c8])-> ([c8], [c8], [c8]) {
     return (content, "", "");
 }
 
-
 fn strip(str: [c8])-> [c8] {
     let mut start = 0us, mut end = str.len;
     let mut started = false;
 
     for i, j in str {
         if !std::char::isWhite(j) {
-            if (!started) { started = true; start = i; }
-            else { end = i + 1; }
+            if (!started) {
+                started = true;
+                start = i;
+            } else { end = i + 1; }
         }
     }
 

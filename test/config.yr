@@ -34,11 +34,13 @@ __test empty_configuration_defaults {
 
 __test explicit_constructor_sets_given_fields {
     // The explicit constructor only sets the fields it is given, the rest keep their defaults
-    let cfg = GyllirPackageConfiguration(
-        "my-pkg", "MIT", "a test package",
-        BuildType("library"), Url("local:some/registry"), Version(1u32, 2u32, 3u32),
-        copy ["alice", "bob"]
-    );
+    let cfg = GyllirPackageConfiguration("my-pkg",
+                                         "MIT",
+                                         "a test package",
+                                         BuildType("library"),
+                                         Url("local:some/registry"),
+                                         Version(1u32, 2u32, 3u32),
+                                         copy ["alice", "bob"]);
 
     assert(cfg.name == "my-pkg", "unexpected name");
     assert(cfg.license == "MIT", "unexpected license");
@@ -57,7 +59,7 @@ __test explicit_constructor_sets_given_fields {
 
 __test deserialize_full_configuration {
     // Deserializing every field from a full configuration dictionary
-    let fullCfg = json#{
+    let fullCfg = json #{
         "name" : "my-pkg",
         "license" : "MIT",
         "description" : "a test package",
@@ -101,7 +103,7 @@ __test deserialize_full_configuration {
 
 __test deserialize_minimal_configuration {
     // Only name/license/description/type/version/registry are mandatory, everything else defaults
-    let minimalCfg = json#{
+    let minimalCfg = json #{
         "name" : "minimal",
         "license" : "MIT",
         "description" : "d",
@@ -136,7 +138,7 @@ __test non_dict_configuration_rejected {
 __test missing_mandatory_entry_names_it {
     // A missing mandatory entry names that entry, and shows what a correct declaration looks like:
     // the whole message is what 'gyllir' prints, there is nothing else for the user to go on
-    let missingName = json#{
+    let missingName = json #{
         "license" : "MIT",
         "description" : "d",
         "type" : "executable",
@@ -159,9 +161,12 @@ __test every_mandatory_entry_checked {
     // read by dedicated parsers, are no exception
     let entries = copy [("name", "missing required entry 'name', for example: name = \"my-package\""),
                         ("license", "missing required entry 'license', for example: license = \"GPL-v3\""),
-                        ("description", "missing required entry 'description', for example: description = \"what the package does\""),
+                        ("description",
+                         "missing required entry 'description', for example: description = \"what the package does\""),
                         ("version", "missing required entry 'version', for example: version = \"0.1.0\""),
-                        ("registry", "missing required entry 'registry', for example: registry = { git = \"git@github.com:me/my-package.git\" }")];
+                        ("registry",
+                         "missing required entry 'registry', for example: registry = { git = "
+                         ~ "\"git@github.com:me/my-package.git\" }")];
 
     for e in entries {
         let dmut d = copy Dict();
@@ -169,7 +174,7 @@ __test every_mandatory_entry_checked {
         d["license"] = copy Str("MIT");
         d["description"] = copy Str("d");
         d["version"] = copy Str("1.0.0");
-        d["registry"] = json#{"local" : "some/registry"};
+        d["registry"] = json #{"local" : "some/registry"};
         d:.remove(e._0);
 
         let mut msg = "";
@@ -185,7 +190,7 @@ __test every_mandatory_entry_checked {
 
 __test wrongly_typed_optional_entry_names_it {
     // A wrongly typed optional entry names that entry too
-    let badCompiler = json#{
+    let badCompiler = json #{
         "name" : "my-pkg",
         "license" : "MIT",
         "description" : "d",
@@ -207,7 +212,7 @@ __test wrongly_typed_optional_entry_names_it {
 
 __test tests_false_disables_synthesized_target {
     // "tests" set to false at the top level is accepted, and disables the synthesized target
-    let cfg = GyllirPackageConfiguration(json#{
+    let cfg = GyllirPackageConfiguration(json #{
         "name" : "myapp",
         "license" : "MIT",
         "description" : "d",
@@ -225,7 +230,7 @@ __test tests_false_disables_synthesized_target {
 
 __test tests_false_with_test_root_rejected {
     // "tests" set to false next to a declared "test-root" is rejected: the two are exclusive
-    let bad = json#{
+    let bad = json #{
         "name" : "myapp",
         "license" : "MIT",
         "description" : "d",
@@ -249,7 +254,7 @@ __test tests_false_with_test_root_rejected {
 
 __test wrongly_typed_authors_field_rejected {
     // A wrongly typed authors field (not an array) names it, and shows a correct declaration
-    let badAuthors = json#{
+    let badAuthors = json #{
         "name" : "my-pkg",
         "license" : "MIT",
         "description" : "d",
@@ -272,7 +277,7 @@ __test wrongly_typed_authors_field_rejected {
 
 __test unknown_entry_rejected {
     // An entry that is not a known field of the package is rejected rather than silently ignored
-    let typo = json#{
+    let typo = json #{
         "name" : "my-pkg",
         "license" : "MIT",
         "description" : "d",
@@ -311,7 +316,7 @@ __test set_version_mutates_in_place {
 __test no_targets_table_synthesizes_one {
     // A package declaring no "[targets.*]" table still has exactly one target, synthesized from its
     // top level fields and named after the package
-    let cfg = GyllirPackageConfiguration(json#{
+    let cfg = GyllirPackageConfiguration(json #{
         "name" : "myapp",
         "license" : "MIT",
         "description" : "d",
@@ -340,7 +345,7 @@ __test no_targets_table_synthesizes_one {
 
 __test declared_targets_exclude_package_name {
     // A package declaring targets has exactly those, and none named after the package itself
-    let cfg = GyllirPackageConfiguration(json#{
+    let cfg = GyllirPackageConfiguration(json #{
         "name" : "multi",
         "license" : "MIT",
         "description" : "d",
@@ -363,7 +368,7 @@ __test declared_targets_exclude_package_name {
 
 __test type_defaults_to_executable {
     // "type" is optional at the package level, and defaults to an executable
-    let cfg = GyllirPackageConfiguration(json#{
+    let cfg = GyllirPackageConfiguration(json #{
         "name" : "myapp",
         "license" : "MIT",
         "description" : "d",
@@ -383,8 +388,8 @@ __test single_target_fields_rejected_with_targets_table {
         d["license"] = copy Str("MIT");
         d["description"] = copy Str("d");
         d["version"] = copy Str("1.0.0");
-        d["registry"] = json#{"local" : "some/registry"};
-        d["targets"] = json#{"cli" : {"type" : "executable"}};
+        d["registry"] = json #{"local" : "some/registry"};
+        d["targets"] = json #{"cli" : {"type" : "executable"}};
 
         // a well typed value, so that what rejects it is the exclusivity rule and not the parser
         if (key == "type") {
@@ -411,7 +416,7 @@ __test single_target_fields_rejected_with_targets_table {
 
 __test single_target_fields_accepted_without_targets_table {
     // The same fields are accepted at the top level of a package declaring no target
-    let cfg = GyllirPackageConfiguration(json#{
+    let cfg = GyllirPackageConfiguration(json #{
         "name" : "myapp",
         "license" : "MIT",
         "description" : "d",
@@ -431,7 +436,7 @@ __test single_target_fields_accepted_without_targets_table {
 __test serialize_targets_omits_top_level_fields {
     // Serializing a package that declares targets writes them back, and none of the fields that
     // would be rejected on the next read
-    let cfg = GyllirPackageConfiguration(json#{
+    let cfg = GyllirPackageConfiguration(json #{
         "name" : "multi",
         "license" : "MIT",
         "description" : "d",
@@ -444,7 +449,7 @@ __test serialize_targets_omits_top_level_fields {
 
     if let Ok(targets) = serialized["targets"]? {
         if let Ok(cli) = targets["cli"]? {
-            assert(to!{[c8]}(cli["package-root"]) == "main", "the target entries should be written back");
+            assert(to!{[c8]} (cli["package-root"]) == "main", "the target entries should be written back");
         } else assert(false, "expected a serialized \"cli\" target");
     } else assert(false, "expected the declared targets to be serialized");
 
@@ -456,7 +461,7 @@ __test serialize_targets_omits_top_level_fields {
 __test serialize_no_targets_writes_top_level_fields {
     // Serializing a package that declares no target writes its top level fields, and no target
     // table: "gyllir publish" rewrites the whole file, and must not inject the synthesized target
-    let cfg = GyllirPackageConfiguration(json#{
+    let cfg = GyllirPackageConfiguration(json #{
         "name" : "myapp",
         "license" : "MIT",
         "description" : "d",
@@ -472,16 +477,16 @@ __test serialize_no_targets_writes_top_level_fields {
     let serialized = cfg.serialize();
 
     assert("targets" !in serialized, "a package declaring no target should not gain one on publish");
-    assert(to!{[c8]}(serialized["type"]) == "library", "unexpected serialized type");
-    assert(to!{[c8]}(serialized["package-root"]) == "main", "the package root should be written back");
-    assert(to!{[c8]}(serialized["test-root"]) == "__test__", "the test root should be written back");
-    assert(to!{[[c8]]}(serialized["flags"]) == copy ["-O0"], "unexpected serialized flags");
-    assert(to!{[[c8]]}(serialized["libraries"]) == copy ["m"], "unexpected serialized libraries");
+    assert(to!{[c8]} (serialized["type"]) == "library", "unexpected serialized type");
+    assert(to!{[c8]} (serialized["package-root"]) == "main", "the package root should be written back");
+    assert(to!{[c8]} (serialized["test-root"]) == "__test__", "the test root should be written back");
+    assert(to!{[[c8]]} (serialized["flags"]) == copy ["-O0"], "unexpected serialized flags");
+    assert(to!{[[c8]]} (serialized["libraries"]) == copy ["m"], "unexpected serialized libraries");
 }
 
 __test serialize_omits_unset_optional_fields {
     // A package that never declared a package root, a test root or flags does not gain them either
-    let cfg = GyllirPackageConfiguration(json#{
+    let cfg = GyllirPackageConfiguration(json #{
         "name" : "myapp",
         "license" : "MIT",
         "description" : "d",
@@ -501,7 +506,7 @@ __test serialize_omits_unset_optional_fields {
 
 __test tests_false_survives_round_trip {
     // "tests" set to false at the top level survives a serialization round trip
-    let cfg = GyllirPackageConfiguration(json#{
+    let cfg = GyllirPackageConfiguration(json #{
         "name" : "myapp",
         "license" : "MIT",
         "description" : "d",
@@ -512,7 +517,7 @@ __test tests_false_survives_round_trip {
     });
 
     let serialized = cfg.serialize();
-    assert(!to!{bool}(serialized["tests"]), "the tests flag should be written back as false");
+    assert(!to!{bool} (serialized["tests"]), "the tests flag should be written back as false");
 
     let back = GyllirPackageConfiguration(serialized);
     assert(!back.tests, "the tests flag should survive the round trip");
@@ -520,7 +525,7 @@ __test tests_false_survives_round_trip {
 
 __test targets_survive_round_trip {
     // A configuration holding targets survives a serialization round trip
-    let cfg = GyllirPackageConfiguration(json#{
+    let cfg = GyllirPackageConfiguration(json #{
         "name" : "multi",
         "license" : "MIT",
         "description" : "d",
@@ -532,7 +537,7 @@ __test targets_survive_round_trip {
         }
     });
 
-    let back = GyllirPackageConfiguration(cfg.serialize());
+    let back    = GyllirPackageConfiguration(cfg.serialize());
     let targets = back.targets();
 
     assert(targets.len == 2us, "both targets should survive the round trip");
@@ -544,7 +549,7 @@ __test targets_survive_round_trip {
 
 __test serialize_round_trips_every_field {
     // Serializing round-trips every field written by serialize()
-    let fullCfg = json#{
+    let fullCfg = json #{
         "name" : "my-pkg",
         "license" : "MIT",
         "description" : "a test package",
@@ -558,39 +563,39 @@ __test serialize_round_trips_every_field {
         "commands" : {"build-hook" : {"cmd" : "echo hi", "post" : true}}
     };
 
-    let cfg = GyllirPackageConfiguration(fullCfg);
+    let cfg        = GyllirPackageConfiguration(fullCfg);
     let serialized = cfg.serialize();
 
-    assert(to!{[c8]}(serialized["name"]) == "my-pkg", "unexpected serialized name");
-    assert(to!{[c8]}(serialized["license"]) == "MIT", "unexpected serialized license");
-    assert(to!{[c8]}(serialized["description"]) == "a test package", "unexpected serialized description");
-    assert(to!{[c8]}(serialized["type"]) == "executable", "unexpected serialized type");
-    assert(to!{[c8]}(serialized["version"]) == "1.2.3", "unexpected serialized version");
-    assert(to!{[c8]}(serialized["compiler"]) == "clang-ymir", "unexpected serialized compiler");
-    assert(to!{[[c8]]}(serialized["authors"]) == copy ["alice", "bob"], "unexpected serialized authors");
-    assert(to!{[[c8]]}(serialized["libraries"]) == copy ["m", "pthread"], "unexpected serialized libraries");
+    assert(to!{[c8]} (serialized["name"]) == "my-pkg", "unexpected serialized name");
+    assert(to!{[c8]} (serialized["license"]) == "MIT", "unexpected serialized license");
+    assert(to!{[c8]} (serialized["description"]) == "a test package", "unexpected serialized description");
+    assert(to!{[c8]} (serialized["type"]) == "executable", "unexpected serialized type");
+    assert(to!{[c8]} (serialized["version"]) == "1.2.3", "unexpected serialized version");
+    assert(to!{[c8]} (serialized["compiler"]) == "clang-ymir", "unexpected serialized compiler");
+    assert(to!{[[c8]]} (serialized["authors"]) == copy ["alice", "bob"], "unexpected serialized authors");
+    assert(to!{[[c8]]} (serialized["libraries"]) == copy ["m", "pthread"], "unexpected serialized libraries");
 
     if let Ok(reg) = serialized["registry"]? {
-        assert(to!{[c8]}(reg["local"]) == "some/registry", "unexpected serialized registry");
+        assert(to!{[c8]} (reg["local"]) == "some/registry", "unexpected serialized registry");
     } else assert(false, "expected a serialized registry");
 
     if let Ok(deps) = serialized["dependencies"]? {
         if let Ok(foo) = deps["foo"]? {
             // an equality filter (no comparator) serializes with a leading '='
-            assert(to!{[c8]}(foo["version"]) == "=1.0.0", "unexpected serialized dependency version");
+            assert(to!{[c8]} (foo["version"]) == "=1.0.0", "unexpected serialized dependency version");
         } else assert(false, "expected a serialized \"foo\" dependency");
     } else assert(false, "expected serialized dependencies");
 
     if let Ok(cmds) = serialized["commands"]? {
         if let Ok(hook) = cmds["build-hook"]? {
-            assert(to!{[c8]}(hook["cmd"]) == "echo hi", "unexpected serialized command");
+            assert(to!{[c8]} (hook["cmd"]) == "echo hi", "unexpected serialized command");
         } else assert(false, "expected a serialized \"build-hook\" command");
     } else assert(false, "expected serialized commands");
 }
 
 __test std_table_deserialized {
     // A declared '[std]' table is parsed into a version filter and an explicit url
-    let cfg = GyllirPackageConfiguration(json#{
+    let cfg = GyllirPackageConfiguration(json #{
         "name" : "myapp",
         "license" : "MIT",
         "description" : "d",
@@ -608,7 +613,7 @@ __test std_table_deserialized {
 
 __test std_table_url_defaults_to_official_registry {
     // A '[std]' table declaring no 'url' resolves against the official std lib repository
-    let cfg = GyllirPackageConfiguration(json#{
+    let cfg = GyllirPackageConfiguration(json #{
         "name" : "myapp",
         "license" : "MIT",
         "description" : "d",
@@ -624,7 +629,7 @@ __test std_table_url_defaults_to_official_registry {
 
 __test std_table_missing_version_rejected {
     // '[std]' requires a 'version' entry, exactly like a regular dependency does
-    let bad = json#{
+    let bad = json #{
         "name" : "myapp",
         "license" : "MIT",
         "description" : "d",
@@ -641,13 +646,14 @@ __test std_table_missing_version_rejected {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'[std]', missing required entry 'version', for example: version = \">=1.0.0\", or \"*\" for any version",
+    assert(msg
+           == "'[std]', missing required entry 'version', for example: version = \">=1.0.0\", or \"*\" for any version",
            "unexpected error: " ~ msg);
 }
 
 __test std_table_unknown_entry_rejected {
     // An entry that is not a known field of '[std]' is rejected rather than silently ignored
-    let typo = json#{
+    let typo = json #{
         "name" : "myapp",
         "license" : "MIT",
         "description" : "d",
@@ -669,7 +675,7 @@ __test std_table_unknown_entry_rejected {
 
 __test std_table_not_a_table_rejected {
     // A '[std]' entry that is not itself a table is rejected directly
-    let bad = json#{
+    let bad = json #{
         "name" : "myapp",
         "license" : "MIT",
         "description" : "d",
@@ -691,7 +697,7 @@ __test std_table_not_a_table_rejected {
 
 __test std_table_survives_round_trip {
     // A declared '[std]' table survives a serialization round trip
-    let cfg = GyllirPackageConfiguration(json#{
+    let cfg = GyllirPackageConfiguration(json #{
         "name" : "myapp",
         "license" : "MIT",
         "description" : "d",
@@ -703,12 +709,13 @@ __test std_table_survives_round_trip {
 
     let serialized = cfg.serialize();
     if let Ok(std) = serialized["std"]? {
-        assert(to!{[c8]}(std["version"]) == ">=1.2.0", "unexpected serialized std version");
-        assert(to!{[c8]}(std["url"]["git"]) == "git@example.com:me/midgard-fork.git", "unexpected serialized std url");
+        assert(to!{[c8]} (std["version"]) == ">=1.2.0", "unexpected serialized std version");
+        assert(to!{[c8]} (std["url"]["git"]) == "git@example.com:me/midgard-fork.git", "unexpected serialized std url");
     } else assert(false, "expected a serialized '[std]' table");
 
     let back = GyllirPackageConfiguration(serialized);
     assert(back.hasStd, "the '[std]' table should survive the round trip");
     assert(back.stdVersion().pass(Version(1u32, 2u32, 0u32)), "the std version filter should survive the round trip");
-    assert(back.stdUrl.path.toStr() == "git@example.com:me/midgard-fork.git", "the std url should survive the round trip");
+    assert(back.stdUrl.path.toStr() == "git@example.com:me/midgard-fork.git",
+           "the std url should survive the round trip");
 }

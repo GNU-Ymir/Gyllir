@@ -1,12 +1,10 @@
-use gyllir::doc::symbols::template_::_;
-use gyllir::doc::symbols::template_::and;
-use gyllir::doc::symbols::template_::any;
+use gyllir::doc::symbols::template_::{_, and, any};
 
 use std::stream;
 
 __test and_combination_rendering {
     let content: [&TemplateParam] = copy [copy TemplateAnyParam("T"), copy TemplateAnyParam("U")];
-    let p = copy TemplateAndParam(content);
+    let p                         = copy TemplateAndParam(content);
 
     let dmut stream = copy StringStream();
     stream:.write(p);

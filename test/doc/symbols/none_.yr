@@ -1,5 +1,4 @@
-use gyllir::doc::symbols::_;
-use gyllir::doc::symbols::none_;
+use gyllir::doc::symbols::{_, none_};
 
 __test none_default_values {
     let n = copy None();

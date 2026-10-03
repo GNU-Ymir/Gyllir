@@ -17,5 +17,4 @@ pub class TemplateVarParam over TemplateParam {
             stream:.write(self.kind, " ", self.name);
         }
     }
-
 }

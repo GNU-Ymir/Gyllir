@@ -1,7 +1,8 @@
 in style;
 
-use std::stream;
 use gyllir::doc::comment::tokens;
+
+use std::stream;
 
 @final
 pub class CommentStyle over CommentNode {
@@ -9,7 +10,7 @@ pub class CommentStyle over CommentNode {
     let _content: [c8];
 
     pub self (style: [c8], content: [c8])
-        with  _style = style
+        with _style = style
         , _content = content
     {}
 

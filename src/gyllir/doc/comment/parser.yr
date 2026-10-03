@@ -5,7 +5,6 @@ use gyllir::doc::comment::{node, node::_, tokens, utf};
 use std::stream;
 use std::syntax::lexer;
 
-
 /**
  * This class parse Comment in order to transform documentation blocks into html elements
  */
@@ -17,7 +16,6 @@ pub class CommentParser {
     // The content created by the parser
     let dmut _root: &CommentNode = copy CommentNode("");
 
-
     /*!
      * ====================================================================================================
      * ====================================================================================================
@@ -26,11 +24,11 @@ pub class CommentParser {
      * ====================================================================================================
      */
 
-    pub self (content: [c8]) with
-        _lex = copy Lexer!{c8} (content-> escapeChars(content),
-                                tokens-> copy CommentTokens::__members__,
-                                comments-> [],
-                                skips-> [])
+    pub self (content: [c8])
+        with _lex = copy Lexer!{c8} (content-> escapeChars(content),
+                                     tokens-> copy CommentTokens::__members__,
+                                     comments-> [],
+                                     skips-> [])
     {
         self:.parse()
     }
@@ -68,7 +66,7 @@ pub class CommentParser {
     prv fn parse(mut self) {
         let mut nb_space = 0us, mut line_ret = true;
         let dmut currentStream = copy StringStream();
-        let mut wasWhite = true;
+        let mut wasWhite       = true;
 
         loop {
             let mut end_of_list = false, mut list_nb_space = 0us;
@@ -109,9 +107,8 @@ pub class CommentParser {
                         self._root:.addChild(copy CommentText(n));
                     }
                 }
-                CommentTokens::BOLD_UNDER | CommentTokens::BOLD_STAR |
-                CommentTokens::ITALIC_UNDER | CommentTokens::ITALIC_STAR |
-                CommentTokens::CODE_SEVEN => {
+                CommentTokens::BOLD_UNDER | CommentTokens::BOLD_STAR | CommentTokens::ITALIC_UNDER
+                | CommentTokens::ITALIC_STAR | CommentTokens::CODE_SEVEN => {
                     if (wasWhite) {
                         if (currentStream[].len != 0us) {
                             self._root:.addChild(copy CommentText(currentStream[]));
@@ -127,10 +124,15 @@ pub class CommentParser {
             }
 
             // a list stops on the first token of a line, whose indentation it already counted
-            if (end_of_list) { line_ret = true; nb_space = list_nb_space; }
-            else if (n == CommentTokens::LINE_RET) line_ret = true;
+            if (end_of_list) {
+                line_ret = true;
+                nb_space = list_nb_space;
+            } else if (n == CommentTokens::LINE_RET) line_ret = true;
             else if (n == CommentTokens::SPACE && line_ret) nb_space += 1us;
-            else { nb_space = 0us; line_ret = false; }
+            else {
+                nb_space = 0us;
+                line_ret = false;
+            }
 
             if (n == CommentTokens::SPACE || n == CommentTokens::LINE_RET) wasWhite = true;
             else wasWhite = false;
@@ -153,7 +155,7 @@ pub class CommentParser {
         let (ig, _, _) = self._lex:.next();
         if (ig != CommentTokens::DCOLON) { self._lex:.rewind(expand cursor); }
 
-        let dmut node = copy CommentNode(name);
+        let dmut node          = copy CommentNode(name);
         let dmut currentStream = copy StringStream();
         let mut nb_space = 0us, mut line_ret = true, mut wasWhite = true;
 
@@ -162,8 +164,10 @@ pub class CommentParser {
 
             cursor = self._lex.getCursor();
             let (n, _, _) = self._lex:.next();
-            if n == "" || n == CommentTokens::HEAD_LEVEL_AT { self._lex:.rewind(expand cursor); break; }
-            else match n {
+            if n == "" || n == CommentTokens::HEAD_LEVEL_AT {
+                self._lex:.rewind(expand cursor);
+                break;
+            } else match n {
                 CommentTokens::CODE_BLOCK_SEVEN => {
                     if (currentStream[].len != 0us) {
                         node:.addChild(copy CommentText(currentStream[]));
@@ -188,9 +192,8 @@ pub class CommentParser {
                         node:.addChild(copy CommentText(n));
                     }
                 }
-                CommentTokens::BOLD_UNDER | CommentTokens::BOLD_STAR |
-                CommentTokens::ITALIC_UNDER | CommentTokens::ITALIC_STAR |
-                CommentTokens::CODE_SEVEN => {
+                CommentTokens::BOLD_UNDER | CommentTokens::BOLD_STAR | CommentTokens::ITALIC_UNDER
+                | CommentTokens::ITALIC_STAR | CommentTokens::CODE_SEVEN => {
                     if (wasWhite) {
                         if (currentStream[].len != 0us) {
                             node:.addChild(copy CommentText(currentStream[]));
@@ -208,15 +211,19 @@ pub class CommentParser {
             }
 
             // a list stops on the first token of a line, whose indentation it already counted
-            if (end_of_list) { line_ret = true; nb_space = list_nb_space; }
-            else if (n == CommentTokens::LINE_RET) line_ret = true;
+            if (end_of_list) {
+                line_ret = true;
+                nb_space = list_nb_space;
+            } else if (n == CommentTokens::LINE_RET) line_ret = true;
             else if (n == CommentTokens::SPACE && line_ret) nb_space += 1us;
-            else { nb_space = 0us; line_ret = false; }
+            else {
+                nb_space = 0us;
+                line_ret = false;
+            }
 
             if (n == CommentTokens::SPACE) wasWhite = true;
             else wasWhite = false;
         }
-
 
         if (currentStream[].len != 0us) {
             node:.addChild(copy CommentText(currentStream[]));
@@ -239,8 +246,7 @@ pub class CommentParser {
         let mut skip_space = 0us, mut do_skip = true;
         loop {
             let (n, _, _) = self._lex:.next();
-            if n == type || n == "" { break; }
-            else match n {
+            if n == type || n == "" { break; } else match n {
                 CommentTokens::LINE_RET => {
                     skip_space = 0us;
                     do_skip = true;
@@ -278,18 +284,19 @@ pub class CommentParser {
     prv fn parseListBlock(mut self, type: [c8], item_nb_space: usize)-> (&CommentList, usize, bool) {
         let mut nb_space = 0us, mut line_ret = false, mut wasWhite = true;
         let mut stopped_at_line_start = false;
-        let dmut list = copy CommentList();
-        let dmut node = copy CommentListItem();
-        let dmut currentStream = copy StringStream();
+        let dmut list                 = copy CommentList();
+        let dmut node                 = copy CommentListItem();
+        let dmut currentStream        = copy StringStream();
 
         loop {
             let mut add_sub_list = false;
 
-            let cursor = self._lex.getCursor();
+            let cursor    = self._lex.getCursor();
             let (n, _, _) = self._lex:.next();
-            if (n == "") { self._lex:.rewind(expand cursor); break; }
-
-            else match n {
+            if (n == "") {
+                self._lex:.rewind(expand cursor);
+                break;
+            } else match n {
                 CommentTokens::CODE_BLOCK_SEVEN => {
                     if (currentStream[].len != 0us) {
                         node:.addChild(copy CommentText(currentStream[]));
@@ -324,9 +331,8 @@ pub class CommentParser {
                         break;
                     }
                 }
-                CommentTokens::BOLD_UNDER | CommentTokens::BOLD_STAR |
-                CommentTokens::ITALIC_UNDER | CommentTokens::ITALIC_STAR |
-                CommentTokens::CODE_SEVEN => {
+                CommentTokens::BOLD_UNDER | CommentTokens::BOLD_STAR | CommentTokens::ITALIC_UNDER
+                | CommentTokens::ITALIC_STAR | CommentTokens::CODE_SEVEN => {
                     if (wasWhite) {
                         if (currentStream[].len != 0us) {
                             node:.addChild(copy CommentText(currentStream[]));
@@ -352,7 +358,10 @@ pub class CommentParser {
             if (!add_sub_list) {
                 if (n == CommentTokens::LINE_RET) line_ret = true;
                 else if (n == CommentTokens::SPACE && line_ret) nb_space += 1us;
-                else { nb_space = 0us; line_ret = false; }
+                else {
+                    nb_space = 0us;
+                    line_ret = false;
+                }
             }
 
             if (n == CommentTokens::SPACE) wasWhite = true;
@@ -396,7 +405,7 @@ pub class CommentParser {
      */
     prv fn skipSpaces(mut self) {
         loop {
-            let cursor = self._lex.getCursor();
+            let cursor    = self._lex.getCursor();
             let (n, _, _) = self._lex:.next();
             if (n != CommentTokens::SPACE) {
                 self._lex:.rewind(expand cursor);
@@ -404,5 +413,4 @@ pub class CommentParser {
             }
         }
     }
-
 }

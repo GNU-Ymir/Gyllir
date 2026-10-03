@@ -1,8 +1,8 @@
 in target;
 
-use std::{config::_, stream};
-
 use gyllir::config::type;
+
+use std::{config::_, stream};
 
 /**
  * The source directory of a target that does not declare one
@@ -99,7 +99,8 @@ pub record Target {
      *    - cFlags: the raw options passed to the C compiler when building 'cSources'
      *    - synthesized: true iif the target is not declared by a '[targets.<name>]' table
      * */
-    pub self (name: [c8], type: BuildType,
+    pub self (name: [c8],
+              type: BuildType,
               description: [c8] = "",
               sourceDir: [c8] = __DEFAULT_SOURCE_DIR__,
               packageRoot: [c8] = "",
@@ -266,7 +267,6 @@ pub record Target {
      */
 
     impl Streamable;
-
 }
 
 /**
@@ -298,9 +298,7 @@ pub class TargetList {
     {
         if let d: &Dict = cfg {
             self:.insert(d);
-        }
-
-        else throw copy AssertError("'targets' must be a table, one '[targets.<name>]' entry per target"s8);
+        } else throw copy AssertError("'targets' must be a table, one '[targets.<name>]' entry per target"s8);
     }
 
     /*!
@@ -441,7 +439,8 @@ pub class TargetList {
         if (!tests) {
             for k in ["test-dir", "test-root"] {
                 if let Ok(_) = cfg[k]? {
-                    throw copy AssertError(ctx ~ "'tests' is set to false, the target declares no unittest, it cannot declare '" ~ k ~ "'");
+                    throw copy AssertError(ctx ~ "'tests' is set to false, the target declares no unittest, it cannot "
+                                           ~ "declare '" ~ k ~ "'");
                 }
             }
         }
@@ -451,9 +450,23 @@ pub class TargetList {
             // where 'Target::name' actually comes from), but some published packages(including the
             // official std lib) still carry it, from an older schema, so it is accepted and ignored
             // rather than rejected
-            gyllir::config::errors::rejectUnknown(d, ctx, "type", "name", "description", "tests",
-                "source-dir", "package-root", "test-dir", "test-root", "output", "flags", "libraries",
-                "dependencies", "targets", "c-sources", "c-flags");
+            gyllir::config::errors::rejectUnknown(d,
+                                                  ctx,
+                                                  "type",
+                                                  "name",
+                                                  "description",
+                                                  "tests",
+                                                  "source-dir",
+                                                  "package-root",
+                                                  "test-dir",
+                                                  "test-root",
+                                                  "output",
+                                                  "flags",
+                                                  "libraries",
+                                                  "dependencies",
+                                                  "targets",
+                                                  "c-sources",
+                                                  "c-flags");
         }
 
         Target(name, type,
@@ -485,9 +498,7 @@ pub class TargetList {
     {
         if let Ok(Str(value-> v)) = cfg[key]? {
             return v;
-        }
-
-        else if let Ok(_) = cfg[key]? {
+        } else if let Ok(_) = cfg[key]? {
             throw copy AssertError(ctx ~ "'" ~ key ~ "' must be a string");
         }
 
@@ -507,9 +518,7 @@ pub class TargetList {
     {
         if let Ok(Bool(value-> v)) = cfg[key]? {
             return v;
-        }
-
-        else if let Ok(_) = cfg[key]? {
+        } else if let Ok(_) = cfg[key]? {
             throw copy AssertError(ctx ~ "'" ~ key ~ "' must be a boolean, either true or false");
         }
 
@@ -537,13 +546,10 @@ pub class TargetList {
             }
 
             return res;
-        }
-
-        else if let Ok(_) = cfg[key]? {
+        } else if let Ok(_) = cfg[key]? {
             throw copy AssertError(ctx ~ "'" ~ key ~ "' must be an array of strings");
         }
 
         []
     }
-
 }

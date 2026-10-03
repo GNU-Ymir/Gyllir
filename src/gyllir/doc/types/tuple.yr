@@ -9,7 +9,7 @@ pub class TupleType over Type {
     pub let childs: [&Type];
 
     pub self (mutability: [c8], childs: [&Type])
-        with super (mutability-> mutability)
+        with super(mutability-> mutability)
         , childs = childs
     {}
 

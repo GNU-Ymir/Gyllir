@@ -46,13 +46,12 @@ pub class RepoDocServer {
     pub fn run(self) {
         let outDir = self.outputDir();
         if (!fs::sys::isFile(outDir.push("index.html"))) {
-            utils::log::error("Error", "no documentation found in '", outDir.toStr(),
-                               "', run 'gyllir doc' first");
+            utils::log::error("Error", "no documentation found in '", outDir.toStr(), "', run 'gyllir doc' first");
             etc::c::process::_yrt_exit(-1);
             panic;
         }
 
-        let host = if let Ok(Str(value-> h)) = self._args["host"]? { h } else { "127.0.0.1" };
+        let host      = if let Ok(Str(value-> h)) = self._args["host"]? { h } else { "127.0.0.1" };
         let port: u16 = if let Ok(Int(value-> p)) = self._args["port"]? { cast!u16(p) } else { 8000u16 };
 
         let ip = {
@@ -66,13 +65,18 @@ pub class RepoDocServer {
         };
 
         let dmut server = copy HttpServer(SockAddr(ip, port));
-        server:.route(Path(__SYMBOL_ROUTE__), &self.onSymbol,
-                      method-> HttpRequestKind::POST | HttpRequestKind::GET);
+        server:.route(Path(__SYMBOL_ROUTE__), &self.onSymbol, method-> HttpRequestKind::POST | HttpRequestKind::GET);
         server:.setOn404(&self.onRequest);
         server:.start();
 
-        utils::log::info("Serving", "documentation of '", outDir.toStr(), "' on http://", host, ":",
-                          std::conv::to!{[c8]} (server.port), "/");
+        utils::log::info("Serving",
+                         "documentation of '",
+                         outDir.toStr(),
+                         "' on http://",
+                         host,
+                         ":",
+                         std::conv::to!{[c8]} (server.port),
+                         "/");
 
         server:.join();
     } catch {
@@ -94,7 +98,7 @@ pub class RepoDocServer {
      * Answer any request by serving the matching file in the documentation directory, or a 404
      * */
     fn onRequest(self, rqt: HttpRequest)-> HttpResponse {
-        let outDir = self.outputDir();
+        let outDir     = self.outputDir();
         let mut fsPath = outDir;
         let mut isRoot = true;
         for p in rqt.url.parts() {
@@ -108,12 +112,13 @@ pub class RepoDocServer {
         }
 
         if (!fs::sys::isFile(fsPath)) {
-            return self.errorPage(404, "Page not found",
-                                  "There is nothing at <code>" ~ htmlEscape(rqt.url.toStr()) ~
-                                  "</code> in this documentation.");
+            return self.errorPage(404,
+                                  "Page not found",
+                                  "There is nothing at <code>" ~ htmlEscape(rqt.url.toStr())
+                                  ~ "</code> in this documentation.");
         }
 
-        let dmut f = File::open(fsPath, read-> true);
+        let dmut f  = File::open(fsPath, read-> true);
         let content = f:.readAll();
         f:.close();
 
@@ -123,8 +128,7 @@ pub class RepoDocServer {
 
         HttpResponse(200, body-> body, contentType-> self.contentType(fsPath))
     } catch {
-        _ => self.errorPage(500, "Internal server error",
-                            "The documentation directory could not be read.")
+        _ => self.errorPage(500, "Internal server error", "The documentation directory could not be read.")
     }
 
     /**
@@ -140,9 +144,9 @@ pub class RepoDocServer {
         }
 
         let dmut stream = copy StringStream();
-        formatter::format(alias stream, page, copy ["Code" => std::conv::to!{[c8]} (code),
-                                                   "Title" => title,
-                                                   "Message" => message]);
+        formatter::format(alias stream,
+                          page,
+                          copy ["Code" => std::conv::to!{[c8]} (code), "Title" => title, "Message" => message]);
 
         HttpResponse(code, body-> stream[], contentType-> "text/html; charset=utf-8")
     }
@@ -153,13 +157,13 @@ pub class RepoDocServer {
     fn contentType(self, p: Path)-> [c8] {
         match p.extension() {
             "html" => { "text/html; charset=utf-8" }
-            "css" => { "text/css" }
-            "js" => { "application/javascript" }
+            "css"  => { "text/css" }
+            "js"   => { "application/javascript" }
             "json" => { "application/json" }
-            "ico" => { "image/x-icon" }
-            "svg" => { "image/svg+xml" }
-            "png" => { "image/png" }
-            _ => { "application/octet-stream" }
+            "ico"  => { "image/x-icon" }
+            "svg"  => { "image/svg+xml" }
+            "png"  => { "image/png" }
+            _      => { "application/octet-stream" }
         }
     }
 
@@ -214,14 +218,14 @@ pub class RepoDocServer {
         if (rqt.body.len != 0us) {
             if let d: &Dict = json::parse(rqt.body) {
                 let query = if let Ok(Str(value-> q)) = d["query"]? { q } else { "" };
-                let kind = if let Ok(Str(value-> k)) = d["type"]? { k } else { "" };
+                let kind  = if let Ok(Str(value-> k)) = d["type"]? { k } else { "" };
 
                 return (query, kind);
             }
         }
 
         let query = if let Ok(q) = rqt.parameters["query"] { q } else { "" };
-        let kind = if let Ok(k) = rqt.parameters["type"] { k } else { "" };
+        let kind  = if let Ok(k) = rqt.parameters["type"] { k } else { "" };
 
         (query, kind)
     } catch {
@@ -261,7 +265,6 @@ pub class RepoDocServer {
             baseDir
         }
     }
-
 }
 
 /*!
@@ -289,7 +292,7 @@ pub fn htmlEscape(content: [c8])-> [c8] {
             '<'c8 => { stream:.write("&lt;"); }
             '>'c8 => { stream:.write("&gt;"); }
             '"'c8 => { stream:.write("&quot;"); }
-            _ => { stream:.write(c); }
+            _     => { stream:.write(c); }
         }
     }
 
@@ -320,17 +323,21 @@ pub fn withServeFlag(content: [c8])-> [c8] {
 prv fn loadIndex(cwd: Path, args: &Config, cfg: GyllirPackageConfiguration)-> &index::SymbolIndex {
     if let Ok(target) = servedTarget(args, cfg) {
         let jsonFile = defaults::targetCacheDir(cwd, target.name, defaults::__CACHE_DOC_DIR__)
-            .push(target.outputName()).addExtension(defaults::__DOC_EXTENSION__);
+            .push(target.outputName())
+            .addExtension(defaults::__DOC_EXTENSION__);
 
         if let Ok(symbols) = loadSymbols(jsonFile) {
             return copy index::SymbolIndex(symbols);
         }
 
-        utils::log::warn("Warning", "no documentation file '", jsonFile.toStr(), "', '",
-                          __SYMBOL_ROUTE__, "' will find nothing");
+        utils::log::warn("Warning",
+                         "no documentation file '",
+                         jsonFile.toStr(),
+                         "', '",
+                         __SYMBOL_ROUTE__,
+                         "' will find nothing");
     } else {
-        utils::log::warn("Warning", "no target to index the symbols of, '", __SYMBOL_ROUTE__,
-                          "' will find nothing");
+        utils::log::warn("Warning", "no target to index the symbols of, '", __SYMBOL_ROUTE__, "' will find nothing");
     }
 
     copy index::SymbolIndex(none_::NONE_SYMBOL)
@@ -342,7 +349,7 @@ prv fn loadIndex(cwd: Path, args: &Config, cfg: GyllirPackageConfiguration)-> &i
 prv fn loadSymbols(jsonFile: Path)-> (&Symbol)? {
     let content = {
         let dmut f = File::open(jsonFile, read-> true);
-        let c = f:.readAll();
+        let c      = f:.readAll();
         f:.close();
         c
     } catch {
@@ -353,8 +360,7 @@ prv fn loadSymbols(jsonFile: Path)-> (&Symbol)? {
         json::parse(content)
     } catch {
         err: &SyntaxError => {
-            utils::log::warn("Warning", "failed to parse documentation file '", jsonFile.toStr(),
-                              "' : ", err);
+            utils::log::warn("Warning", "failed to parse documentation file '", jsonFile.toStr(), "' : ", err);
             return none;
         }
     };

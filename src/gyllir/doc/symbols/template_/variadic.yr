@@ -19,5 +19,4 @@ pub class TemplateVariadicParam over TemplateParam {
             stream:.write("...");
         }
     }
-
 }

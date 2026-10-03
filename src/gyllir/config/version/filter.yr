@@ -15,7 +15,7 @@ enum FilterKind: u8
  * */
 pub record VersionFilter {
 
-    let mut _filters: [mut(FilterKind, Version)] = [];
+    let mut _filters: [mut (FilterKind, Version)] = [];
 
     /**
      * Construct a version from a string
@@ -40,13 +40,11 @@ pub record VersionFilter {
     {
         if let Str(value-> version) = cfg {
             self:.parseFilter(version, self.createTokenizer(), entry);
-        }
-
-        else if let a: &Array = cfg {
+        } else if let a: &Array = cfg {
             self:.parseFilters(a[], entry);
-        }
-
-        else throw copy AssertError(entry ~ " must be a version filter, or an array of them, for example: version = \">=1.0.0\"");
+        } else
+            throw copy AssertError(entry ~ " must be a version filter, or an array of them, for example: version = "
+                                   ~ "\">=1.0.0\"");
     }
 
     /**
@@ -76,8 +74,8 @@ pub record VersionFilter {
     pub fn select(self, versions: [(Version, [c8])], name: [c8] = "")-> (Version, [c8])
         throws AssertError
     {
-        let dmut stream = copy StringStream();
-        let mut hasBest = false;
+        let dmut stream               = copy StringStream();
+        let mut hasBest               = false;
         let mut best: (Version, [c8]) = (Version(0u32, 0u32, 0u32), "");
 
         for i, v in versions {
@@ -169,11 +167,11 @@ pub record VersionFilter {
         let dmut stream = copy StringStream();
         if !(filter._1).isIgnore() {
             match filter._0 {
-                FilterKind::SUP => { stream:.write('>'); }
+                FilterKind::SUP    => { stream:.write('>'); }
                 FilterKind::SUP_EQ => { stream:.write(">="); }
-                FilterKind::INF => { stream:.write('<'); }
+                FilterKind::INF    => { stream:.write('<'); }
                 FilterKind::INF_EQ => { stream:.write("<="); }
-                FilterKind::EQ => { stream:.write("="); }
+                FilterKind::EQ     => { stream:.write("="); }
             }
         }
 
@@ -189,11 +187,11 @@ pub record VersionFilter {
                 if i != 0 { stream:.write(", "); }
                 if !(f._1).isIgnore() {
                     match f._0 {
-                        FilterKind::SUP => { stream:.write('>'); }
+                        FilterKind::SUP    => { stream:.write('>'); }
                         FilterKind::SUP_EQ => { stream:.write(">="); }
-                        FilterKind::INF => { stream:.write('<'); }
+                        FilterKind::INF    => { stream:.write('<'); }
                         FilterKind::INF_EQ => { stream:.write("<="); }
-                        FilterKind::EQ => { stream:.write("="); }
+                        FilterKind::EQ     => { stream:.write("="); }
                     }
                 }
                 stream:.write(f._1);
@@ -201,7 +199,6 @@ pub record VersionFilter {
             stream:.write(']');
         }
     }
-
 
     impl Serializable {
         pub over serialize(self)-> &Config {
@@ -262,9 +259,9 @@ pub record VersionFilter {
         for v in version {
             if let Str(value-> ve) = v {
                 self:.parseFilter(ve, tzer, entry);
-            }
-
-            else throw copy AssertError(entry ~ " must be an array of version filter strings, for example: version = [\">=1.0.0\", \"<2.0.0\"]");
+            } else
+                throw copy AssertError(entry ~ " must be an array of version filter strings, for example: version = "
+                                       ~ "[\">=1.0.0\", \"<2.0.0\"]");
         }
     }
 
@@ -283,20 +280,20 @@ pub record VersionFilter {
             Version(components[1])
         } else if components.len == 1 {
             Version(components[0])
-        }  else {
+        } else {
             throw copy AssertError(self.malformed(entry, version));
         };
-
 
         if (components.len == 2) {
             if !ver.isNumbered() {
                 throw copy AssertError(entry ~ " is invalid: \"" ~ version ~ "\" compares against \"" ~ ver[]
-                                       ~ "\", which is not a numbered version, only a version like \"1.0.0\" can be compared");
+                                       ~ "\", which is not a numbered version, only a version like \"1.0.0\" can be "
+                                       ~ "compared");
             }
 
             let kind = match components[0] {
-                ">" => { FilterKind::SUP }
-                "<" => { FilterKind::INF }
+                ">"  => { FilterKind::SUP }
+                "<"  => { FilterKind::INF }
                 "<=" => { FilterKind::INF_EQ }
                 ">=" => { FilterKind::SUP_EQ }
                 _ => {
@@ -315,7 +312,6 @@ pub record VersionFilter {
      * */
     prv fn malformed(self, entry: [c8], version: [c8])-> [c8] {
         entry ~ " is invalid: \"" ~ version ~ "\" is not a version filter, expecting a version like \"1.0.0\", "
-            ~ "a name like \"master\", or \"*\" for any of them, optionally prefixed by '>', '>=', '<' or '<='"
+        ~ "a name like \"master\", or \"*\" for any of them, optionally prefixed by '>', '>=', '<' or '<='"
     }
-
 }

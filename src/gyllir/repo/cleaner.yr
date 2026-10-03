@@ -7,7 +7,6 @@ use std::{config::_, env, io, stream};
 use std::concurrency::process;
 use std::fs::{errors, path};
 
-
 pub record RepoCleaner {
 
     // The current working directory
@@ -39,13 +38,9 @@ pub record RepoCleaner {
             self.cleanDoc();
             self.cleanDeps(alias context, recursive-> true);
             self.cleanOutputs();
-        }
-
-        else if let Ok(Bool(value-> _ = true)) = self._args["doc"]? {
+        } else if let Ok(Bool(value-> _ = true)) = self._args["doc"]? {
             self.cleanDoc();
-        }
-
-        else {
+        } else {
             self.cleanOutputs();
         }
     }
@@ -117,5 +112,4 @@ pub record RepoCleaner {
             fs::sys::removeFile(testFile);
         }?;
     }
-
 }

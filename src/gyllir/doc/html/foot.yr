@@ -2,7 +2,6 @@ in foot;
 
 use std::stream;
 
-
 /**
  * Html footer of a page
  */
@@ -29,10 +28,8 @@ pub class HtmlFooter over HtmlNode {
      *   - stream: the stream to populate
      */
     pub over dumpHtml(self, dmut stream: &StringStream) {
-        let mp = copy ["Title" => self._title,
-                       "GitURL" => formatter::formatGitUrl(self._git, version-> self._version)];
+        let mp = copy ["Title" => self._title, "GitURL" => formatter::formatGitUrl(self._git, version-> self._version)];
 
         formatter::format(alias stream, ressources::FOOTER, mp);
     }
-
 }

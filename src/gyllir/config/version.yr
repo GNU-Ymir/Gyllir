@@ -18,7 +18,7 @@ pub record Version {
     let mut _numbered: bool = false;
 
     // The numbers of the verseion(applicable iif self._numbered)
-    let dmut _numbers: [u32 ; 3] = [0 ; 3];
+    let dmut _numbers: [u32; 3] = [0; 3];
 
     // The name of the version(applicable iif !self._numbered)
     let mut _name: [c8] = [];
@@ -56,9 +56,7 @@ pub record Version {
     {
         if let Str(value-> version) = cfg {
             self:.parseVersion(version);
-        }
-
-        else throw copy AssertError(entry ~ " must be a string, for example: version = \"0.1.0\"");
+        } else throw copy AssertError(entry ~ " must be a string, for example: version = \"0.1.0\"");
     }
 
     /*!
@@ -76,9 +74,7 @@ pub record Version {
         if (!self._numbered) return self;
         if minor {
             return Version(self.major, self.minor + 1u32, 0u32);
-        }
-
-        else if major {
+        } else if major {
             return Version(self.major + 1u32, 0u32, 0u32);
         }
 
@@ -94,11 +90,7 @@ pub record Version {
         if (!self._numbered) return self._name;
 
         let dmut str = copy StringStream();
-        str:.write(self.major)
-            :.write(".")
-            :.write(self.minor)
-            :.write(".")
-            :.write(self.patch);
+        str:.write(self.major):.write("."):.write(self.minor):.write("."):.write(self.patch);
 
         str[]
     }
@@ -140,14 +132,11 @@ pub record Version {
      * ====================================================================================================
      */
 
-
     pub fn opEquals(self, o: Version)-> bool {
         if (self._numbered != o._numbered) return false;
         if self._numbered {
             return self._numbers == o._numbers;
-        }
-
-        else return self._name == o._name;
+        } else return self._name == o._name;
     }
 
     pub fn opCmp(self, o: Version)-> i32 {
@@ -221,7 +210,8 @@ pub record Version {
 
         {
             self._numbered = true;
-            if (components[0].len > 1 && components[0][0] == 'v') { // numbered version can be written as v1.0.0 (e.g. for git tags)
+            if (components[0].len > 1
+                && components[0][0] == 'v') { // numbered version can be written as v1.0.0 (e.g. for git tags)
                 self._numbers[0] = std::conv::to!{u32} (components[0][1 .. $]);
             } else self._numbers[0] = std::conv::to!{u32} (components[0]);
 
@@ -235,7 +225,6 @@ pub record Version {
                 self._numbered = false;
                 self._name = version;
             }
-
         }
     }
 }

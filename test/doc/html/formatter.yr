@@ -5,7 +5,7 @@ use std::stream;
 __test simple_placeholder {
     // A "$(key)" placeholder is replaced by its value from the map
     let dmut stream = copy StringStream();
-    let values = copy ["name" => "world"];
+    let values      = copy ["name" => "world"];
     formatter::format(alias stream, "hi $(name)!", values);
 
     assert(stream[] == "hi world!", "unexpected result for a simple placeholder");
@@ -14,7 +14,7 @@ __test simple_placeholder {
 __test minimal_placeholder {
     // A placeholder is resolved even when it is the entire (minimal) content
     let dmut stream = copy StringStream();
-    let values = copy ["a" => "X"];
+    let values      = copy ["a" => "X"];
     formatter::format(alias stream, "$(a)", values);
 
     assert(stream[] == "X", "unexpected result for a minimal placeholder");
@@ -22,7 +22,7 @@ __test minimal_placeholder {
 
 __test no_placeholder_verbatim {
     // Content with no placeholder is copied verbatim
-    let dmut stream = copy StringStream();
+    let dmut stream            = copy StringStream();
     let values: [[c8] => [c8]] = copy [];
     formatter::format(alias stream, "no placeholders here", values);
 
@@ -31,7 +31,7 @@ __test no_placeholder_verbatim {
 
 __test missing_key_dropped {
     // A placeholder whose key isn't in the map is silently dropped (surrounding text is kept)
-    let dmut stream = copy StringStream();
+    let dmut stream            = copy StringStream();
     let values: [[c8] => [c8]] = copy [];
     formatter::format(alias stream, "missing $(key) value", values);
 
@@ -41,7 +41,7 @@ __test missing_key_dropped {
 __test nested_parentheses_placeholder {
     // Parentheses inside the placeholder name are matched, not treated as the closing delimiter
     let dmut stream = copy StringStream();
-    let values = copy ["a(b)" => "NESTED"];
+    let values      = copy ["a(b)" => "NESTED"];
     formatter::format(alias stream, "x $(a(b)) y", values);
 
     assert(stream[] == "x NESTED y", "unexpected result for a placeholder with nested parentheses");
@@ -50,7 +50,7 @@ __test nested_parentheses_placeholder {
 __test multiple_placeholders {
     // Several placeholders in the same content are all resolved, including a trailing one
     let dmut stream = copy StringStream();
-    let values = copy ["a" => "A", "b" => "B"];
+    let values      = copy ["a" => "A", "b" => "B"];
     formatter::format(alias stream, "$(a) and $(b)", values);
 
     assert(stream[] == "A and B", "unexpected result for multiple placeholders");
@@ -58,7 +58,7 @@ __test multiple_placeholders {
 
 __test unterminated_placeholder {
     // An unterminated "$(" (no matching ")") is kept as literal text, and doesn't crash
-    let dmut stream = copy StringStream();
+    let dmut stream            = copy StringStream();
     let values: [[c8] => [c8]] = copy [];
     formatter::format(alias stream, "unterminated $(oops", values);
 

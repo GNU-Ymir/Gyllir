@@ -1,6 +1,7 @@
 in any;
 
-use std::{stream, fs::path};
+use std::stream;
+use std::fs::path;
 
 pub lazy EMPTY_ANY = copy AnyType("", "");
 
@@ -12,7 +13,7 @@ pub class AnyType over Type {
     pub let mut module: Path;
 
     pub self (name: [c8], mutability: [c8])
-        with super (mutability-> mutability)
+        with super(mutability-> mutability)
         , fullName = name
         , name = Path(name, sep-> "::"s8).file()
         , module = Path(name, sep-> "::"s8).parent()
@@ -24,7 +25,7 @@ pub class AnyType over Type {
             } else if let Ok(f) = std::algorithm::searching::find(self.fullName, '!') {
                 if let Ok(e) = std::algorithm::searching::rfind(self.fullName, '}') {
                     let templates = self.fullName[f .. e + 1];
-                    let res_name = self.fullName[0 .. f];
+                    let res_name  = self.fullName[0 .. f];
                     self.module = Path(res_name, sep-> "::").parent();
                     self.name = Path(res_name, sep-> "::").file() ~ templates;
                     self.fullName = res_name ~ templates;
@@ -38,5 +39,4 @@ pub class AnyType over Type {
             stream:.write("Any (", self.module.push(self.name).toStr(sep-> "::"), ")");
         }
     }
-
 }

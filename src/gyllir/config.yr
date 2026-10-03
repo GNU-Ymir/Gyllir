@@ -100,7 +100,13 @@ pub record GyllirPackageConfiguration {
      * */
     pub self empty() {}
 
-    pub self (name: [c8], license: [c8], description: [c8], type: BuildType, registry: Url, version: Version, authors: [[c8]])
+    pub self (name: [c8],
+              license: [c8],
+              description: [c8],
+              type: BuildType,
+              registry: Url,
+              version: Version,
+              authors: [[c8]])
         with _name = name
         , _license = license
         , _description = description
@@ -119,9 +125,7 @@ pub record GyllirPackageConfiguration {
         if let d: &Dict = cfg {
             self:.parsePackage(d);
             self.checkTargetExclusivity(d);
-        }
-
-        else throw copy AssertError("expecting a table of entries describing the package");
+        } else throw copy AssertError("expecting a table of entries describing the package");
     }
 
     /*!
@@ -131,7 +135,6 @@ pub record GyllirPackageConfiguration {
      * ====================================================================================================
      * ====================================================================================================
      */
-
 
     @field
     pub fn name(self)-> [c8] {
@@ -311,7 +314,6 @@ pub record GyllirPackageConfiguration {
             if (self._targets.len() != 0us) {
                 d["targets"] = self._targets.serialize();
             }
-
             // the fields describing a single artifact are exclusive with the target tables: writing
             // any of them next to a '[targets.*]' would produce a configuration that the next
             // 'gyllir build' rejects. 'package-root' and 'test-root' are only written when set, so
@@ -344,7 +346,9 @@ pub record GyllirPackageConfiguration {
                 // read back from its own 'gyllir.toml'
                 s["version"] = {
                     VersionFilter(self._stdVersionRaw, entry-> "'std.version'").serialize()
-                } catch { _ => copy Str("*") };
+                } catch {
+                    _ => copy Str("*")
+                };
                 s["url"] = self._stdUrl.serialize();
                 d["std"] = s;
             }
@@ -412,7 +416,8 @@ pub record GyllirPackageConfiguration {
         if let Ok(r) = d["registry"]? {
             self._registry = Url(r, entry-> "'registry'");
         } else {
-            throw copy AssertError("missing required entry 'registry', for example: registry = { git = \"git@github.com:me/my-package.git\" }");
+            throw copy AssertError("missing required entry 'registry', for example: registry = { git = "
+                                   ~ "\"git@github.com:me/my-package.git\" }");
         }
 
         // optional: a package declaring '[targets.*]' tables must not have one at all, and a package
@@ -427,7 +432,8 @@ pub record GyllirPackageConfiguration {
         self._tests = self.readBool(d, "tests", default-> true);
 
         if (!self._tests && self._testRoot != "") {
-            throw copy AssertError("'tests' is set to false, the package declares no unittest, it cannot declare 'test-root'");
+            throw copy AssertError("'tests' is set to false, the package declares no unittest, it cannot declare "
+                                   ~ "'test-root'");
         }
 
         self._authors = self.readStringArray(d, "authors", example-> "authors = [\"me <me@example.com>\"]");
@@ -450,9 +456,25 @@ pub record GyllirPackageConfiguration {
             self:.parseStd(x);
         }
 
-        gyllir::config::errors::rejectUnknown(d, "", "name", "license", "description", "compiler",
-            "package-root", "test-root", "tests", "type", "registry", "version", "authors",
-            "libraries", "flags", "dependencies", "targets", "commands", "std");
+        gyllir::config::errors::rejectUnknown(d,
+                                              "",
+                                              "name",
+                                              "license",
+                                              "description",
+                                              "compiler",
+                                              "package-root",
+                                              "test-root",
+                                              "tests",
+                                              "type",
+                                              "registry",
+                                              "version",
+                                              "authors",
+                                              "libraries",
+                                              "flags",
+                                              "dependencies",
+                                              "targets",
+                                              "commands",
+                                              "std");
     }
 
     /**
@@ -505,9 +527,7 @@ pub record GyllirPackageConfiguration {
             // validated eagerly, so a malformed filter is reported when the configuration is
             // loaded, not deep inside a build
             VersionFilter(self._stdVersionRaw, entry-> "'std.version'");
-        }
-
-        else throw copy AssertError("'std' must be a table, for example: [std]\nversion = \">=1.0.0\"");
+        } else throw copy AssertError("'std' must be a table, for example: [std]\nversion = \">=1.0.0\"");
     }
 
     /**
@@ -540,9 +560,7 @@ pub record GyllirPackageConfiguration {
     {
         if let Ok(Str(value-> v)) = d[key]? {
             return v;
-        }
-
-        else if let Ok(_) = d[key]? {
+        } else if let Ok(_) = d[key]? {
             throw copy AssertError("'" ~ key ~ "' must be a string, for example: " ~ example);
         }
 
@@ -557,9 +575,7 @@ pub record GyllirPackageConfiguration {
     {
         if let Ok(Bool(value-> v)) = d[key]? {
             return v;
-        }
-
-        else if let Ok(_) = d[key]? {
+        } else if let Ok(_) = d[key]? {
             throw copy AssertError("'" ~ key ~ "' must be a boolean, either true or false");
         }
 
@@ -587,13 +603,10 @@ pub record GyllirPackageConfiguration {
             }
 
             return res;
-        }
-
-        else if let Ok(_) = d[key]? {
+        } else if let Ok(_) = d[key]? {
             throw copy AssertError("'" ~ key ~ "' must be an array of strings, for example: " ~ example);
         }
 
         []
     }
-
 }

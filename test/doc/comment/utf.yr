@@ -27,7 +27,8 @@ __test star_not_at_line_start_kept {
 
 __test each_line_resets_star_state {
     // Each line is considered independently: a newline resets the "start of line" state
-    assert(escapeChars("one\n * two") == "one\n  two", "a star at the start of a subsequent line should also be stripped");
+    assert(escapeChars("one\n * two") == "one\n  two",
+           "a star at the start of a subsequent line should also be stripped");
 
     // ...but a star right after another word (not a fresh line) is not special
     assert(escapeChars("a*\n*b") == "a*\nb", "unexpected result across a line boundary");

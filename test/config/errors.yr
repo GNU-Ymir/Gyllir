@@ -5,7 +5,7 @@ use std::config::data;
 
 __test no_sub_error_prints_message_only {
     // Without a sub error, only the message is printed
-    let e = copy RecursiveDependency("pkgA");
+    let e        = copy RecursiveDependency("pkgA");
     let dmut str = copy StringStream();
     str:.write(e);
 
@@ -14,8 +14,8 @@ __test no_sub_error_prints_message_only {
 
 __test sub_error_chained_on_indented_line {
     // A sub error is chained on a new indented line
-    let sub = copy RecursiveDependency("pkgB");
-    let e = copy RecursiveDependency("pkgA", subError-> (sub)?);
+    let sub      = copy RecursiveDependency("pkgB");
+    let e        = copy RecursiveDependency("pkgA", subError-> (sub)?);
     let dmut str = copy StringStream();
     str:.write(e);
 

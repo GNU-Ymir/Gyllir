@@ -1,4 +1,5 @@
-use gyllir::doc::comment::{node, node::_};
+use gyllir::doc::comment::node;
+use gyllir::doc::comment::node::_;
 
 use std::stream;
 
@@ -39,7 +40,7 @@ __test non_empty_head_excluded_from_short_text {
 
 __test empty_description_produces_no_html {
     // An empty "description" node produces no html at all
-    let n = copy CommentNode("description");
+    let n           = copy CommentNode("description");
     let dmut stream = copy StringStream();
     n.dumpHtml(alias stream);
 
@@ -118,6 +119,7 @@ __test long_content_adds_closing_toggle {
     let dmut stream = copy StringStream();
     n.dumpHtml(alias stream);
 
-    assert(stream[] == "<dt class=\"head\"><span class=\"desc-closing\">[−]</span> Information</dt><dd>" ~ longText ~ "</dd>",
+    assert(stream[]
+           == "<dt class=\"head\"><span class=\"desc-closing\">[−]</span> Information</dt><dd>" ~ longText ~ "</dd>",
            "expected a closing toggle for a long inner content");
 }

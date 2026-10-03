@@ -2,7 +2,6 @@ in module;
 
 use std::stream;
 
-
 @final
 pub class Module over Symbol {
 
@@ -15,7 +14,7 @@ pub class Module over Symbol {
      *    - childs: the symbols found in the module
      * */
     pub self (name: [c8], doc: [c8], loc: Location, protection: Protection)
-        with super (name, doc, loc, protection)
+        with super(name, doc, loc, protection)
     {}
 
     impl Streamable {

@@ -34,7 +34,6 @@ pub record SymbolEntry {
     {}
 
     impl Streamable;
-
 }
 
 /**
@@ -95,9 +94,9 @@ pub class SymbolIndex {
 
         let k = normalizeKind(toLower(kind));
 
-        let mut exact: [SymbolEntry] = [];
+        let mut exact: [SymbolEntry]    = [];
         let mut prefixed: [SymbolEntry] = [];
-        let mut inner: [SymbolEntry] = [];
+        let mut inner: [SymbolEntry]    = [];
 
         for e in self._entries {
             if (k.len != 0us && normalizeKind(toLower(e.kind)) != k) continue;
@@ -105,9 +104,13 @@ pub class SymbolIndex {
             let name = toLower(e.name);
             let last = lastSegment(name);
 
-            if (name == q || last == q) { exact ~= [e]; }
-            else if (startsWith(last, q) || startsWith(name, q)) { prefixed ~= [e]; }
-            else if (contains(name, q)) { inner ~= [e]; }
+            if (name == q || last == q) {
+                exact ~= [e];
+            } else if (startsWith(last, q) || startsWith(name, q)) {
+                prefixed ~= [e];
+            } else if (contains(name, q)) {
+                inner ~= [e];
+            }
         }
 
         let all = exact ~ prefixed ~ inner;
@@ -136,7 +139,7 @@ pub class SymbolIndex {
         for ch in module.childs {
             match ch {
                 m: &Module => { self:.loadModule(m); }
-                _ => { self:.loadDeclaration(ch, "", module.name, url); }
+                _          => { self:.loadDeclaration(ch, "", module.name, url); }
             }
         }
     }
@@ -198,12 +201,12 @@ pub class SymbolIndex {
             }
 
             f: &Function => { self:.push(prefix, symbolName(f.name), "fn", module, url); }
-            m: &Method => { self:.push(prefix, symbolName(m.name), "fn", module, url); }
-            c: &Ctor => { self:.push(prefix, symbolName(c.name), "ctor", module, url); }
+            m: &Method   => { self:.push(prefix, symbolName(m.name), "fn", module, url); }
+            c: &Ctor     => { self:.push(prefix, symbolName(c.name), "ctor", module, url); }
             // a class field is dumped under its raw name, it is never qualified by 'gyc'
             v: &Variable => { self:.push(prefix, v.name, "let", module, url); }
-            g: &Global => { self:.push(prefix, symbolName(g.name), "let", module, url); }
-            d: &Def => { self:.push(prefix, symbolName(d.name), "def", module, url); }
+            g: &Global   => { self:.push(prefix, symbolName(g.name), "let", module, url); }
+            d: &Def      => { self:.push(prefix, symbolName(d.name), "def", module, url); }
         }
     }
 
@@ -223,7 +226,6 @@ pub class SymbolIndex {
 
         qualified
     }
-
 }
 
 /*!

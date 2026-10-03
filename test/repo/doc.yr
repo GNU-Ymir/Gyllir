@@ -25,7 +25,7 @@ fn nbPages(dir: Path)-> usize
 __test doc_build_renders_page_per_module {
     // A documentation build compiles the project, then renders one html page per module, next to
     // the static assets the pages refer to
-    let dir = mkExecutableProject("myapp");
+    let dir      = mkExecutableProject("myapp");
     let dmut mgr = copy GyllirManager(copy ["gyllir", "doc"]);
 
     let cfg = mkConfig("myapp", "executable");
@@ -41,10 +41,10 @@ __test doc_build_renders_page_per_module {
 
 __test doc_output_flag_changes_render_directory {
     // "--output" renders the pages somewhere else than the default "__doc" directory
-    let dir = mkExecutableProject("myapp");
+    let dir      = mkExecutableProject("myapp");
     let dmut mgr = copy GyllirManager(copy ["gyllir", "doc"]);
 
-    let out = sys::tempDirectory(prefix-> "gyllir_doc_out_");
+    let out       = sys::tempDirectory(prefix-> "gyllir_doc_out_");
     let dmut args = copy Dict();
     args["output"] = copy Str(out.toStr());
     args["j"] = copy Int(1i64);
@@ -59,20 +59,23 @@ __test doc_output_flag_changes_render_directory {
 __test doc_input_flag_renders_from_doc_file {
     // "--input" renders the pages from a documentation file produced by a previous compilation,
     // without a package(and so without a configuration) of its own
-    let dir = mkExecutableProject("myapp");
+    let dir      = mkExecutableProject("myapp");
     let dmut mgr = copy GyllirManager(copy ["gyllir", "doc"]);
 
     let cfg = mkConfig("myapp", "executable");
     RepoBuilder(dir, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false, forDoc-> true).run(alias mgr);
     let input = defaults::targetCacheDir(dir, "myapp", defaults::__CACHE_DOC_DIR__)
-        .push("myapp").addExtension(defaults::__DOC_EXTENSION__);
+        .push("myapp")
+        .addExtension(defaults::__DOC_EXTENSION__);
     assert(sys::isFile(input), "sanity: the documentation file should have been produced");
 
-    let out = sys::tempDirectory(prefix-> "gyllir_doc_out_");
+    let out       = sys::tempDirectory(prefix-> "gyllir_doc_out_");
     let dmut args = copy Dict();
     args["output"] = copy Str(out.toStr());
 
-    RepoDocBuilder(out, args, GyllirPackageConfiguration::empty(), input-> input.toStr(), fromFile-> true).run(alias mgr);
+    RepoDocBuilder(out, args, GyllirPackageConfiguration::empty(), input-> input.toStr(), fromFile-> true).run(
+        alias mgr
+    );
 
     assert(sys::isFile(out.push("index.html")), "the pages should be rendered from the input documentation file");
 }
@@ -80,14 +83,14 @@ __test doc_input_flag_renders_from_doc_file {
 __test doc_build_removes_stale_pages {
     // The pages of a previous run are removed before the new ones are written, so that the module
     // of a deleted source does not keep a page of its own
-    let dir = mkExecutableProject("myapp");
+    let dir      = mkExecutableProject("myapp");
     let dmut mgr = copy GyllirManager(copy ["gyllir", "doc"]);
-    let cfg = mkConfig("myapp", "executable");
+    let cfg      = mkConfig("myapp", "executable");
 
     RepoDocBuilder(dir, mkBuildArgs(), cfg, target-> soleTarget(cfg)).run(alias mgr);
 
     let docDir = dir.push(defaults::__DOC_DIR__);
-    let nb = nbPages(docDir);
+    let nb     = nbPages(docDir);
     writeSource(docDir.push("stale").addExtension(defaults::__HTML_EXTENSION__), "<html></html>");
 
     RepoDocBuilder(dir, mkBuildArgs(), cfg, target-> soleTarget(cfg)).run(alias mgr);
@@ -100,7 +103,7 @@ __test doc_build_renders_every_symbol_kind {
     // A project holding one declaration of about every kind is documented end to end: gyc produces
     // the documentation file, the loader rebuilds the symbol tree out of it, and every symbol is
     // rendered on the page of the module declaring it
-    let dir = mkRichProject();
+    let dir      = mkRichProject();
     let dmut mgr = copy GyllirManager(copy ["gyllir", "doc"]);
 
     let cfg = mkConfig("rich", "executable");
@@ -111,32 +114,32 @@ __test doc_build_renders_every_symbol_kind {
     assert(sys::isFile(docDir.push("main_sub.html")), "the sub module should be rendered, on a page of its own");
 
     let dmut f = File::open(docDir.push("main.html"));
-    let page = f:.readAll();
+    let page   = f:.readAll();
     f:.close();
 
-    for needle in copy ["MAX_SIZE",                       // a def
-                        "COUNT",                          // a global
-                        "Color",                          // an enum, and its fields
+    for needle in copy ["MAX_SIZE", // a def
+                        "COUNT", // a global
+                        "Color", // an enum, and its fields
                         "RED",
-                        "add",                            // a function, its parameters and its doc
+                        "add", // a function, its parameters and its doc
                         "the first one",
-                        "isIntegral",                     // the test of a templated function
-                        "Printable",                      // a trait
-                        "Foo",                            // a class, its assertion, its ctor and its methods
+                        "isIntegral", // the test of a templated function
+                        "Printable", // a trait
+                        "Foo", // a class, its assertion, its ctor and its methods
                         "always",
-                        "Pair",                           // a record
-                        "skips",                          // the rules of a macro
-                        "types",                          // a function taking every kind of type
+                        "Pair", // a record
+                        "skips", // the rules of a macro
+                        "types", // a function taking every kind of type
                         "[i32 ; 3]",
                         "[i32 => f64]",
                         "(i32,bool)",
                         "(i32)?",
                         "*(void)",
                         "fn (i32)-> bool",
-                        "cte assert",                     // the assertion of a class
-                        "Constructors",                   // the sections of the members of a class
+                        "cte assert", // the assertion of a class
+                        "Constructors", // the sections of the members of a class
                         "Methods",
-                        "Inner modules"]                  // the table of the sub modules
+                        "Inner modules"] // the table of the sub modules
     {
         assert(findFirst(page, needle).0, "the rendered page does not mention \"" ~ needle ~ "\"");
     }
@@ -153,8 +156,8 @@ __test doc_build_renders_every_symbol_kind {
 __test doc_multi_target_renders_separate_sites {
     // A package producing several artifacts documents each of them under a sub directory of its own,
     // so that the sites do not overwrite each other
-    let dir = mkMultiTargetProject();
-    let cfg = mkMultiTargetConfig();
+    let dir      = mkMultiTargetProject();
+    let cfg      = mkMultiTargetConfig();
     let dmut mgr = copy GyllirManager(copy ["gyllir", "doc"]);
 
     let selected = mgr.selectTargets(cfg, copy Dict());
@@ -162,7 +165,8 @@ __test doc_multi_target_renders_separate_sites {
 
     let docDir = dir.push(defaults::__DOC_DIR__);
     for name in copy ["cli", "mylib", "tool"] {
-        assert(sys::isFile(docDir.push(name).push("index.html")), "the target '" ~ name ~ "' should have a site of its own");
+        assert(sys::isFile(docDir.push(name).push("index.html")),
+               "the target '" ~ name ~ "' should have a site of its own");
     }
 
     assert(!sys::isFile(docDir.push("index.html")), "a multi target package should not render a flat site");
@@ -171,8 +175,8 @@ __test doc_multi_target_renders_separate_sites {
 
 __test doc_target_uses_own_doc_cache {
     // The documentation of a target is compiled in the doc cache of that target
-    let dir = mkMultiTargetProject();
-    let cfg = mkMultiTargetConfig();
+    let dir      = mkMultiTargetProject();
+    let cfg      = mkMultiTargetConfig();
     let dmut mgr = copy GyllirManager(copy ["gyllir", "doc"]);
 
     let dmut args = copy Dict();
@@ -182,8 +186,10 @@ __test doc_target_uses_own_doc_cache {
     let selected = mgr.selectTargets(cfg, args);
     mgr:.buildTargets(dir, args, cfg, selected, forDoc-> true);
 
-    assert(hasCacheFile(dir, "tool", defaults::__CACHE_DOC_DIR__, "tool.doc.json"), "the documentation file should be cached under the target");
-    assert(sys::isFile(dir.push(defaults::__DOC_DIR__).push("tool").push("index.html")), "the site of the named target should be rendered");
+    assert(hasCacheFile(dir, "tool", defaults::__CACHE_DOC_DIR__, "tool.doc.json"),
+           "the documentation file should be cached under the target");
+    assert(sys::isFile(dir.push(defaults::__DOC_DIR__).push("tool").push("index.html")),
+           "the site of the named target should be rendered");
     assert(!sys::isDir(dir.push(defaults::__DOC_DIR__).push("cli")), "the other targets should not be documented");
 }
 

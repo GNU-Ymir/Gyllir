@@ -6,7 +6,6 @@ use std::{config::_, env, io, stream};
 use std::concurrency::process;
 use std::fs::{errors, path};
 
-
 pub record RepoRunner {
 
     // The current working directory
@@ -56,7 +55,8 @@ pub record RepoRunner {
             self.exitCode(subProc:.wait())
         } else {
             if !self._target.type.isExecutable() {
-                throw copy AssertError("target '" ~ self._target.name ~ "' is a library, 'gyllir run' only runs an executable target");
+                throw copy AssertError("target '" ~ self._target.name
+                                       ~ "' is a library, 'gyllir run' only runs an executable target");
             }
 
             let mut options: [[c8]] = [];
@@ -92,5 +92,4 @@ pub record RepoRunner {
 
         (status >> 8) & 0xff
     }
-
 }

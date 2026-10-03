@@ -1,8 +1,9 @@
 in git;
 
 use gyllir::utils::errors;
+
+use std::{fs::_, io, stream};
 use std::concurrency::process;
-use std::{io, fs::_, stream};
 use std::syntax::tokenizer;
 
 /**
@@ -20,7 +21,6 @@ pub record GitManager {
     pub self (cwd: Path = Path("."))
         with _cwd = cwd
     {}
-
 
     /*!
      * ====================================================================================================
@@ -78,7 +78,9 @@ pub record GitManager {
         let parent = self._cwd.parent();
         fs::sys::createDir(parent)?;
 
-        let dmut proc = copy SubProcess("git", copy ["clone", "--bare", "--filter=blob:none", "-q", url, self._cwd.file()], cwd-> parent);
+        let dmut proc = copy SubProcess("git",
+                                        copy ["clone", "--bare", "--filter=blob:none", "-q", url, self._cwd.file()],
+                                        cwd-> parent);
         proc:.start();
 
         let code = proc:.wait();
@@ -161,7 +163,6 @@ pub record GitManager {
         }
     }
 
-
     /**
      * Add a file to the control of the git repository
      * @params:
@@ -170,7 +171,7 @@ pub record GitManager {
     pub fn add(self, path: Path)
         throws GitError, FsError
     {
-        let parent = path.parent();
+        let parent    = path.parent();
         let dmut proc = copy SubProcess("git", copy ["add", path.file()], cwd-> parent);
         proc:.start();
         let code = proc:.wait();
@@ -440,7 +441,7 @@ pub record GitManager {
     {
         let dmut stream = copy StringStream();
         {
-            let dmut proc = copy SubProcess("git", copy ["config",  "--global", "--get",  "user.name"], cwd-> self._cwd);
+            let dmut proc = copy SubProcess("git", copy ["config", "--global", "--get", "user.name"], cwd-> self._cwd);
             proc:.start();
             let code = proc:.wait();
             if (code != 0) {
@@ -451,7 +452,7 @@ pub record GitManager {
         }
 
         {
-            let dmut proc = copy SubProcess("git", copy ["config",  "--global", "--get",  "user.email"], cwd-> self._cwd);
+            let dmut proc = copy SubProcess("git", copy ["config", "--global", "--get", "user.email"], cwd-> self._cwd);
             proc:.start();
             let code = proc:.wait();
             if (code != 0) {
@@ -528,5 +529,4 @@ pub record GitManager {
 
         str
     }
-
 }

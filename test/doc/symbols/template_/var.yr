@@ -3,7 +3,7 @@ use gyllir::doc::symbols::template_::var;
 use std::stream;
 
 __test kinded_template_param_rendering {
-    let p = copy TemplateVarParam("T", "of i32");
+    let p           = copy TemplateVarParam("T", "of i32");
     let dmut stream = copy StringStream();
     stream:.write(p);
 

@@ -1,14 +1,16 @@
 in ctor;
 
+use gyllir::doc::types;
+use gyllir::doc::symbols::variable;
+
 use std::stream;
-use gyllir::doc::{symbols::variable, types};
 
 @final
 pub class Ctor over Symbol {
 
     pub let mut parameters: [&Variable] = [];
-    pub let mut throwers: [&Type] = [];
-    pub let mut isUnsafe: bool = false;
+    pub let mut throwers: [&Type]       = [];
+    pub let mut isUnsafe: bool          = false;
 
     /**
      * @params:
@@ -17,7 +19,7 @@ pub class Ctor over Symbol {
      *    - childs: the symbols found in the module
      * */
     pub self (name: [c8], doc: [c8], loc: Location, protection: Protection)
-        with super (name, doc, loc, protection)
+        with super(name, doc, loc, protection)
     {}
 
     impl Streamable {

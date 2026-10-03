@@ -58,5 +58,4 @@ pub class HtmlHeader over HtmlNode {
 
         formatter::format(alias stream, ressources::HEADER, mp);
     }
-
 }

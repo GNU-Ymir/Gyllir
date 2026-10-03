@@ -57,11 +57,13 @@ pub record CSourceBuilder {
             sys::createDir(objDir, recursive-> true);
         }
 
-        let mut objs: [Path] = [];
+        let mut objs: [Path]        = [];
         let mut changedSrcs: [Path] = [];
         let mut changedObjs: [Path] = [];
         for src in sources {
-            let objFile = objDir.push(src.removePrefix(self._cwd).stripExtension().toStr(sep-> "_")).addExtension(defaults::__OBJECT_EXTENSION__);
+            let objFile = objDir
+                .push(src.removePrefix(self._cwd).stripExtension().toStr(sep-> "_"))
+                .addExtension(defaults::__OBJECT_EXTENSION__);
             objs ~= [objFile];
 
             if (self.needsRecompile(src, objFile)) {
@@ -140,19 +142,21 @@ pub record CSourceBuilder {
     prv fn compile(self, dmut context: &GyllirManager, srcs: [Path], objs: [Path]) {
         utils::log::info("Compiling", srcs.len, " C source(s) of ", self._target.name);
 
-        let dmut pool = copy std::concurrency::task::TaskPool(nbThreads-> self._nbThreads);
+        let dmut pool    = copy std::concurrency::task::TaskPool(nbThreads-> self._nbThreads);
         let dmut success = copy [0us];
         for i in 0us .. srcs.len {
-            let src = srcs[i];
+            let src     = srcs[i];
             let objFile = objs[i];
             pool:.submit(copy || => {
-                let options = self.createCompileOptions(src, objFile);
-                if (!context.runProcess(self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose)) {
-                    pool:.clear();
-                } else {
-                    atomic { success[0] += 1us; }
-                }
-            });
+                             let options = self.createCompileOptions(src, objFile);
+                             if (!context.runProcess(self._cfg.compiler, options,
+                                                     cwd-> self._cwd,
+                                                     verbose-> self._verbose)) {
+                                 pool:.clear();
+                             } else {
+                                 atomic { success[0] += 1us; }
+                             }
+                         });
         }
         pool:.join();
 
@@ -178,8 +182,8 @@ pub record CSourceBuilder {
 
         let flatMarker = "/*."s8;
         if let Ok(idx) = self.findSubstring(pattern, flatMarker) {
-            let dir = self._cwd.push(pattern[0us .. idx]);
-            let ext = pattern[idx + flatMarker.len .. $];
+            let dir                = self._cwd.push(pattern[0us .. idx]);
+            let ext                = pattern[idx + flatMarker.len .. $];
             let mut result: [Path] = [];
             {
                 for entry in sys::readDir(dir) match entry {
@@ -187,7 +191,9 @@ pub record CSourceBuilder {
                         result ~= [p];
                     }
                 }
-            } catch { _ => {} }
+            } catch {
+                _ => {}
+            }
 
             return result;
         }
@@ -228,7 +234,10 @@ pub record CSourceBuilder {
         for i in 0us .. (hay.len - needle.len + 1us) {
             let mut matched = true;
             for j in 0us .. needle.len {
-                if hay[i + j] != needle[j] { matched = false; break; }
+                if hay[i + j] != needle[j] {
+                    matched = false;
+                    break;
+                }
             }
 
             if matched { return (i)?; }
@@ -236,5 +245,4 @@ pub record CSourceBuilder {
 
         none
     }
-
 }

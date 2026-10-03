@@ -80,8 +80,7 @@ __test midgard_version_line_extracted {
 
 __test midgard_version_line_other_lines_ignored {
     // Any line that isn't the "Midgard version ..." one reports no version
-    assert(midgardVersionOfLine("Ymir version 1.3.2 20260818") == "",
-           "an unrelated line should report no version");
+    assert(midgardVersionOfLine("Ymir version 1.3.2 20260818") == "", "an unrelated line should report no version");
     assert(midgardVersionOfLine("") == "", "an empty line should report no version");
     assert(midgardVersionOfLine("Midgard version") == "",
            "a truncated line with no version after it should report no version");
@@ -95,8 +94,7 @@ __test ymir_version_line_extracted {
 
 __test ymir_version_line_other_lines_ignored {
     // Any line that isn't the "Ymir version ..." one reports no version
-    assert(ymirVersionOfLine("Midgard version 1.3.0 20260818") == "",
-           "an unrelated line should report no version");
+    assert(ymirVersionOfLine("Midgard version 1.3.0 20260818") == "", "an unrelated line should report no version");
     assert(ymirVersionOfLine("") == "", "an empty line should report no version");
 }
 
@@ -148,8 +146,8 @@ __test run_forwards_arguments {
 
     if let a: &Array = run {
         assert(a[].len == 2us, "both arguments should be forwarded");
-        assert(to!{[c8]}(a[][0]) == "--some-flag", "unexpected first forwarded argument");
-        assert(to!{[c8]}(a[][1]) == "positional", "unexpected second forwarded argument");
+        assert(to!{[c8]} (a[][0]) == "--some-flag", "unexpected first forwarded argument");
+        assert(to!{[c8]} (a[][1]) == "positional", "unexpected second forwarded argument");
     } else assert(false, "the run arguments should be forwarded as an array");
 }
 
@@ -347,7 +345,7 @@ __test update_named_packages_are_parsed {
 
     if let Ok(a: &Array) = update["packages"]? {
         assert(a[].len == 2us, "both dependency names should be extracted");
-        assert(to!{[c8]}(a[][0]) == "mylib" && to!{[c8]}(a[][1]) == "myother", "unexpected dependency names");
+        assert(to!{[c8]} (a[][0]) == "mylib" && to!{[c8]} (a[][1]) == "myother", "unexpected dependency names");
     } else assert(false, "\"packages\" should be parsed as an array");
 }
 
@@ -357,7 +355,7 @@ __test update_packages_alongside_flags {
 
     assert(flag(update, "verbose"), "-v should still be parsed as verbose");
     if let Ok(a: &Array) = update["packages"]? {
-        assert(a[].len == 1us && to!{[c8]}(a[][0]) == "mylib", "unexpected dependency names");
+        assert(a[].len == 1us && to!{[c8]} (a[][0]) == "mylib", "unexpected dependency names");
     } else assert(false, "\"packages\" should be parsed as an array");
 }
 
@@ -375,7 +373,7 @@ __test update_std_flag_alongside_packages {
 
     assert(flag(update, "std"), "\"std\" should be set");
     if let Ok(a: &Array) = update["packages"]? {
-        assert(a[].len == 1us && to!{[c8]}(a[][0]) == "mylib", "unexpected dependency names");
+        assert(a[].len == 1us && to!{[c8]} (a[][0]) == "mylib", "unexpected dependency names");
     } else assert(false, "\"packages\" should be parsed as an array");
 }
 
@@ -420,5 +418,4 @@ __test doc_serve_target_may_appear_among_flags {
 
     assert(flag(doc, "serve"), "\"serve\" should be set");
     assert(target(doc) == "cli", "the target should be parsed among the flags");
-
 }

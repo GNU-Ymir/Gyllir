@@ -47,7 +47,6 @@ pub record Dependency {
     pub fn targets(self)-> [[c8]] {
         self._targets
     }
-
 }
 
 /**
@@ -87,9 +86,8 @@ pub class DependencyList {
     {
         if let d: &Dict = cfg {
             self:.insert(d);
-        }
-
-        else throw copy AssertError("'dependencies' must be a table, one '[dependencies.<name>]' entry per dependency"s8);
+        } else
+            throw copy AssertError("'dependencies' must be a table, one '[dependencies.<name>]' entry per dependency"s8);
     }
 
     /*!
@@ -152,7 +150,6 @@ pub class DependencyList {
      * ====================================================================================================
      */
 
-
     /**
      * Insert the dependencies from a configuration dictionnary
      */
@@ -193,13 +190,16 @@ pub class DependencyList {
         let version = if let Ok(v) = cfg["version"]? {
             VersionFilter(v, entry-> ctx ~ "'version'")
         } else {
-            throw copy AssertError(ctx ~ "missing required entry 'version', for example: version = \">=1.0.0\", or \"*\" for any version");
+            throw copy AssertError(ctx
+                                   ~ "missing required entry 'version', for example: version = \">=1.0.0\", or \"*\" "
+                                   ~ "for any version");
         };
 
         let url = if let Ok(u) = cfg["url"]? {
             Url(u, entry-> ctx ~ "'url'")
         } else {
-            throw copy AssertError(ctx ~ "missing required entry 'url', for example: url = \"git:git@github.com:me/" ~ name ~ ".git\"");
+            throw copy AssertError(ctx ~ "missing required entry 'url', for example: url = \"git:git@github.com:me/"
+                                   ~ name ~ ".git\"");
         };
 
         if let d: &Dict = cfg {
@@ -228,23 +228,23 @@ pub class DependencyList {
                 if let Str(value-> t) = i {
                     targets ~= [t];
                 } else {
-                    throw copy AssertError(ctx ~ "'link-targets' must be an array of strings, the names of the targets to link");
+                    throw copy AssertError(ctx
+                                           ~ "'link-targets' must be an array of strings, the names of the targets to "
+                                           ~ "link");
                 }
             }
 
             if (targets.len == 0us) {
-                throw copy AssertError(ctx ~ "'link-targets' is empty, omit the entry to link every target of the dependency");
+                throw copy AssertError(ctx ~ "'link-targets' is empty, omit the entry to link every target of the "
+                                       ~ "dependency");
             }
 
             return targets;
-        }
-
-        else if let Ok(_) = cfg["link-targets"]? {
-            throw copy AssertError(ctx ~ "'link-targets' must be an array of strings, the names of the targets to link");
+        } else if let Ok(_) = cfg["link-targets"]? {
+            throw copy AssertError(ctx
+                                   ~ "'link-targets' must be an array of strings, the names of the targets to link");
         }
 
         []
     }
-
-
 }

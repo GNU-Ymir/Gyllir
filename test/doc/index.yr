@@ -40,7 +40,7 @@ __test kind_aliases_are_normalized {
 __test index_records_one_entry_per_page_symbol {
     // Every documented symbol is indexed, named as its page displays it and pointing at the page
     // of the module declaring it
-    let i = indexOf(json#{
+    let i = indexOf(json #{
         "kind" : "module",
         "name" : "",
         "childs" : [
@@ -73,7 +73,7 @@ __test index_records_one_entry_per_page_symbol {
 __test index_qualifies_members_inside_their_page {
     // Members are qualified with the symbol declaring them, the way 'main.js' qualifies the
     // symbols of the page it renders
-    let i = indexOf(json#{
+    let i = indexOf(json #{
         "kind" : "module",
         "name" : "app",
         "childs" : [
@@ -116,7 +116,7 @@ __test index_qualifies_members_inside_their_page {
 
 __test index_unwraps_templates {
     // A template declares no symbol of its own : the page documents what it wraps
-    let i = indexOf(json#{
+    let i = indexOf(json #{
         "kind" : "module",
         "name" : "app",
         "childs" : [
@@ -133,7 +133,7 @@ __test index_unwraps_templates {
 }
 
 __test search_ranks_exact_then_prefix_then_substring {
-    let i = indexOf(json#{
+    let i = indexOf(json #{
         "kind" : "module",
         "name" : "app",
         "childs" : [
@@ -152,7 +152,7 @@ __test search_ranks_exact_then_prefix_then_substring {
 }
 
 __test search_is_case_insensitive_and_matches_the_last_segment {
-    let i = indexOf(json#{
+    let i = indexOf(json #{
         "kind" : "module",
         "name" : "app",
         "childs" : [
@@ -170,7 +170,7 @@ __test search_is_case_insensitive_and_matches_the_last_segment {
 }
 
 __test search_filters_on_the_kind {
-    let i = indexOf(json#{
+    let i = indexOf(json #{
         "kind" : "module",
         "name" : "app",
         "childs" : [
@@ -194,7 +194,7 @@ __test search_filters_on_the_kind {
 }
 
 __test search_honors_the_limit_and_rejects_an_empty_query {
-    let i = indexOf(json#{
+    let i = indexOf(json #{
         "kind" : "module",
         "name" : "app",
         "childs" : [

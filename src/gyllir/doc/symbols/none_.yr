@@ -7,11 +7,10 @@ use std::stream;
  * */
 pub class None over Symbol {
     pub self ()
-        with super ("", "", INTERNAL_LOCATION, Protection::PRV)
+        with super("", "", INTERNAL_LOCATION, Protection::PRV)
     {}
 
     impl Streamable;
 }
-
 
 pub lazy NONE_SYMBOL = copy None();

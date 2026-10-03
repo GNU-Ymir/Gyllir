@@ -1,8 +1,4 @@
-use gyllir::doc::symbols::_;
-use gyllir::doc::symbols::method;
-use gyllir::doc::symbols::variable;
-use gyllir::doc::types::_;
-use gyllir::doc::types::scalar;
+use gyllir::doc::{symbols::_, symbols::method, symbols::variable, types::_, types::scalar};
 
 use std::stream;
 
@@ -35,7 +31,7 @@ __test mutable_unsafe_method_with_thrower {
     m.isUnsafe = true;
     m.isMutable = true;
     m.retType = copy ScalarType("bool", "");
-    m.throwers = copy [cast!(&Type) (copy ScalarType("Err", ""))];
+    m.throwers = copy [cast!(&Type)(copy ScalarType("Err", ""))];
 
     let dmut p = copy Variable("x", "", INTERNAL_LOCATION, Protection::PUB);
     p.type = copy ScalarType("i32", "");
@@ -44,6 +40,9 @@ __test mutable_unsafe_method_with_thrower {
     let dmut stream = copy StringStream();
     stream:.write(m);
 
-    assert(stream[] == "Method foo => :(0,0)\n\t@unsafe\n\tfn (mut self, x : Scalar (i32))-> Scalar (bool)\n\t\tthrows Scalar (Err)\n",
-           "unexpected rendering for a mutable unsafe method with a parameter and a thrower");
+    assert(
+        stream[]
+        == "Method foo => :(0,0)\n\t@unsafe\n\tfn (mut self, x : Scalar (i32))-> Scalar (bool)\n\t\tthrows Scalar (Err)\n",
+        "unexpected rendering for a mutable unsafe method with a parameter and a thrower"
+    );
 }

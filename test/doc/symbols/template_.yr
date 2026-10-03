@@ -4,11 +4,7 @@ pub mod ::ofv;
 pub mod ::var;
 pub mod ::variadic;
 
-use gyllir::doc::symbols::_;
-use gyllir::doc::symbols::template_::_;
-use gyllir::doc::symbols::template_::any;
-use gyllir::doc::symbols::template_::var;
-use gyllir::doc::symbols::function;
+use gyllir::doc::symbols::{_, function, template_::_, template_::any, template_::var};
 
 use std::stream;
 
@@ -27,7 +23,8 @@ __test template_with_params_and_inner {
     let dmut stream = copy StringStream();
     stream:.write(t);
 
-    assert(stream[] == "Template Foo => :(0,0)\n\tif T != U {T, of i32 U}\n\tFunction f => :(0,0)\n\t\tfn ()-> Any ()\n\t\n",
+    assert(stream[]
+           == "Template Foo => :(0,0)\n\tif T != U {T, of i32 U}\n\tFunction f => :(0,0)\n\t\tfn ()-> Any ()\n\t\n",
            "unexpected rendering for a template with params and an inner symbol");
 }
 
@@ -37,5 +34,6 @@ __test bare_template_rendering {
     let dmut stream = copy StringStream();
     stream:.write(t);
 
-    assert(stream[] == "Template Bare => :(0,0)\n\t{}\n", "unexpected rendering for a template with no params/test/inners");
+    assert(stream[] == "Template Bare => :(0,0)\n\t{}\n",
+           "unexpected rendering for a template with no params/test/inners");
 }

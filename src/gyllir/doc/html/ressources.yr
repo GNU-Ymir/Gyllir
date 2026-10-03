@@ -13,8 +13,7 @@ use std::fs::_;
  * never mistaken for it.
  */
 pub lazy RES_ROOT = {
-    cte if __version!unittest { Path("res") }
-    else { Path("/etc/gyllir/res") }
+    cte if __version!unittest { Path("res") } else { Path("/etc/gyllir/res") }
 };
 
 pub enum GyllirHtmlFiles
