@@ -13,3 +13,4 @@ pub mod ::doc;
 pub mod ::doc_server;
 pub mod ::coverage;
 pub mod ::cache;
+pub mod ::toolchain;

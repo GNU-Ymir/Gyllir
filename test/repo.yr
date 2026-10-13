@@ -10,3 +10,4 @@ pub mod ::publisher;
 pub mod ::bump;
 pub mod ::coverage;
 pub mod ::cache;
+pub mod ::toolchain;

@@ -1,0 +1,428 @@
+in toolchain;
+
+use gyllir::config::cache;
+use gyllir::repo::cache;
+use gyllir::utils::progress;
+
+use std::{fs::_, io, stream};
+use std::concurrency::process;
+use std::time::{_, date::conv};
+
+/**
+ * Installs the releases of gyc pinned by '[compiler]' tables into the gyllir cache, one directory
+ * per release, so that several of them live side by side.
+ *
+ * A release is a .deb made for '/usr', and gyllir installs it without root: the .deb is extracted
+ * into the cache, and the driver, run from there, looks for every piece of the toolchain next to
+ * itself. Only gyc's own files are in the .deb, collect2, the lto plugin and the crt files come
+ * from the system gcc of the same major, which are linked into the extracted tree.
+ * */
+pub record CompilerInstaller {
+
+    // The cache the releases are installed into
+    let _cache: GyllirCache;
+
+    // The prefix of the system gcc installation
+    let _system: Path;
+
+    // Where the releases are downloaded from, as '<releases>/<version>/<asset>'
+    let _releases: [c8];
+
+    /**
+     * @params:
+     *    - cache: the cache the releases are installed into
+     *    - system: the prefix of the system gcc installation
+     *    - releases: where the releases are downloaded from
+     * */
+    pub self (cache: GyllirCache = GyllirCache(),
+              system: Path = Path(defaults::__SYSTEM_GCC_PREFIX__),
+              releases: [c8] = releaseUrl())
+        with _cache = cache
+        , _system = system
+        , _releases = releases
+    {}
+
+    @field
+    pub fn cache(self)-> GyllirCache {
+        self._cache
+    }
+
+    /**
+     * Install a release of gyc, unless it already is
+     * @params:
+     *    - version: the release to install
+     *    - offline: true to refuse downloading it
+     * @returns: the directory the release is installed into, its driver being '<dir>/usr/bin/gyc'
+     * @throws:
+     *    - AssertError: the release could not be downloaded or installed
+     * */
+    pub fn install(self, version: [c8], offline: bool = false)-> Path
+        throws AssertError
+    {
+        let dir = self._cache.compilerDir(version);
+        if (sys::isFile(dir.push(defaults::__GYC_BINARY__))) {
+            let known = if let Ok(_) = self._cache.load().find(self.itemPath(version)) { true } else { false };
+            if (!known) {
+                self._cache.add(CachedItem(self.itemPath(version), __COMPILER_ITEM_KIND__, "gyc", version));
+            }
+
+            return dir;
+        }
+
+        if (offline) {
+            throw copy AssertError("gyc " ~ version ~ " is not installed in the gyllir cache, it cannot be downloaded "
+                                   ~ "offline");
+        }
+
+        let majors = self.systemGccMajors();
+        if (majors.len == 0us) {
+            throw copy AssertError("gyc " ~ version ~ " needs the gcc and g++ it was built with, and there is none in '"
+                                   ~ self._system.push("lib/gcc").push(defaults::__GYC_TRIPLE__).toStr()
+                                   ~ "' (e.g. apt install gcc-15 g++-15)");
+        }
+
+        let (major, url, size) = self.findRelease(version, majors);
+        let parent       = dir.parent();
+        let tmp = {
+            sys::createDir(parent, recursive-> true)?;
+            sys::tempDirectory(root-> parent, prefix-> "." ~ version ~ ".")
+        } catch {
+            e: &FsError => {
+                throw copy AssertError("could not create a directory in '" ~ parent.toStr() ~ "': " ~ e.msg);
+            }
+        };
+
+        {
+            self.download(version, url, size, tmp);
+            self.extract(version, tmp);
+            self.relocate(tmp.push("root").push("usr"), major);
+            self.checkDependencies(version, tmp.push("gyc.deb"));
+
+            // an installation of the same release made meanwhile by another gyllir is just as good
+            if (!sys::isFile(dir.push(defaults::__GYC_BINARY__))) {
+                {
+                    sys::rename(tmp.push("root"), dir);
+                } catch {
+                    e: &FsError => {
+                        throw copy AssertError("could not install gyc " ~ version ~ " in '" ~ dir.toStr() ~ "': "
+                                               ~ e.msg);
+                    }
+                }
+            }
+        } exit {
+            sys::removeDir(tmp, recursive-> true)?;
+        }
+
+        self.check(version, dir);
+        self._cache.add(CachedItem(self.itemPath(version),
+                                      __COMPILER_ITEM_KIND__,
+                                      "gyc",
+                                      version,
+                                      source-> url,
+                                      installed-> DateTime(Instant::now()).format(fmt-> "%Y-%m-%d %H:%M")));
+
+        utils::log::info("Installed", "gyc ", version, " in ", dir.toStr());
+        dir
+    }
+
+    /**
+     * @returns: the path of the cache item a release of gyc is installed as
+     * */
+    pub fn itemPath(self, version: [c8])-> [c8] {
+        defaults::__CACHE_COMPILER_DIR__ ~ "/" ~ version
+    }
+
+    /**
+     * @returns: the major versions of the gcc installed on the system, newest first
+     * */
+    pub fn systemGccMajors(self)-> [[c8]] {
+        let lib     = self._system.push("lib/gcc").push(defaults::__GYC_TRIPLE__);
+        let libexec = self._system.push("libexec/gcc").push(defaults::__GYC_TRIPLE__);
+
+        let mut found: [u32] = [];
+        for entry in sys::readDir(lib) {
+            let name = entry.path.file();
+            let mut numeric = name.len != 0us;
+            for c in name if !std::char::isDigit(c) {
+                numeric = false;
+            }
+
+            if (numeric && sys::isDir(libexec.push(name))) {
+                found ~= [std::conv::to!{u32} (name)];
+            }
+        }
+
+        let mut sorted: [mut u32] = copy found;
+        std::algorithm::sorting::sort(alias sorted, |a, b| { a > b });
+
+        copy [std::conv::to!{[c8]} (m) for m in sorted]
+    } catch {
+        _ => { [] }
+    }
+
+    /**
+     * Find the .deb of a release among the ones built with the gcc majors of the system
+     * @returns: the gcc major of the release, the url of its .deb, and its size(0 when unknown)
+     * @throws:
+     *    - AssertError: no gcc major of the system has a .deb of this release
+     * */
+    prv fn findRelease(self, version: [c8], majors: [[c8]])-> ([c8], [c8], usize)
+        throws AssertError
+    {
+        let mut tried: [[c8]] = [];
+        for m in majors {
+            let url = self._releases ~ "/" ~ version ~ "/" ~ defaults::gycAsset(m, version);
+            let (code, headers) = run("curl", copy ["-fsSIL", url]);
+            if (code == 0) { return (m, url, contentLength(headers)); }
+
+            tried ~= [url];
+        }
+
+        let dmut stream = copy StringStream();
+        stream:.write("gyc ", version, " could not be found, there is no .deb of it at any of ", tried);
+        throw copy AssertError(stream[]);
+    }
+
+    /**
+     * Download the .deb of a release into 'tmp'
+     * */
+    prv fn download(self, version: [c8], url: [c8], size: usize, tmp: Path)
+        throws AssertError
+    {
+        utils::log::info("Downloading", "gyc ", version, " from ", url);
+        let file = tmp.push("gyc.deb");
+        let dmut progress = copy DownloadProgress(file, size);
+        let code = {
+            let dmut proc = copy SubProcess("curl", copy ["-fsL", "-o", file.toStr(), url]);
+            proc:.start(redirect-> false);
+            proc:.wait()
+        } catch {
+            _ => { -1 }
+        };
+
+        progress:.finish();
+
+        if (code != 0) {
+            throw copy AssertError("could not download gyc " ~ version ~ " from " ~ url);
+        }
+    }
+
+    /**
+     * Extract the .deb downloaded into 'tmp' into '<tmp>/root'
+     * */
+    prv fn extract(self, version: [c8], tmp: Path)
+        throws AssertError
+    {
+        let (code, err) = run("dpkg-deb", copy ["-x", tmp.push("gyc.deb").toStr(), tmp.push("root").toStr()]);
+        if (code != 0) {
+            throw copy AssertError("could not extract the .deb of gyc " ~ version ~ " (dpkg-deb -x): "
+                                   ~ utils::errors::singleLine(err));
+        }
+
+        if (!sys::isFile(tmp.push("root").push(defaults::__GYC_BINARY__))) {
+            throw copy AssertError("the .deb of gyc " ~ version ~ " has no " ~ defaults::__GYC_BINARY__);
+        }
+    }
+
+    /**
+     * Make an extracted release runnable from where it is: link the pieces of the system gcc it
+     * relies on next to its own, and its std lib where the driver looks for it from outside '/usr'
+     * @params:
+     *    - usr: the 'usr' directory of the extracted release
+     *    - major: the major version of the gcc the release is built with
+     * */
+    pub fn relocate(self, usr: Path, major: [c8])
+        throws AssertError
+    {
+        let lib     = "lib/gcc/" ~ defaults::__GYC_TRIPLE__ ~ "/" ~ major;
+        let libexec = "libexec/gcc/" ~ defaults::__GYC_TRIPLE__ ~ "/" ~ major;
+
+        // run from outside its prefix, the driver hands ymir1 '-iprefix <usr>/lib/gcc/<triple>/<major>/',
+        // and ymir1 silently falls back to the std lib of the system when 'include/ymir' is not there
+        let include = usr.push(lib).push("include");
+        sys::createDir(include, recursive-> true)?;
+        if (!sys::exists(include.push("ymir"), followLink-> false)) {
+            sys::symlink(Path("../../../../../" ~ libexec ~ "/include/ymir"), include.push("ymir"));
+        }
+
+        self.linkMissing(self._system.push(lib).push("include"), include);
+        self.linkMissing(self._system.push(lib), usr.push(lib));
+        self.linkMissing(self._system.push(libexec), usr.push(libexec));
+    } catch {
+        e: &FsError => {
+            throw copy AssertError("could not link the system gcc " ~ major ~ " into gyc: " ~ e.msg);
+        }
+    }
+
+    /**
+     * Link every entry of 'system' that 'local' does not have into 'local'
+     * */
+    prv fn linkMissing(self, system: Path, local: Path)
+        throws FsError
+    {
+        if (!sys::isDir(system)) { return; }
+
+        sys::createDir(local, recursive-> true)?;
+        for entry in sys::readDir(system) {
+            let to = local.push(entry.path.file());
+            if (!sys::exists(to, followLink-> false)) {
+                sys::symlink(entry.path, to);
+            }
+        }
+    }
+
+    /**
+     * Warn about the packages the .deb of a release depends on that are not installed: gyllir does
+     * not install them, but gyc cannot link a program without them
+     * */
+    prv fn checkDependencies(self, version: [c8], deb: Path) {
+        let (code, depends) = run("dpkg-deb", copy ["-f", deb.toStr(), "Depends"]);
+        if (code != 0) { return; }
+
+        let mut missing: [[c8]] = [];
+        for d in packageNames(depends) {
+            let (installed, status) = run("dpkg-query", copy ["-W", "-f=${Status}", d]);
+            if (installed != 0 || !endsWith(status, "installed")) {
+                missing ~= [d];
+            }
+        }
+
+        if (missing.len != 0us) {
+            let dmut stream = copy StringStream();
+            for i, m in missing {
+                if (i != 0us) { stream:.write(" "); }
+                stream:.write(m);
+            }
+
+            utils::log::warn("Installing",
+                             "gyc ",
+                             version,
+                             " depends on packages that are not installed: ",
+                             stream[],
+                             " (apt install ",
+                             stream[],
+                             ")");
+        }
+    }
+
+    /**
+     * Check that an installed release runs
+     * @throws:
+     *    - AssertError: it does not, the installation is removed
+     * */
+    prv fn check(self, version: [c8], dir: Path)
+        throws AssertError
+    {
+        let (code, err) = run(dir.push(defaults::__GYC_BINARY__).toStr(), copy ["--version"]);
+        if (code != 0) {
+            {
+                sys::removeDir(dir, recursive-> true);
+            } catch {
+                _ => {}
+            }
+
+            throw copy AssertError("gyc " ~ version ~ " was installed, but does not run: " ~ utils::errors::singleLine(err));
+        }
+    }
+}
+
+/**
+ * @returns: where the releases of gyc are downloaded from
+ * */
+pub fn releaseUrl()-> [c8] {
+    let url = unsafe { std::env::getVar(defaults::__GYC_RELEASE_ENV_VAR__) };
+    if (url != "") { return url; }
+
+    defaults::__GYC_RELEASE_URL__
+}
+
+/**
+ * @params:
+ *    - depends: the 'Depends' field of a .deb, e.g. 'g++-15 (>= 15), libgc-dev'
+ * @returns: the names of the packages it lists
+ * */
+pub fn packageNames(depends: [c8])-> [[c8]] {
+    let mut res: [[c8]]   = [];
+    let mut current: [c8] = [];
+    let mut inName        = true;
+    for c in depends ~ "," {
+        if (c == ',' || c == '|') {
+            if (current != "") { res ~= [current]; }
+            current = [];
+            inName = true;
+        } else if (c == ' ' || c == '(' || c == '\n' || c == ':') {
+            if (current != "") { inName = false; }
+        } else if (inName) {
+            current ~= [c];
+        }
+    }
+
+    res
+}
+
+/**
+ * @params:
+ *    - headers: the headers of the responses to a request, the redirections followed included
+ * @returns: the 'Content-Length' of the last response, 0 when it has none
+ * */
+pub fn contentLength(headers: [c8])-> usize {
+    let mut res  = 0us;
+    let mut line: [c8] = [];
+    for c in headers ~ "\n" {
+        if (c != '\n') {
+            line ~= [c];
+            continue;
+        }
+
+        let lower = copy [std::char::toLower(x) for x in line];
+        if (lower.len > 15us && lower[0us .. 15us] == "content-length:") {
+            let mut digits: [c8] = [];
+            for d in lower[15us .. $] if std::char::isDigit(d) {
+                digits ~= [d];
+            }
+
+            res = {
+                std::conv::to!{usize} (digits)
+            } catch {
+                _ => { 0us }
+            };
+        } else if (lower.len > 5us && lower[0us .. 5us] == "http/") {
+            res = 0us;
+        }
+
+        line = [];
+    }
+
+    res
+}
+
+/**
+ * @returns: true iif 's' ends with 'suffix'
+ * */
+fn endsWith(s: [c8], suffix: [c8])-> bool {
+    s.len >= suffix.len && s[s.len - suffix.len .. $] == suffix
+}
+
+/**
+ * Run a command, its output being captured
+ * @returns: its exit code(-1 when it could not be started), and what it wrote on its error output,
+ *    or on its standard output when it succeeded
+ * */
+fn run(cmd: [c8], args: [[c8]])-> (i32, [c8]) {
+    let dmut proc = copy SubProcess(cmd, args);
+    proc:.start();
+
+    let code = proc:.wait();
+    let dmut out: [c8] = [];
+    if (code == 0) {
+        let dmut pipe = alias proc.stdout;
+        while let Ok(c) = pipe:.read!c8()? { out ~= [c]; }
+    } else {
+        let dmut pipe = alias proc.stderr;
+        while let Ok(c) = pipe:.read!c8()? { out ~= [c]; }
+    }
+
+    (code, out)
+} catch {
+    _ => { (-1, "") }
+}

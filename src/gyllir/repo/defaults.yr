@@ -119,6 +119,34 @@ pub def __CACHE_INDEX_FILENAME__ = "cache.toml";
 pub def __CACHE_COMPILER_DIR__ = "compiler";
 
 /**
+ * The environment variable naming where the releases of gyc are downloaded from, in place of
+ * '__GYC_RELEASE_URL__'
+ */
+pub def __GYC_RELEASE_ENV_VAR__ = "GYLLIR_GYC_RELEASE_URL";
+
+/**
+ * Where the releases of gyc are downloaded from, as '<url>/<version>/<asset>'
+ */
+pub def __GYC_RELEASE_URL__ = "https://github.com/GNU-Ymir/gymir/releases/download";
+
+/**
+ * The target a gyc release is built for, and the architecture of its .deb
+ */
+pub def __GYC_TRIPLE__ = "x86_64-linux-gnu";
+pub def __GYC_ARCH__   = "amd64";
+
+/**
+ * The driver of gyc, relative to the directory a release was installed into
+ */
+pub def __GYC_BINARY__ = "usr/bin/gyc";
+
+/**
+ * The prefix of the system gcc installation, whose pieces(collect2, the crt files, the lto
+ * plugin...) a gyc release relies on without shipping them
+ */
+pub def __SYSTEM_GCC_PREFIX__ = "/usr";
+
+/**
  * @returns: the gyllir cache directory, holding what gyllir installs for every package of the
  *    machine: '$GYLLIR_CACHE_DIR', or '~/.local/gyllir'
  * */
@@ -127,6 +155,16 @@ pub fn gyllirCacheDir()-> Path {
     if (dir != "") { return Path(dir); }
 
     Path(unsafe { std::env::getVar("HOME") }).push(".local").push("gyllir")
+}
+
+/**
+ * @params:
+ *    - gccMajor: the major version of the gcc the release is built with
+ *    - version: the release of gyc
+ * @returns: the name of the .deb of a release of gyc
+ * */
+pub fn gycAsset(gccMajor: [c8], version: [c8])-> [c8] {
+    "gyc-" ~ gccMajor ~ "_" ~ version ~ "_" ~ __GYC_ARCH__ ~ ".deb"
 }
 
 /**

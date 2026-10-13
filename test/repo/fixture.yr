@@ -789,3 +789,49 @@ pub fn mkRichProject()-> Path
 
     dir
 }
+
+/**
+ * A fake release of gyc, laid out the way gyllir downloads one: a .deb whose driver runs the gyc of
+ * the system, next to a fake system gcc installation of the same major
+ * @params:
+ *    - version: the release
+ *    - major: the major version of the gcc it is built with
+ * @returns:
+ *    - .0: the directory to download the releases from, '<.0>/<version>/<asset>'
+ *    - .1: the prefix of the fake system gcc installation
+ * */
+pub fn mkFakeGycRelease(version: [c8], major: [c8] = "15")-> (Path, Path)
+    throws FsError, AssertError
+{
+    let dir = sys::tempDirectory(prefix-> "gyllir_gyc_");
+    let pkg = dir.push("pkg");
+    writeSource(pkg.push("DEBIAN").push("control"),
+                "Package: gyc-" ~ major ~ "\nVersion: " ~ version ~ "\nArchitecture: amd64\n"
+                ~ "Maintainer: gyllir tests <tests@gyllir.local>\nDescription: a fake gyc\n");
+    writeSource(pkg.push(defaults::__GYC_BINARY__), "#!/bin/sh\nexec gyc \"$@\"\n");
+    sys::setPermissions(pkg.push(defaults::__GYC_BINARY__), 0o755);
+
+    let libexec = "usr/libexec/gcc/" ~ defaults::__GYC_TRIPLE__ ~ "/" ~ major;
+    writeSource(pkg.push(libexec).push("ymir1"), "");
+    sys::createDir(pkg.push(libexec).push("include/ymir/1.16"), recursive-> true);
+
+    let releases = dir.push("releases");
+    sys::createDir(releases.push(version), recursive-> true);
+
+    let dmut proc = copy SubProcess("dpkg-deb",
+                                    copy ["--build", "--root-owner-group", pkg.toStr(),
+                                          releases.push(version).push(defaults::gycAsset(major, version)).toStr()]);
+    proc:.start();
+    if (proc:.wait() != 0) {
+        throw copy AssertError("could not build the .deb of the fake gyc " ~ version);
+    }
+
+    let system = dir.push("system");
+    let lib    = "lib/gcc/" ~ defaults::__GYC_TRIPLE__ ~ "/" ~ major;
+    writeSource(system.push(lib).push("crtbegin.o"), "");
+    writeSource(system.push(lib).push("include").push("stddef.h"), "");
+    writeSource(system.push("libexec/gcc/" ~ defaults::__GYC_TRIPLE__ ~ "/" ~ major).push("collect2"), "");
+    writeSource(system.push("libexec/gcc/" ~ defaults::__GYC_TRIPLE__ ~ "/" ~ major).push("ymir1"), "system");
+
+    (releases, system)
+}
