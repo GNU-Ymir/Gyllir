@@ -1,0 +1,129 @@
+in dotenv;
+
+use std::fs::{errors, file, path};
+
+/**
+ * Parse the content of an environment file('--env-file'), one 'KEY=VALUE' per line.
+ * Blank lines and lines starting with '#' are skipped, a leading 'export ' is ignored, and a value
+ * wrapped in a pair of single or double quotes is unquoted
+ * @params:
+ *    - content: the content of the file
+ *    - file: the name of the file, for the error messages
+ * @returns: the variables, in the order the file declares them
+ * @throws:
+ *    - AssertError: if a line is not an assignment, or assigns a name that is not a variable name
+ * */
+pub fn parseEnvFile(content: [c8], file: [c8])-> [([c8], [c8])]
+    throws AssertError
+{
+    let mut res: [([c8], [c8])] = [];
+    let mut start = 0us;
+    let mut nb    = 1u64;
+    while start <= content.len {
+        let mut end = start;
+        while end < content.len && content[end] != '\n' {
+            end += 1us;
+        }
+
+        let line = trim(content[start .. end]);
+        if (line.len != 0us && line[0] != '#') {
+            res ~= [parseLine(line, file, nb)];
+        }
+
+        start = end + 1us;
+        nb += 1u64;
+    }
+
+    res
+}
+
+/**
+ * Read an environment file
+ * @returns: the variables it declares, in order(see 'parseEnvFile')
+ * @throws:
+ *    - AssertError: if the file does not exist, or is malformed
+ * */
+pub fn readEnvFile(path: Path)-> [([c8], [c8])]
+    throws AssertError
+{
+    let content = {
+        let dmut f = File::open(path);
+        let c = f:.readAll();
+        f:.close();
+        c
+    } catch {
+        _: &FsError => {
+            throw copy AssertError("failed to read the environment file '" ~ path.toStr() ~ "'");
+        }
+    };
+
+    parseEnvFile(content, path.toStr())
+}
+
+/**
+ * @params:
+ *    - line: a non empty line of an environment file, trimmed
+ *    - file: the name of the file, for the error messages
+ *    - nb: the number of the line, for the error messages
+ * @returns: the name and value assigned by 'line'
+ * */
+fn parseLine(line: [c8], file: [c8], nb: u64)-> ([c8], [c8])
+    throws AssertError
+{
+    let mut assign = line;
+    if (assign.len > 7us && assign[0us .. 7us] == "export " ) {
+        assign = trim(assign[7us .. $]);
+    }
+
+    for i, c in assign if (c == '=') {
+        let name = trim(assign[0us .. i]);
+        if (!isVarName(name)) {
+            throw copy AssertError("in '" ~ file ~ "', line " ~ std::conv::to!{[c8]} (nb)
+                                   ~ ", '" ~ name ~ "' is not a variable name");
+        }
+
+        return (name, unquote(trim(assign[i + 1us .. $])));
+    }
+
+    throw copy AssertError("in '" ~ file ~ "', line " ~ std::conv::to!{[c8]} (nb) ~ ", expected 'KEY=VALUE'");
+}
+
+/**
+ * @returns: true iif 'name' is made of letters, digits and underscores, and does not start with a digit
+ * */
+fn isVarName(name: [c8])-> bool {
+    if (name.len == 0us || (name[0] >= '0' && name[0] <= '9')) { return false; }
+    for c in name {
+        let ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+        if (!ok) { return false; }
+    }
+
+    true
+}
+
+/**
+ * @returns: 'value' without the pair of single or double quotes wrapping it, if any
+ * */
+fn unquote(value: [c8])-> [c8] {
+    if (value.len >= 2us && (value[0] == '"' || value[0] == '\'') && value[$ - 1us] == value[0]) {
+        return value[1us .. $ - 1us];
+    }
+
+    value
+}
+
+/**
+ * @returns: 'str' without its leading and trailing blank characters
+ * */
+fn trim(str: [c8])-> [c8] {
+    let mut start = 0us;
+    let mut end   = str.len;
+    while start < end && isBlank(str[start]) { start += 1us; }
+    while end > start && isBlank(str[end - 1us]) { end -= 1us; }
+
+    str[start .. end]
+}
+
+fn isBlank(c: c8)-> bool {
+    c == ' ' || c == '\t' || c == '\r'
+}

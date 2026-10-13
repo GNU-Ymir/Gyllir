@@ -38,14 +38,14 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # ./gyllir.test is the unittest executable produced by `gyllir test --dry` in the build
-      # stage; running it here (rather than letting the `test` stage do it) is what lets the
-      # coverage report be captured.
+      # ./gyllir is the gyllir built in the build stage, its `test` reuses the unittest executable
+      # `gyllir test --dry` compiled there; running it here (rather than letting the `test` stage
+      # do it) is what lets the coverage report be captured.
       - name: Run tests and collect coverage
         id: run_tests
         run: |
           set -o pipefail
-          docker run --rm gyllir-build:ci ./gyllir.test -sf -cov -j 1 | tee coverage.txt
+          docker run --rm gyllir-build:ci ./gyllir test -sf -cov -j 1 | tee coverage.txt
 
       - name: Publish coverage summary
         if: always()

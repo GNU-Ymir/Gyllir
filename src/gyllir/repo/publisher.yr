@@ -161,7 +161,7 @@ pub record RepoPublisher {
             }
 
             let (built, _, _) = context:.buildTargets(self._cwd, copy Dict(), self._cfg, all, forUnitTest-> true);
-            let code          = context.runUnitTests(self._cwd, self._cfg, built);
+            let code          = context.runUnitTests(self._cwd, self._cfg, built, copy Dict());
             if (code != 0) {
                 etc::c::process::_yrt_exit(code);
             }

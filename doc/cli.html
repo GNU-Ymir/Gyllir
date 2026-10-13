@@ -110,18 +110,41 @@ Running a library target is an error.</p>
 
 <h2 id="test">gyllir test</h2>
 
-<pre><code>gyllir test [target] [--release] [--dry] [--locked] [--offline] [-j N] [-v]</code></pre>
+<pre><code>gyllir test [target] [--release] [--dry] [--locked] [--offline] [--build-jobs N] [--env-file FILE] [-v]
+            [runner options] [-- raw runner arguments]</code></pre>
 
 <div class="table-wrap">
 <table>
     <tr><th>Flag</th><th>Effect</th></tr>
-    <tr><td><code>--dry</code></td><td>Compile the test binary but do not run it.</td></tr>
+    <tr><td><code>--dry</code></td><td>Compile the test binary but do not run it. Takes none of the options below.</td></tr>
     <tr><td><code>--release</code></td><td>Compile the tests with <code>-O3</code>.</td></tr>
     <tr><td><code>--locked</code> / <code>--offline</code></td><td>As for <a href="#build"><code>gyllir build</code></a>.</td></tr>
-    <tr><td><code>-j N</code></td><td>Number of compilation threads.</td></tr>
+    <tr><td><code>--build-jobs N</code></td><td>Number of compilation threads.</td></tr>
+    <tr><td><code>--env-file FILE</code></td><td>Set the variables of <code>FILE</code> in the environment of the test binary: one <code>KEY=VALUE</code> per line, blank lines and <code>#</code> comments skipped, a leading <code>export</code> ignored, a quoted value unquoted.</td></tr>
     <tr><td><code>-v</code>, <code>--verbose</code></td><td>Verbose mode.</td></tr>
 </table>
 </div>
+
+<p>The options of the test runner are passed to <code>./&lt;output&gt;.test</code>:</p>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Flag</th><th>Effect</th></tr>
+    <tr><td><code>-f</code>, <code>--filter PATTERN</code></td><td>Run only the tests matching <code>PATTERN</code>.</td></tr>
+    <tr><td><code>-sf</code>, <code>--stop-first</code></td><td>Stop after the first test failure.</td></tr>
+    <tr><td><code>-cov</code>, <code>--coverage</code></td><td>Print the coverage report.</td></tr>
+    <tr><td><code>-ct</code>, <code>--call-tree</code></td><td>Print the call tree report.</td></tr>
+    <tr><td><code>-m</code>, <code>--missing</code></td><td>List the uncovered lines of each file (implies <code>--coverage</code>).</td></tr>
+    <tr><td><code>--resume</code></td><td>Run again only the tests that failed or did not run.</td></tr>
+    <tr><td><code>-d</code>, <code>--durations</code></td><td>List the slowest tests once the run is over.</td></tr>
+    <tr><td><code>-l</code>, <code>--list</code></td><td>List the selected tests without running them.</td></tr>
+    <tr><td><code>-s</code>, <code>--no-capture</code></td><td>Print the output of the tests as they run.</td></tr>
+    <tr><td><code>-j</code>, <code>--jobs N</code></td><td>Number of worker threads running the tests.</td></tr>
+</table>
+</div>
+
+<p>Everything after <code>--</code> is passed to the test binary as is, for a runner option
+<code>gyllir test</code> does not know about.</p>
 
 <p>Compiles the target together with its <code>test/</code> tree and links
 <code>./&lt;output&gt;.test</code>. Without a target name it tests every target that has not opted

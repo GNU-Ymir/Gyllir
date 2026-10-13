@@ -170,6 +170,38 @@ fn versionOfLine(line: [c8], word0: [c8], word1: [c8])-> [c8] {
 }
 
 /**
+ * The command line of the unittest executable, out of the configuration of 'gyllir test'
+ * @params:
+ *    - cfg: the configuration of the 'test' sub command
+ * @returns: the options of the test runner the command line set, followed by the arguments it
+ *    passed after '--'
+ * */
+pub fn testRunnerArguments(cfg: &Config)-> [[c8]] {
+    let mut res: [[c8]] = [];
+    if let Ok(Str(value-> f)) = cfg["filter"]? {
+        res ~= ["--filter", f];
+    }
+
+    for name in ["stop-first", "coverage", "call-tree", "missing", "resume", "durations", "list", "no-capture"] {
+        if let Ok(Bool(value-> _ = true)) = cfg[name]? {
+            res ~= ["--" ~ name];
+        }
+    }
+
+    if let Ok(Int(value-> j)) = cfg["jobs"]? {
+        res ~= ["--jobs", std::conv::to!{[c8]} (j)];
+    }
+
+    if let Ok(a: &Array) = cfg["raw"]? {
+        for i in a[] if let Str(value-> v) = i {
+            res ~= [v];
+        }
+    }
+
+    res
+}
+
+/**
  * Argument parser of the gyllir building tool
  * */
 pub class GyllirArgumentParser {
@@ -521,21 +553,42 @@ pub class GyllirArgumentParser {
     prv fn parseTest(self, args: [[c8]])-> (&Config)? {
         let dmut parser = (copy ArgumentParser)
             :.help("help", short-> "h", comments-> "print this help and exit")
-            :.flag("verbose", short-> "v", comments-> "clean the documentation")
+            :.flag("verbose", short-> "v", comments-> "verbose mode")
             :.flag("dry", comments-> "only compile the test executable, but does not run them")
             :.flag("release", comments-> "compile tests in release mode (debug by default)")
             :.flag("locked",
                    comments-> "fail if the dependency versions differ from the ones "
                               ~ repo::defaults::__GYLLIR_LOCK_FILENAME__ ~ " pins")
             :.flag("offline", comments-> "resolve the dependencies without any network access (implies --locked)")
-            :.option!{i32} ("j", comments-> "number of parallel threads to spawn");
+            :.option!{i32} ("build-jobs", comments-> "number of parallel threads compiling the tests")
+            :.option!{[c8]} ("env-file", comments-> "file of KEY=VALUE lines to set in the environment of the tests")
+            :.option!{[c8]} ("filter", short-> "f", comments-> "unittest filter")
+            :.flag("stop-first", short-> "sf", comments-> "stop after first test failure")
+            :.flag("coverage", short-> "cov", comments-> "print coverage report")
+            :.flag("call-tree", short-> "ct", comments-> "print call tree report")
+            :.flag("missing", short-> "m", comments-> "list the uncovered lines of each file (implies --coverage)")
+            :.flag("resume", comments-> "re-run only failed tests")
+            :.flag("durations", short-> "d", comments-> "list the slowest tests once the run is over")
+            :.flag("list", short-> "l", comments-> "list the tests (after filtering) without running them")
+            :.flag("no-capture", short-> "s", comments-> "print the output of the tests as they run")
+            :.option!{i64} ("jobs", short-> "j", comments-> "number of worker threads running the tests");
 
-        let (rest, target) = self.extractTarget(args, copy ["j"]);
+        let (options, raw)  = self.extractRaw(args);
+        let (rest, target)  = self.extractTarget(options, copy ["build-jobs", "env-file", "filter", "f", "jobs", "j"]);
         return ({
-            self.withTarget(parser.parse(rest), target)
+            let res = self.withRaw(self.withTarget(parser.parse(rest), target), raw);
+            if let Ok(Bool(value-> _ = true)) = res["dry"]? {
+                if ("env-file" in res || testRunnerArguments(res).len != 0us) {
+                    std::io::eprintln(parser.getUsage(usage-> "gyllir test [target] [-- runner arguments]"));
+                    utils::log::error("Error", "'--dry' does not run the tests, it takes none of the options passed to them");
+                    etc::c::process::_yrt_exit(-1);
+                }
+            }
+
+            res
         } catch {
             err: &std::config::args::errors::HelpRequestError => {
-                std::io::eprintln(parser.explain(err, usage-> "gyllir test [target]"));
+                std::io::eprintln(parser.explain(err, usage-> "gyllir test [target] [-- runner arguments]"));
                 etc::c::process::_yrt_exit(-1);
                 panic;
             }
@@ -639,6 +692,43 @@ pub class GyllirArgumentParser {
         }
 
         false
+    }
+
+    /**
+     * Split the arguments following a '--' out of the arguments of a sub command, they are forwarded
+     * as they are, without being parsed
+     * @params:
+     *    - args: the arguments of the sub command
+     * @returns:
+     *    - .0: the arguments before the first '--'
+     *    - .1: the arguments after it, [] when there is none
+     * */
+    prv fn extractRaw(self, args: [[c8]])-> ([[c8]], [[c8]]) {
+        for i, a in args if (i != 0us && a == "--") {
+            return (args[0us .. i], args[i + 1us .. $]);
+        }
+
+        (args, [])
+    }
+
+    /**
+     * @params:
+     *    - cfg: the configuration parsed for a sub command
+     *    - raw: the arguments following the '--' of its command line
+     * @returns: 'cfg', with a 'raw' entry when the command line has some
+     * */
+    prv fn withRaw(self, cfg: &Config, raw: [[c8]])-> &Config {
+        if (raw.len == 0us) { return cfg; }
+
+        let dmut res = copy Dict();
+        if let d: &Dict = cfg {
+            for k, v in d[] {
+                res[k] = v;
+            }
+        }
+
+        res["raw"] = copy Array(copy [copy Str(r) for r in raw]);
+        res
     }
 
     /**

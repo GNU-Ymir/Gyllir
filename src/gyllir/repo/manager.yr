@@ -1,6 +1,6 @@
 in manager;
 
-use gyllir::{args, args::_, repo::_, utils::_};
+use gyllir::{args, args::_, repo::_, utils::_, utils::dotenv};
 use gyllir::config::_;
 use gyllir::config::version::filter;
 
@@ -111,12 +111,16 @@ pub class GyllirManager {
         } else if let Ok(c) = self._args["test"]? {
             let cwd = env::currentDir();
             let cfg = self:.loadToml(cwd);
+
+            // read before compiling anything, a typo in its name is not worth a whole build
+            let vars = if let Ok(Str(value-> file)) = c["env-file"]? { readEnvFile(Path(file)) } else { [] };
+
             self:.loadLock(cwd, c, cfg);
             let (built, _, _) = self:.buildTargets(cwd, c, cfg, self.selectTestTargets(cfg, c), forUnitTest-> true);
             self.writeLock(cwd, cfg);
 
             if let Ok(Bool(value-> _ = false)) = c["dry"]? {
-                etc::c::process::_yrt_exit(self.runUnitTests(cwd, cfg, built));
+                etc::c::process::_yrt_exit(self.runUnitTests(cwd, cfg, built, c, env-> vars));
             }
         } else if let Ok(c) = self._args["doc"]? {
             let cwd = env::currentDir();
@@ -787,14 +791,18 @@ pub class GyllirManager {
 
     /**
      * Run the unittest executables of a list of targets, one after the other
+     * @params:
+     *    - args: the configuration of the 'test' sub command, whose test runner options are passed
+     *      to every executable
+     *    - env: the variables to set in the environment of the executables
      * @returns: the exit code of the first failing one, 0 if they all passed
      * */
-    pub fn runUnitTests(self, cwd: Path, cfg: GyllirPackageConfiguration, targets: [Target])-> i32
+    pub fn runUnitTests(self, cwd: Path, cfg: GyllirPackageConfiguration, targets: [Target], args: &Config, env: [([c8], [c8])] = [])-> i32
         throws AssertError, FsError
     {
         let mut res = 0;
         for t in targets {
-            let code = RepoRunner(cwd, copy Dict(), cfg, t, forUnitTest-> true).run();
+            let code = RepoRunner(cwd, args, cfg, t, forUnitTest-> true, env-> env).run();
             if (code != 0 && res == 0) {
                 res = code;
             }
