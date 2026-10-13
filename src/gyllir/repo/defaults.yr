@@ -104,6 +104,12 @@ pub def __DEPENCY_DIR__  = ".deps";
 pub def __STD_DEP_NAME__ = "std";
 
 /**
+ * The name of the link, in '__DEPENCY_DIR__', to the installation of the gyc pinned by a
+ * '[compiler]' table, in the gyllir cache
+ */
+pub def __COMPILER_DEP_NAME__ = "compiler";
+
+/**
  * The environment variable naming the gyllir cache directory, '~/.local/gyllir' when it is unset
  */
 pub def __CACHE_ENV_VAR__ = "GYLLIR_CACHE_DIR";

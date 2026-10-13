@@ -835,3 +835,23 @@ pub fn mkFakeGycRelease(version: [c8], major: [c8] = "15")-> (Path, Path)
 
     (releases, system)
 }
+
+/**
+ * @returns: 'cfg', with a '[compiler]' table pinning 'release'
+ * */
+pub fn withCompilerRelease(cfg: GyllirPackageConfiguration, release: [c8])-> GyllirPackageConfiguration
+    throws AssertError
+{
+    let dmut d = copy Dict();
+    if let s: &Dict = cfg.serialize() {
+        for k, v in s[] {
+            d[k] = v;
+        }
+    }
+
+    let dmut c = copy Dict();
+    c["version"] = copy Str(release);
+    d["compiler"] = c;
+
+    GyllirPackageConfiguration(d)
+}

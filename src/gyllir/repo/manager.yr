@@ -61,11 +61,25 @@ pub class GyllirManager {
     // True iif every dependency is to be resolved again ('gyllir update' naming none in particular)
     let mut _updateAll: bool = false;
 
+    // The compiler every package of the run is built with, the one of the package being built(the
+    // first to reach 'buildTargets'), "" until then
+    let mut _compiler: [c8] = "";
+
+    // The release of gyc '_compiler' is, "" when it is not one pinned by '[compiler]'
+    let mut _compilerRelease: [c8] = "";
+
+    // Installs the release of gyc pinned by '[compiler]'
+    let _installer: CompilerInstaller;
+
     /**
      * Create a Gyllir builder from an argument
+     * @params:
+     *    - args: the command line
+     *    - installer: installs the release of gyc pinned by '[compiler]'
      */
-    pub self (args: [[c8]])
+    pub self (args: [[c8]], installer: CompilerInstaller = CompilerInstaller())
         with _args = (copy GyllirArgumentParser()).parse(args)
+        , _installer = installer
     {}
 
     /**
@@ -633,13 +647,14 @@ pub class GyllirManager {
     pub fn buildTargets(mut self,
                         cwd: Path,
                         args: &Config,
-                        cfg: GyllirPackageConfiguration,
+                        declared: GyllirPackageConfiguration,
                         selected: [[c8] => ()],
                         forUnitTest: bool = false,
                         forDoc: bool = false,
                         dry: bool = false)-> ([Target], [Path], [Path])
         throws AssertError, RecursiveDependency
     {
+        let cfg     = self:.withRunCompiler(cwd, declared);
         let targets = cfg.targets();
         let ordered = self.orderedTargets(cfg, targets);
         let linked  = self.linkedTargets(targets, selected);
@@ -715,6 +730,83 @@ pub class GyllirManager {
         }
 
         (res, self.uniquePaths(outIncludes), self.uniquePaths(outLinks))
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          COMPILER          ====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * The configuration of a package, set to be built with the compiler of the run: the one the
+     * package being built declares, its dependencies being built with that same compiler, as the
+     * objects of two compilers do not mix
+     * @params:
+     *    - cwd: the root directory of the package
+     *    - cfg: the configuration of the package
+     * @throws:
+     *    - AssertError: the release of gyc pinned by the package being built could not be installed
+     * */
+    prv fn withRunCompiler(mut self, cwd: Path, cfg: GyllirPackageConfiguration)-> GyllirPackageConfiguration
+        throws AssertError
+    {
+        let release = if (cfg.hasCompilerVersion) { cfg.compilerVersion[] } else { "" };
+        if (self._compiler == "") {
+            self._compiler = if (release != "") { self.installCompiler(cwd, release) } else { cfg.compiler };
+            self._compilerRelease = release;
+        } else if (release != "" && release != self._compilerRelease) {
+            utils::log::warn("Resolving",
+                             cfg.name,
+                             " declares gyc ",
+                             release,
+                             ", it is built with ",
+                             (if (self._compilerRelease != "") { "gyc " ~ self._compilerRelease } else { self._compiler }),
+                             " like the rest of the package");
+        }
+
+        let mut res = cfg;
+        res:.setCompiler(self._compiler);
+        res
+    }
+
+    /**
+     * Install a release of gyc in the gyllir cache, unless it already is, and link it as
+     * '.deps/compiler' in the package
+     * @params:
+     *    - cwd: the root directory of the package
+     *    - release: the release of gyc
+     * @returns: the driver of the release, through the link
+     * @throws:
+     *    - AssertError: the release could not be installed, or linked
+     * */
+    prv fn installCompiler(self, cwd: Path, release: [c8])-> [c8]
+        throws AssertError
+    {
+        let dir  = self._installer.install(release, offline-> self._offline);
+        let link = cwd.push(defaults::__DEPENCY_DIR__).push(defaults::__COMPILER_DEP_NAME__);
+        {
+            let linked = if (isLink(link)) { readLink(link) == dir } else { false };
+            if (!linked) {
+                if (isLink(link)) {
+                    removeFsEntry(link);
+                } else if (exists(link, followLink-> false)) {
+                    removeDir(link, recursive-> true);
+                }
+
+                createDir(link.parent(), recursive-> true)?;
+                symlink(dir, link);
+                utils::log::info("Resolving", "compiler gyc ", release, " to ", link.toStr());
+            }
+        } catch {
+            e: &FsError => {
+                throw copy AssertError("could not link gyc " ~ release ~ " as '" ~ link.toStr() ~ "': " ~ e.msg);
+            }
+        }
+
+        link.push(defaults::__GYC_BINARY__).toStr()
     }
 
     /**
