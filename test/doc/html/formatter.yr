@@ -1,4 +1,4 @@
-use gyllir::doc::html::formatter;
+use gyllir::doc::html::{formatter, head};
 
 use std::stream;
 
@@ -81,4 +81,17 @@ __test default_version {
     // The version defaults to "main" when not given
     let r = formatter::formatGitUrl("git@github.com:foo/bar.git");
     assert(r == "https://github.com/foo/bar/tree/main/src/", "unexpected default version");
+}
+
+__test empty_git_url {
+    // A package declaring no repository has no source url, rather than a dangling "/src/"
+    assert(formatter::formatGitUrl("", version-> "v1.2.3") == "", "unexpected result for an empty url");
+}
+
+__test source_link_only_with_a_repository {
+    // The top bar links the sources only when there is an url to link to
+    assert(head::sourceLink("") == "", "a package without repository should link no source");
+    assert(head::sourceLink("https://github.com/foo/bar/src/")
+           == "<a class=\"topbar-link\" href=\"https://github.com/foo/bar/src/\">Source</a>",
+           "unexpected source link");
 }

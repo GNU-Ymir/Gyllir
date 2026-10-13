@@ -23,7 +23,6 @@ fn mkBumpableProject(version: Version = Version(1u32, 0u32, 0u32))-> (Path, Gyll
                                          "MIT",
                                          "an integration test project",
                                          BuildType("executable"),
-                                         Url("local:some/registry"),
                                          version,
                                          []);
     writeToml(dir, cfg);

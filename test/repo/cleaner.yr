@@ -32,7 +32,6 @@ __test clean_outputs_removes_target_and_executable {
                                          "MIT",
                                          "d",
                                          BuildType("executable"),
-                                         Url("local:some/registry"),
                                          Version(1u32, 0u32, 0u32),
                                          []);
 
@@ -61,7 +60,6 @@ __test clean_outputs_removes_library_archive {
                                          "MIT",
                                          "d",
                                          BuildType("library"),
-                                         Url("local:some/registry"),
                                          Version(1u32, 0u32, 0u32),
                                          []);
 

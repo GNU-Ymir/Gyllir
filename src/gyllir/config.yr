@@ -58,7 +58,8 @@ pub record GyllirPackageConfiguration {
     // The type of the target
     let mut _type: BuildType = BuildType();
 
-    // The registry in which the publishing has to be made
+    // The repository of the package, optional: an invalid url when the package declares none.
+    // Only read by 'gyllir doc', whose pages link their sources to it
     let mut _registry: Url = Url();
 
     // The version of the package
@@ -113,9 +114,9 @@ pub record GyllirPackageConfiguration {
               license: [c8],
               description: [c8],
               type: BuildType,
-              registry: Url,
               version: Version,
-              authors: [[c8]])
+              authors: [[c8]],
+              registry: Url = Url())
         with _name = name
         , _license = license
         , _description = description
@@ -338,7 +339,10 @@ pub record GyllirPackageConfiguration {
             d["name"] = copy Str(self._name);
             d["license"] = copy Str(self._license);
             d["description"] = copy Str(self._description);
-            d["registry"] = self._registry.serialize();
+            if (self._registry.isValid()) {
+                d["registry"] = self._registry.serialize();
+            }
+
             d["version"] = self._version.serialize();
             d["dependencies"] = self._dependencies.serialize();
             d["commands"] = self._commands.serialize();
@@ -456,9 +460,6 @@ pub record GyllirPackageConfiguration {
 
         if let Ok(r) = d["registry"]? {
             self._registry = Url(r, entry-> "'registry'");
-        } else {
-            throw copy AssertError("missing required entry 'registry', for example: registry = { git = "
-                                   ~ "\"git@github.com:me/my-package.git\" }");
         }
 
         // optional: a package declaring '[targets.*]' tables must not have one at all, and a package

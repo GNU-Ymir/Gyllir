@@ -46,8 +46,10 @@ pub fn htmlEscape(content: [c8])-> [c8] {
 
 /**
  * Format git url that can be in ssh format to http format
+ * @returns: "" for an empty url, a package declaring no repository has no source to link to
  * */
 pub fn formatGitUrl(url: [c8], version: [c8] = "main")-> [c8] {
+    if (url.len == 0us) { return ""; }
     if url.len >= 8 && url[0 .. 4] == "git@" && url[$ - 4 .. $] == ".git" {
         if let Ok(n) = find(url, ':') {
             let rootUrl = url[4 .. n];

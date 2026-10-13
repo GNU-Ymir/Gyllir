@@ -58,7 +58,7 @@ pub class HtmlHeader over HtmlNode {
         self._body.dumpHtml(alias streamBody);
 
         let mp = copy ["Title" => (self._project ~ " " ~ self._name),
-                       "GitURL" => formatter::formatGitUrl(self._git, version-> self._version),
+                       "Source" => sourceLink(formatter::formatGitUrl(self._git, version-> self._version)),
                        "Modules" => self._table,
                        "Links" => coverageLink(self._coverage),
                        "Body" => streamBody[]];
@@ -82,4 +82,15 @@ pub def __COVERAGE_LINK_CLASS__ = "topbar-link coverage-link";
 pub fn coverageLink(url: [c8])-> [c8] {
     if (url.len == 0us) { return ""; }
     "<a class=\"" ~ __COVERAGE_LINK_CLASS__ ~ "\" href=\"" ~ formatter::htmlEscape(url) ~ "\">Coverage</a>"
+}
+
+/**
+ * @returns: the link of the top bar of a documentation page to the sources of the package, "" if
+ *    the package declares no repository
+ * @params:
+ *    - url: the url of the sources, as formatted by 'formatter::formatGitUrl'
+ * */
+pub fn sourceLink(url: [c8])-> [c8] {
+    if (url.len == 0us) { return ""; }
+    "<a class=\"topbar-link\" href=\"" ~ formatter::htmlEscape(url) ~ "\">Source</a>"
 }

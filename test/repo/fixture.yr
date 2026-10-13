@@ -88,7 +88,6 @@ pub fn mkConfig(name: [c8], type: [c8])-> GyllirPackageConfiguration
                                "MIT",
                                "an integration test project",
                                BuildType(type),
-                               Url("local:some/registry"),
                                Version(1u32, 0u32, 0u32),
                                [])
 }
