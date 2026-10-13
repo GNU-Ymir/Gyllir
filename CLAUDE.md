@@ -47,7 +47,7 @@ Gyllir is the build system and package manager for GNU-Ymir (`gyc`) projects —
 equivalent for Ymir. It is itself written in Ymir (`.yr`), compiled by an already-installed `gyc`
 toolchain, and it drives that same `gyc` to build the projects it manages: resolving/fetching
 dependencies (local paths or git repos, version-filtered), compiling, running unit tests,
-generating HTML docs, and publishing package versions to a registry. It is a sibling of the
+generating HTML docs, and bumping package versions. It is a sibling of the
 `gyc`/`gcc` compiler checkout and of `midgard` (the Ymir standard library) — unlike `midgard`,
 Gyllir is a standalone CLI tool, not something other projects link against.
 
@@ -90,19 +90,19 @@ Entry point `src/main.yr` constructs a `gyllir::repo::manager::GyllirManager` fr
 calls `run()`; every sub-command is dispatched and implemented from there.
 
 - `src/gyllir/args.yr` — `GyllirArgumentParser`, built on `std::config::ArgumentParser`: one
-  sub-parser per command (`init`, `build`, `run`, `test`, `clean`, `doc`, `publish`, `bump`,
-  `update`, `cache`), each returning a `&Config` of parsed flags consumed by the matching `repo/*.yr`
+  sub-parser per command (`init`, `build`, `run`, `test`, `clean`, `doc`, `bump`, `update`,
+  `cache`), each returning a `&Config` of parsed flags consumed by the matching `repo/*.yr`
   runner.
 - `src/gyllir/config/` — the `gyllir.toml` schema, all `Serializable`/deserializable via
   `std::config`:
   - `config.yr` — `GyllirPackageConfiguration`: name, license, description, `compiler` (default
     `"gyc"`, or a `[compiler]` table pinning a release of gyc: `hasCompilerVersion`/`compilerVersion`,
-    `setCompiler` being what the manager points at the installed driver, never serialized), `package-root`/`test-root`, `BuildType` (`type.yr`, executable/library), `registry`
-    `Url`, `Version`, authors, C `libraries`, `DependencyList`, `CustomCommandList`.
+    `setCompiler` being what the manager points at the installed driver, never serialized), `package-root`/`test-root`, `BuildType` (`type.yr`, executable/library), the optional `registry`
+    `Url` (the repository the doc pages link their sources to, invalid when undeclared), `Version`, authors, C `libraries`, `DependencyList`, `CustomCommandList`.
   - `dependency.yr` — `Dependency` (a `VersionFilter` + `Url`) and `DependencyList`, the
     `[dependencies.<name>]` tables in `gyllir.toml`.
   - `url.yr` — `Url`/`UrlType`: `local:<path>` or `git:<remote>`, used for both dependency
-    sources and the publish `registry`.
+    sources and the `registry`.
   - `version.yr` / `version/filter.yr` — `Version` (major.minor.patch or named) and
     `VersionFilter` (`>`, `>=`, `<`, `<=`, `=` comparators used to pick a dependency's version).
   - `command.yr` — `Command`/`CustomCommandList`: user-declared pre/post build commands.
@@ -126,7 +126,7 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     dependency's own `gyllir.toml` (cycle-guarded via the `_depPackages` map), then builds it.
     `loadToml` reads `gyllir.toml`, validated on its own first so that an error appearing only
     after the merge is reported against the override, then the override on top of it
-    (`withOverride-> false` for `bump`/`publish`, which write the tracked file back, and for a
+    (`withOverride-> false` for `bump`, which writes the tracked file back, and for a
     `git:` dependency, whose override would be someone else's).
     `buildTargets` first goes through `withRunCompiler`: the package being built (the first to get
     there) decides the compiler of the whole run, a `[compiler]` release being installed through
@@ -147,10 +147,6 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     or `--set`) written back to `gyllir.toml`; committing (`gyllir.toml` alone) and tagging
     (`v<version>`) are opt-in, and `--dry` changes nothing. A named version is an error, not a
     silent no-op.
-  - `publisher.yr` — `RepoPublisher`: bumps `Version` through `RepoBumper` (`nextVersion`/
-    `write`, so the two cannot drift) and pushes the new version to the `registry` `Url`
-    (`local:` or `git:`). Note `publish --dry` means "skip building and testing", not what
-    `bump --dry` means.
   - `doc.yr` — `RepoDocBuilder`: entry point for `gyllir doc`, wiring `gyllir/doc/*` together.
   - `coverage.yr` — `RepoCoverageBuilder`: `gyllir doc --coverage`/`--coverage-file`/
     `--coverage-only`, renders the coverage the unittest executable left in the package root into
@@ -179,7 +175,8 @@ calls `run()`; every sub-command is dispatched and implemented from there.
   - `cache.yr` — `GyllirCache` (the cache root, `$GYLLIR_CACHE_DIR` or `~/.local/gyllir`, and the
     read/write of its index) and `RepoCache`, `gyllir cache` (list, `--rm <item>`, `--prune`, with
     a confirmation unless `-y`). Only indexed items are ever removed: the cache directory also
-    holds the default `local:` registries `gyllir init` proposes.
+    holds whatever else the user put there (e.g. the `local:` registries older `gyllir init`s
+    proposed).
   - `defaults.yr` — every shared filename/dirname/extension constant (`gyllir.toml`, `.deps/`,
     `.target/...`, file extensions like `.yil`/`.doc.json`) — check here before hardcoding a path
     elsewhere.
@@ -204,7 +201,7 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     mirror what `html/body.yr` writes into the pages, so a result can be resolved against the page
     it points to.
 - `src/gyllir/utils/` — `git.yr` (`GitManager`: shells out to `git` for clone/checkout/tags/
-  init/commit, used by `manager.yr`, `init.yr`, `publisher.yr`), `log.yr` (colored CLI status
+  init/commit, used by `manager.yr`, `init.yr`, `bump.yr`), `log.yr` (colored CLI status
   output), `errors.yr` (shared exception types, e.g. `RecursiveDependency`), `progress.yr`
   (`DownloadProgress`: the bar of a gyc download, drawn like midgard's test-rt progress bar, from
   the size of the file curl writes, polled by a thread of its own; a line every 10% off a terminal).

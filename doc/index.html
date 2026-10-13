@@ -28,7 +28,7 @@
     <h2>Going further</h2>
     <ul>
         <li><a href="build-model.html">How a build works</a></li>
-        <li><a href="publishing.html">Publishing</a></li>
+        <li><a href="versioning.html">Versioning</a></li>
     </ul>
 </nav>
 <main>
@@ -37,7 +37,7 @@
 <p class="lead">Gyllir is the build system and package manager for GNU-Ymir projects — what
 <code>cargo</code> is to Rust, or <code>dub</code> to D. It compiles <code>.yr</code> sources into
 executables and libraries, resolves dependencies, runs unit tests, generates documentation and
-publishes versions to a registry.</p>
+bumps versions.</p>
 
 <p>Gyllir does not compile anything itself: it drives the <code>gyc</code> compiler, decides what
 needs recompiling, and links the result. One file — <a href="manifest.html"><code>gyllir.toml</code></a>
@@ -50,7 +50,7 @@ needs recompiling, and links the result. One file — <a href="manifest.html"><c
     </a>
     <a class="card" href="cli.html">
         <strong>Command reference</strong>
-        <span>Every sub-command and flag: build, run, test, clean, doc, publish.</span>
+        <span>Every sub-command and flag: build, run, test, clean, doc, bump.</span>
     </a>
     <a class="card" href="manifest.html">
         <strong>gyllir.toml</strong>
@@ -111,8 +111,8 @@ each of those steps created and what to do next.</p>
         separate test binary.</li>
     <li><strong>Generates documentation</strong> as a static HTML site from the doc comments in
         your sources.</li>
-    <li><strong>Publishes versions</strong>: bumps the version, commits, tags, and pushes to a
-        local directory or a git registry.</li>
+    <li><strong>Bumps versions</strong>: rewrites the version of the manifest, and optionally
+        commits and tags it — the tags being what dependent packages pick their version from.</li>
 </ul>
 
 <h2>Conventions in this handbook</h2>

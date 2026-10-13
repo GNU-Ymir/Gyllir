@@ -28,7 +28,7 @@
     <h2>Going further</h2>
     <ul>
         <li><a href="build-model.html">How a build works</a></li>
-        <li><a href="publishing.html">Publishing</a></li>
+        <li><a href="versioning.html">Versioning</a></li>
     </ul>
 </nav>
 <main>
@@ -307,26 +307,27 @@ Gyllir installs for every package of the machine — today, the releases of gyc 
 <code>cache.toml</code> lists them, and <code>gyllir cache</code> prints that list with the size of
 each item. Removing one asks for confirmation; a package that was built with it installs it again on
 its next build. <code>--prune</code> only removes what the list names, and the leftovers of an
-interrupted installation, never the rest of the directory (a <code>local:</code> registry, for
-instance).</p>
+interrupted installation, never the rest of the directory.</p>
 
-<h2 id="publish">gyllir publish</h2>
+<h2 id="bump">gyllir bump</h2>
 
-<pre><code>gyllir publish &lt;message&gt; [--major|--minor|--patch] [--dry] [-y]</code></pre>
+<pre><code>gyllir bump [--major|--minor|--patch|--set &lt;version&gt;] [--dry] [--commit] [--tag] [-m &lt;message&gt;]</code></pre>
 
 <div class="table-wrap">
 <table>
     <tr><th>Flag</th><th>Effect</th></tr>
-    <tr><td><code>&lt;message&gt;</code></td><td>Required. The commit message of the published version.</td></tr>
-    <tr><td><code>--major</code> / <code>--minor</code> / <code>--patch</code></td><td>Which component to bump. Mutually exclusive; a patch bump is the default.</td></tr>
-    <tr><td><code>--dry</code></td><td>Skip the verification build and test run before publishing.</td></tr>
-    <tr><td><code>-y</code>, <code>--yes</code></td><td>Do not ask for confirmation.</td></tr>
+    <tr><td><code>--major</code> / <code>--minor</code> / <code>--patch</code></td><td>Which component to increment. A patch bump is the default.</td></tr>
+    <tr><td><code>--set &lt;version&gt;</code></td><td>Set this numbered version instead of incrementing the current one. Exclusive with the three flags above.</td></tr>
+    <tr><td><code>--dry</code></td><td>Print the new version, and what would be committed and tagged, but change nothing.</td></tr>
+    <tr><td><code>--commit</code></td><td>Commit the change of <code>gyllir.toml</code>, and only that file.</td></tr>
+    <tr><td><code>--tag</code></td><td>Tag the new version <code>v&lt;version&gt;</code>. Implies <code>--commit</code>; fails if the tag already exists.</td></tr>
+    <tr><td><code>-m</code>, <code>--message</code></td><td>The commit message, <code>chore: bump version &lt;old&gt; -&gt; &lt;new&gt;</code> by default.</td></tr>
 </table>
 </div>
 
-<p>Builds and tests the package, bumps <code>version</code> in <code>gyllir.toml</code>, commits,
-tags the commit <code>v&lt;version&gt;</code>, and pushes to the configured
-<a href="publishing.html">registry</a>.</p>
+<p>Rewrites <code>version</code> in <code>gyllir.toml</code>, ignoring
+<a href="manifest.html#override">the override</a>. A named version cannot be incremented: set a
+numbered one with <code>--set</code>. See <a href="versioning.html">Versioning</a>.</p>
 
 <div class="next">
     <span>Next:</span> <a href="manifest.html">The manifest →</a>

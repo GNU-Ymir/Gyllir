@@ -3,8 +3,8 @@
 Gyllir is the build system and package manager for [GNU-Ymir](https://github.com/GNU-Ymir) (`gyc`)
 projects — the `cargo`/`dub` equivalent for Ymir. It builds `.yr` sources into executables or
 libraries, resolves and fetches package dependencies (local paths or git repositories, version
-filtered), runs unit tests, generates HTML documentation from doc comments, and publishes package
-versions to a registry.
+filtered), runs unit tests, generates HTML documentation from doc comments, and bumps package
+versions.
 
 It is one component of a larger Ymir toolchain checkout: `gyllir` itself is compiled by a `gyc`
 already installed on the machine, and drives that same `gyc` to build the projects it manages.
@@ -19,9 +19,9 @@ with `gyc --version`) — this repo does not build `gyc` itself, only the `gylli
 
 - `src/main.yr` — entry point, hands off to `gyllir::repo::manager::GyllirManager`.
 - `src/gyllir/args.yr` — CLI argument parsing (`GyllirArgumentParser`), one sub-parser per
-  command (`init`, `build`, `run`, `test`, `clean`, `doc`, `publish`, `bump`, `update`, `cache`).
+  command (`init`, `build`, `run`, `test`, `clean`, `doc`, `bump`, `update`, `cache`).
 - `src/gyllir/config/` — `gyllir.toml` schema: package metadata (`config.yr`), dependencies and
-  version filters (`dependency.yr`, `version.yr`, `version/filter.yr`), dependency/registry URLs
+  version filters (`dependency.yr`, `version.yr`, `version/filter.yr`), dependency/repository URLs
   (`url.yr`, `local:`/`git:`), build type (`type.yr`), custom pre/post commands (`command.yr`).
 - `src/gyllir/repo/` — the core of each sub-command, one file per command plus shared pieces:
   - `manager.yr` — `GyllirManager`, dispatches parsed args to the right runner below.
@@ -36,8 +36,6 @@ with `gyc --version`) — this repo does not build `gyc` itself, only the `gylli
     optionally resolved dependencies.
   - `bump.yr` — `gyllir bump`: computes the next package version and writes it back to
     `gyllir.toml`, optionally committing and tagging it.
-  - `publisher.yr` — `gyllir publish`: bumps the package version (through `bump.yr`) and pushes it
-    to the configured registry (a `local:` or `git:` `Url`).
   - `doc.yr` — `gyllir doc`: drives documentation generation (see below).
   - `toolchain.yr` — installs the release of gyc pinned by a `[compiler]` table into the gyllir
     cache, from its `.deb`, without root.
@@ -93,7 +91,7 @@ tools/install.sh --destdir /pkg   # stage the layout under a directory instead, 
 ## Usage
 
 - `gyllir init` — interactively create a new `gyllir.toml` project in the current directory
-  (name, author, description, license, executable/library type, registry).
+  (name, author, description, license, executable/library type).
 - `gyllir build [--release] [--locked] [--offline] [-j N] [-v]` — build the project (debug by
   default); `--locked` fails instead of writing a new `gyllir.lock`, `--offline` also forbids any
   network access.
@@ -118,8 +116,6 @@ tools/install.sh --destdir /pkg   # stage the layout under a directory instead, 
   only prints the new version, `--commit` commits `gyllir.toml` alone, `--tag` tags the new
   version as `v<version>` (and implies `--commit`). A named version cannot be incremented, set a
   numbered one with `--set`.
-- `gyllir publish <message> [--major|--minor|--patch] [--dry] [-y]` — bump the package version
-  and publish it to the registry declared in `gyllir.toml`.
 - `gyllir cache [--rm <item> | --prune] [-y]` — list what gyllir installed in its cache
   (`~/.local/gyllir`, or `$GYLLIR_CACHE_DIR`), remove one item, or all of them.
 
@@ -137,7 +133,7 @@ authors = ["Jane Doe"]
 compiler = "gyc"          # optional, defaults to "gyc" on PATH, or a [compiler] table (below)
 package-root = "main"     # optional, root module under src/ (defaults to src/__lib__.yr for a library, src/main.yr for an executable)
 test-root = "__test__"    # optional, root module under test/ (defaults to test/__test__.yr)
-registry = "local:/home/jane/.local/gyllir/my-project"
+registry = "git:git@github.com:jane/my-project.git"   # optional, the repository the doc pages link their sources to
 
 [dependencies.somelib]
 version = ">=1.2.0"
@@ -164,9 +160,8 @@ recursively before the current package.
 ### Machine-local settings (`gyllir.toml.override`)
 
 A `gyllir.toml.override` next to `gyllir.toml` is read on top of it, for the settings that only
-hold on one machine — a dependency taken from a local checkout, a compiler path, a `local:`
-registry — so they stay out of the tracked file. `gyllir init` lists it in the `.gitignore` it
-writes.
+hold on one machine — a dependency taken from a local checkout, a compiler path — so they stay
+out of the tracked file. `gyllir init` lists it in the `.gitignore` it writes.
 
 ```toml
 [dependencies.somelib]
@@ -175,7 +170,7 @@ url = { local = "/home/jane/src/somelib" }
 ```
 
 Tables merge key by key, any other value replaces the one of `gyllir.toml`, and an url
-(`registry`, every `url`) is replaced as a whole. `bump` and `publish` write the new version to
+(`registry`, every `url`) is replaced as a whole. `bump` writes the new version to
 `gyllir.toml` alone, and `gyllir.lock` is left as it is while the override redeclares
 `[dependencies]` or `[std]`. The override of a `local:` dependency applies when it is built, the
 one of a git dependency does not.
