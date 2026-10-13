@@ -1,5 +1,6 @@
 in runner;
 
+use gyllir::args;
 use gyllir::config::_;
 
 use std::{config::_, env, io, stream};
@@ -49,7 +50,7 @@ pub record RepoRunner {
         if (self._forUnitTest) {
             utils::log::info("Executing", "tests ", output, " v", self._cfg.version[]);
             std::io::println("\n");
-            let dmut subProc = copy SubProcess("./" ~ output ~ ".test", [], cwd-> self._cwd);
+            let dmut subProc = copy SubProcess("./" ~ output ~ ".test", testRunnerArguments(self._args), cwd-> self._cwd);
             subProc:.start(redirect-> false);
 
             self.exitCode(subProc:.wait())

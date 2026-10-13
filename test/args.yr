@@ -256,16 +256,57 @@ __test doc_without_options_leaves_both_unset {
 }
 
 __test test_with_every_option {
-    // 'test' with every option set
-    let test = sub(parse(copy ["gyllir", "test", "--dry", "--release", "-j", "2", "-v"]), "test");
+    // 'test' with every option of its own set
+    let test = sub(parse(copy ["gyllir", "test", "--dry", "--release", "--build-jobs", "2", "-v"]), "test");
 
     assert(flag(test, "dry"), "--dry should be parsed");
     assert(flag(test, "release"), "--release should be parsed");
     assert(flag(test, "verbose"), "-v should be parsed as verbose");
 
-    if let Ok(Int(value-> j)) = test["j"]? {
-        assert(j == 2i64, "-j should be parsed as an integer");
-    } else assert(false, "-j should be parsed");
+    if let Ok(Int(value-> j)) = test["build-jobs"]? {
+        assert(j == 2i64, "--build-jobs should be parsed as an integer");
+    } else assert(false, "--build-jobs should be parsed");
+}
+
+__test test_runner_options_are_forwarded {
+    // The options of the test runner are given back in its own spelling, whichever one was used
+    let test = sub(parse(copy ["gyllir", "test", "-sf", "-cov", "-j", "1", "--filter", "args::*", "--resume", "-m",
+                                "-ct", "-d", "-l", "-s"]), "test");
+
+    let res = testRunnerArguments(test);
+    assert(res == ["--filter", "args::*", "--stop-first", "--coverage", "--call-tree", "--missing", "--resume",
+                   "--durations", "--list", "--no-capture", "--jobs", "1"],
+           "unexpected forwarded arguments");
+}
+
+__test test_j_sets_the_test_workers {
+    // In 'gyllir test', '-j' is the number of test workers, compiling the tests uses '--build-jobs'
+    let test = sub(parse(copy ["gyllir", "test", "-j", "4"]), "test");
+
+    assert("build-jobs" !in test, "-j should not set the compilation threads");
+    assert(testRunnerArguments(test) == ["--jobs", "4"], "-j should be forwarded to the test runner");
+}
+
+__test test_without_runner_option_forwards_nothing {
+    // A plain 'gyllir test' runs the tests with the default options of the runner
+    assert(testRunnerArguments(sub(parse(copy ["gyllir", "test", "--release", "-v"]), "test")).len == 0us,
+           "no argument should be forwarded");
+}
+
+__test test_raw_arguments_follow_double_dash {
+    // Everything after '--' is forwarded as is, after the modelled options, and is never a target
+    let test = sub(parse(copy ["gyllir", "test", "cli", "-sf", "--", "--future-flag", "x"]), "test");
+
+    assert(target(test) == "cli", "the target should be parsed before '--'");
+    assert(testRunnerArguments(test) == ["--stop-first", "--future-flag", "x"], "unexpected forwarded arguments");
+}
+
+__test test_option_values_are_not_target {
+    // The values of the valued options of 'test' are never mistaken for the target
+    let test = sub(parse(copy ["gyllir", "test", "-f", "a::*", "--build-jobs", "2", "cli"]), "test");
+
+    assert(target(test) == "cli", "the target should be parsed");
+    assert(testRunnerArguments(test) == ["--filter", "a::*"], "the filter should keep its own value");
 }
 
 __test test_defaults_to_debug_run {

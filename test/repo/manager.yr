@@ -867,7 +867,7 @@ __test test_builds_and_runs_unittest_per_target {
     assert(hasCacheFile(dir, "tool", defaults::__CACHE_UNIT_DEBUG_DIR__, "tool.a"),
            "the unittest build has a cache of its own");
 
-    assert(mgr.runUnitTests(dir, cfg, built) == 0, "the tests of every target should pass");
+    assert(mgr.runUnitTests(dir, cfg, built, copy Dict()) == 0, "the tests of every target should pass");
 }
 
 __test build_targets_dependency_skips_executable_targets {

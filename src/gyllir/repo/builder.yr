@@ -68,7 +68,9 @@ pub record RepoBuilder {
         , _verbose = (if let Ok(Bool(value-> true)) = args["verbose"]? {
             true
         } else { false })
-        , _nbThreads = (if let Ok(Int(value-> n)) = args["j"]? {
+        , _nbThreads = (if let Ok(Int(value-> n)) = args["build-jobs"]? {
+            cast!u32(n)
+        } else if let Ok(Int(value-> n)) = args["j"]? {
             cast!u32(n)
         } else { etc::runtime::threads::_yrt_get_nprocs() })
     {}
