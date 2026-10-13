@@ -16,7 +16,6 @@ _gyllir() {
 		build
 		run
 		clean
-		publish
 		test
 		doc
 		update
@@ -37,9 +36,6 @@ _gyllir() {
     CLEAN_OPTIONS="\
 		-h --help --doc --all"
 
-    PUBLISH_OPTION="\
-		-h --help minor major patch -y --yes --dry"
-    
     TEST_OPTIONS="\
 		-h --help -v --verbose --dry --release --locked --offline --build-jobs --env-file\
 		-f --filter -sf --stop-first -cov --coverage -ct --call-tree -m --missing --resume\
@@ -80,9 +76,6 @@ _gyllir() {
 
 	clean)
 	    complete_options="$CLEAN_OPTIONS"
-	    ;;
-	publish)
-	    complete_options="$PUBLISH_OPTION"
 	    ;;
 	bump)
 	    complete_options="$BUMP_OPTIONS"

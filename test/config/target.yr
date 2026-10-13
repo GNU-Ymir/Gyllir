@@ -261,7 +261,7 @@ __test non_dict_target_list_rejected {
 
 __test serialize_writes_only_declared_entries {
     // Serializing writes back every declared entry, and nothing else: the entries a target left
-    // to its default must not appear, so that a "gyllir publish" round trip does not grow the file
+    // to its default must not appear, so that a "gyllir bump" round trip does not grow the file
     let lst = copy TargetList(json #{
         "cli" : {
             "type" : "executable",

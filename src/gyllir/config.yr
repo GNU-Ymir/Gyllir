@@ -242,7 +242,7 @@ pub record GyllirPackageConfiguration {
      * single one synthesized from those very fields, named after the package itself.
      *
      * @info: the synthesized target is deliberately not stored in '_targets', so that it is not
-     *   written back as a '[targets.<name>]' table by 'serialize' when 'gyllir publish' rewrites
+     *   written back as a '[targets.<name>]' table by 'serialize' when 'gyllir bump' rewrites
      *   the configuration file of a package that never declared one
      * @returns: the targets of the package, by name
      * */
@@ -358,7 +358,7 @@ pub record GyllirPackageConfiguration {
             // the fields describing a single artifact are exclusive with the target tables: writing
             // any of them next to a '[targets.*]' would produce a configuration that the next
             // 'gyllir build' rejects. 'package-root' and 'test-root' are only written when set, so
-            // that a package that never had one does not gain it on the first publish
+            // that a package that never had one does not gain it on the first bump
             else {
                 d["type"] = self._type.serialize();
                 d["libraries"] = copy Array(copy [copy Str(i) for i in self._libraries]);

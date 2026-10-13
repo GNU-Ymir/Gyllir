@@ -7,9 +7,6 @@ use std::{config::_, fs::_, fs::errors, fs::path};
 /**
  * The 'gyllir bump' sub command: computes the next version of the package, and writes it back to
  * its 'gyllir.toml'. Committing that change, and tagging it, are opt in.
- *
- * @info: 'gyllir publish' bumps the version of the package it publishes through this very record,
- *   so that the two never disagree on what the next version is
  * */
 pub record RepoBumper {
 

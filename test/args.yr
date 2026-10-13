@@ -160,27 +160,6 @@ __test run_without_arguments_forwards_empty_list {
     } else assert(false, "the run arguments should be forwarded as an array");
 }
 
-__test publish_with_increment_and_message {
-    // 'publish' with a version increment flag and its mandatory message
-    let publish = sub(parse(copy ["gyllir", "publish", "--minor", "-y", "a release message"]), "publish");
-
-    assert(flag(publish, "minor"), "--minor should be parsed");
-    assert(flag(publish, "yes"), "-y should be parsed as yes");
-    assert(!flag(publish, "major") && !flag(publish, "patch"), "the other increments should be false");
-    assert(!flag(publish, "dry"), "dry should default to false");
-
-    if let Ok(Str(value-> msg)) = publish["message"]? {
-        assert(msg == "a release message", "unexpected publish message");
-    } else assert(false, "the message positional should be parsed");
-}
-
-__test publish_dry_and_major_together {
-    // 'publish --dry --major' : the exclusivity check only rejects more than one increment
-    let publish = sub(parse(copy ["gyllir", "publish", "--dry", "--major", "m"]), "publish");
-
-    assert(flag(publish, "dry") && flag(publish, "major"), "--dry and --major should be parsed");
-}
-
 __test bump_defaults_change_the_file_only {
     // 'bump' alone: a patch bump, written but neither committed nor tagged
     let bump = sub(parse(copy ["gyllir", "bump"]), "bump");
