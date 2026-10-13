@@ -40,7 +40,9 @@ _gyllir() {
 		-h --help minor major patch -y --yes --dry"
     
     TEST_OPTIONS="\
-		-h --help -v --verbose --dry --release --locked --offline"
+		-h --help -v --verbose --dry --release --locked --offline --build-jobs --env-file\
+		-f --filter -sf --stop-first -cov --coverage -ct --call-tree -m --missing --resume\
+		-d --durations -l --list -s --no-capture -j --jobs"
 
     DOC_OPTIONS="\
     		-h --help -v --verbose --locked --offline -i --input -o --output --coverage --coverage-file --coverage-only"

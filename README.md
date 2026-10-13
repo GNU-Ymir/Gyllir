@@ -95,8 +95,11 @@ tools/install.sh --destdir /pkg   # stage the layout under a directory instead, 
   default); `--locked` fails instead of writing a new `gyllir.lock`, `--offline` also forbids any
   network access.
 - `gyllir run [-- args...]` — build then run the produced executable.
-- `gyllir test [--release] [--dry] [--locked] [--offline] [-j N] [-v]` — build and run the unit
-  test suite (`--dry` to only compile, not run).
+- `gyllir test [--release] [--dry] [--locked] [--offline] [--build-jobs N] [--env-file FILE] [-v]
+  [runner options] [-- raw runner args]` — build and run the unit test suite (`--dry` to only
+  compile, not run). The test runner options (`-f/--filter`, `-sf`, `-cov`, `-ct`, `-m`,
+  `--resume`, `-d`, `-l`, `-s`, `-j/--jobs N` test workers) are passed to `./<name>.test`;
+  `--env-file` sets the `KEY=VALUE` lines of a file in its environment.
 - `gyllir clean [-a|--all] [--doc]` — remove generated build outputs; `--doc` also removes
   generated documentation, `--all` also removes resolved dependencies.
 - `gyllir doc [-i input.doc.json] [-o outputDir] [--locked] [--offline] [--coverage]

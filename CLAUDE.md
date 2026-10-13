@@ -67,8 +67,10 @@ and `gyllir` on `PATH`; `gyllir.toml` is the whole build description.
 - `package-root = "main"` in `gyllir.toml` is load-bearing: without it `src/gyllir.yr` (matching
   the package name) is picked as the package root, `src/main.yr` is left unattached, and the
   executable fails to link with `undefined reference to 'main'`.
-- Tests: `gyllir test` (or `gyllir test --dry` to only compile `./gyllir.test`, then run it
-  yourself — that's what CI does, so it can pass `-cov`). Test sources live in `test/`, rooted at
+- Tests: `gyllir test`, which passes the test runner options (`-f`, `-sf`, `-cov`, `--resume`,
+  `-j N` test workers, ..., and anything after `--`) to `./gyllir.test` — compilation threads are
+  `--build-jobs` there — and `--env-file` sets a dotenv file in its environment. `gyllir test
+  --dry` only compiles it, and refuses those options. Test sources live in `test/`, rooted at
   `test/__test__.yr`.
 - Install: no `make install` anymore — the `.deb` is staged by the Dockerfile's `package` stage
   (binary to `/usr/bin/`, `res/{html,css,js,ico}` to `/etc/gyllir/res/...`, `bash/_gyllir` to
