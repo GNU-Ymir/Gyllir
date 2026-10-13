@@ -91,11 +91,13 @@ calls `run()`; every sub-command is dispatched and implemented from there.
 
 - `src/gyllir/args.yr` — `GyllirArgumentParser`, built on `std::config::ArgumentParser`: one
   sub-parser per command (`init`, `build`, `run`, `test`, `clean`, `doc`, `publish`, `bump`,
-  `update`), each returning a `&Config` of parsed flags consumed by the matching `repo/*.yr` runner.
+  `update`, `cache`), each returning a `&Config` of parsed flags consumed by the matching `repo/*.yr`
+  runner.
 - `src/gyllir/config/` — the `gyllir.toml` schema, all `Serializable`/deserializable via
   `std::config`:
   - `config.yr` — `GyllirPackageConfiguration`: name, license, description, `compiler` (default
-    `"gyc"`), `package-root`/`test-root`, `BuildType` (`type.yr`, executable/library), `registry`
+    `"gyc"`, or a `[compiler]` table pinning a release of gyc: `hasCompilerVersion`/`compilerVersion`,
+    `setCompiler` being what the manager points at the installed driver, never serialized), `package-root`/`test-root`, `BuildType` (`type.yr`, executable/library), `registry`
     `Url`, `Version`, authors, C `libraries`, `DependencyList`, `CustomCommandList`.
   - `dependency.yr` — `Dependency` (a `VersionFilter` + `Url`) and `DependencyList`, the
     `[dependencies.<name>]` tables in `gyllir.toml`.
@@ -109,6 +111,9 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     replace, and an url (`registry`, every `url`) is replaced whole since the TOML parser cannot
     tell an inline table from a `[table]`. `redeclaresDependencies` tells whether the override
     touches `[dependencies]`/`[std]`, which makes the run leave `gyllir.lock` alone.
+  - `cache.yr` — `CachedItem`/`CacheIndex`: the `cache.toml` index of the gyllir cache
+    (`cache-version`, one `[[item]]` per installed item: `path` relative to the cache, also its id
+    for `gyllir cache --rm`, `kind`, `name`, `version`, `source`, `installed`).
   - `lock.yr` — `LockedPackage`/`LockFile`: the `gyllir.lock` schema (`lock-version`, one
     `[[package]]` array-of-tables entry per resolved package: `name`, `url`, `version`, `sha` for
     a `git:` source, `dependencies`), plus `matches()` (does an entry still resolve a declaration), `prune()`
@@ -123,6 +128,10 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     after the merge is reported against the override, then the override on top of it
     (`withOverride-> false` for `bump`/`publish`, which write the tracked file back, and for a
     `git:` dependency, whose override would be someone else's).
+    `buildTargets` first goes through `withRunCompiler`: the package being built (the first to get
+    there) decides the compiler of the whole run, a `[compiler]` release being installed through
+    `toolchain.yr` and linked as `.deps/compiler`; dependencies are built with that same compiler
+    (one pinning another release only gets a warning).
     Also the lock lifecycle of a command — `loadLock` before the build, `recordResolution` per
     dependency, `writeLock` after — the `--locked`/`--offline` flags, and `gyllir update`, which
     is a `dry` build pass (dependencies resolved, nothing compiled) followed by a rewrite.
@@ -160,6 +169,17 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     the page being viewed. `--coverage` renders the coverage pages before serving; a file missing
     from a served target sub-directory is looked up in the doc root, which is where `__coverage/`
     and the other targets' sites live.
+  - `toolchain.yr` — `CompilerInstaller`: installs a gyc release into `<cache>/compiler/<version>/`
+    without root: probes `gyc-<gcc major>_<version>_amd64.deb` for each gcc major of the system
+    (newest first), downloads it with `curl`, `dpkg-deb -x`, then links the missing pieces of the
+    system gcc (`/usr/{lib,libexec}/gcc/x86_64-linux-gnu/<major>`) next to the release's own, and
+    `lib/gcc/.../include/ymir` to the release's std lib (run from outside `/usr`, ymir1 otherwise
+    falls back to the system one in silence). Built in a hidden temp dir, renamed into place, so
+    an interrupted install never looks complete. Same recipe as `ymir-dev`'s `relocate_gyc`.
+  - `cache.yr` — `GyllirCache` (the cache root, `$GYLLIR_CACHE_DIR` or `~/.local/gyllir`, and the
+    read/write of its index) and `RepoCache`, `gyllir cache` (list, `--rm <item>`, `--prune`, with
+    a confirmation unless `-y`). Only indexed items are ever removed: the cache directory also
+    holds the default `local:` registries `gyllir init` proposes.
   - `defaults.yr` — every shared filename/dirname/extension constant (`gyllir.toml`, `.deps/`,
     `.target/...`, file extensions like `.yil`/`.doc.json`) — check here before hardcoding a path
     elsewhere.
@@ -185,7 +205,9 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     it points to.
 - `src/gyllir/utils/` — `git.yr` (`GitManager`: shells out to `git` for clone/checkout/tags/
   init/commit, used by `manager.yr`, `init.yr`, `publisher.yr`), `log.yr` (colored CLI status
-  output), `errors.yr` (shared exception types, e.g. `RecursiveDependency`).
+  output), `errors.yr` (shared exception types, e.g. `RecursiveDependency`), `progress.yr`
+  (`DownloadProgress`: the bar of a gyc download, drawn like midgard's test-rt progress bar, from
+  the size of the file curl writes, polled by a thread of its own; a line every 10% off a terminal).
 - `bash/` — shell completion (`_gyllir`) and profile scripts. `gyllir_vars.sh` exports
   `GYLLIR_HOME=/usr/share/gyllir/`, but note this variable is currently **unused** anywhere in
   `src/` — treat it as dead/aspirational, not a real global-install path, unless/until code
