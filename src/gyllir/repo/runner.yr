@@ -55,6 +55,7 @@ pub record RepoRunner {
         if (self._forUnitTest) {
             utils::log::info("Executing", "tests ", output, " v", self._cfg.version[]);
             std::io::println("\n");
+            std::io::flush();
             let (cmd, options) = self.withEnv("./" ~ output ~ ".test", testRunnerArguments(self._args));
             let dmut subProc   = copy SubProcess(cmd, options, cwd-> self._cwd);
             subProc:.start(redirect-> false);
@@ -75,6 +76,7 @@ pub record RepoRunner {
 
             utils::log::info("Executing", "project ", output, " v", self._cfg.version[]);
             std::io::println("\n");
+            std::io::flush();
             let dmut subProc = copy SubProcess("./" ~ output, options, cwd-> self._cwd);
             subProc:.start(redirect-> false);
 
