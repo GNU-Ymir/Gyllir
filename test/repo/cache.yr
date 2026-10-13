@@ -1,9 +1,9 @@
 use ::repo::fixture;
 
 use gyllir::config::cache;
-use gyllir::repo::cache;
+use gyllir::repo::{cache, manager};
 
-use std::fs::_;
+use std::{config::_, config::json, fs::_};
 
 /**
  * @returns: a cache in a directory of its own, holding the given items, each with a file in its
@@ -117,4 +117,54 @@ __test partial_installs_are_the_hidden_compiler_directories {
 
     let partial = cache.partialInstalls();
     assert(partial.len == 1us && partial[0].file() == ".1.10.2.abc", "unexpected partial installs");
+}
+
+__test cache_command_removes_one_item {
+    let cache    = mkCache(copy ["compiler/1.10.3", "compiler/1.10.2"]);
+    let mgr      = copy GyllirManager(copy ["gyllir", "clean"]);
+
+    RepoCache(json #{"rm" : "compiler/1.10.3", "yes" : true}, cache-> cache).run(mgr);
+
+    assert(!sys::exists(cache.root.push("compiler/1.10.3")), "the item should be removed");
+    assert(cache.load()[].len == 1us, "only the named item should be removed");
+}
+
+__test cache_command_refuses_an_unknown_item {
+    let cache = mkCache(copy ["compiler/1.10.3"]);
+    let mgr   = copy GyllirManager(copy ["gyllir", "clean"]);
+
+    let mut msg = "";
+    {
+        RepoCache(json #{"rm" : "compiler/0.0.1", "yes" : true}, cache-> cache).run(mgr);
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'compiler/0.0.1' is not installed in the gyllir cache, 'gyllir cache' lists what is",
+           "unexpected error: " ~ msg);
+}
+
+__test cache_command_prunes_every_item {
+    // Every item goes, and the leftovers of an interrupted installation, the rest of the cache stays
+    let cache = mkCache(copy ["compiler/1.10.3", "compiler/1.10.2"]);
+    sys::createDir(cache.root.push("compiler/.1.10.1.abc"), recursive-> true);
+    writeSource(cache.root.push("myregistry/README"), "a local registry");
+    let mgr = copy GyllirManager(copy ["gyllir", "clean"]);
+
+    RepoCache(json #{"prune" : true, "yes" : true}, cache-> cache).run(mgr);
+
+    assert(cache.load()[].len == 0us, "every item should be forgotten");
+    assert(!sys::exists(cache.root.push("compiler/1.10.3")) && !sys::exists(cache.root.push("compiler/1.10.2")),
+           "every item should be removed");
+    assert(!sys::exists(cache.root.push("compiler/.1.10.1.abc")), "a partial installation should be removed");
+    assert(sys::isFile(cache.root.push("myregistry/README")), "what gyllir did not install should be kept");
+}
+
+__test cache_command_lists_the_items {
+    let cache = mkCache(copy ["compiler/1.10.3"]);
+    sys::removeDir(cache.root.push("compiler/1.10.3"), recursive-> true);
+    let mgr = copy GyllirManager(copy ["gyllir", "clean"]);
+
+    RepoCache(copy Dict(), cache-> cache).run(mgr);
+    assert(cache.load()[].len == 1us, "listing should not change the cache");
 }

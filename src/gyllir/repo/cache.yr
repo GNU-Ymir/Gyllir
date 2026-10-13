@@ -1,8 +1,9 @@
 in cache;
 
 use gyllir::config::cache;
+use gyllir::repo::manager;
 
-use std::{fs::_, io, stream};
+use std::{config::_, fs::_, io, stream};
 use std::syntax::errors;
 
 /**
@@ -200,4 +201,160 @@ pub fn formatSize(bytes: usize)-> [c8] {
     }
 
     stream[]
+}
+
+/**
+ * The 'gyllir cache' sub command: lists the items of the gyllir cache, removes one, or all of them
+ * */
+pub record RepoCache {
+
+    // The command line options
+    let _args: &Config;
+
+    // The gyllir cache
+    let _cache: GyllirCache;
+
+    /**
+     * @params:
+     *    - args: the command line options
+     *    - cache: the gyllir cache
+     * */
+    pub self (args: &Config, cache: GyllirCache = GyllirCache())
+        with _args = args
+        , _cache = cache
+    {}
+
+    /**
+     * Run the sub command
+     * @throws:
+     *    - AssertError: the cache index cannot be read or written, or '--rm' names no item of it
+     * */
+    pub fn run(self, context: &GyllirManager)
+        throws AssertError
+    {
+        if let Ok(Str(value-> path)) = self._args["rm"]? {
+            self.removeItem(context, path);
+        } else if let Ok(Bool(value-> _ = true)) = self._args["prune"]? {
+            self.prune(context);
+        } else {
+            self.list();
+        }
+    }
+
+    /**
+     * Print the items installed in the cache
+     * */
+    pub fn list(self)
+        throws AssertError
+    {
+        let items = self._cache.load()[];
+        if (items.len == 0us) {
+            utils::log::info("Cache", "nothing is installed in ", self._cache.root.toStr());
+            return;
+        }
+
+        utils::log::info("Cache", self._cache.root.toStr());
+        let mut width = 0us;
+        for i in items if i.path.len > width {
+            width = i.path.len;
+        }
+
+        for i in items {
+            let dmut line = copy StringStream();
+            line:.write(i.path);
+            for _ in i.path.len .. width + 3us {
+                line:.write(" ");
+            }
+
+            line:.write(i.name, " ", i.version);
+
+            let dir = self._cache.root.push(i.path);
+            if (sys::isDir(dir)) {
+                line:.write(", ", formatSize(directorySize(dir)));
+            } else {
+                line:.write(", missing from the cache");
+            }
+
+            if (i.installed != "") {
+                line:.write(", installed ", i.installed);
+            }
+
+            utils::log::info("", line[]);
+        }
+    }
+
+    /**
+     * Remove one item of the cache, after confirmation
+     * @params:
+     *    - path: the item to remove, as 'gyllir cache' lists it
+     * */
+    pub fn removeItem(self, context: &GyllirManager, path: [c8])
+        throws AssertError
+    {
+        let index = self._cache.load();
+        if let Ok(item) = index.find(path) {
+            if (!self.confirm(context, "Remove " ~ item.path ~ " (" ~ item.name ~ " " ~ item.version ~ ")?")) {
+                utils::log::info("Cache", "nothing removed");
+                return;
+            }
+
+            self._cache.remove(item);
+            utils::log::info("Removed", item.path, " from ", self._cache.root.toStr());
+        } else {
+            throw copy AssertError("'" ~ path ~ "' is not installed in the gyllir cache, 'gyllir cache' lists what is");
+        }
+    }
+
+    /**
+     * Remove every item of the cache, after confirmation
+     * @info: only what the index lists goes, and the leftovers of an interrupted installation; the
+     *    rest of the cache directory(e.g. a local registry) is not gyllir's to remove
+     * */
+    pub fn prune(self, context: &GyllirManager)
+        throws AssertError
+    {
+        let items   = self._cache.load()[];
+        let partial = self._cache.partialInstalls();
+        if (items.len == 0us && partial.len == 0us) {
+            utils::log::info("Cache", "nothing is installed in ", self._cache.root.toStr());
+            return;
+        }
+
+        for i in items {
+            utils::log::info("", i.path, "   ", i.name, " ", i.version);
+        }
+
+        let dmut question = copy StringStream();
+        question:.write("Remove every item of ", self._cache.root.toStr(), "?");
+        if (!self.confirm(context, question[])) {
+            utils::log::info("Cache", "nothing removed");
+            return;
+        }
+
+        for i in items {
+            self._cache.remove(i);
+            utils::log::info("Removed", i.path);
+        }
+
+        for p in partial {
+            {
+                sys::removeDir(p, recursive-> true);
+            } catch {
+                e: &FsError => {
+                    throw copy AssertError("could not remove '" ~ p.toStr() ~ "': " ~ e.msg);
+                }
+            }
+        }
+    }
+
+    /**
+     * @returns: true iif '--yes' was passed, or the user answered yes to 'question'
+     * */
+    prv fn confirm(self, context: &GyllirManager, question: [c8])-> bool {
+        if let Ok(Bool(value-> _ = true)) = self._args["yes"]? {
+            return true;
+        }
+
+        context.askUserYesNo(question, default-> "n")
+    }
 }

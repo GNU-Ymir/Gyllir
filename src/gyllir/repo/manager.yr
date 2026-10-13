@@ -114,6 +114,8 @@ pub class GyllirManager {
             self:.selectUpdated(c, cfg);
             self:.buildTargets(cwd, c, cfg, self.selectTargets(cfg, c), dry-> true);
             self.writeLock(cwd, cfg);
+        } else if let Ok(c) = self._args["cache"]? {
+            RepoCache(c, cache-> self._installer.cache).run(self);
         } else if let Ok(c) = self._args["clean"]? {
             RepoCleaner(env::currentDir(), c, self:.loadToml(env::currentDir())).run(alias self);
         } else if let Ok(c) = self._args["bump"]? {
