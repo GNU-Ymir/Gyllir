@@ -199,7 +199,7 @@ __test non_table_dependency_list_rejected {
 
 __test serialize_link_targets_only_when_set {
     // Serializing writes "link-targets" only for a dependency that actually declares a selection, so
-    // a dependency that never set it round-trips through "gyllir publish" unchanged
+    // a dependency that never set it round-trips through "gyllir bump" unchanged
     let lst = copy DependencyList(json #{
         "foo" : {"version" : "1.0.0", "url" : {"local" : "../foo"}, "link-targets" : ["libfoo"]},
         "bar" : {"version" : "1.0.0", "url" : {"local" : "../bar"}}
@@ -212,7 +212,7 @@ __test serialize_link_targets_only_when_set {
     } else assert(false, "expected a serialized \"foo\" dependency");
 
     if let Ok(bar) = serialized["bar"]? {
-        assert("link-targets" !in bar, "a dependency that declared no selection should not gain the key on publish");
+        assert("link-targets" !in bar, "a dependency that declared no selection should not gain the key on bump");
     } else assert(false, "expected a serialized \"bar\" dependency");
 }
 

@@ -41,9 +41,9 @@ __test explicit_constructor_sets_given_fields {
                                          "MIT",
                                          "a test package",
                                          BuildType("library"),
-                                         Url("local:some/registry"),
                                          Version(1u32, 2u32, 3u32),
-                                         copy ["alice", "bob"]);
+                                         copy ["alice", "bob"],
+                                         registry-> Url("local:some/registry"));
 
     assert(cfg.name == "my-pkg", "unexpected name");
     assert(cfg.license == "MIT", "unexpected license");
@@ -105,14 +105,12 @@ __test deserialize_full_configuration {
 }
 
 __test deserialize_minimal_configuration {
-    // Only name/license/description/type/version/registry are mandatory, everything else defaults
+    // Only name/license/description/version are mandatory, everything else defaults
     let minimalCfg = json #{
         "name" : "minimal",
         "license" : "MIT",
         "description" : "d",
-        "type" : "executable",
-        "version" : "1.0.0",
-        "registry" : {"local" : "some/registry"}
+        "version" : "1.0.0"
     };
 
     let cfg = GyllirPackageConfiguration(minimalCfg);
@@ -124,6 +122,8 @@ __test deserialize_minimal_configuration {
     assert(cfg.libraries == [], "libraries should default to empty");
     assert(cfg.dependencies[].len == 0us, "dependencies should default to empty");
     assert(cfg.commands[].len == 0us, "commands should default to empty");
+    assert(!cfg.registry.isValid(), "registry should default to none");
+    assert("registry" !in cfg.serialize(), "a package declaring no registry should not gain one when written back");
 }
 
 __test non_dict_configuration_rejected {
@@ -160,16 +160,13 @@ __test missing_mandatory_entry_names_it {
 }
 
 __test every_mandatory_entry_checked {
-    // Every mandatory entry is checked the same way, and the version and the registry, which are
-    // read by dedicated parsers, are no exception
+    // Every mandatory entry is checked the same way, and the version, which is read by a dedicated
+    // parser, is no exception
     let entries = copy [("name", "missing required entry 'name', for example: name = \"my-package\""),
                         ("license", "missing required entry 'license', for example: license = \"GPL-v3\""),
                         ("description",
                          "missing required entry 'description', for example: description = \"what the package does\""),
-                        ("version", "missing required entry 'version', for example: version = \"0.1.0\""),
-                        ("registry",
-                         "missing required entry 'registry', for example: registry = { git = "
-                         ~ "\"git@github.com:me/my-package.git\" }")];
+                        ("version", "missing required entry 'version', for example: version = \"0.1.0\"")];
 
     for e in entries {
         let dmut d = copy Dict();
@@ -177,7 +174,6 @@ __test every_mandatory_entry_checked {
         d["license"] = copy Str("MIT");
         d["description"] = copy Str("d");
         d["version"] = copy Str("1.0.0");
-        d["registry"] = json #{"local" : "some/registry"};
         d:.remove(e._0);
 
         let mut msg = "";
@@ -466,7 +462,7 @@ __test serialize_targets_omits_top_level_fields {
 
 __test serialize_no_targets_writes_top_level_fields {
     // Serializing a package that declares no target writes its top level fields, and no target
-    // table: "gyllir publish" rewrites the whole file, and must not inject the synthesized target
+    // table: "gyllir bump" rewrites the whole file, and must not inject the synthesized target
     let cfg = GyllirPackageConfiguration(json #{
         "name" : "myapp",
         "license" : "MIT",
@@ -482,7 +478,7 @@ __test serialize_no_targets_writes_top_level_fields {
 
     let serialized = cfg.serialize();
 
-    assert("targets" !in serialized, "a package declaring no target should not gain one on publish");
+    assert("targets" !in serialized, "a package declaring no target should not gain one on bump");
     assert(to!{[c8]} (serialized["type"]) == "library", "unexpected serialized type");
     assert(to!{[c8]} (serialized["package-root"]) == "main", "the package root should be written back");
     assert(to!{[c8]} (serialized["test-root"]) == "__test__", "the test root should be written back");

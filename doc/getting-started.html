@@ -28,7 +28,7 @@
     <h2>Going further</h2>
     <ul>
         <li><a href="build-model.html">How a build works</a></li>
-        <li><a href="publishing.html">Publishing</a></li>
+        <li><a href="versioning.html">Versioning</a></li>
     </ul>
 </nav>
 <main>
@@ -56,7 +56,6 @@ enter:</p>
     <tr><td>Description</td><td><code>A minimal Ymir app</code></td><td>One line describing the package.</td></tr>
     <tr><td>License</td><td><code>proprietary</code></td><td>Free-form license string.</td></tr>
     <tr><td>Type (executable/library)</td><td><code>executable</code></td><td>What the package produces.</td></tr>
-    <tr><td>Registry</td><td><code>local:$HOME/.local/gyllir/&lt;name&gt;</code></td><td>Where <a href="publishing.html"><code>gyllir publish</code></a> pushes versions.</td></tr>
 </table>
 </div>
 
@@ -86,10 +85,7 @@ libraries = []
 
 [dependencies]
 
-[commands]
-
-[registry]
-local = "/home/jane/.local/gyllir/hello"</code></pre>
+[commands]</code></pre>
 
 <p>Every key is described in the <a href="manifest.html">manifest reference</a>.</p>
 

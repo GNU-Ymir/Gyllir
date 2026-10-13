@@ -233,8 +233,10 @@ pub record RepoDocBuilder {
         utils::log::info("Generate", "documentation pages in '", outDir.toStr(), "'");
         self.removeOldPages(outDir);
 
+        // a package declaring no 'registry' has no source to link to
+        let git = if self._cfg.registry.isValid() { self._cfg.registry.path.toStr() } else { "" };
         for m in modules {
-            self.generatePage(self._cfg.name, self._cfg.registry.path.toStr(), version, htmlTable, m, outDir, covUrl);
+            self.generatePage(self._cfg.name, git, version, htmlTable, m, outDir, covUrl);
         }
     }
 

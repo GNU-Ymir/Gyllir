@@ -6,7 +6,6 @@ pub mod ::runner;
 pub mod ::manager;
 pub mod ::doc;
 pub mod ::doc_server;
-pub mod ::publisher;
 pub mod ::bump;
 pub mod ::coverage;
 pub mod ::cache;

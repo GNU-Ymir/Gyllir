@@ -70,7 +70,6 @@ __test reject_library_target_run {
                                          "MIT",
                                          "d",
                                          BuildType("library"),
-                                         Url("local:some/registry"),
                                          Version(1u32, 0u32, 0u32),
                                          []);
 

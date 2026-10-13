@@ -121,9 +121,6 @@ pub class GyllirManager {
         } else if let Ok(c) = self._args["bump"]? {
             // the version is written back to 'gyllir.toml', which must not gain what the override declares
             RepoBumper(env::currentDir(), c, self:.loadToml(env::currentDir(), withOverride-> false)).run();
-        } else if let Ok(c) = self._args["publish"]? {
-            let cwd = env::currentDir();
-            RepoPublisher(cwd, c, self:.loadToml(cwd), tracked-> self:.loadToml(cwd, withOverride-> false)).run(alias self);
         } else if let Ok(c) = self._args["test"]? {
             let cwd = env::currentDir();
             let cfg = self:.loadToml(cwd);

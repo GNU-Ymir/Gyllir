@@ -233,9 +233,6 @@ pub class GyllirArgumentParser {
         self._mainParser:.sub("run", &self.parseRun,
                               comments-> "build the project and run the produced executable",
                               hyphenated-> false);
-        self._mainParser:.sub("publish", &self.parsePublish,
-                              comments-> "publish a version to the package registry",
-                              hyphenated-> false);
         self._mainParser:.sub("bump", &self.parseBump,
                               comments-> "bump the version of the package in "
                                          ~ repo::defaults::__GYLLIR_CONFIG_FILENAME__,
@@ -270,7 +267,7 @@ pub class GyllirArgumentParser {
             }
 
             let mut found = false;
-            for i in ["init", "build", "run", "publish", "bump", "clean", "doc", "test", "update", "cache"] {
+            for i in ["init", "build", "run", "bump", "clean", "doc", "test", "update", "cache"] {
                 if (i in ret) {
                     found = true;
                     break;
@@ -361,47 +358,6 @@ pub class GyllirArgumentParser {
         }
 
         (result)?
-    }
-
-    /**
-     * Parse the publish sub command
-     * @params:
-     *    - args: the arguments passed to the sub command
-     * */
-    prv fn parsePublish(self, args: [[c8]])-> (&Config)? {
-        let dmut parser = (copy ArgumentParser)
-            :.help("help", short-> "h", comments-> "print this help and exit")
-            :.flag("major", comments-> "publish a major version")
-            :.flag("minor", comments-> "publish a minor version")
-            :.flag("patch", comments-> "publish a patch")
-            :.flag("dry", comments-> "do not verify the package before publishing (neither building nor testing)")
-            :.flag("yes", short-> "y", comments-> "do not ask for validation")
-            :.position!{[c8]} ("message", comments-> "the message of the version");
-
-        return ({
-            let res    = parser.parse(args);
-            let mut nb = 0;
-            for i in ["major", "minor", "patch"] {
-                if let Ok(Bool(value-> _ = true)) = res[i]? {
-                    nb += 1;
-                }
-            }
-
-            if nb > 1 {
-                std::io::eprintln(parser.getUsage(usage-> "gyllir publish"));
-                utils::log::error("Error", "flags 'major', 'minor' and 'patch' are exclusive");
-                etc::c::process::_yrt_exit(-1);
-            }
-
-            res
-        } catch {
-            err: &std::config::args::errors::HelpRequestError => {
-                std::io::println(parser.explain(err, usage-> "gyllir publish"));
-                etc::c::process::_yrt_exit(-1);
-                panic;
-            }
-            e => throw e;
-        })?;
     }
 
     /**
