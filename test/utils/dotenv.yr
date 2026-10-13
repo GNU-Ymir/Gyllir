@@ -1,0 +1,74 @@
+use gyllir::utils::dotenv;
+
+use std::fs::_;
+
+/**
+ * @returns: the message of the error 'parseEnvFile' throws on 'content', "" when it throws none
+ * */
+fn parseError(content: [c8])-> [c8] {
+    parseEnvFile(content, ".env");
+    ""
+} catch {
+    a: &AssertError => a.msg
+}
+
+__test env_file_assignments_in_order {
+    // Every assignment is read in the order of the file, its name and value trimmed
+    let vars = parseEnvFile("A=1\n  B = two words  \nA=3", ".env");
+
+    assert(vars.len == 3us, "every assignment should be read");
+    assert(vars[0]._0 == "A" && vars[0]._1 == "1", "unexpected first variable");
+    assert(vars[1]._0 == "B" && vars[1]._1 == "two words", "the name and value should be trimmed");
+    assert(vars[2]._0 == "A" && vars[2]._1 == "3", "a variable may be assigned again, the last one wins");
+}
+
+__test env_file_skips_blank_lines_and_comments {
+    // Blank lines and comments are skipped, and so is the 'export' a shell script would need
+    let vars = parseEnvFile("# a comment\n\n   \nexport KEY=value\r\n", ".env");
+
+    assert(vars.len == 1us, "only the assignment should be read");
+    assert(vars[0]._0 == "KEY" && vars[0]._1 == "value", "unexpected variable");
+}
+
+__test env_file_unquotes_values {
+    // A value wrapped in a pair of quotes is unquoted, '=' and '#' included in it as they are
+    let vars = parseEnvFile("A=\"x = 1 # not a comment\"\nB='single'\nC=\"unbalanced'\nD=", ".env");
+
+    assert(vars[0]._1 == "x = 1 # not a comment", "a double quoted value should be unquoted");
+    assert(vars[1]._1 == "single", "a single quoted value should be unquoted");
+    assert(vars[2]._1 == "\"unbalanced'", "unbalanced quotes should be kept");
+    assert(vars[3]._0 == "D" && vars[3]._1 == "", "an empty value should be allowed");
+}
+
+__test env_file_rejects_malformed_lines {
+    // A line that is not an assignment, or assigns no variable name, is reported with its number
+    assert(parseError("A=1\nnot an assignment") == "in '.env', line 2, expected 'KEY=VALUE'",
+           "a line without '=' should be rejected");
+    assert(parseError("1A=x") == "in '.env', line 1, '1A' is not a variable name",
+           "a name starting with a digit should be rejected");
+    assert(parseError("\n=x") == "in '.env', line 2, '' is not a variable name",
+           "an empty name should be rejected");
+}
+
+__test env_file_missing_is_reported {
+    // A missing environment file is an error naming it
+    let mut msg = "";
+    {
+        readEnvFile(Path("/nonexistent/gyllir.env"));
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "failed to read the environment file '/nonexistent/gyllir.env'", "unexpected error: " ~ msg);
+}
+
+__test env_file_is_read {
+    // An existing environment file is read and parsed
+    let dir    = sys::tempDirectory(prefix-> "gyllir_dotenv_test_");
+    let dmut f = File::create(dir.push(".env"), write-> true);
+    f:.write("NAME=gyllir\n");
+    f:.close();
+
+    let vars = readEnvFile(dir.push(".env"));
+    assert(vars.len == 1us && vars[0]._0 == "NAME" && vars[0]._1 == "gyllir", "unexpected variables");
+}

@@ -24,17 +24,22 @@ pub record RepoRunner {
     // True iif the runner is configured to run unittests
     let _forUnitTest: bool;
 
+    // The variables to set in the environment of the executed artifact
+    let _env: [([c8], [c8])];
+
     /**
      * @params:
      *    - cfg: the configuration of the repo
      *    - target: the target whose artifact is executed
+     *    - env: the variables to set in the environment of the artifact, on top of the inherited ones
      * */
-    pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration, target: Target, forUnitTest: bool)
+    pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration, target: Target, forUnitTest: bool, env: [([c8], [c8])] = [])
         with _cwd = path
         , _args = args
         , _cfg = cfg
         , _target = target
         , _forUnitTest = forUnitTest
+        , _env = env
     {}
 
     /**
@@ -50,7 +55,8 @@ pub record RepoRunner {
         if (self._forUnitTest) {
             utils::log::info("Executing", "tests ", output, " v", self._cfg.version[]);
             std::io::println("\n");
-            let dmut subProc = copy SubProcess("./" ~ output ~ ".test", testRunnerArguments(self._args), cwd-> self._cwd);
+            let (cmd, options) = self.withEnv("./" ~ output ~ ".test", testRunnerArguments(self._args));
+            let dmut subProc   = copy SubProcess(cmd, options, cwd-> self._cwd);
             subProc:.start(redirect-> false);
 
             self.exitCode(subProc:.wait())
@@ -74,6 +80,24 @@ pub record RepoRunner {
 
             self.exitCode(subProc:.wait())
         }
+    }
+
+    /**
+     * The command line executing an artifact in the environment of the runner
+     * @params:
+     *    - cmd: the artifact
+     *    - options: its arguments
+     * @returns: the command and its arguments, run through 'env' when there are variables to set
+     * */
+    prv fn withEnv(self, cmd: [c8], options: [[c8]])-> ([c8], [[c8]]) {
+        if (self._env.len == 0us) { return (cmd, options); }
+
+        let mut res: [[c8]] = [];
+        for v in self._env {
+            res ~= [v._0 ~ "=" ~ v._1];
+        }
+
+        ("env", res ~ [cmd] ~ options)
     }
 
     /**

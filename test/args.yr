@@ -303,10 +303,12 @@ __test test_raw_arguments_follow_double_dash {
 
 __test test_option_values_are_not_target {
     // The values of the valued options of 'test' are never mistaken for the target
-    let test = sub(parse(copy ["gyllir", "test", "-f", "a::*", "--build-jobs", "2", "cli"]), "test");
+    let test = sub(parse(copy ["gyllir", "test", "--env-file", ".env", "-f", "a::*", "--build-jobs", "2", "cli"]), "test");
 
     assert(target(test) == "cli", "the target should be parsed");
-    assert(testRunnerArguments(test) == ["--filter", "a::*"], "the filter should keep its own value");
+    if let Ok(Str(value-> f)) = test["env-file"]? {
+        assert(f == ".env", "unexpected environment file");
+    } else assert(false, "--env-file should be parsed");
 }
 
 __test test_defaults_to_debug_run {

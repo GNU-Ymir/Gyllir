@@ -561,6 +561,7 @@ pub class GyllirArgumentParser {
                               ~ repo::defaults::__GYLLIR_LOCK_FILENAME__ ~ " pins")
             :.flag("offline", comments-> "resolve the dependencies without any network access (implies --locked)")
             :.option!{i32} ("build-jobs", comments-> "number of parallel threads compiling the tests")
+            :.option!{[c8]} ("env-file", comments-> "file of KEY=VALUE lines to set in the environment of the tests")
             :.option!{[c8]} ("filter", short-> "f", comments-> "unittest filter")
             :.flag("stop-first", short-> "sf", comments-> "stop after first test failure")
             :.flag("coverage", short-> "cov", comments-> "print coverage report")
@@ -573,11 +574,11 @@ pub class GyllirArgumentParser {
             :.option!{i64} ("jobs", short-> "j", comments-> "number of worker threads running the tests");
 
         let (options, raw)  = self.extractRaw(args);
-        let (rest, target)  = self.extractTarget(options, copy ["build-jobs", "filter", "f", "jobs", "j"]);
+        let (rest, target)  = self.extractTarget(options, copy ["build-jobs", "env-file", "filter", "f", "jobs", "j"]);
         return ({
             let res = self.withRaw(self.withTarget(parser.parse(rest), target), raw);
             if let Ok(Bool(value-> _ = true)) = res["dry"]? {
-                if (testRunnerArguments(res).len != 0us) {
+                if ("env-file" in res || testRunnerArguments(res).len != 0us) {
                     std::io::eprintln(parser.getUsage(usage-> "gyllir test [target] [-- runner arguments]"));
                     utils::log::error("Error", "'--dry' does not run the tests, it takes none of the options passed to them");
                     etc::c::process::_yrt_exit(-1);
