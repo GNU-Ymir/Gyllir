@@ -11,6 +11,7 @@ pub mod ::url;
 pub mod ::target;
 pub mod ::type;
 pub mod ::version;
+pub mod ::cache;
 
 __test empty_configuration_defaults {
     // Defaults of an empty configuration

@@ -104,6 +104,32 @@ pub def __DEPENCY_DIR__  = ".deps";
 pub def __STD_DEP_NAME__ = "std";
 
 /**
+ * The environment variable naming the gyllir cache directory, '~/.local/gyllir' when it is unset
+ */
+pub def __CACHE_ENV_VAR__ = "GYLLIR_CACHE_DIR";
+
+/**
+ * The file of the gyllir cache listing what was installed in it
+ */
+pub def __CACHE_INDEX_FILENAME__ = "cache.toml";
+
+/**
+ * The sub directory of the gyllir cache holding one installation of gyc per release
+ */
+pub def __CACHE_COMPILER_DIR__ = "compiler";
+
+/**
+ * @returns: the gyllir cache directory, holding what gyllir installs for every package of the
+ *    machine: '$GYLLIR_CACHE_DIR', or '~/.local/gyllir'
+ * */
+pub fn gyllirCacheDir()-> Path {
+    let dir = unsafe { std::env::getVar(__CACHE_ENV_VAR__) };
+    if (dir != "") { return Path(dir); }
+
+    Path(unsafe { std::env::getVar("HOME") }).push(".local").push("gyllir")
+}
+
+/**
  * The file at the root of a std lib(midgard) checkout declaring the 'YMIR_BOOTSTRAP_VERSION' it
  * was built against, used to warn when a resolved std lib was bootstrapped with a different Ymir
  * compiler than the one that is actually going to build it

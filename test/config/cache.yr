@@ -1,0 +1,118 @@
+use gyllir::config::cache;
+
+use std::config::toml;
+
+__test cache_index_round_trip {
+    // An index survives being written and read back, its items sorted by path
+    let dmut index = copy CacheIndex();
+    index:.insert(CachedItem("compiler/1.10.3", "compiler", "gyc", "1.10.3", source-> "https://x/gyc.deb",
+                             installed-> "2026-10-13 19:00"));
+    index:.insert(CachedItem("compiler/1.10.2", "compiler", "gyc", "1.10.2"));
+
+    let back  = copy CacheIndex(toml::parse(index.toToml()));
+    let items = back[];
+
+    assert(items.len == 2us, "expected two items");
+    assert(items[0].path == "compiler/1.10.2" && items[1].path == "compiler/1.10.3", "items should be sorted by path");
+    assert(items[0].source == "" && items[0].installed == "", "unknown fields should stay empty");
+    assert(items[1].kind == "compiler" && items[1].name == "gyc" && items[1].version == "1.10.3",
+           "unexpected item: " ~ std::conv::to!{[c8]} (items[1]));
+    assert(items[1].source == "https://x/gyc.deb" && items[1].installed == "2026-10-13 19:00",
+           "unexpected optional fields");
+}
+
+__test cache_index_dump_is_stable {
+    // The dump does not depend on the order the items were inserted in
+    let dmut a = copy CacheIndex();
+    a:.insert(CachedItem("compiler/1", "compiler", "gyc", "1"));
+    a:.insert(CachedItem("compiler/2", "compiler", "gyc", "2"));
+
+    let dmut b = copy CacheIndex();
+    b:.insert(CachedItem("compiler/2", "compiler", "gyc", "2"));
+    b:.insert(CachedItem("compiler/1", "compiler", "gyc", "1"));
+
+    assert(a.toToml() == b.toToml(), "two indexes of the same items should dump the same bytes");
+}
+
+__test cache_index_quotes_strings {
+    // A string holding a quote is escaped, not written as is
+    let dmut index = copy CacheIndex();
+    index:.insert(CachedItem("compiler/x", "compiler", "gyc", "x", source-> "a \"quoted\" \\ path"));
+
+    let back = copy CacheIndex(toml::parse(index.toToml()));
+    assert(back[][0].source == "a \"quoted\" \\ path", "unexpected source: " ~ back[][0].source);
+}
+
+__test cache_index_find_and_remove {
+    // An item is found, and forgotten, by its path
+    let dmut index = copy CacheIndex();
+    index:.insert(CachedItem("compiler/1.10.3", "compiler", "gyc", "1.10.3"));
+
+    if let Ok(i) = index.find("compiler/1.10.3") {
+        assert(i.version == "1.10.3", "unexpected item found");
+    } else assert(false, "the item should be found");
+
+    index:.remove("compiler/1.10.3");
+    let found = if let Ok(_) = index.find("compiler/1.10.3") { true } else { false };
+    assert(!found && index[].len == 0us, "the item should be forgotten");
+}
+
+__test cache_index_insert_replaces_same_path {
+    // Installing in the same directory again replaces the previous entry
+    let dmut index = copy CacheIndex();
+    index:.insert(CachedItem("compiler/1.10.3", "compiler", "gyc", "1.10.3"));
+    index:.insert(CachedItem("compiler/1.10.3", "compiler", "gyc", "1.10.3", source-> "again"));
+
+    assert(index[].len == 1us && index[][0].source == "again", "the entry should be replaced");
+}
+
+__test cache_index_rejects_another_version {
+    // An index written in a format this gyllir does not know is rejected
+    let mut msg = "";
+    {
+        copy CacheIndex(toml::parse("cache-version = 2\n"));
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+        _ => { msg = "not TOML"; }
+    }
+
+    assert(msg == "'cache-version' is 2, this build of gyllir only understands cache-version 1", "unexpected error: " ~ msg);
+}
+
+__test cache_index_rejects_missing_version {
+    let mut msg = "";
+    {
+        copy CacheIndex(toml::parse("[[item]]\npath = \"compiler/1\"\n"));
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+        _ => { msg = "not TOML"; }
+    }
+
+    assert(msg == "missing required entry 'cache-version', an integer", "unexpected error: " ~ msg);
+}
+
+__test cache_index_rejects_incomplete_item {
+    // An item names the field it misses
+    let mut msg = "";
+    {
+        copy CacheIndex(toml::parse("cache-version = 1\n[[item]]\npath = \"compiler/1\"\nkind = \"compiler\"\n"));
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+        _ => { msg = "not TOML"; }
+    }
+
+    assert(msg == "'[[item]]' 'compiler/1', missing required entry 'name'", "unexpected error: " ~ msg);
+}
+
+__test cache_index_rejects_unknown_entry {
+    let mut msg = "";
+    {
+        copy CacheIndex(toml::parse("cache-version = 1\n[[item]]\npath = \"compiler/1\"\nkind = \"compiler\"\n"
+                                    ~ "name = \"gyc\"\nversion = \"1\"\nsize = \"12\"\n"));
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+        _ => { msg = "not TOML"; }
+    }
+
+    assert(msg == "'[[item]]' 'compiler/1', 'size' is not a known entry", "unexpected error: " ~ msg);
+}

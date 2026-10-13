@@ -12,3 +12,4 @@ pub mod ::bump;
 pub mod ::doc;
 pub mod ::doc_server;
 pub mod ::coverage;
+pub mod ::cache;

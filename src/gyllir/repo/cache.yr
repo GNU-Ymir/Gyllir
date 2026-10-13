@@ -1,0 +1,203 @@
+in cache;
+
+use gyllir::config::cache;
+
+use std::{fs::_, io, stream};
+use std::syntax::errors;
+
+/**
+ * The gyllir cache: a directory shared by every package of the machine('~/.local/gyllir' by
+ * default), holding what gyllir installs for them, and the index listing it
+ * */
+pub record GyllirCache {
+
+    // The root directory of the cache
+    let _root: Path;
+
+    /**
+     * @params:
+     *    - root: the root directory of the cache
+     * */
+    pub self (root: Path = defaults::gyllirCacheDir())
+        with _root = root
+    {}
+
+    @field
+    pub fn root(self)-> Path {
+        self._root
+    }
+
+    /**
+     * @returns: the file listing what is installed in the cache
+     * */
+    pub fn indexFile(self)-> Path {
+        self._root.push(defaults::__CACHE_INDEX_FILENAME__)
+    }
+
+    /**
+     * @returns: the directory a release of gyc is installed into
+     * */
+    pub fn compilerDir(self, version: [c8])-> Path {
+        self._root.push(defaults::__CACHE_COMPILER_DIR__).push(version)
+    }
+
+    /**
+     * @returns: the content of the index, empty when there is none yet
+     * @throws:
+     *    - AssertError: the index cannot be read, or is malformed
+     * */
+    pub fn load(self)-> dmut &CacheIndex
+        throws AssertError
+    {
+        let file = self.indexFile();
+        if (!sys::isFile(file)) { return copy CacheIndex(); }
+
+        {
+            copy CacheIndex(std::config::toml::parse(sys::readFile(file)))
+        } catch {
+            a: &AssertError => {
+                throw copy AssertError("the cache index '" ~ file.toStr() ~ "' is malformed: " ~ a.msg);
+            }
+            s: &SyntaxError => {
+                throw copy AssertError("the cache index '" ~ file.toStr() ~ "' is not valid TOML: " ~ s.msg);
+            }
+            e: &FsError => {
+                throw copy AssertError("could not read the cache index '" ~ file.toStr() ~ "': " ~ e.msg);
+            }
+        }
+    }
+
+    /**
+     * Write the index, replacing the previous one at once
+     * @throws:
+     *    - AssertError: the index cannot be written
+     * */
+    pub fn save(self, index: &CacheIndex)
+        throws AssertError
+    {
+        let file = self.indexFile();
+        let tmp  = self._root.push(defaults::__CACHE_INDEX_FILENAME__ ~ ".tmp");
+        {
+            sys::createDir(self._root, recursive-> true)?;
+            sys::writeFile(tmp, index.toToml());
+            sys::rename(tmp, file);
+        } catch {
+            e: &FsError => {
+                throw copy AssertError("could not write the cache index '" ~ file.toStr() ~ "': " ~ e.msg);
+            }
+        }
+    }
+
+    /**
+     * Add an item to the index
+     * @throws:
+     *    - AssertError: the index cannot be read or written
+     * */
+    pub fn add(self, item: CachedItem)
+        throws AssertError
+    {
+        let dmut index = self.load();
+        index:.insert(item);
+        self.save(index);
+    }
+
+    /**
+     * Remove an item from the cache, its directory and its entry in the index
+     * @throws:
+     *    - AssertError: the item names a directory outside of the cache, or it cannot be removed
+     * */
+    pub fn remove(self, item: CachedItem)
+        throws AssertError
+    {
+        if (!isCachePath(item.path)) {
+            throw copy AssertError("the cache index names '" ~ item.path ~ "', which is not a directory of the cache");
+        }
+
+        let dir = self._root.push(item.path);
+        {
+            if (sys::isLink(dir)) {
+                sys::removeFsEntry(dir);
+            } else if (sys::exists(dir, followLink-> false)) {
+                sys::removeDir(dir, recursive-> true);
+            }
+        } catch {
+            e: &FsError => {
+                throw copy AssertError("could not remove '" ~ dir.toStr() ~ "': " ~ e.msg);
+            }
+        }
+
+        let dmut index = self.load();
+        index:.remove(item.path);
+        self.save(index);
+    }
+
+    /**
+     * @returns: the directories left behind by an installation that did not complete
+     * */
+    pub fn partialInstalls(self)-> [Path] {
+        let mut res: [Path] = [];
+        let dir = self._root.push(defaults::__CACHE_COMPILER_DIR__);
+        if (!sys::isDir(dir)) { return res; }
+
+        for entry in sys::readDir(dir) {
+            match entry {
+                FsEntry(path-> p, kind-> FsEntryKind::DIR) => {
+                    if (p.file().len > 0us && p.file()[0] == '.') { res ~= [p]; }
+                }
+            }
+        }
+
+        res
+    } catch {
+        _ => { [] }
+    }
+}
+
+/**
+ * @returns: true iif 'path' is relative and stays inside the directory it is relative to
+ * */
+pub fn isCachePath(path: [c8])-> bool {
+    if (path == "" || path[0] == '/') { return false; }
+
+    let mut segment: [c8] = [];
+    for c in path ~ "/" {
+        if (c == '/') {
+            if (segment == "" || segment == "." || segment == "..") { return false; }
+            segment = [];
+        } else {
+            segment ~= [c];
+        }
+    }
+
+    true
+}
+
+/**
+ * @returns: the size of the files of a directory, links not followed
+ * */
+pub fn directorySize(dir: Path)-> usize {
+    let mut res = 0us;
+    for entry in sys::walkDir(dir) {
+        if (entry.kind == FsEntryKind::FILE) {
+            res += sys::fileSize(entry.path).bytes;
+        }
+    }
+
+    res
+} catch {
+    _ => { 0us }
+}
+
+/**
+ * @returns: a size, as a number of MB(or KB under one MB)
+ * */
+pub fn formatSize(bytes: usize)-> [c8] {
+    let dmut stream = copy StringStream();
+    if (bytes < 1024us * 1024us) {
+        stream:.write((bytes + 1023us) / 1024us, " KB");
+    } else {
+        stream:.write((bytes + 1024us * 512us) / (1024us * 1024us), " MB");
+    }
+
+    stream[]
+}
