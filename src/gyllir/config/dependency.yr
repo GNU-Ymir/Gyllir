@@ -158,7 +158,8 @@ pub class DependencyList {
      * @throws:
      *    - AssertError: one of the entries is named "std", which is reserved for the std lib
      *      resolved by '[std]'('gyllir::repo::defaults::__STD_DEP_NAME__') - a dependency sharing
-     *      that name would collide with it in the lock file and in '.deps/'
+     *      that name would collide with it in the lock file and in '.deps/' - or "compiler", the
+     *      link to the gyc installed for '[compiler]'('gyllir::repo::defaults::__COMPILER_DEP_NAME__')
      * */
     prv fn insert(mut self, cfg: &Dict)
         throws AssertError
@@ -167,6 +168,11 @@ pub class DependencyList {
             if (k == "std") {
                 throw copy AssertError("'[dependencies.std]', 'std' is reserved for the std lib resolved by '[std]', "
                                        ~ "name this dependency differently");
+            }
+
+            if (k == "compiler") {
+                throw copy AssertError("'[dependencies.compiler]', 'compiler' is reserved for the compiler installed "
+                                       ~ "for '[compiler]', name this dependency differently");
             }
 
             self._package[k] = self.parseDependency(k, v);
