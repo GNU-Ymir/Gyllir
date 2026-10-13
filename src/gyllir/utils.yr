@@ -4,3 +4,4 @@ pub mod ::errors;
 pub mod ::git;
 pub mod ::log;
 pub mod ::dotenv;
+pub mod ::progress;

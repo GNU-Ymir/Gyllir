@@ -11,6 +11,7 @@ pub mod ::target;
 pub mod ::type;
 pub mod ::errors;
 pub mod ::overlay;
+pub mod ::cache;
 
 use gyllir::config::_;
 use gyllir::config::version::filter;
@@ -35,8 +36,15 @@ pub record GyllirPackageConfiguration {
     // The short descripion
     let mut _description: [c8] = "";
 
-    // The compiler
+    // The compiler binary, looked up on PATH unless it is a path
     let mut _compiler: [c8] = "gyc";
+
+    // The release of gyc the package is built with, only meaningful when '_hasCompilerVersion' is
+    // true: 'gyllir' installs it in its cache, and builds with that one instead of '_compiler'
+    let mut _compilerVersion: Version = Version(0, 0, 0);
+
+    // True iif the package declares a '[compiler]' table
+    let mut _hasCompilerVersion: bool = false;
 
     // The package root file
     let mut _packageRoot: [c8] = "";
@@ -160,6 +168,24 @@ pub record GyllirPackageConfiguration {
     @field
     pub fn compiler(self)-> [c8] {
         self._compiler
+    }
+
+    /**
+     * @returns: true iif the package declares a '[compiler]' table, pinning the release of gyc it is
+     *    built with
+     * */
+    @field
+    pub fn hasCompilerVersion(self)-> bool {
+        self._hasCompilerVersion
+    }
+
+    /**
+     * @returns: the release of gyc the package is built with, only meaningful when
+     *    'hasCompilerVersion' is true
+     * */
+    @field
+    pub fn compilerVersion(self)-> Version {
+        self._compilerVersion
     }
 
     @field
@@ -289,6 +315,14 @@ pub record GyllirPackageConfiguration {
         self._version = v;
     }
 
+    /**
+     * Set the compiler binary the package is built with, the one a '[compiler]' table resolved to
+     * @info: never written back by 'serialize', which keeps writing the '[compiler]' table
+     * */
+    pub fn setCompiler(mut self, compiler: [c8]) {
+        self._compiler = compiler;
+    }
+
     /*!
      * ====================================================================================================
      * ====================================================================================================
@@ -308,7 +342,13 @@ pub record GyllirPackageConfiguration {
             d["version"] = self._version.serialize();
             d["dependencies"] = self._dependencies.serialize();
             d["commands"] = self._commands.serialize();
-            d["compiler"] = copy Str(self._compiler);
+            if (self._hasCompilerVersion) {
+                let dmut c = copy Dict();
+                c["version"] = self._compilerVersion.serialize();
+                d["compiler"] = c;
+            } else {
+                d["compiler"] = copy Str(self._compiler);
+            }
 
             d["authors"] = copy Array(copy [copy Str(i) for i in self._authors]);
 
@@ -427,7 +467,14 @@ pub record GyllirPackageConfiguration {
             self._type = BuildType(t, entry-> "'type'");
         }
 
-        self._compiler = self.readString(d, "compiler", default-> self._compiler, example-> "compiler = \"gyc\"");
+        if let Ok(c: &Dict) = d["compiler"]? {
+            self:.parseCompiler(c);
+        } else if let Ok(Str(value-> c)) = d["compiler"]? {
+            self._compiler = c;
+        } else if ("compiler" in d) {
+            throw copy AssertError("'compiler' must be a compiler binary, or a table pinning a release of gyc, for "
+                                   ~ "example: compiler = \"gyc\", or [compiler]\nversion = \"1.10.3\"");
+        }
         self._packageRoot = self.readString(d, "package-root", default-> "", example-> "package-root = \"main\"");
         self._testRoot = self.readString(d, "test-root", default-> "", example-> "test-root = \"__test__\"");
         self._tests = self.readBool(d, "tests", default-> true);
@@ -529,6 +576,41 @@ pub record GyllirPackageConfiguration {
             // loaded, not deep inside a build
             VersionFilter(self._stdVersionRaw, entry-> "'std.version'");
         } else throw copy AssertError("'std' must be a table, for example: [std]\nversion = \">=1.0.0\"");
+    }
+
+    /**
+     * Parse the optional '[compiler]' table, pinning the release of gyc the package is built with
+     * @params:
+     *    - d: the content of the '[compiler]' table
+     * @throws:
+     *    - AssertError: 'version' is missing, or is not a single release
+     * */
+    prv fn parseCompiler(mut self, d: &Dict)
+        throws AssertError
+    {
+        let ctx = "'[compiler]', ";
+        if let Ok(v) = d["version"]? {
+            self._compilerVersion = Version(v, entry-> ctx ~ "'version'");
+        } else {
+            throw copy AssertError(ctx ~ "missing required entry 'version', for example: version = \"1.10.3\"");
+        }
+
+        gyllir::config::errors::rejectUnknown(d, ctx, "version");
+
+        // it names a directory of the cache, and a release to download
+        let name = self._compilerVersion[];
+        let mut valid = !self._compilerVersion.isIgnore() && name != "" && name[0] != '.';
+        for c in name {
+            if (!std::char::isAlpha(c) && !std::char::isDigit(c) && c != '.' && c != '-' && c != '_') {
+                valid = false;
+            }
+        }
+
+        if (!valid) {
+            throw copy AssertError(ctx ~ "'version' must name a single release of gyc, for example: version = \"1.10.3\"");
+        }
+
+        self._hasCompilerVersion = true;
     }
 
     /**

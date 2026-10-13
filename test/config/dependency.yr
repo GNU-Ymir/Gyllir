@@ -92,6 +92,21 @@ __test std_named_dependency_rejected {
            "unexpected error: " ~ msg);
 }
 
+__test compiler_named_dependency_rejected {
+    // A dependency named "compiler" is rejected: '.deps/compiler' links to the gyc of '[compiler]'
+    let mut msg = "";
+    {
+        copy DependencyList(json #{"compiler" : {"version" : "1.0.0", "url" : {"local" : "../foo"}}});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg
+           == "'[dependencies.compiler]', 'compiler' is reserved for the compiler installed for '[compiler]', "
+              ~ "name this dependency differently",
+           "unexpected error: " ~ msg);
+}
+
 __test missing_version_names_the_entry {
     // A dependency declaring no version says what one looks like: an unversioned dependency has no
     // tag to check out, it is not a shorthand for "any version"

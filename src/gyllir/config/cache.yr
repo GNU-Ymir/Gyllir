@@ -1,0 +1,271 @@
+in cache;
+
+use std::{config::_, stream};
+use std::algorithm::sorting;
+
+/**
+ * The format of the cache index understood by this build of gyllir
+ * */
+pub def __CACHE_INDEX_VERSION__ = 1u32;
+
+/**
+ * The comment opening the cache index
+ * */
+pub def __CACHE_INDEX_HEADER__ = str #{# This file is written by gyllir, and lists what it installed in this directory. List it with
+# 'gyllir cache', remove an item with 'gyllir cache --rm <item>' rather than editing this file.
+};
+
+/**
+ * The kind of item installed for a '[compiler]' table
+ * */
+pub def __COMPILER_ITEM_KIND__ = "compiler";
+
+/**
+ * An item installed in the gyllir cache, one '[[item]]' entry of its index
+ * */
+pub record CachedItem {
+
+    // The directory the item is installed into, relative to the cache, and the name it is removed by
+    let mut _path: [c8] = "";
+
+    // What the item is, e.g. 'compiler'
+    let mut _kind: [c8] = "";
+
+    // The name of what was installed, e.g. 'gyc'
+    let mut _name: [c8] = "";
+
+    // The version that was installed
+    let mut _version: [c8] = "";
+
+    // Where the item was installed from, "" when unknown
+    let mut _source: [c8] = "";
+
+    // When the item was installed, "" when unknown
+    let mut _installed: [c8] = "";
+
+    pub self (path: [c8], kind: [c8], name: [c8], version: [c8], source: [c8] = "", installed: [c8] = "")
+        with _path = path
+        , _kind = kind
+        , _name = name
+        , _version = version
+        , _source = source
+        , _installed = installed
+    {}
+
+    /**
+     * Deserialize an entry of the index
+     * @throws:
+     *    - AssertError: a required entry is missing, or is not a string
+     * */
+    pub self (d: &Dict)
+        throws AssertError
+    {
+        self._path = self.readString(d, "path", required-> true);
+        let ctx = "'[[item]]' '" ~ self._path ~ "', ";
+
+        self._kind = self.readString(d, "kind", required-> true, ctx-> ctx);
+        self._name = self.readString(d, "name", required-> true, ctx-> ctx);
+        self._version = self.readString(d, "version", required-> true, ctx-> ctx);
+        self._source = self.readString(d, "source", required-> false, ctx-> ctx);
+        self._installed = self.readString(d, "installed", required-> false, ctx-> ctx);
+
+        gyllir::config::errors::rejectUnknown(d, ctx, "path", "kind", "name", "version", "source", "installed");
+    }
+
+    @field
+    pub fn path(self)-> [c8] {
+        self._path
+    }
+
+    @field
+    pub fn kind(self)-> [c8] {
+        self._kind
+    }
+
+    @field
+    pub fn name(self)-> [c8] {
+        self._name
+    }
+
+    @field
+    pub fn version(self)-> [c8] {
+        self._version
+    }
+
+    @field
+    pub fn source(self)-> [c8] {
+        self._source
+    }
+
+    @field
+    pub fn installed(self)-> [c8] {
+        self._installed
+    }
+
+    /**
+     * Read a string entry of the item
+     * */
+    prv fn readString(self, d: &Dict, key: [c8], required: bool, ctx: [c8] = "'[[item]]', ")-> [c8]
+        throws AssertError
+    {
+        if let Ok(Str(value-> v)) = d[key]? {
+            return v;
+        } else if let Ok(_) = d[key]? {
+            throw copy AssertError(ctx ~ "'" ~ key ~ "' must be a string");
+        } else if (required) {
+            throw copy AssertError(ctx ~ "missing required entry '" ~ key ~ "'");
+        }
+
+        ""
+    }
+
+    impl Streamable;
+}
+
+/**
+ * The index of the gyllir cache: the format it is written in, and every item installed in it
+ * */
+pub class CacheIndex {
+
+    // The installed items, by path
+    let dmut _items: [[c8] => CachedItem] = copy [];
+
+    /**
+     * An empty index
+     * */
+    pub self () {}
+
+    /**
+     * Deserialize an index
+     * @throws:
+     *    - AssertError: 'cache-version' is missing, or names a format this build of gyllir does not
+     *      understand, or an entry is invalid
+     * */
+    pub self (cfg: &Config)
+        throws AssertError
+    {
+        if let d: &Dict = cfg {
+            if let Ok(Int(value-> v)) = d["cache-version"]? {
+                if (cast!u32(v) != __CACHE_INDEX_VERSION__) {
+                    throw copy AssertError("'cache-version' is " ~ std::conv::to!{[c8]} (v)
+                                           ~ ", this build of gyllir only understands cache-version "
+                                           ~ std::conv::to!{[c8]} (__CACHE_INDEX_VERSION__));
+                }
+            } else {
+                throw copy AssertError("missing required entry 'cache-version', an integer");
+            }
+
+            if let Ok(items: &Array) = d["item"]? {
+                for entry in items[] {
+                    if let t: &Dict = entry {
+                        let item = CachedItem(t);
+                        self._items[item.path] = item;
+                    } else throw copy AssertError("'[[item]]' entries must be tables");
+                }
+            } else if let Ok(_) = d["item"]? {
+                throw copy AssertError("'item' must be an array of tables, one '[[item]]' entry per installed item");
+            }
+
+            gyllir::config::errors::rejectUnknown(d, "", "cache-version", "item");
+        } else throw copy AssertError("expecting a table, the root of the cache index");
+    }
+
+    /**
+     * @returns: the installed items, sorted by path
+     * */
+    pub fn opIndex(self)-> [CachedItem] {
+        let mut res: [mut CachedItem] = copy [i for _, i in self._items];
+        sorting::sort(alias res, |a, b| { lowerThan(a.path, b.path) });
+
+        res
+    }
+
+    /**
+     * @returns: the item installed in 'path', if any
+     * */
+    pub fn find(self, path: [c8])-> (CachedItem)? {
+        if let Ok(i) = self._items[path] {
+            return (i)?;
+        }
+
+        none
+    }
+
+    /**
+     * Record an installed item, replacing the one installed in the same directory, if any
+     * */
+    pub fn insert(mut self, item: CachedItem) {
+        self._items[item.path] = item;
+    }
+
+    /**
+     * Forget the item installed in 'path'
+     * */
+    pub fn remove(mut self, path: [c8]) {
+        self._items:.remove(path);
+    }
+
+    /**
+     * @returns: the content of the index file, the items sorted by path and their fields always in
+     *    the same order
+     * */
+    pub fn toToml(self)-> [c8] {
+        let dmut stream = copy StringStream();
+        stream:.write(__CACHE_INDEX_HEADER__);
+        stream:.write("cache-version = ", __CACHE_INDEX_VERSION__, "\n");
+
+        for i in self[] {
+            stream:.write("\n[[item]]\n");
+            stream:.write("path = ", quoted(i.path), "\n");
+            stream:.write("kind = ", quoted(i.kind), "\n");
+            stream:.write("name = ", quoted(i.name), "\n");
+            stream:.write("version = ", quoted(i.version), "\n");
+
+            if (i.source != "") {
+                stream:.write("source = ", quoted(i.source), "\n");
+            }
+
+            if (i.installed != "") {
+                stream:.write("installed = ", quoted(i.installed), "\n");
+            }
+        }
+
+        stream[]
+    }
+
+    impl Streamable;
+}
+
+/**
+ * @returns: 's' as a TOML basic string
+ * */
+fn quoted(s: [c8])-> [c8] {
+    let dmut stream = copy StringStream();
+    stream:.write("\"");
+    for c in s {
+        if (c == '"' || c == '\\') {
+            stream:.write("\\");
+        }
+
+        stream:.write(c);
+    }
+
+    stream:.write("\"");
+    stream[]
+}
+
+/**
+ * @returns: true iif 'x' comes before 'y' in alphabetical order
+ * */
+fn lowerThan(x: [c8], y: [c8])-> bool {
+    let mut i = 0us;
+    while i < x.len && i < y.len {
+        if (x[i] != y[i]) {
+            return x[i] < y[i];
+        }
+
+        i += 1us;
+    }
+
+    x.len < y.len
+}

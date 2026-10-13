@@ -2,7 +2,7 @@ use ::repo::fixture;
 
 use gyllir::config::_;
 use gyllir::config::version::filter;
-use gyllir::repo::{builder, cleaner, defaults, manager};
+use gyllir::repo::{builder, cache, cleaner, defaults, manager, toolchain};
 use gyllir::utils::git;
 
 use std::{config::_, config::json, fs::_};
@@ -1124,4 +1124,64 @@ __test override_of_a_git_dependency_is_ignored {
     let depPath = app.push(defaults::__DEPENCY_DIR__).push("mylib");
     assert(includes[0] == depPath.push(defaults::__SRC_DIR__).push(defaults::__LIB_FILE__),
            "the override committed in a git dependency should not be read");
+}
+
+/**
+ * @returns: an installer of the fake releases of 'mkFakeGycRelease', into a cache of its own
+ * */
+fn fakeInstaller(releases: Path, system: Path)-> CompilerInstaller {
+    CompilerInstaller(cache-> GyllirCache(root-> releases.parent().push("cache")), system-> system, releases-> "file://" ~ releases.toStr())
+}
+
+__test pinned_compiler_is_installed_and_linked {
+    // A '[compiler]' table installs its release in the gyllir cache, linked as '.deps/compiler', and
+    // the package is built with it
+    let (releases, system)  = mkFakeGycRelease("1.0.7");
+    let installer           = fakeInstaller(releases, system);
+    let dmut builder        = copy GyllirManager(copy ["gyllir", "build"], installer-> installer);
+    let app                 = mkExecutableProject("myapp");
+    let cfg                 = withCompilerRelease(mkConfig("myapp", "executable"), "1.0.7");
+
+    builder:.buildTargets(app, mkBuildArgs(), cfg, copy ["myapp" => ()]);
+
+    let link = app.push(defaults::__DEPENCY_DIR__).push(defaults::__COMPILER_DEP_NAME__);
+    assert(sys::isLink(link) && sys::readLink(link) == installer.cache.compilerDir("1.0.7"),
+           "the release should be linked as .deps/compiler");
+    assert(hasFile(app, "myapp"), "the executable should be produced");
+}
+
+__test unpinned_compiler_is_not_linked {
+    // A package naming a compiler binary is built with it, nothing is installed
+    let (releases, system) = mkFakeGycRelease("1.0.8");
+    let installer          = fakeInstaller(releases, system);
+    let dmut builder       = copy GyllirManager(copy ["gyllir", "build"], installer-> installer);
+    let app                = mkExecutableProject("myapp");
+
+    builder:.buildTargets(app, mkBuildArgs(), mkConfig("myapp", "executable"), copy ["myapp" => ()]);
+
+    assert(!sys::exists(app.push(defaults::__DEPENCY_DIR__).push(defaults::__COMPILER_DEP_NAME__), followLink-> false),
+           "nothing should be linked as .deps/compiler");
+    assert(installer.cache.load()[].len == 0us, "nothing should be installed");
+}
+
+__test dependency_is_built_with_the_compiler_of_the_package {
+    // A dependency pinning another release is built with the one of the package being built, its own
+    // is never installed
+    let lib = mkLibraryProject();
+    writeToml(lib, withCompilerRelease(mkConfig("mylib", "library"), "6.6.6"));
+    gitInit(lib);
+
+    let (releases, system) = mkFakeGycRelease("1.0.9");
+    let installer          = fakeInstaller(releases, system);
+    let dmut builder       = copy GyllirManager(copy ["gyllir", "build"], installer-> installer);
+    let app                = mkExecutableProject("myapp");
+    let cfg                = withCompilerRelease(mkConfigWithDependency("myapp", "executable", "mylib", lib), "1.0.9");
+
+    builder:.buildTargets(app, mkBuildArgs(), cfg, copy ["myapp" => ()]);
+
+    assert(hasFile(app, "myapp"), "the executable should be produced");
+    let items = installer.cache.load()[];
+    assert(items.len == 1us && items[0].version == "1.0.9", "only the release of the package should be installed");
+    assert(!sys::exists(lib.push(defaults::__DEPENCY_DIR__).push(defaults::__COMPILER_DEP_NAME__), followLink-> false),
+           "a dependency should not link a compiler of its own");
 }

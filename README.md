@@ -19,7 +19,7 @@ with `gyc --version`) — this repo does not build `gyc` itself, only the `gylli
 
 - `src/main.yr` — entry point, hands off to `gyllir::repo::manager::GyllirManager`.
 - `src/gyllir/args.yr` — CLI argument parsing (`GyllirArgumentParser`), one sub-parser per
-  command (`init`, `build`, `run`, `test`, `clean`, `doc`, `publish`, `bump`, `update`).
+  command (`init`, `build`, `run`, `test`, `clean`, `doc`, `publish`, `bump`, `update`, `cache`).
 - `src/gyllir/config/` — `gyllir.toml` schema: package metadata (`config.yr`), dependencies and
   version filters (`dependency.yr`, `version.yr`, `version/filter.yr`), dependency/registry URLs
   (`url.yr`, `local:`/`git:`), build type (`type.yr`), custom pre/post commands (`command.yr`).
@@ -39,6 +39,9 @@ with `gyc --version`) — this repo does not build `gyc` itself, only the `gylli
   - `publisher.yr` — `gyllir publish`: bumps the package version (through `bump.yr`) and pushes it
     to the configured registry (a `local:` or `git:` `Url`).
   - `doc.yr` — `gyllir doc`: drives documentation generation (see below).
+  - `toolchain.yr` — installs the release of gyc pinned by a `[compiler]` table into the gyllir
+    cache, from its `.deb`, without root.
+  - `cache.yr` — the gyllir cache (`~/.local/gyllir`) and its index, and `gyllir cache`.
   - `defaults.yr` — shared filenames/paths/extensions (`gyllir.toml`, `.deps/`, `.target/`, ...).
 - `src/gyllir/doc/` — documentation generator: `comment/` parses doc comments into a small AST
   (`node/{text,code,list,style}.yr`), `symbols/` models documented Ymir symbols (classes,
@@ -117,6 +120,8 @@ tools/install.sh --destdir /pkg   # stage the layout under a directory instead, 
   numbered one with `--set`.
 - `gyllir publish <message> [--major|--minor|--patch] [--dry] [-y]` — bump the package version
   and publish it to the registry declared in `gyllir.toml`.
+- `gyllir cache [--rm <item> | --prune] [-y]` — list what gyllir installed in its cache
+  (`~/.local/gyllir`, or `$GYLLIR_CACHE_DIR`), remove one item, or all of them.
 
 ### Project configuration (`gyllir.toml`)
 
@@ -129,7 +134,7 @@ description = "A minimal Ymir app"
 type = "executable"      # or "library"
 version = "0.1.0"
 authors = ["Jane Doe"]
-compiler = "gyc"          # optional, defaults to "gyc" on PATH
+compiler = "gyc"          # optional, defaults to "gyc" on PATH, or a [compiler] table (below)
 package-root = "main"     # optional, root module under src/ (defaults to src/__lib__.yr for a library, src/main.yr for an executable)
 test-root = "__test__"    # optional, root module under test/ (defaults to test/__test__.yr)
 registry = "local:/home/jane/.local/gyllir/my-project"
@@ -138,6 +143,19 @@ registry = "local:/home/jane/.local/gyllir/my-project"
 version = ">=1.2.0"
 url = "git:https://github.com/example/somelib"
 ```
+
+A `[compiler]` table pins the release of gyc the package is built with, instead of the one on
+`PATH`:
+
+```toml
+[compiler]
+version = "1.10.3"
+```
+
+gyllir downloads it from the gymir releases into `~/.local/gyllir/compiler/<version>/` (shared by
+every package pinning it), links it as `.deps/compiler`, and builds the package and all its
+dependencies with it. It needs the system `gcc`/`g++` of the major the release is built with,
+`curl` and `dpkg-deb`.
 
 Dependencies are resolved into `.deps/<name>` (git-cloned or symlinked for `local:` urls),
 version-filtered per the declared `VersionFilter` (`>`, `>=`, `<`, `<=`, `=`), and built

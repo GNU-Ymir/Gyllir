@@ -1,0 +1,159 @@
+use ::repo::fixture;
+
+use gyllir::repo::{cache, defaults, toolchain};
+
+use std::fs::_;
+
+/**
+ * @returns: an installer of the fake releases of 'mkFakeGycRelease', into a cache of its own
+ * */
+fn fakeInstaller(releases: Path, system: Path)-> CompilerInstaller {
+    CompilerInstaller(cache-> GyllirCache(root-> releases.parent().push("cache")), system-> system, releases-> "file://" ~ releases.toStr())
+}
+
+__test package_names_of_depends_field {
+    // The names of the packages listed by the 'Depends' field of a .deb, without their versions
+    let names = packageNames("g++-15 (>= 15), gcc-15 (>= 15), libgc-dev, libdwarf-dev\n");
+    assert(names == ["g++-15", "gcc-15", "libgc-dev", "libdwarf-dev"], "unexpected names");
+
+    let alternatives = packageNames("libfoo | libbar (>= 2), libc6:amd64");
+    assert(alternatives == ["libfoo", "libbar", "libc6"], "unexpected names");
+    assert(packageNames("").len == 0us, "an empty field lists no package");
+}
+
+__test content_length_of_the_last_response {
+    // The size of a download is the one of the response the redirections lead to
+    let headers = "HTTP/2 302\r\nlocation: https://x/y\r\ncontent-length: 0\r\n\r\n"
+                  ~ "HTTP/2 200\r\nContent-Type: application/octet-stream\r\nContent-Length: 102633174\r\n\r\n";
+    assert(contentLength(headers) == 102633174us, "unexpected size: " ~ std::conv::to!{[c8]} (contentLength(headers)));
+
+    let noLength = "HTTP/2 302\r\ncontent-length: 12\r\n\r\nHTTP/2 200\r\n\r\n";
+    assert(contentLength(noLength) == 0us, "a last response without a length has an unknown size");
+    assert(contentLength("") == 0us, "no response has an unknown size");
+}
+
+__test system_gcc_majors_newest_first {
+    // Only the majors installed in both lib/gcc and libexec/gcc count, newest first
+    let system  = sys::tempDirectory(prefix-> "gyllir_sys_");
+    let lib     = system.push("lib/gcc").push(defaults::__GYC_TRIPLE__);
+    let libexec = system.push("libexec/gcc").push(defaults::__GYC_TRIPLE__);
+    for m in ["13", "15", "9"] {
+        sys::createDir(lib.push(m), recursive-> true);
+        sys::createDir(libexec.push(m), recursive-> true);
+    }
+
+    sys::createDir(lib.push("14"), recursive-> true);
+    sys::createDir(lib.push("x86"), recursive-> true);
+    sys::createDir(libexec.push("x86"), recursive-> true);
+
+    let majors = CompilerInstaller(cache-> GyllirCache(root-> system.push("cache")), system-> system).systemGccMajors();
+    assert(majors == ["15", "13", "9"], "unexpected majors");
+
+    let noGcc = CompilerInstaller(cache-> GyllirCache(root-> system.push("cache")), system-> system.push("nowhere")).systemGccMajors();
+    assert(noGcc.len == 0us, "a system without gcc has no major");
+}
+
+__test relocate_links_the_system_gcc {
+    // The pieces of the system gcc are linked next to the ones of the release, without replacing
+    // them, and the std lib of the release is reachable from 'lib/gcc/.../include'
+    let (releases, system) = mkFakeGycRelease("1.0.0");
+    let usr = releases.parent().push("usr");
+    let libexec = usr.push("libexec/gcc").push(defaults::__GYC_TRIPLE__).push("15");
+    writeSource(libexec.push("ymir1"), "release");
+    sys::createDir(libexec.push("include/ymir/1.16"), recursive-> true);
+
+    CompilerInstaller(cache-> GyllirCache(root-> releases.parent().push("cache")), system-> system).relocate(usr, "15");
+
+    let lib = usr.push("lib/gcc").push(defaults::__GYC_TRIPLE__).push("15");
+    assert(sys::isLink(lib.push("crtbegin.o")), "crtbegin.o should be linked from the system gcc");
+    assert(sys::isLink(libexec.push("collect2")), "collect2 should be linked from the system gcc");
+    assert(!sys::isLink(libexec.push("ymir1")) && sys::readFile(libexec.push("ymir1")) == "release",
+           "ymir1 of the release should not be replaced by the one of the system");
+    assert(!sys::isLink(lib.push("include")) && sys::isLink(lib.push("include/stddef.h")),
+           "the include directory should be the release's own, holding links to the system headers");
+    assert(sys::isDir(lib.push("include/ymir/1.16")), "the std lib of the release should be reachable from lib/gcc");
+}
+
+__test install_extracts_a_release_into_the_cache {
+    // A release is downloaded, extracted, relocated and recorded in the index
+    let (releases, system) = mkFakeGycRelease("1.0.1");
+    let installer = fakeInstaller(releases, system);
+
+    let dir = installer.install("1.0.1");
+    assert(dir == installer.cache.compilerDir("1.0.1"), "unexpected installation directory: " ~ dir.toStr());
+    assert(sys::isFile(dir.push(defaults::__GYC_BINARY__)), "the driver should be installed");
+    assert(sys::isDir(dir.push("usr/lib/gcc").push(defaults::__GYC_TRIPLE__).push("15/include/ymir/1.16")),
+           "the installation should be relocated, its internal links surviving the move into the cache");
+    assert(installer.cache.partialInstalls().len == 0us, "nothing should be left of the installation");
+
+    if let Ok(item) = installer.cache.load().find("compiler/1.0.1") {
+        assert(item.kind == "compiler" && item.name == "gyc" && item.version == "1.0.1", "unexpected item");
+        assert(item.source == "file://" ~ releases.toStr() ~ "/1.0.1/gyc-15_1.0.1_amd64.deb",
+               "unexpected source: " ~ item.source);
+        assert(item.installed != "", "the installation date should be recorded");
+    } else assert(false, "the release should be recorded in the index");
+}
+
+__test install_reuses_an_installed_release {
+    // A release already in the cache is not downloaded again
+    let (releases, system) = mkFakeGycRelease("1.0.2");
+    let installer = fakeInstaller(releases, system);
+    let dir       = installer.install("1.0.2");
+
+    sys::removeDir(releases, recursive-> true);
+    assert(installer.install("1.0.2", offline-> true) == dir, "the installed release should be reused");
+}
+
+__test install_records_an_unlisted_installation {
+    // A release whose entry was lost from the index is listed again
+    let (releases, system) = mkFakeGycRelease("1.0.3");
+    let installer = fakeInstaller(releases, system);
+    installer.install("1.0.3");
+
+    sys::removeFile(installer.cache.indexFile());
+    installer.install("1.0.3");
+    let found = if let Ok(_) = installer.cache.load().find("compiler/1.0.3") { true } else { false };
+    assert(found, "the release should be recorded again");
+}
+
+__test install_offline_refuses_to_download {
+    let (releases, system) = mkFakeGycRelease("1.0.4");
+    let mut msg = "";
+    {
+        fakeInstaller(releases, system).install("1.0.4", offline-> true);
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "gyc 1.0.4 is not installed in the gyllir cache, it cannot be downloaded offline",
+           "unexpected error: " ~ msg);
+}
+
+__test install_unknown_release_names_what_was_tried {
+    let (releases, system) = mkFakeGycRelease("1.0.5");
+    let mut msg = "";
+    {
+        fakeInstaller(releases, system).install("9.9.9");
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "gyc 9.9.9 could not be found, there is no .deb of it at any of [file://" ~ releases.toStr()
+                  ~ "/9.9.9/gyc-15_9.9.9_amd64.deb]",
+           "unexpected error: " ~ msg);
+}
+
+__test install_without_system_gcc_is_refused {
+    let (releases, system) = mkFakeGycRelease("1.0.6");
+    let mut msg = "";
+    {
+        fakeInstaller(releases, system.push("nowhere")).install("1.0.6");
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "gyc 1.0.6 needs the gcc and g++ it was built with, and there is none in '"
+                  ~ system.push("nowhere/lib/gcc").push(defaults::__GYC_TRIPLE__).toStr()
+                  ~ "' (e.g. apt install gcc-15 g++-15)",
+           "unexpected error: " ~ msg);
+}

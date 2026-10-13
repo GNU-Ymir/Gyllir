@@ -11,6 +11,7 @@ pub mod ::url;
 pub mod ::target;
 pub mod ::type;
 pub mod ::version;
+pub mod ::cache;
 
 __test empty_configuration_defaults {
     // Defaults of an empty configuration
@@ -31,6 +32,7 @@ __test empty_configuration_defaults {
     assert(cfg.dependencies[].len == 0us, "default dependencies should be empty");
     assert(cfg.commands[].len == 0us, "default commands should be empty");
     assert(!cfg.hasStd, "default configuration should declare no std lib version");
+    assert(!cfg.hasCompilerVersion, "default configuration should pin no release of gyc");
 }
 
 __test explicit_constructor_sets_given_fields {
@@ -208,7 +210,10 @@ __test wrongly_typed_optional_entry_names_it {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'compiler' must be a string, for example: compiler = \"gyc\"", "unexpected error: " ~ msg);
+    assert(msg
+           == "'compiler' must be a compiler binary, or a table pinning a release of gyc, for example: "
+              ~ "compiler = \"gyc\", or [compiler]\nversion = \"1.10.3\"",
+           "unexpected error: " ~ msg);
 }
 
 __test tests_false_disables_synthesized_target {
@@ -719,4 +724,140 @@ __test std_table_survives_round_trip {
     assert(back.stdVersion().pass(Version(1u32, 2u32, 0u32)), "the std version filter should survive the round trip");
     assert(back.stdUrl.path.toStr() == "git@example.com:me/midgard-fork.git",
            "the std url should survive the round trip");
+}
+
+__test compiler_table_pins_a_release {
+    // A '[compiler]' table pins the release of gyc the package is built with
+    let cfg = GyllirPackageConfiguration(json #{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "compiler" : {"version" : "1.10.3"}
+    });
+
+    assert(cfg.hasCompilerVersion, "a declared '[compiler]' table should be reported");
+    assert(cfg.compilerVersion == Version(1u32, 10u32, 3u32), "unexpected compiler version");
+    assert(cfg.compiler == "gyc", "the compiler binary should keep its default until it is resolved");
+}
+
+__test compiler_table_accepts_a_named_release {
+    // A release of gyc is not always numbered(e.g. 'preview-head')
+    let cfg = GyllirPackageConfiguration(json #{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "compiler" : {"version" : "preview-head"}
+    });
+
+    assert(cfg.compilerVersion[] == "preview-head", "unexpected compiler version: " ~ cfg.compilerVersion[]);
+}
+
+__test compiler_table_missing_version_rejected {
+    // '[compiler]' requires a 'version' entry
+    let mut msg = "";
+    {
+        GyllirPackageConfiguration(json #{
+            "name" : "myapp",
+            "license" : "MIT",
+            "description" : "d",
+            "type" : "executable",
+            "version" : "1.0.0",
+            "registry" : {"local" : "some/registry"},
+            "compiler" : {}
+        });
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[compiler]', missing required entry 'version', for example: version = \"1.10.3\"",
+           "unexpected error: " ~ msg);
+}
+
+__test compiler_table_unknown_entry_rejected {
+    // An entry that is not a known field of '[compiler]' is rejected rather than silently ignored
+    let mut msg = "";
+    {
+        GyllirPackageConfiguration(json #{
+            "name" : "myapp",
+            "license" : "MIT",
+            "description" : "d",
+            "type" : "executable",
+            "version" : "1.0.0",
+            "registry" : {"local" : "some/registry"},
+            "compiler" : {"version" : "1.10.3", "verison" : "1.10.2"}
+        });
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[compiler]', 'verison' is not a known entry", "unexpected error: " ~ msg);
+}
+
+__test compiler_table_rejects_what_is_not_a_release {
+    // The version of '[compiler]' names a directory of the cache: neither a wildcard nor a path
+    for v in ["*", "../1.10.3", "1.10/3", ".hidden"] {
+        let mut msg = "";
+        {
+            GyllirPackageConfiguration(json #{
+                "name" : "myapp",
+                "license" : "MIT",
+                "description" : "d",
+                "type" : "executable",
+                "version" : "1.0.0",
+                "registry" : {"local" : "some/registry"},
+                "compiler" : {"version" : v}
+            });
+        } catch {
+            a: &AssertError => { msg = a.msg; }
+        }
+
+        assert(msg == "'[compiler]', 'version' must name a single release of gyc, for example: version = \"1.10.3\"",
+               "unexpected error for " ~ v ~ ": " ~ msg);
+    }
+}
+
+__test compiler_table_survives_round_trip {
+    // A declared '[compiler]' table is written back as a table, not as the binary it resolved to
+    let dmut cfg = GyllirPackageConfiguration(json #{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "compiler" : {"version" : "1.10.3"}
+    });
+
+    cfg:.setCompiler("/some/where/usr/bin/gyc");
+    assert(cfg.compiler == "/some/where/usr/bin/gyc", "the resolved compiler binary should be the one built with");
+
+    let serialized = cfg.serialize();
+    if let Ok(c: &Dict) = serialized["compiler"]? {
+        assert(to!{[c8]} (c["version"]) == "1.10.3", "unexpected serialized compiler version");
+    } else assert(false, "expected a serialized '[compiler]' table");
+
+    let back = GyllirPackageConfiguration(serialized);
+    assert(back.hasCompilerVersion && back.compilerVersion == Version(1u32, 10u32, 3u32),
+           "the '[compiler]' table should survive the round trip");
+}
+
+__test compiler_string_survives_round_trip {
+    // A compiler binary is written back as a string
+    let cfg = GyllirPackageConfiguration(json #{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "compiler" : "/opt/gyc/bin/gyc"
+    });
+
+    assert(to!{[c8]} (cfg.serialize()["compiler"]) == "/opt/gyc/bin/gyc", "unexpected serialized compiler");
 }

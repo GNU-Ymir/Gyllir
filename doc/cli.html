@@ -288,6 +288,28 @@ gyllir update --std       # only the std lib resolved by [std] moves</code></pre
 <p>This is the only command that bumps a locked version: every other one honors the lock file and
 only writes it for dependencies it does not yet pin.</p>
 
+<h2 id="cache">gyllir cache</h2>
+
+<pre><code>gyllir cache [--rm &lt;item&gt; | --prune] [-y]</code></pre>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Flag</th><th>Effect</th></tr>
+    <tr><td><code>--rm &lt;item&gt;</code></td><td>Remove one item, named as <code>gyllir cache</code> lists it (e.g. <code>compiler/1.10.3</code>).</td></tr>
+    <tr><td><code>--prune</code></td><td>Remove every item.</td></tr>
+    <tr><td><code>-y</code>, <code>--yes</code></td><td>Do not ask for confirmation.</td></tr>
+</table>
+</div>
+
+<p>The Gyllir cache, <code>~/.local/gyllir</code> (or <code>$GYLLIR_CACHE_DIR</code>), holds what
+Gyllir installs for every package of the machine — today, the releases of gyc pinned by
+<a href="manifest.html#compiler-release"><code>[compiler]</code></a> tables. Its
+<code>cache.toml</code> lists them, and <code>gyllir cache</code> prints that list with the size of
+each item. Removing one asks for confirmation; a package that was built with it installs it again on
+its next build. <code>--prune</code> only removes what the list names, and the leftovers of an
+interrupted installation, never the rest of the directory (a <code>local:</code> registry, for
+instance).</p>
+
 <h2 id="publish">gyllir publish</h2>
 
 <pre><code>gyllir publish &lt;message&gt; [--major|--minor|--patch] [--dry] [-y]</code></pre>

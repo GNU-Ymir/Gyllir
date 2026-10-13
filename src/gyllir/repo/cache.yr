@@ -1,0 +1,360 @@
+in cache;
+
+use gyllir::config::cache;
+use gyllir::repo::manager;
+
+use std::{config::_, fs::_, io, stream};
+use std::syntax::errors;
+
+/**
+ * The gyllir cache: a directory shared by every package of the machine('~/.local/gyllir' by
+ * default), holding what gyllir installs for them, and the index listing it
+ * */
+pub record GyllirCache {
+
+    // The root directory of the cache
+    let _root: Path;
+
+    /**
+     * @params:
+     *    - root: the root directory of the cache
+     * */
+    pub self (root: Path = defaults::gyllirCacheDir())
+        with _root = root
+    {}
+
+    @field
+    pub fn root(self)-> Path {
+        self._root
+    }
+
+    /**
+     * @returns: the file listing what is installed in the cache
+     * */
+    pub fn indexFile(self)-> Path {
+        self._root.push(defaults::__CACHE_INDEX_FILENAME__)
+    }
+
+    /**
+     * @returns: the directory a release of gyc is installed into
+     * */
+    pub fn compilerDir(self, version: [c8])-> Path {
+        self._root.push(defaults::__CACHE_COMPILER_DIR__).push(version)
+    }
+
+    /**
+     * @returns: the content of the index, empty when there is none yet
+     * @throws:
+     *    - AssertError: the index cannot be read, or is malformed
+     * */
+    pub fn load(self)-> dmut &CacheIndex
+        throws AssertError
+    {
+        let file = self.indexFile();
+        if (!sys::isFile(file)) { return copy CacheIndex(); }
+
+        {
+            copy CacheIndex(std::config::toml::parse(sys::readFile(file)))
+        } catch {
+            a: &AssertError => {
+                throw copy AssertError("the cache index '" ~ file.toStr() ~ "' is malformed: " ~ a.msg);
+            }
+            s: &SyntaxError => {
+                throw copy AssertError("the cache index '" ~ file.toStr() ~ "' is not valid TOML: " ~ s.msg);
+            }
+            e: &FsError => {
+                throw copy AssertError("could not read the cache index '" ~ file.toStr() ~ "': " ~ e.msg);
+            }
+        }
+    }
+
+    /**
+     * Write the index, replacing the previous one at once
+     * @throws:
+     *    - AssertError: the index cannot be written
+     * */
+    pub fn save(self, index: &CacheIndex)
+        throws AssertError
+    {
+        let file = self.indexFile();
+        let tmp  = self._root.push(defaults::__CACHE_INDEX_FILENAME__ ~ ".tmp");
+        {
+            sys::createDir(self._root, recursive-> true)?;
+            sys::writeFile(tmp, index.toToml());
+            sys::rename(tmp, file);
+        } catch {
+            e: &FsError => {
+                throw copy AssertError("could not write the cache index '" ~ file.toStr() ~ "': " ~ e.msg);
+            }
+        }
+    }
+
+    /**
+     * Add an item to the index
+     * @throws:
+     *    - AssertError: the index cannot be read or written
+     * */
+    pub fn add(self, item: CachedItem)
+        throws AssertError
+    {
+        let dmut index = self.load();
+        index:.insert(item);
+        self.save(index);
+    }
+
+    /**
+     * Remove an item from the cache, its directory and its entry in the index
+     * @throws:
+     *    - AssertError: the item names a directory outside of the cache, or it cannot be removed
+     * */
+    pub fn remove(self, item: CachedItem)
+        throws AssertError
+    {
+        if (!isCachePath(item.path)) {
+            throw copy AssertError("the cache index names '" ~ item.path ~ "', which is not a directory of the cache");
+        }
+
+        let dir = self._root.push(item.path);
+        {
+            if (sys::isLink(dir)) {
+                sys::removeFsEntry(dir);
+            } else if (sys::exists(dir, followLink-> false)) {
+                sys::removeDir(dir, recursive-> true);
+            }
+        } catch {
+            e: &FsError => {
+                throw copy AssertError("could not remove '" ~ dir.toStr() ~ "': " ~ e.msg);
+            }
+        }
+
+        let dmut index = self.load();
+        index:.remove(item.path);
+        self.save(index);
+    }
+
+    /**
+     * @returns: the directories left behind by an installation that did not complete
+     * */
+    pub fn partialInstalls(self)-> [Path] {
+        let mut res: [Path] = [];
+        let dir = self._root.push(defaults::__CACHE_COMPILER_DIR__);
+        if (!sys::isDir(dir)) { return res; }
+
+        for entry in sys::readDir(dir) {
+            match entry {
+                FsEntry(path-> p, kind-> FsEntryKind::DIR) => {
+                    if (p.file().len > 0us && p.file()[0] == '.') { res ~= [p]; }
+                }
+            }
+        }
+
+        res
+    } catch {
+        _ => { [] }
+    }
+}
+
+/**
+ * @returns: true iif 'path' is relative and stays inside the directory it is relative to
+ * */
+pub fn isCachePath(path: [c8])-> bool {
+    if (path == "" || path[0] == '/') { return false; }
+
+    let mut segment: [c8] = [];
+    for c in path ~ "/" {
+        if (c == '/') {
+            if (segment == "" || segment == "." || segment == "..") { return false; }
+            segment = [];
+        } else {
+            segment ~= [c];
+        }
+    }
+
+    true
+}
+
+/**
+ * @returns: the size of the files of a directory, links not followed
+ * */
+pub fn directorySize(dir: Path)-> usize {
+    let mut res = 0us;
+    for entry in sys::walkDir(dir) {
+        if (entry.kind == FsEntryKind::FILE) {
+            res += sys::fileSize(entry.path).bytes;
+        }
+    }
+
+    res
+} catch {
+    _ => { 0us }
+}
+
+/**
+ * @returns: a size, as a number of MB(or KB under one MB)
+ * */
+pub fn formatSize(bytes: usize)-> [c8] {
+    let dmut stream = copy StringStream();
+    if (bytes < 1024us * 1024us) {
+        stream:.write((bytes + 1023us) / 1024us, " KB");
+    } else {
+        stream:.write((bytes + 1024us * 512us) / (1024us * 1024us), " MB");
+    }
+
+    stream[]
+}
+
+/**
+ * The 'gyllir cache' sub command: lists the items of the gyllir cache, removes one, or all of them
+ * */
+pub record RepoCache {
+
+    // The command line options
+    let _args: &Config;
+
+    // The gyllir cache
+    let _cache: GyllirCache;
+
+    /**
+     * @params:
+     *    - args: the command line options
+     *    - cache: the gyllir cache
+     * */
+    pub self (args: &Config, cache: GyllirCache = GyllirCache())
+        with _args = args
+        , _cache = cache
+    {}
+
+    /**
+     * Run the sub command
+     * @throws:
+     *    - AssertError: the cache index cannot be read or written, or '--rm' names no item of it
+     * */
+    pub fn run(self, context: &GyllirManager)
+        throws AssertError
+    {
+        if let Ok(Str(value-> path)) = self._args["rm"]? {
+            self.removeItem(context, path);
+        } else if let Ok(Bool(value-> _ = true)) = self._args["prune"]? {
+            self.prune(context);
+        } else {
+            self.list();
+        }
+    }
+
+    /**
+     * Print the items installed in the cache
+     * */
+    pub fn list(self)
+        throws AssertError
+    {
+        let items = self._cache.load()[];
+        if (items.len == 0us) {
+            utils::log::info("Cache", "nothing is installed in ", self._cache.root.toStr());
+            return;
+        }
+
+        utils::log::info("Cache", self._cache.root.toStr());
+        let mut width = 0us;
+        for i in items if i.path.len > width {
+            width = i.path.len;
+        }
+
+        for i in items {
+            let dmut line = copy StringStream();
+            line:.write(i.path);
+            for _ in i.path.len .. width + 3us {
+                line:.write(" ");
+            }
+
+            line:.write(i.name, " ", i.version);
+
+            let dir = self._cache.root.push(i.path);
+            if (sys::isDir(dir)) {
+                line:.write(", ", formatSize(directorySize(dir)));
+            } else {
+                line:.write(", missing from the cache");
+            }
+
+            if (i.installed != "") {
+                line:.write(", installed ", i.installed);
+            }
+
+            utils::log::info("", line[]);
+        }
+    }
+
+    /**
+     * Remove one item of the cache, after confirmation
+     * @params:
+     *    - path: the item to remove, as 'gyllir cache' lists it
+     * */
+    pub fn removeItem(self, context: &GyllirManager, path: [c8])
+        throws AssertError
+    {
+        let index = self._cache.load();
+        if let Ok(item) = index.find(path) {
+            if (!self.confirm(context, "Remove " ~ item.path ~ " (" ~ item.name ~ " " ~ item.version ~ ")?")) {
+                utils::log::info("Cache", "nothing removed");
+                return;
+            }
+
+            self._cache.remove(item);
+            utils::log::info("Removed", item.path, " from ", self._cache.root.toStr());
+        } else {
+            throw copy AssertError("'" ~ path ~ "' is not installed in the gyllir cache, 'gyllir cache' lists what is");
+        }
+    }
+
+    /**
+     * Remove every item of the cache, after confirmation
+     * @info: only what the index lists goes, and the leftovers of an interrupted installation; the
+     *    rest of the cache directory(e.g. a local registry) is not gyllir's to remove
+     * */
+    pub fn prune(self, context: &GyllirManager)
+        throws AssertError
+    {
+        let items   = self._cache.load()[];
+        let partial = self._cache.partialInstalls();
+        if (items.len == 0us && partial.len == 0us) {
+            utils::log::info("Cache", "nothing is installed in ", self._cache.root.toStr());
+            return;
+        }
+
+        for i in items {
+            utils::log::info("", i.path, "   ", i.name, " ", i.version);
+        }
+
+        let dmut question = copy StringStream();
+        question:.write("Remove every item of ", self._cache.root.toStr(), "?");
+        if (!self.confirm(context, question[])) {
+            utils::log::info("Cache", "nothing removed");
+            return;
+        }
+
+        for i in items {
+            self._cache.remove(i);
+            utils::log::info("Removed", i.path);
+        }
+
+        for p in partial {
+            {
+                sys::removeDir(p, recursive-> true);
+            } catch {
+                e: &FsError => {
+                    throw copy AssertError("could not remove '" ~ p.toStr() ~ "': " ~ e.msg);
+                }
+            }
+        }
+    }
+
+    /**
+     * @returns: true iif '--yes' was passed, or the user answered yes to 'question'
+     * */
+    prv fn confirm(self, context: &GyllirManager, question: [c8])-> bool {
+        if let Ok(Bool(value-> _ = true)) = self._args["yes"]? {
+            return true;
+        }
+
+        context.askUserYesNo(question, default-> "n")
+    }
+}

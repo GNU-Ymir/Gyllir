@@ -1,0 +1,189 @@
+in progress;
+
+use gyllir::utils::log;
+
+use etc::c::files;
+
+use std::{fs::_, io};
+use std::time::dur;
+
+// The largest number of cells of the bar
+def WIDTH = 40us;
+
+// The percentage between two lines of the report when stdout is not a terminal
+def STEP = 10us;
+
+// The delay between two redraws, in milliseconds
+def REFRESH = 100u64;
+
+// The number of columns assumed for a terminal whose size is unknown
+def COLUMNS = 80us;
+
+// The request of ioctl reading the size of a terminal
+def TIOCGWINSZ = 0x5413u64;
+
+extern (C) fn ioctl(fd: i32, request: u64, ...)-> i32;
+
+/**
+ * The progress of a download into a file, drawn like the progress of a unittest run: on a terminal,
+ * a bar redrawn every 'REFRESH' milliseconds, otherwise a line every 'STEP' percents.
+ * */
+@final
+pub class DownloadProgress {
+
+    // The file being downloaded
+    let _file: Path;
+
+    // The size of the download, 0 when unknown
+    let _total: usize;
+
+    // True iff stdout is a terminal
+    let _interactive: bool;
+
+    // The number of bytes downloaded at the last poll
+    let mut _done: usize = 0us;
+
+    // The last percentage reported when stdout is not a terminal
+    let mut _reported: usize = 0us;
+
+    // Set once the download is over
+    let mut _stopped: bool = false;
+
+    // The thread polling the download
+    let mut _poll: [mut future-> void] = [];
+
+    /**
+     * Start following a download
+     * @params:
+     *    - file: the file being downloaded
+     *    - total: the size of the download in bytes, 0 when unknown
+     * */
+    pub self (file: Path, total: usize)
+        with _file = file
+        , _total = total
+        , _interactive = isatty(cast!i32(cast!u32(StdFileNumbers::STDOUT))) != 0
+    {
+        self._poll = copy [spawn { self:.pollLoop(); }];
+    }
+
+    /**
+     * Stop following the download, and leave the bar in its final state, the next line printed goes
+     * under it
+     * */
+    pub fn finish(mut self) {
+        atomic self {
+            self._stopped = true;
+        }
+
+        for i in 0us .. self._poll.len {
+            self._poll[i].value;
+        }
+
+        self:.poll();
+        if self._interactive {
+            self.draw();
+            println();
+        } else {
+            self:.report();
+        }
+    }
+
+    fn pollLoop(mut self) {
+        loop {
+            sleep(dur::millis(REFRESH));
+            atomic self {
+                if self._stopped return;
+                self:.poll();
+                if self._interactive {
+                    self.draw();
+                } else {
+                    self:.report();
+                }
+            }
+        }
+    }
+
+    /**
+     * Read how much was downloaded so far
+     * */
+    fn poll(mut self) {
+        self._done = {
+            sys::fileSize(self._file).bytes
+        } catch {
+            _ => { self._done }
+        };
+    }
+
+    /**
+     * Print a line when the download went 'STEP' percents further
+     * */
+    fn report(mut self) {
+        if self._total == 0us return;
+
+        let percent = self.percent();
+        if percent >= self._reported + STEP {
+            self._reported = percent - (percent % STEP);
+            println("[", percent, "%] ", self.sizes());
+        }
+    }
+
+    /**
+     * Replace the bar the previous call printed
+     * */
+    fn draw(self) {
+        print("\r\u{0x001B}[J");
+
+        if self._total != 0us {
+            let columns = terminalColumns();
+            let cells = if columns < 50us { 10us } else if columns - 30us < WIDTH { columns - 30us } else { WIDTH };
+            let filled = self.percent() * cells / 100us;
+            for i in 0us .. cells {
+                let color = if i >= filled { Colors::DIM } else { Colors::GREEN };
+                print(color, "━"s8, Colors::RESET);
+            }
+
+            print("  ", self.percent(), "% ");
+        }
+
+        print(self.sizes());
+        flush();
+    }
+
+    /**
+     * @returns: the percentage of the download done, at most 100
+     * */
+    fn percent(self)-> usize {
+        if self._total == 0us || self._done >= self._total { return 100us; }
+        self._done * 100us / self._total
+    }
+
+    /**
+     * @returns: what was downloaded and the size of the download, e.g. '34/98 MB'
+     * */
+    fn sizes(self)-> [c8] {
+        let (unit, name) = if self._total != 0us && self._total < 1024us * 1024us {
+            (1024us, " KB")
+        } else {
+            (1024us * 1024us, " MB")
+        };
+
+        let done = std::conv::to!{[c8]} ((self._done + unit / 2us) / unit);
+        if self._total == 0us {
+            return done ~ name;
+        }
+
+        done ~ "/" ~ std::conv::to!{[c8]} ((self._total + unit / 2us) / unit) ~ name
+    }
+}
+
+/**
+ * @returns: the number of columns of the terminal on stdout, 'COLUMNS' when it is unknown
+ * */
+fn terminalColumns()-> usize {
+    let mut size: [u16; 4] = [0u16; 4];
+    if ioctl(cast!i32(cast!u32(StdFileNumbers::STDOUT)), TIOCGWINSZ, &size) != 0 || size[1] == 0u16 {
+        return COLUMNS;
+    }
+
+    cast!usize(size[1])
+}

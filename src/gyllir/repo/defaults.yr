@@ -104,6 +104,76 @@ pub def __DEPENCY_DIR__  = ".deps";
 pub def __STD_DEP_NAME__ = "std";
 
 /**
+ * The name of the link, in '__DEPENCY_DIR__', to the installation of the gyc pinned by a
+ * '[compiler]' table, in the gyllir cache
+ */
+pub def __COMPILER_DEP_NAME__ = "compiler";
+
+/**
+ * The environment variable naming the gyllir cache directory, '~/.local/gyllir' when it is unset
+ */
+pub def __CACHE_ENV_VAR__ = "GYLLIR_CACHE_DIR";
+
+/**
+ * The file of the gyllir cache listing what was installed in it
+ */
+pub def __CACHE_INDEX_FILENAME__ = "cache.toml";
+
+/**
+ * The sub directory of the gyllir cache holding one installation of gyc per release
+ */
+pub def __CACHE_COMPILER_DIR__ = "compiler";
+
+/**
+ * The environment variable naming where the releases of gyc are downloaded from, in place of
+ * '__GYC_RELEASE_URL__'
+ */
+pub def __GYC_RELEASE_ENV_VAR__ = "GYLLIR_GYC_RELEASE_URL";
+
+/**
+ * Where the releases of gyc are downloaded from, as '<url>/<version>/<asset>'
+ */
+pub def __GYC_RELEASE_URL__ = "https://github.com/GNU-Ymir/gymir/releases/download";
+
+/**
+ * The target a gyc release is built for, and the architecture of its .deb
+ */
+pub def __GYC_TRIPLE__ = "x86_64-linux-gnu";
+pub def __GYC_ARCH__   = "amd64";
+
+/**
+ * The driver of gyc, relative to the directory a release was installed into
+ */
+pub def __GYC_BINARY__ = "usr/bin/gyc";
+
+/**
+ * The prefix of the system gcc installation, whose pieces(collect2, the crt files, the lto
+ * plugin...) a gyc release relies on without shipping them
+ */
+pub def __SYSTEM_GCC_PREFIX__ = "/usr";
+
+/**
+ * @returns: the gyllir cache directory, holding what gyllir installs for every package of the
+ *    machine: '$GYLLIR_CACHE_DIR', or '~/.local/gyllir'
+ * */
+pub fn gyllirCacheDir()-> Path {
+    let dir = unsafe { std::env::getVar(__CACHE_ENV_VAR__) };
+    if (dir != "") { return Path(dir); }
+
+    Path(unsafe { std::env::getVar("HOME") }).push(".local").push("gyllir")
+}
+
+/**
+ * @params:
+ *    - gccMajor: the major version of the gcc the release is built with
+ *    - version: the release of gyc
+ * @returns: the name of the .deb of a release of gyc
+ * */
+pub fn gycAsset(gccMajor: [c8], version: [c8])-> [c8] {
+    "gyc-" ~ gccMajor ~ "_" ~ version ~ "_" ~ __GYC_ARCH__ ~ ".deb"
+}
+
+/**
  * The file at the root of a std lib(midgard) checkout declaring the 'YMIR_BOOTSTRAP_VERSION' it
  * was built against, used to warn when a resolved std lib was bootstrapped with a different Ymir
  * compiler than the one that is actually going to build it

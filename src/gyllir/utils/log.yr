@@ -10,6 +10,7 @@ pub enum Colors
 | GREEN     = "\u{0x001B}[1;32m"s8
 | BOLD      = "\u{0x001B}[1;50m"s8
 | UNDERLINE = "\u{0x001B}[4m"s8
+| DIM       = "\u{0x001B}[2m"s8
 | RESET     = "\u{0x001B}[0m"s8;
 
 pub fn info {T...} (padd: [c8] = "\t", what: [c8], params: T) {
