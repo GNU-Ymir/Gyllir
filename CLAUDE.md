@@ -149,8 +149,11 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     `gyc`, and manages the `.target/{debug,release,unit_debug,unit_release}` build cache
     (including the YIL-based incremental-recompilation tracking mentioned in recent commits). Each
     cache directory holds a `toolchain.stamp` (the compiler's `--version` line, its `ymir1` path
-    and mtime, and the commit of the resolved `[std]`, computed by `manager.yr`'s `toolchainOf`):
-    a cache stamped with anything else, or with nothing, is dropped before it is read.
+    and mtime, and the commit of the resolved `[std]`, computed by `manager.yr`'s `toolchainOf`,
+    plus the `version` identifiers of the target when it declares some, see `cacheStamp`): a cache
+    stamped with anything else, or with nothing, is dropped before it is read. A target's `version`
+    entries are passed as `-fversion=<ident>` to the compilation of its sources and to its doc
+    build, not to the link nor the YIL assembly.
   - `runner.yr` — `RepoRunner`: executes the built executable or test binary as a subprocess.
   - `cleaner.yr` — `RepoCleaner`: removes `.target/` outputs, optionally `__doc/` and resolved
     `.deps/` (recursively, reusing `manager.yr`'s dependency graph).
