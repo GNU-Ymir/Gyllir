@@ -509,6 +509,7 @@ pub record RepoBuilder {
         }
 
         options ~= self._extraFlags;
+        options ~= self.versionOptions();
 
         // last, so that a target can override the options gyllir picked for it(-g, -O3, ...)
         options ~ self._target.flags
@@ -532,8 +533,18 @@ pub record RepoBuilder {
         }
 
         options ~= self._extraFlags;
+        options ~= self.versionOptions();
 
         options ~ self._target.flags
+    }
+
+    /**
+     * @returns: one '-fversion=<ident>' option per version identifier of the target. They only
+     *    matter to the compilation of the sources, by the time of the YIL assembly and the link
+     *    the '__version' blocks are long resolved
+     * */
+    pub fn versionOptions(self)-> [[c8]] {
+        copy ["-fversion=" ~ v for v in self._target.version]
     }
 
     /**
@@ -680,7 +691,8 @@ pub record RepoBuilder {
      * another compiler cannot be read back, and a module compiled against another std lib may no
      * longer compile against this one: neither shows in the dates of the sources.
      * A cache recording nothing(written by an older gyllir) is dropped as well, nothing tells what
-     * built it.
+     * built it. So is one compiled with other version identifiers: a module whose sources did not
+     * change would otherwise keep the '__version' blocks it was first compiled with.
      * @params:
      *    - cacheDir: the build cache directory, holding the YILs, the dependency files and the
      *      objects of one kind of build of the target
@@ -698,7 +710,8 @@ pub record RepoBuilder {
             _ => ""
         };
 
-        if (previous == self._toolchain) { return; }
+        let stamp = self.cacheStamp();
+        if (previous == stamp) { return; }
 
         if (fs::isDir(cacheDir)) {
             utils::log::info("Removing",
@@ -707,7 +720,7 @@ pub record RepoBuilder {
                              (if (previous == "") {
                                  ", nothing records what it was built with"
                              } else {
-                                 ", it was built with another compiler or std lib"
+                                 ", it was built with another compiler, std lib or version identifiers"
                              }));
             fs::removeDir(cacheDir, recursive-> true);
         }
@@ -715,13 +728,29 @@ pub record RepoBuilder {
         fs::createDir(cacheDir, recursive-> true);
 
         let dmut f = File::create(stampFile, write-> true);
-        f:.write(self._toolchain);
+        f:.write(stamp);
         f:.close();
     } catch {
         e: &FsError => {
             utils::log::error("Error", "failed to reset the build cache '", cacheDir.toStr(), "': ", e.msg);
             etc::c::process::_yrt_exit(-1);
         }
+    }
+
+    /**
+     * @returns: what the build cache of the target records it was built with: the toolchain, and
+     *    the version identifiers of the target when it declares some(a target declaring none keeps
+     *    the stamp of the caches written before the identifiers were recorded)
+     * */
+    pub fn cacheStamp(self)-> [c8] {
+        if (self._target.version.len == 0us) { return self._toolchain; }
+
+        let mut res = self._toolchain ~ "version =";
+        for v in self._target.version {
+            res = res ~ " " ~ v;
+        }
+
+        res ~ "\n"
     }
 
     /*!

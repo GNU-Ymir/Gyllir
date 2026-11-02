@@ -2,7 +2,7 @@ in target;
 
 use gyllir::config::type;
 
-use std::{config, stream};
+use std::{char, config, stream};
 
 /**
  * The source directory of a target that does not declare one
@@ -59,6 +59,10 @@ pub record Target {
     // The C libraries linked into the target
     let _libraries: [[c8]];
 
+    // The version identifiers the target is compiled with, each passed as '-fversion=<ident>' so
+    // the 'cte if __version!<ident>' blocks of its sources can be gated per target
+    let _version: [[c8]];
+
     // The names of the package dependencies linked by the target
     // ([] selects every dependency declared by the package)
     let _dependencies: [[c8]];
@@ -93,6 +97,7 @@ pub record Target {
      *    - output: the name of the produced artifact
      *    - flags: the raw options passed to the compiler
      *    - libraries: the C libraries to link
+     *    - version: the version identifiers the target is compiled with
      *    - dependencies: the names of the package dependencies to link
      *    - targets: the names of the targets of the same package to link
      *    - cSources: the C source files to archive
@@ -110,6 +115,7 @@ pub record Target {
               output: [c8] = "",
               flags: [[c8]] = [],
               libraries: [[c8]] = [],
+              version: [[c8]] = [],
               dependencies: [[c8]] = [],
               targets: [[c8]] = [],
               cSources: [[c8]] = [],
@@ -126,6 +132,7 @@ pub record Target {
         , _output = output
         , _flags = flags
         , _libraries = libraries
+        , _version = version
         , _dependencies = dependencies
         , _targets = targets
         , _cSources = cSources
@@ -194,6 +201,11 @@ pub record Target {
     @field
     pub fn libraries(self)-> [[c8]] {
         self._libraries
+    }
+
+    @field
+    pub fn version(self)-> [[c8]] {
+        self._version
     }
 
     @field
@@ -375,6 +387,10 @@ pub class TargetList {
                     trg["libraries"] = copy Array(copy [copy Str(i) for i in t.libraries]);
                 }
 
+                if (t.version.len != 0us) {
+                    trg["version"] = copy Array(copy [copy Str(i) for i in t.version]);
+                }
+
                 if (t.dependencies.len != 0us) {
                     trg["dependencies"] = copy Array(copy [copy Str(i) for i in t.dependencies]);
                 }
@@ -463,6 +479,7 @@ pub class TargetList {
                                                   "output",
                                                   "flags",
                                                   "libraries",
+                                                  "version",
                                                   "dependencies",
                                                   "targets",
                                                   "c-sources",
@@ -479,6 +496,7 @@ pub class TargetList {
                output-> self.readString(cfg, "output", ctx),
                flags-> self.readStringArray(cfg, "flags", ctx),
                libraries-> self.readStringArray(cfg, "libraries", ctx),
+               version-> self.readVersions(cfg, ctx),
                dependencies-> self.readStringArray(cfg, "dependencies", ctx),
                targets-> self.readStringArray(cfg, "targets", ctx),
                cSources-> self.readStringArray(cfg, "c-sources", ctx),
@@ -526,6 +544,27 @@ pub class TargetList {
     }
 
     /**
+     * Read the 'version' entry of a target table, the version identifiers it is compiled with
+     * @params:
+     *    - cfg: the content of the target table
+     *    - ctx: the prefix naming the target, for error reporting
+     * @throws:
+     *    - AssertError: an entry is not an identifier. The compiler would take it, but no
+     *      '__version' block can ever name it, so it would be ignored in silence
+     * */
+    prv fn readVersions(self, cfg: &Config, ctx: [c8])-> [[c8]]
+        throws AssertError
+    {
+        let res = self.readStringArray(cfg, "version", ctx);
+        for v in res if !isIdentifier(v) {
+            throw copy AssertError(ctx ~ "'version', '" ~ v ~ "' is not an identifier, a version is made of letters, "
+                                   ~ "digits and '_', and does not start with a digit");
+        }
+
+        res
+    }
+
+    /**
      * Read an optional array of string entry of a target table
      * @params:
      *    - cfg: the content of the target table
@@ -552,4 +591,18 @@ pub class TargetList {
 
         []
     }
+}
+
+/**
+ * @returns: true iif 'name' could be written as a Ymir identifier: letters, digits and '_', not
+ *    starting with a digit
+ * */
+prv fn isIdentifier(name: [c8])-> bool {
+    if (name.len == 0us || std::char::isDigit(name[0])) { return false; }
+
+    for c in name if (!std::char::isAlpha(c) && !std::char::isDigit(c) && c != '_') {
+        return false;
+    }
+
+    true
 }

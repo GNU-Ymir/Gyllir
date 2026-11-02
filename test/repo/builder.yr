@@ -109,6 +109,33 @@ __test invalidate_stale_cache_without_toolchain_keeps_the_cache {
     assert(!fs::isFile(cacheDir.push(defaults::__BUILD_STAMP_FILENAME__)), "no stamp should be written");
 }
 
+__test invalidate_stale_cache_drops_a_cache_built_with_other_versions {
+    // A module whose sources did not change is reused as it is, with the '__version' blocks it was
+    // compiled with: a cache compiled with other version identifiers has to be dropped
+    let (dir, cacheDir) = mkCacheDir(copy ["main"]);
+    let cfg = mkTargetsConfig("myapp", json #{"app" : {"version" : ["WITH_CLI"]}});
+
+    mkStampedBuilder(dir, "compiler = a\n").invalidateStaleCache(cacheDir);
+    fs::createDir(cacheDir.push(defaults::__YIL_DIR__), recursive-> true);
+    {
+        let dmut y = File::create(
+            cacheDir.push(defaults::__YIL_DIR__).push("main").addExtension(defaults::__YIL_EXTENSION__),
+            write-> true
+        );
+        y:.write("yil");
+        y:.close();
+    }
+
+    RepoBuilder(dir, copy Dict(), cfg, namedTarget(cfg, "app"), false, toolchain-> "compiler = a\n")
+        .invalidateStaleCache(cacheDir);
+    assert(!hasYIL(cacheDir, "main"), "a cache built without the version identifiers should be dropped");
+    assert(readStamp(cacheDir) == "compiler = a\nversion = WITH_CLI\n",
+           "the cache should record the version identifiers it is now built with: " ~ readStamp(cacheDir));
+
+    mkStampedBuilder(dir, "compiler = a\n").invalidateStaleCache(cacheDir);
+    assert(readStamp(cacheDir) == "compiler = a\n", "dropping the identifiers should drop the cache again");
+}
+
 __test prune_removed_modules_drops_stale_cache {
     // pruneRemovedModules() drops the YIL and deps files of a module whose source is gone, and keeps the others
     let (dir, cacheDir) = mkCacheDir(copy ["main", "gone"]);
@@ -516,6 +543,55 @@ __test doc_build_command_line_of_its_own {
     assert(options.len > 1us && options[$ - 1us] == "-O0", "the flags of the target should come last");
     assert(indexOf(options, "/project/.target/app/doc/app.doc.json") < options.len,
            "the documentation file should be written in the doc cache of the target");
+}
+
+__test target_versions_reach_the_compile_steps {
+    // Each version identifier of a target is passed as "-fversion=<ident>", to the compilation of
+    // the sources and to the documentation build, ahead of the flags of the target
+    let cfg = mkTargetsConfig("myapp", json #{"app" : {"version" : ["WITH_CLI", "NO_COLOR"], "flags" : ["-O0"]}});
+    let builder = RepoBuilder(Path("/project"), mkBuildArgs(), cfg, namedTarget(cfg, "app"), forUnitTest-> false);
+
+    let options = builder.createCompileOptions(Path("/project/src/app.yr"), Path("/project/.target/app/debug"), []);
+    assert(options.len > 3us && options[$ - 3us] == "-fversion=WITH_CLI" && options[$ - 2us] == "-fversion=NO_COLOR",
+           "the version identifiers should come right before the flags of the target");
+    assert(options[$ - 1us] == "-O0", "the flags of the target should still come last");
+
+    let docBuilder = RepoBuilder(Path("/project"), mkBuildArgs(), cfg, namedTarget(cfg, "app"),
+                                 forUnitTest-> false,
+                                 forDoc-> true);
+    let docOptions = docBuilder.createDocCompileOptions(Path("/project/src/app.yr"), []);
+    assert(indexOf(docOptions, "-fversion=WITH_CLI") < docOptions.len && indexOf(docOptions, "-fversion=NO_COLOR") < docOptions.len,
+           "the documentation should be built with the version identifiers of the target");
+
+    // the '__version' blocks are resolved by then
+    let linkOptions = builder.createLinkOptions(copy ["/project/.target/app/debug/app.a"], "app", [], []);
+    assert(indexOf(linkOptions, "-fversion=WITH_CLI") == linkOptions.len, "the link step needs no version identifier");
+}
+
+__test target_without_versions_passes_none {
+    let cfg     = mkConfig("myapp", "executable");
+    let builder = RepoBuilder(Path("/project"), mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false);
+
+    let options = builder.createCompileOptions(Path("/project/src/main.yr"), Path("/project/.target/myapp/debug"), []);
+    for o in options {
+        assert(o.len < 10us || o[0us .. 10us] != "-fversion=", "a target declaring no version should pass none: " ~ o);
+    }
+}
+
+__test version_block_compiled_in {
+    // A source that only compiles with the "WITH_CLI" version identifier builds once the target
+    // declares it
+    let dir = mkExecutableProject("myapp");
+    writeSource(dir.push(defaults::__SRC_DIR__).push(defaults::__MAIN_FILE__),
+                "use std::io;\n\nfn main() {\n    cte if __version!WITH_CLI {\n        println(\"with cli\");\n    } "
+                ~ "else {\n        this_function_does_not_exist();\n    }\n}\n");
+
+    let cfg      = mkTargetsConfig("myapp", json #{"app" : {"package-root" : "main", "version" : ["WITH_CLI"]}});
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    RepoBuilder(dir, mkBuildArgs(), cfg, namedTarget(cfg, "app"), forUnitTest-> false).run(alias mgr);
+
+    assert(hasFile(dir, "app"), "the executable should be built with the version block compiled in");
 }
 
 __test release_and_unittest_build_flags {
