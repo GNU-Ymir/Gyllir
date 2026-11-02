@@ -4,11 +4,14 @@ use std::{config, stream};
 use std::fs;
 
 /**
- * A custom command line to run
+ * A custom command to run, made of one or several command lines run one after the other
  * */
 pub record Command {
-    // The command to run
-    let _cmd: [c8];
+    // The command lines to run, in order, as written(placeholders unresolved)
+    let _cmds: [[c8]];
+
+    // True iif 'cmd' was declared as an array, kept to be written back the same way
+    let _isList: bool;
 
     // True iif the command is a post command
     let _isPost: bool;
@@ -18,12 +21,26 @@ pub record Command {
 
     /**
      * @params:
-     *    - cmd: the command to run
+     *    - cmd: the command line to run
      *    - post: true iif the command is executed after the generation
      *    - cwd: the location of the command execution
      * */
     pub self (cmd: [c8], post: bool, cwd: Path = Path("."))
-        with _cmd = cmd
+        with _cmds = copy [cmd]
+        , _isList = false
+        , _isPost = post
+        , _cwd = cwd
+    {}
+
+    /**
+     * @params:
+     *    - cmds: the command lines to run, in order
+     *    - post: true iif the command is executed after the generation
+     *    - cwd: the location of the command execution
+     * */
+    pub self list (cmds: [[c8]], post: bool, cwd: Path = Path("."))
+        with _cmds = cmds
+        , _isList = true
         , _isPost = post
         , _cwd = cwd
     {}
@@ -36,9 +53,19 @@ pub record Command {
      * ====================================================================================================
      */
 
+    /**
+     * @returns: the command lines to run, in order, as written
+     * */
     @field
-    pub fn cmd(self)-> [c8] {
-        self._cmd
+    pub fn cmds(self)-> [[c8]] {
+        self._cmds
+    }
+
+    /**
+     * @returns: true iif 'cmd' was declared as an array of command lines rather than a single one
+     * */
+    pub fn isList(self)-> bool {
+        self._isList
     }
 
     pub fn isPost(self)-> bool {
@@ -110,14 +137,7 @@ pub class CustomCommandList {
         for k, v in cfg[] {
             let ctx = gyllir::config::errors::inTable("commands", k);
 
-            let cmd = if let Ok(Str(value-> c)) = v["cmd"]? {
-                c
-            } else if let Ok(_) = v["cmd"]? {
-                throw copy AssertError(ctx ~ "'cmd' must be a string, the command line to run");
-            } else {
-                throw copy AssertError(ctx ~ "missing required entry 'cmd', for example: cmd = \"./tools/" ~ k
-                                       ~ ".sh\"");
-            };
+            let (cmds, isList) = self.readCmd(v, ctx, k);
 
             // a mistyped 'post' used to be read as a pre build command, silently running it at the
             // wrong moment, which is worse than refusing the configuration
@@ -143,8 +163,53 @@ pub class CustomCommandList {
                 gyllir::config::errors::rejectUnknown(vd, ctx, "cmd", "post", "cwd");
             }
 
-            self._lst[k] = Command(cmd, post, cwd-> cwd);
+            if (isList) {
+                self._lst[k] = Command::list(cmds, post, cwd-> cwd);
+            } else {
+                self._lst[k] = Command(cmds[0], post, cwd-> cwd);
+            }
         }
+    }
+
+    /**
+     * Read the 'cmd' entry of a command table, either a single command line or an array of them
+     * @params:
+     *    - v: the content of the command table
+     *    - ctx: the prefix naming the command, for error reporting
+     *    - name: the name of the command, for the example of the error message
+     * @returns:
+     *    - .0: the command lines, in the declared order
+     *    - .1: true iif they were declared as an array
+     * @throws:
+     *    - AssertError: 'cmd' is missing, is neither a string nor an array of strings, or is an empty
+     *      array, which would make a command that does nothing
+     * */
+    prv fn readCmd(self, v: &Config, ctx: [c8], name: [c8])-> ([[c8]], bool)
+        throws AssertError
+    {
+        let shape = "'cmd' must be a string, the command line to run, or an array of strings, the command lines to "
+            ~ "run in order";
+
+        if let Ok(Str(value-> c)) = v["cmd"]? {
+            return (copy [c], false);
+        } else if let Ok(a: &Array) = v["cmd"]? {
+            let mut res: [[c8]] = [];
+            for i in a[] {
+                if let Str(value-> c) = i {
+                    res ~= [c];
+                } else throw copy AssertError(ctx ~ shape);
+            }
+
+            if (res.len == 0us) {
+                throw copy AssertError(ctx ~ "'cmd' is an empty array, it must hold at least one command line");
+            }
+
+            return (res, true);
+        } else if let Ok(_) = v["cmd"]? {
+            throw copy AssertError(ctx ~ shape);
+        }
+
+        throw copy AssertError(ctx ~ "missing required entry 'cmd', for example: cmd = \"./tools/" ~ name ~ ".sh\"");
     }
 
     /*!
@@ -162,7 +227,13 @@ pub class CustomCommandList {
             let dmut ret = copy Dict();
             for k, c in self._lst {
                 let dmut cmd = copy Dict();
-                cmd["cmd"] = copy Str(c.cmd);
+                // written back the way it was declared: a single command line stays a string, which
+                // an older gyllir reading the file still understands
+                if (c.isList()) {
+                    cmd["cmd"] = copy Array(copy [copy Str(i) for i in c.cmds]);
+                } else {
+                    cmd["cmd"] = copy Str(c.cmds[0]);
+                }
                 cmd["post"] = copy Bool(c.isPost());
                 cmd["cwd"] = copy Str(c.cwd.toStr());
 

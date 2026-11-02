@@ -25,17 +25,17 @@ __test parse_post_and_cwd_branches {
     for k, c in lst[] {
         if (k == "str_post") {
             seenStrPost = true;
-            assert(c.cmd == "echo str-post", "unexpected cmd for str_post: " ~ c.cmd);
+            assert(c.cmds == copy ["echo str-post"] && !c.isList(), "unexpected cmd for str_post");
             assert(c.isPost(), "post: \"true\" (Str) should be parsed as post = true");
             assert(c.cwd.toStr() == "/tmp/build", "unexpected cwd for str_post: " ~ c.cwd.toStr());
         } else if (k == "bool_post") {
             seenBoolPost = true;
-            assert(c.cmd == "echo bool-post", "unexpected cmd for bool_post: " ~ c.cmd);
+            assert(c.cmds == copy ["echo bool-post"], "unexpected cmd for bool_post");
             assert(c.isPost(), "post: true (Bool) should be parsed as post = true");
             assert(c.cwd.toStr() == ".", "missing cwd should default to \".\", got: " ~ c.cwd.toStr());
         } else if (k == "no_post") {
             seenNoPost = true;
-            assert(c.cmd == "echo no-post", "unexpected cmd for no_post: " ~ c.cmd);
+            assert(c.cmds == copy ["echo no-post"], "unexpected cmd for no_post");
             assert(!c.isPost(), "missing post should default to false");
             assert(c.cwd.toStr() == ".", "missing cwd should default to \".\", got: " ~ c.cwd.toStr());
         }
@@ -70,4 +70,81 @@ __test serialize_command_list_round_trips {
     assert(to!{[c8]} (d["cmd"]) == "echo serialize", "cmd was not serialized correctly");
     assert(to!{bool} (d["post"]), "post was not serialized correctly");
     assert(to!{[c8]} (d["cwd"]) == "/tmp", "cwd was not serialized correctly");
+}
+
+__test list_of_command_lines_parsed_in_order {
+    // "cmd" may be an array of command lines, kept in the declared order
+    let lst = copy CustomCommandList(json #{
+        "steps" : {"cmd" : ["mkdir -p out", "cp lib.a out/", "strip out/lib.a"], "post" : true}
+    });
+
+    if let Ok(c) = lst[]["steps"] {
+        assert(c.cmds == copy ["mkdir -p out", "cp lib.a out/", "strip out/lib.a"],
+               "the command lines should be kept in the declared order");
+        assert(c.isList(), "the command should remember it was declared as an array");
+        assert(c.isPost(), "the other entries of the table should still be read");
+    } else assert(false, "expected a \"steps\" command");
+}
+
+__test list_of_command_lines_round_trips {
+    // An array is written back as an array, a single command line as a string, so a file read by an
+    // older gyllir after a "gyllir bump" does not gain a shape it cannot read
+    let lst = copy CustomCommandList(json #{
+        "steps" : {"cmd" : ["mkdir -p out", "cp lib.a out/"]},
+        "one" : {"cmd" : ["strip lib.a"]},
+        "single" : {"cmd" : "echo hi"}
+    });
+
+    let serialized = lst.serialize();
+    assert(to!{[[c8]]} (serialized["steps"]["cmd"]) == copy ["mkdir -p out", "cp lib.a out/"],
+           "an array of command lines should be written back as an array");
+    assert(to!{[[c8]]} (serialized["one"]["cmd"]) == copy ["strip lib.a"],
+           "an array holding a single command line should stay an array");
+    assert(to!{[c8]} (serialized["single"]["cmd"]) == "echo hi", "a single command line should stay a string");
+
+    let back = copy CustomCommandList(serialized);
+    if let Ok(c) = back[]["steps"] {
+        assert(c.cmds == copy ["mkdir -p out", "cp lib.a out/"] && c.isList(), "the array should survive the round trip");
+    } else assert(false, "expected a \"steps\" command after the round trip");
+}
+
+fn commandError(cfg: &Config)-> [c8] {
+    {
+        copy CustomCommandList(cfg);
+    } catch {
+        a: &AssertError => { return a.msg; }
+    }
+
+    ""
+}
+
+__test empty_command_list_rejected {
+    // An empty array would make a command that does nothing, most likely a mistake
+    // built by hand, the json macro has no empty array
+    let dmut steps = copy Dict();
+    steps["cmd"] = copy Array();
+    let dmut cfg = copy Dict();
+    cfg["steps"] = steps;
+
+    let msg = commandError(cfg);
+    assert(msg == "'[commands.steps]', 'cmd' is an empty array, it must hold at least one command line",
+           "unexpected error: " ~ msg);
+}
+
+__test malformed_cmd_rejected {
+    // Neither a string, nor an array of strings
+    let expected = "'[commands.steps]', 'cmd' must be a string, the command line to run, or an array of strings, the "
+        ~ "command lines to run in order";
+
+    let msg = commandError(json #{"steps" : {"cmd" : ["echo hi", 12]}});
+    assert(msg == expected, "unexpected error for an array holding a number: " ~ msg);
+
+    let msg2 = commandError(json #{"steps" : {"cmd" : 12}});
+    assert(msg2 == expected, "unexpected error for a number: " ~ msg2);
+}
+
+__test missing_cmd_rejected {
+    let msg = commandError(json #{"steps" : {"post" : true}});
+    assert(msg == "'[commands.steps]', missing required entry 'cmd', for example: cmd = \"./tools/steps.sh\"",
+           "unexpected error: " ~ msg);
 }
