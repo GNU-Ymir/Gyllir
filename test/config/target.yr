@@ -15,7 +15,7 @@ __test target_defaults_fall_back_to_name {
     assert(t.outputName() == "cli", "the artifact should default to the name of the target");
     assert(t.packageRoot == "" && t.testRoot == "" && t.output == "", "the unset entries should be empty");
     assert(t.tests, "tests should default to enabled");
-    assert(t.flags == [] && t.libraries == [] && t.dependencies == [] && t.targets == [] && t.cSources == []
+    assert(t.flags == [] && t.libraries == [] && t.version == [] && t.dependencies == [] && t.targets == [] && t.cSources == []
            && t.cFlags == [],
            "the unset lists should be empty");
     assert(!t.synthesized, "a target built by hand is not a synthesized one");
@@ -67,6 +67,7 @@ __test every_target_table_entry_parsed {
             "output" : "gyllir-cli",
             "flags" : ["-fno-inline", "-O0"],
             "libraries" : ["m"],
+            "version" : ["WITH_CLI", "No_Color2"],
             "dependencies" : ["midgard"],
             "targets" : ["mylib"],
             "c-sources" : ["src/glue.c"],
@@ -86,6 +87,7 @@ __test every_target_table_entry_parsed {
         assert(t.output == "gyllir-cli", "unexpected output name");
         assert(t.flags == copy ["-fno-inline", "-O0"], "unexpected flags");
         assert(t.libraries == copy ["m"], "unexpected libraries");
+        assert(t.version == copy ["WITH_CLI", "No_Color2"], "unexpected version identifiers");
         assert(t.dependencies == copy ["midgard"], "unexpected dependencies");
         assert(t.targets == copy ["mylib"], "unexpected linked targets");
         assert(t.cSources == copy ["src/glue.c"], "unexpected c sources");
@@ -247,6 +249,35 @@ __test array_with_non_string_element_rejected {
     assert(msg == "'[targets.cli]', 'flags' must be an array of strings", "unexpected error: " ~ msg);
 }
 
+__test version_not_an_identifier_rejected {
+    // A version identifier the sources could not name is rejected: the compiler would take it,
+    // and no '__version' block would ever be compiled in
+    for v in ["WITH-CLI", "2D", "", "-fno-inline", "a b"] {
+        let mut msg = "";
+        {
+            copy TargetList(json #{"cli" : {"version" : [v]}});
+        } catch {
+            a: &AssertError => { msg = a.msg; }
+        }
+
+        assert(msg == "'[targets.cli]', 'version', '" ~ v ~ "' is not an identifier, a version is made of letters, "
+               ~ "digits and '_', and does not start with a digit",
+               "unexpected error for \"" ~ v ~ "\": " ~ msg);
+    }
+}
+
+__test non_array_version_rejected {
+    // "version" is a list even when the target declares a single identifier
+    let mut msg = "";
+    {
+        copy TargetList(json #{"cli" : {"version" : "WITH_CLI"}});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[targets.cli]', 'version' must be an array of strings", "unexpected error: " ~ msg);
+}
+
 __test non_dict_target_list_rejected {
     // A target list built from something else than a dictionary is rejected
     let mut msg = "";
@@ -287,6 +318,7 @@ __test serialize_writes_only_declared_entries {
         assert("tests" !in cli, "tests enabled by default should not be written back");
         assert("output" !in cli, "an undeclared output name should not be written back");
         assert("libraries" !in cli, "an empty library list should not be written back");
+        assert("version" !in cli, "an empty version list should not be written back");
         assert("c-sources" !in cli, "an empty c source list should not be written back");
         assert("c-flags" !in cli, "an empty c flag list should not be written back");
     } else assert(false, "expected a serialized \"cli\" target");
@@ -303,6 +335,7 @@ __test declared_entries_survive_round_trip {
             "test-root" : "cli_test",
             "output" : "gyllir-cli",
             "libraries" : ["m"],
+            "version" : ["WITH_CLI"],
             "c-sources" : ["src/glue.c"],
             "c-flags" : ["-I."]
         }
@@ -317,6 +350,7 @@ __test declared_entries_survive_round_trip {
         assert(t.testRoot == "cli_test", "the test root should survive the round trip");
         assert(t.output == "gyllir-cli", "the output name should survive the round trip");
         assert(t.libraries == copy ["m"], "the libraries should survive the round trip");
+        assert(t.version == copy ["WITH_CLI"], "the version identifiers should survive the round trip");
         assert(t.cSources == copy ["src/glue.c"], "the c sources should survive the round trip");
         assert(t.cFlags == copy ["-I."], "the c flags should survive the round trip");
     } else assert(false, "expected a \"cli\" target after the round trip");
