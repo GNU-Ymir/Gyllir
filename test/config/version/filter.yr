@@ -1,7 +1,7 @@
 use gyllir::config::version;
 use gyllir::config::version::filter;
 
-use std::{config::_, config::conv, stream};
+use std::{config, stream};
 
 __test plain_versions_are_equality_filters {
     // Plain versions (no comparator) are equality filters

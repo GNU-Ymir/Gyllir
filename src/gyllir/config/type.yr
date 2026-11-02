@@ -1,6 +1,6 @@
 in type;
 
-use std::{config::_, stream};
+use std::{config, stream};
 
 /**
  * Enum defining the type of the target

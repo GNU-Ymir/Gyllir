@@ -1,7 +1,7 @@
 in symbols;
 
 use std::stream;
-use std::fs::path;
+use std::fs;
 
 pub mod ::class_;
 pub mod ::ctor;

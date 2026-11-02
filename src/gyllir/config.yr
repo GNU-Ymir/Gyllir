@@ -1,6 +1,6 @@
 in config;
 
-use std::{config::_, stream};
+use std::{config, stream};
 
 pub mod ::command;
 pub mod ::url;
@@ -443,7 +443,7 @@ pub record GyllirPackageConfiguration {
      * @throws:
      *    - AssertError: on the first entry that is missing, or that does not have the expected
      *      shape. Its message is the one printed to the user, so the sub parsers are called
-     *      directly rather than through 'std::config::conv::to', whose CastFailure would bury it
+     *      directly rather than through 'std::config::to', whose CastFailure would bury it
      * */
     prv fn parsePackage(mut self, d: &Dict)
         throws AssertError

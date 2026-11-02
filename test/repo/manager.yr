@@ -5,8 +5,8 @@ use gyllir::config::version::filter;
 use gyllir::repo::{builder, cache, cleaner, defaults, manager, toolchain};
 use gyllir::utils::git;
 
-use std::{config::_, config::json, fs::_};
-use std::concurrency::process;
+use std::{config, config::json, fs};
+use std::concurrency;
 
 /**
  * The library targets of a package as 'resolveDependency' would compute them: every declared
@@ -82,7 +82,7 @@ __test local_dependency_symlinked_built_and_exported {
 
     let (includes, links) = RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
 
-    assert(sys::isLink(app.push(defaults::__DEPENCY_DIR__).push("mylib")),
+    assert(fs::isLink(app.push(defaults::__DEPENCY_DIR__).push("mylib")),
            "a local dependency should be symlinked into .deps");
     assert(hasFile(lib, "libmylib.a"), "the dependency should have been built");
 
@@ -108,7 +108,7 @@ __test resolving_dependency_twice_reuses_symlink {
     RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
     RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
 
-    assert(sys::isLink(app.push(defaults::__DEPENCY_DIR__).push("mylib")),
+    assert(fs::isLink(app.push(defaults::__DEPENCY_DIR__).push("mylib")),
            "the dependency symlink should still be there");
     assert(hasFile(app, "myapp"), "the executable should be produced");
 }
@@ -149,11 +149,11 @@ __test clean_all_removes_dependencies_recursively {
 
     RepoCleaner(app, mkArgs(copy ["all"]), cfg).run(alias mgr);
 
-    assert(!sys::isDir(app.push(defaults::__CACHE_ALL_DIR__)), "the build cache should be removed");
-    assert(!sys::isDir(app.push(defaults::__DEPENCY_DIR__)), "the resolved dependencies should be removed");
+    assert(!fs::isDir(app.push(defaults::__CACHE_ALL_DIR__)), "the build cache should be removed");
+    assert(!fs::isDir(app.push(defaults::__DEPENCY_DIR__)), "the resolved dependencies should be removed");
     assert(!hasFile(app, "myapp"), "the executable should be removed");
 
-    assert(!sys::isDir(lib.push(defaults::__CACHE_ALL_DIR__)), "the cache of the dependency should be cleaned as well");
+    assert(!fs::isDir(lib.push(defaults::__CACHE_ALL_DIR__)), "the cache of the dependency should be cleaned as well");
     assert(!hasFile(lib, "libmylib.a"), "the outputs of the dependency should be cleaned as well");
 }
 
@@ -176,7 +176,7 @@ __test progress_bar_renders_partial_and_complete {
 __test dependency_resolved_through_fetched_tags {
     // A dependency whose version filter rejects the branch it sits on is resolved through the tags
     // fetched from its remote
-    let remote    = sys::tempDirectory(prefix-> "gyllir_dep_remote_");
+    let remote    = fs::tempDirectory(prefix-> "gyllir_dep_remote_");
     let dmut init = copy SubProcess("git", copy ["init", "--bare"], cwd-> remote);
     init:.start();
     init:.wait();
@@ -195,7 +195,7 @@ __test dependency_resolved_through_fetched_tags {
     sourceGit.push(copy ["master", "v1.0.0"]);
 
     // the dependency the project points at is a clone: it has a remote to fetch its tags from
-    let lib = sys::tempDirectory(prefix-> "gyllir_dep_clone_");
+    let lib = fs::tempDirectory(prefix-> "gyllir_dep_clone_");
     GitManager(cwd-> lib).clone(remote.toStr());
 
     let app = mkExecutableProject("myapp");
@@ -884,8 +884,8 @@ __test build_targets_dependency_skips_executable_targets {
     let (includes, links) = RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
 
     let depPath = app.push(defaults::__DEPENCY_DIR__).push("multi");
-    assert(sys::isFile(depPath.push("libmylib.a")), "the library target of the dependency should be built");
-    assert(!sys::isFile(depPath.push("cli")), "an executable target of a dependency should not be built");
+    assert(fs::isFile(depPath.push("libmylib.a")), "the library target of the dependency should be built");
+    assert(!fs::isFile(depPath.push("cli")), "an executable target of a dependency should not be built");
 
     assert(links.len == 1us && links[0] == depPath.push("libmylib.a"), "only the library archive should be linked");
     assert(includes.len == 2us, "the root file of the library target and the one of the project should be exported");
@@ -915,8 +915,8 @@ __test link_targets_absent_links_every_library {
     let (_, links) = RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
 
     let depPath = app.push(defaults::__DEPENCY_DIR__).push("multilib");
-    assert(sys::isFile(depPath.push("libfoo.a")), "libfoo should be built");
-    assert(sys::isFile(depPath.push("libbar.a")), "libbar should be built");
+    assert(fs::isFile(depPath.push("libfoo.a")), "libfoo should be built");
+    assert(fs::isFile(depPath.push("libbar.a")), "libbar should be built");
     assert(links.len == 2us, "both archives should be linked");
 }
 
@@ -934,8 +934,8 @@ __test link_targets_narrows_to_named_subtargets {
     let (includes, links) = RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
 
     let depPath = app.push(defaults::__DEPENCY_DIR__).push("multilib");
-    assert(sys::isFile(depPath.push("libfoo.a")), "the selected target should be built");
-    assert(!sys::isFile(depPath.push("libbar.a")), "the target left out of \"link-targets\" should not be built");
+    assert(fs::isFile(depPath.push("libfoo.a")), "the selected target should be built");
+    assert(!fs::isFile(depPath.push("libbar.a")), "the target left out of \"link-targets\" should not be built");
 
     assert(links.len == 1us && links[0] == depPath.push("libfoo.a"), "only the selected archive should be linked");
     assert(includes.len == 2us, "only the selected target's root file and the project's own should be exported");
@@ -1073,17 +1073,17 @@ __test override_takes_a_git_dependency_from_a_local_checkout {
     mgr.writeLock(app, ocfg);
 
     let depPath = app.push(defaults::__DEPENCY_DIR__).push("mylib");
-    assert(sys::isLink(depPath), "the clone should be replaced by a link to the local checkout");
+    assert(fs::isLink(depPath), "the clone should be replaced by a link to the local checkout");
     assert(hasFile(checkout, "libmylib.a"), "the local checkout should be the one built");
 
     let locked = lockedPackage(app, "mylib");
     assert(locked.url.type == UrlType::GIT && locked.sha == pinned.sha,
            "the lock file should not record a resolution the override made");
 
-    sys::removeFile(app.push(defaults::__GYLLIR_OVERRIDE_FILENAME__));
+    fs::removeFile(app.push(defaults::__GYLLIR_OVERRIDE_FILENAME__));
     buildWithLock(app, cfg, mkBuildArgs());
 
-    assert(!sys::isLink(depPath) && sys::isDir(depPath), "the link should be replaced by a clone again");
+    assert(!fs::isLink(depPath) && fs::isDir(depPath), "the link should be replaced by a clone again");
     assert(resolvedCommitOf(app, "mylib") == pinned.sha, "the clone should be back at the pinned commit");
     assert(GitManager(cwd-> checkout).getRemote() == "", "the remote of the local checkout should be left alone");
 }
@@ -1145,7 +1145,7 @@ __test pinned_compiler_is_installed_and_linked {
     builder:.buildTargets(app, mkBuildArgs(), cfg, copy ["myapp" => ()]);
 
     let link = app.push(defaults::__DEPENCY_DIR__).push(defaults::__COMPILER_DEP_NAME__);
-    assert(sys::isLink(link) && sys::readLink(link) == installer.cache.compilerDir("1.0.7"),
+    assert(fs::isLink(link) && fs::readLink(link) == installer.cache.compilerDir("1.0.7"),
            "the release should be linked as .deps/compiler");
     assert(hasFile(app, "myapp"), "the executable should be produced");
 }
@@ -1159,7 +1159,7 @@ __test unpinned_compiler_is_not_linked {
 
     builder:.buildTargets(app, mkBuildArgs(), mkConfig("myapp", "executable"), copy ["myapp" => ()]);
 
-    assert(!sys::exists(app.push(defaults::__DEPENCY_DIR__).push(defaults::__COMPILER_DEP_NAME__), followLink-> false),
+    assert(!fs::exists(app.push(defaults::__DEPENCY_DIR__).push(defaults::__COMPILER_DEP_NAME__), followLink-> false),
            "nothing should be linked as .deps/compiler");
     assert(installer.cache.load()[].len == 0us, "nothing should be installed");
 }
@@ -1182,6 +1182,6 @@ __test dependency_is_built_with_the_compiler_of_the_package {
     assert(hasFile(app, "myapp"), "the executable should be produced");
     let items = installer.cache.load()[];
     assert(items.len == 1us && items[0].version == "1.0.9", "only the release of the package should be installed");
-    assert(!sys::exists(lib.push(defaults::__DEPENCY_DIR__).push(defaults::__COMPILER_DEP_NAME__), followLink-> false),
+    assert(!fs::exists(lib.push(defaults::__DEPENCY_DIR__).push(defaults::__COMPILER_DEP_NAME__), followLink-> false),
            "a dependency should not link a compiler of its own");
 }

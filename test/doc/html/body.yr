@@ -511,7 +511,7 @@ __test enum_cross_module_link {
 
 __test module_description_omitted_when_undocumented {
     // A module without a doc comment gets no "Description" collapsible at all
-    let dmut mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
+    let mod_ = copy Module("mymod", "", INTERNAL_LOCATION, Protection::PUB);
 
     let out = dump(mod_);
 
@@ -521,7 +521,7 @@ __test module_description_omitted_when_undocumented {
 
 __test module_description_rendered_when_documented {
     // A module with a doc comment gets its "Description" collapsible
-    let dmut mod_ = copy Module("mymod", "the module's documentation", INTERNAL_LOCATION, Protection::PUB);
+    let mod_ = copy Module("mymod", "the module's documentation", INTERNAL_LOCATION, Protection::PUB);
 
     let out = dump(mod_);
 

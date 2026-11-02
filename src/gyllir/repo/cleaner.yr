@@ -3,9 +3,9 @@ in cleaner;
 use gyllir::config::_;
 use gyllir::repo::manager;
 
-use std::{config::_, env, io, stream};
-use std::concurrency::process;
-use std::fs::{errors, path};
+use std::{config, env, io, stream};
+use std::concurrency;
+use std::fs;
 
 pub record RepoCleaner {
 
@@ -52,7 +52,7 @@ pub record RepoCleaner {
         let docDir = self._cwd.push(defaults::__DOC_DIR__);
         utils::log::info("Removing", "documentation directory ", docDir.toStr());
         {
-            fs::sys::removeDir(docDir, recursive-> true);
+            fs::removeDir(docDir, recursive-> true);
         }?;
     }
 
@@ -71,7 +71,7 @@ pub record RepoCleaner {
         }
 
         {
-            fs::sys::removeDir(depDir, recursive-> true);
+            fs::removeDir(depDir, recursive-> true);
         }?;
     }
 
@@ -82,7 +82,7 @@ pub record RepoCleaner {
         let cacheDir = self._cwd.push(defaults::__CACHE_ALL_DIR__);
         utils::log::info("Removing", "cache directory ", cacheDir.toStr());
         {
-            fs::sys::removeDir(cacheDir, recursive-> true);
+            fs::removeDir(cacheDir, recursive-> true);
         }?;
 
         for _, t in self._cfg.targets() {
@@ -103,13 +103,13 @@ pub record RepoCleaner {
 
         utils::log::info("Removing", "output file ", outFile.toStr());
         {
-            fs::sys::removeFile(outFile);
+            fs::removeFile(outFile);
         }?;
 
         let testFile = self._cwd.push(output).addExtension("test");
         utils::log::info("Removing", "test file ", testFile.toStr());
         {
-            fs::sys::removeFile(testFile);
+            fs::removeFile(testFile);
         }?;
     }
 }

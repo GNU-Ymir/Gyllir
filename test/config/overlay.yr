@@ -2,7 +2,7 @@ use gyllir::config::_;
 use gyllir::config::overlay;
 
 use std::config::toml;
-use std::syntax::errors;
+use std::syntax;
 
 /**
  * A complete 'gyllir.toml', depending on 'yassimp' from git

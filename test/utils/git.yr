@@ -1,7 +1,7 @@
 use gyllir::utils::{errors, git};
 
-use std::fs::_;
-use std::concurrency::process;
+use std::fs;
+use std::concurrency;
 
 fn containsSub(haystack: [c8], needle: [c8])-> bool {
     if needle.len == 0us return true;
@@ -17,7 +17,7 @@ fn containsSub(haystack: [c8], needle: [c8])-> bool {
 fn mkScratchRepo()-> Path
     throws GitError, FsError
 {
-    let dir = sys::tempDirectory(prefix-> "gyllir_git_test_");
+    let dir = fs::tempDirectory(prefix-> "gyllir_git_test_");
     let mgr = GitManager(cwd-> dir);
     mgr.init();
 
@@ -34,7 +34,7 @@ fn mkScratchRepo()-> Path
 fn mkBareRepo()-> Path
     throws FsError
 {
-    let dir       = sys::tempDirectory(prefix-> "gyllir_git_bare_test_");
+    let dir       = fs::tempDirectory(prefix-> "gyllir_git_bare_test_");
     let dmut proc = copy SubProcess("git", copy ["init", "--bare"], cwd-> dir);
     proc:.start();
     proc:.wait();
@@ -64,7 +64,7 @@ fn commitFile(dir: Path, name: [c8], content: [c8], msg: [c8])
 __test init_creates_git_directory {
     // init() creates a ".git" directory
     let dir = mkScratchRepo();
-    assert(sys::isDir(dir.push(".git")), "init() should create a .git directory");
+    assert(fs::isDir(dir.push(".git")), "init() should create a .git directory");
 }
 
 __test add_commit_succeed_and_branch_visible {
@@ -176,11 +176,11 @@ __test clone_copies_local_repository {
     let src = mkScratchRepo();
     commitFile(src, "a.txt", "hello from source", "first commit");
 
-    let dst    = sys::tempDirectory(prefix-> "gyllir_git_clone_test_");
+    let dst    = fs::tempDirectory(prefix-> "gyllir_git_clone_test_");
     let dstMgr = GitManager(cwd-> dst);
     dstMgr.clone(src.toStr());
 
-    assert(sys::isFile(dst.push("a.txt")), "clone() should bring the source's committed files along");
+    assert(fs::isFile(dst.push("a.txt")), "clone() should bring the source's committed files along");
 }
 
 __test pushed_tag_visible_after_fetch {
@@ -194,7 +194,7 @@ __test pushed_tag_visible_after_fetch {
     srcMgr.setRemote(bare.toStr());
     srcMgr.push(copy ["master", "v2.0.0"]);
 
-    let dst    = sys::tempDirectory(prefix-> "gyllir_git_fetch_test_");
+    let dst    = fs::tempDirectory(prefix-> "gyllir_git_fetch_test_");
     let dstMgr = GitManager(cwd-> dst);
     dstMgr.clone(bare.toStr());
 
@@ -212,7 +212,7 @@ __test pull_brings_in_pushed_commits {
     srcMgr.setRemote(bare.toStr());
     srcMgr.push(copy ["master"]);
 
-    let dst    = sys::tempDirectory(prefix-> "gyllir_git_pull_test_");
+    let dst    = fs::tempDirectory(prefix-> "gyllir_git_pull_test_");
     let dstMgr = GitManager(cwd-> dst);
     dstMgr.clone(bare.toStr());
 
@@ -221,7 +221,7 @@ __test pull_brings_in_pushed_commits {
     srcMgr.push(copy ["master"]);
 
     dstMgr.pull("master");
-    assert(sys::isFile(dst.push("b.txt")), "pull() should bring in commits pushed by another clone");
+    assert(fs::isFile(dst.push("b.txt")), "pull() should bring in commits pushed by another clone");
 }
 
 __test commit_sha_names_the_checked_out_commit {
@@ -280,7 +280,7 @@ __test get_remote_reports_the_configured_url {
 
 __test clone_unreachable_source_fails {
     // clone() from a url that names no repository fails
-    let dst = sys::tempDirectory(prefix-> "gyllir_git_clone_fail_test_");
+    let dst = fs::tempDirectory(prefix-> "gyllir_git_clone_fail_test_");
     let mgr = GitManager(cwd-> dst.push("cloned"));
 
     let mut threw = false;
@@ -313,7 +313,7 @@ __test set_remote_falls_back_to_set_url_when_origin_exists {
 __test set_remote_fails_outside_a_git_repository {
     // Outside a git repository, both "remote add" and its "remote set-url" fallback fail: setRemote()
     // reports that failure instead of swallowing it
-    let dir = sys::tempDirectory(prefix-> "gyllir_git_not_a_repo_test_");
+    let dir = fs::tempDirectory(prefix-> "gyllir_git_not_a_repo_test_");
     let mgr = GitManager(cwd-> dir);
 
     let mut threw = false;
@@ -436,7 +436,7 @@ __test delete_tag_missing_name_fails {
 __test fetch_tags_outside_a_git_repository_fails {
     // fetchTags() names no remote explicitly (unlike fetch()), so a missing "origin" alone is not
     // enough to fail it; being outside a git repository entirely is
-    let dir = sys::tempDirectory(prefix-> "gyllir_git_not_a_repo_fetchtags_test_");
+    let dir = fs::tempDirectory(prefix-> "gyllir_git_not_a_repo_fetchtags_test_");
     let mgr = GitManager(cwd-> dir);
 
     let mut threw = false;
@@ -469,7 +469,7 @@ __test fetch_without_a_remote_fails {
 
 __test get_tag_list_outside_a_git_repository_fails {
     // getTagList() outside a git repository fails on its first subprocess, "rev-parse --abbrev-ref HEAD"
-    let dir = sys::tempDirectory(prefix-> "gyllir_git_not_a_repo_taglist_test_");
+    let dir = fs::tempDirectory(prefix-> "gyllir_git_not_a_repo_taglist_test_");
     let mgr = GitManager(cwd-> dir);
 
     let mut threw = false;
@@ -510,7 +510,7 @@ __test fetch_brings_commits_in_without_moving_the_checkout {
     srcMgr.setRemote(bare.toStr());
     srcMgr.push(copy ["master"]);
 
-    let dst    = sys::tempDirectory(prefix-> "gyllir_git_fetch_commit_test_");
+    let dst    = fs::tempDirectory(prefix-> "gyllir_git_fetch_commit_test_");
     let dstMgr = GitManager(cwd-> dst);
     dstMgr.clone(bare.toStr());
 
@@ -523,5 +523,5 @@ __test fetch_brings_commits_in_without_moving_the_checkout {
     dstMgr.fetch();
 
     assert(dstMgr.hasCommit(second), "fetch() should bring the pushed commit in");
-    assert(!sys::isFile(dst.push("b.txt")), "fetch() should not move the checkout");
+    assert(!fs::isFile(dst.push("b.txt")), "fetch() should not move the checkout");
 }

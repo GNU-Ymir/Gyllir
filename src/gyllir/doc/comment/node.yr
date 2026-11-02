@@ -6,7 +6,7 @@ pub mod ::style;
 pub mod ::text;
 
 use std::{char, stream};
-use std::syntax::tokenizer;
+use std::syntax;
 
 /**
  * A comment node used to format the comments of a symbol

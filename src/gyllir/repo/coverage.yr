@@ -4,7 +4,7 @@ use gyllir::config;
 use gyllir::doc::coverage;
 use gyllir::doc::html::{coverage, formatter, ressources};
 
-use std::{config::_, fs::_, fs::errors, stream};
+use std::{config, fs, stream};
 use std::algorithm::sorting;
 
 /**

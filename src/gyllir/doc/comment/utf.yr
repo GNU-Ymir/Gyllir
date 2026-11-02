@@ -12,7 +12,7 @@ lazy ESCAPE_CHARS = copy ['a' => 7u8,
                           '\"' => 34u8];
 
 pub fn escapeChars(content: [c8])-> [c8] {
-    let dmut stream: [c8] = [];
+    let mut stream: [c8] = [];
     let mut it            = 0us;
     let mut cutStars      = true;
     while it < content.len {

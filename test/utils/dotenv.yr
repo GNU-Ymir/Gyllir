@@ -1,6 +1,6 @@
 use gyllir::utils::dotenv;
 
-use std::fs::_;
+use std::fs;
 
 /**
  * @returns: the message of the error 'parseEnvFile' throws on 'content', "" when it throws none
@@ -64,7 +64,7 @@ __test env_file_missing_is_reported {
 
 __test env_file_is_read {
     // An existing environment file is read and parsed
-    let dir    = sys::tempDirectory(prefix-> "gyllir_dotenv_test_");
+    let dir    = fs::tempDirectory(prefix-> "gyllir_dotenv_test_");
     let dmut f = File::create(dir.push(".env"), write-> true);
     f:.write("NAME=gyllir\n");
     f:.close();

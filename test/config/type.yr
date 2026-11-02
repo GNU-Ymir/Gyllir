@@ -1,6 +1,6 @@
 use gyllir::config::type;
 
-use std::config::{_, conv};
+use std::config;
 
 __test default_build_type_is_executable {
     // Default construction targets an executable

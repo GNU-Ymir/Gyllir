@@ -1,8 +1,8 @@
 in url;
 
-use std::{config::_, stream};
+use std::{config, stream};
 use std::algorithm::searching;
-use std::fs::path;
+use std::fs;
 
 /**
  * There are two types of url for the moment

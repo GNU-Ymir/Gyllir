@@ -3,7 +3,8 @@ in doc_server;
 use gyllir::config::_;
 use gyllir::doc::{html, index, loader, symbols};
 
-use std::{config::_, env, fs::_, io, net::_, stream, syntax::_};
+use std::{config, env, fs, io, net, stream, syntax};
+use heimdall::http;
 
 /**
  * The opening of the inline configuration object every generated page declares for its javascript
@@ -45,7 +46,7 @@ pub class RepoDocServer {
      * */
     pub fn run(self) {
         let outDir = self.outputDir();
-        if (!fs::sys::isFile(outDir.push("index.html"))) {
+        if (!fs::isFile(outDir.push("index.html"))) {
             utils::log::error("Error", "no documentation found in '", outDir.toStr(), "', run 'gyllir doc' first");
             etc::c::process::_yrt_exit(-1);
             panic;
@@ -55,7 +56,7 @@ pub class RepoDocServer {
         let port: u16 = if let Ok(Int(value-> p)) = self._args["port"]? { cast!u16(p) } else { 8000u16 };
 
         let ip = {
-            std::net::addr::conv::to!{&IpAddr} (host)
+            std::net::to!{&IpAddr} (host)
         } catch {
             _ => {
                 utils::log::error("Error", "invalid host address '", host, "'");
@@ -104,12 +105,12 @@ pub class RepoDocServer {
         // coverage pages ('../__coverage/' from its pages, '/__coverage/' once served) and the sites
         // of the other targets the coverage pages link: what the served sub directory lacks is
         // looked for there
-        if (!fs::sys::isFile(fsPath) && self.baseDir().toStr() != self.outputDir().toStr()) {
+        if (!fs::isFile(fsPath) && self.baseDir().toStr() != self.outputDir().toStr()) {
             let fromBase = self.resolve(self.baseDir(), rqt.url);
-            if (fs::sys::isFile(fromBase)) { fsPath = fromBase; }
+            if (fs::isFile(fromBase)) { fsPath = fromBase; }
         }
 
-        if (!fs::sys::isFile(fsPath)) {
+        if (!fs::isFile(fsPath)) {
             return self.errorPage(404,
                                   "Page not found",
                                   "There is nothing at <code>" ~ formatter::htmlEscape(rqt.url.toStr())
@@ -142,7 +143,7 @@ pub class RepoDocServer {
             isRoot = false;
         }
 
-        if (isRoot || fs::sys::isDir(fsPath)) {
+        if (isRoot || fs::isDir(fsPath)) {
             fsPath = fsPath.push("index.html");
         }
 

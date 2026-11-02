@@ -157,7 +157,7 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     The two sites link each other: `RepoDocBuilder` gives the doc pages a `Coverage` top-bar link
     whenever coverage is requested or `__coverage/index.html` already exists (and regenerates
     otherwise up-to-date pages when that link changes), `docLinks()` links the coverage pages back.
-  - `doc_server.yr` — `RepoDocServer`: `gyllir doc serve`, an `std::net` `HttpServer` over an
+  - `doc_server.yr` — `RepoDocServer`: `gyllir doc serve`, a `heimdall::http` `HttpServer` over an
     already-generated documentation directory. Beyond the files, it answers `POST /symbol`
     (`{"query", "type"}`) from a `doc::index::SymbolIndex` preloaded from the target's
     `.doc.json`, and adds a `serve: true` flag to the `window.GYLLIR_DOC` object of every page it

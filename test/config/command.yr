@@ -1,6 +1,6 @@
 use gyllir::config::command;
 
-use std::config::{_, conv, json};
+use std::config::{_, json};
 
 __test default_constructor_empty_list {
     // The default constructor produces an empty command list

@@ -2,7 +2,7 @@ in bump;
 
 use gyllir::{config::_, utils::_};
 
-use std::{config::_, fs::_, fs::errors, fs::path};
+use std::{config, fs};
 
 /**
  * The 'gyllir bump' sub command: computes the next version of the package, and writes it back to

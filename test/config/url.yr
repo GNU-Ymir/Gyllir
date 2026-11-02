@@ -1,6 +1,6 @@
 use gyllir::config::url;
 
-use std::config::{_, conv, json};
+use std::config::{_, json};
 
 __test default_url_is_empty_local_invalid {
     // A default-constructed url is empty, of type LOCAL, and invalid

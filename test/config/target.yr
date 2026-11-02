@@ -1,6 +1,6 @@
 use gyllir::config::_;
 
-use std::config::{_, conv, json};
+use std::config::{_, json};
 
 __test target_defaults_fall_back_to_name {
     // A target only given a name and a type falls back on the name for everything it does not declare

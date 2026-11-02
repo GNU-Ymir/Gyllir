@@ -4,8 +4,8 @@ use gyllir::utils::log;
 
 use etc::c::files;
 
-use std::{fs::_, io};
-use std::time::dur;
+use std::{fs, io};
+use std::time;
 
 // The largest number of cells of the bar
 def WIDTH = 40us;
@@ -90,7 +90,7 @@ pub class DownloadProgress {
 
     fn pollLoop(mut self) {
         loop {
-            sleep(dur::millis(REFRESH));
+            sleep(time::millis(REFRESH));
             atomic self {
                 if self._stopped return;
                 self:.poll();
@@ -108,7 +108,7 @@ pub class DownloadProgress {
      * */
     fn poll(mut self) {
         self._done = {
-            sys::fileSize(self._file).bytes
+            fs::fileSize(self._file).bytes
         } catch {
             _ => { self._done }
         };

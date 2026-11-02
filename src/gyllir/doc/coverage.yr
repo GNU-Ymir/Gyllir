@@ -2,8 +2,8 @@ in coverage;
 
 use std::char;
 use std::algorithm::sorting;
-use std::config::data;
-use std::fs::path;
+use std::config;
+use std::fs;
 
 /**
  * The kind of a coverage location, the third member of every entry of a function's 'locations'

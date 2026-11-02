@@ -1,7 +1,7 @@
 in any;
 
 use std::stream;
-use std::fs::path;
+use std::fs;
 
 pub lazy EMPTY_ANY = copy AnyType("", "");
 

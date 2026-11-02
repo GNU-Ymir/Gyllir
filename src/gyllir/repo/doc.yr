@@ -4,8 +4,8 @@ use gyllir::{config::_, repo::_};
 use gyllir::doc::{_, html::_, symbols::_, types};
 use gyllir::utils::git;
 
-use std::{config::_, env, fs::_, fs::errors, fs::path, io, stream, syntax::_};
-use std::concurrency::process;
+use std::{config, env, fs, io, stream, syntax};
+use std::concurrency;
 
 pub record RepoDocBuilder {
 
@@ -163,7 +163,7 @@ pub record RepoDocBuilder {
      * */
     fn coverageUrl(self, baseDir: Path)-> [c8] {
         let index = "index." ~ defaults::__HTML_EXTENSION__;
-        if (!coverageRequested(self._args) && !fs::sys::isFile(baseDir.push(defaults::__COVERAGE_DIR__).push(index))) {
+        if (!coverageRequested(self._args) && !fs::isFile(baseDir.push(defaults::__COVERAGE_DIR__).push(index))) {
             return "";
         }
 
@@ -208,7 +208,7 @@ pub record RepoDocBuilder {
      * @returns: the content of 'p', or an empty string if it does not exist / cannot be read
      * */
     fn tryReadFile(self, p: Path)-> [c8] {
-        if (!fs::sys::isFile(p)) { return ""; }
+        if (!fs::isFile(p)) { return ""; }
 
         let dmut f = File::open(p, read-> true);
         let c      = f:.readAll();
@@ -248,9 +248,9 @@ pub record RepoDocBuilder {
      * */
     fn copyRessources(self, outDir: Path) {
         let ymir_res = ressources::RES_ROOT;
-        fs::sys::copyDir(ymir_res.push("js"), outDir.push("js"), recursive-> true, create-> true);
-        fs::sys::copyDir(ymir_res.push("css"), outDir.push("css"), recursive-> true, create-> true);
-        fs::sys::copyDir(ymir_res.push("ico"), outDir.push("ico"), recursive-> true, create-> true);
+        fs::copyDir(ymir_res.push("js"), outDir.push("js"), recursive-> true, create-> true);
+        fs::copyDir(ymir_res.push("css"), outDir.push("css"), recursive-> true, create-> true);
+        fs::copyDir(ymir_res.push("ico"), outDir.push("ico"), recursive-> true, create-> true);
     } catch {
         FsError() => {
             utils::log::error("Error", "failed to create directory '", outDir.toStr(), "'");

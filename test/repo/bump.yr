@@ -3,8 +3,8 @@ use ::repo::fixture;
 use gyllir::{config::_, utils::_};
 use gyllir::repo::{bump, defaults};
 
-use std::{config::_, config::toml, fs::_};
-use std::concurrency::process;
+use std::{config, config::toml, fs};
+use std::concurrency;
 
 /**
  * A project whose version can be bumped: its sources, its 'gyllir.toml' and a git repository
@@ -199,7 +199,7 @@ __test bump_round_trips_the_rest_of_the_configuration {
     // targets, nor the dependencies, nor any other entry is lost or changed on the way
     let dep = mkLibraryProject();
     for cfg in [mkMultiTargetConfig(), mkConfigWithDependency("app", "executable", "mylib", dep, version-> ">=1.0.0")] {
-        let dir = sys::tempDirectory(prefix-> "gyllir_bump_");
+        let dir = fs::tempDirectory(prefix-> "gyllir_bump_");
         writeToml(dir, cfg);
 
         let bumper  = RepoBumper(dir, mkBumpArgs(flags-> copy ["minor"]), cfg);

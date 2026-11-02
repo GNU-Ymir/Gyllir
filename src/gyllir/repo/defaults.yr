@@ -1,6 +1,6 @@
 in defaults;
 
-use std::fs::path;
+use std::fs;
 
 /**
  * The filename of the configuration

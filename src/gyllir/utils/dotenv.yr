@@ -1,6 +1,6 @@
 in dotenv;
 
-use std::fs::{errors, file, path};
+use std::fs;
 
 /**
  * Parse the content of an environment file('--env-file'), one 'KEY=VALUE' per line.

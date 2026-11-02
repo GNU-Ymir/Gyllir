@@ -1,8 +1,8 @@
 use gyllir::config::{_, lock};
 use gyllir::config::version::filter;
 
-use std::{config::_, config::conv, config::json, config::toml};
-use std::conv::errors;
+use std::{config, config::json, config::toml};
+use std::conv;
 
 /*!
  * ====================================================================================================

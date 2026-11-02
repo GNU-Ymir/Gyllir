@@ -1,7 +1,7 @@
 in filter;
 
-use std::{config::_, stream};
-use std::syntax::tokenizer;
+use std::{config, stream};
+use std::syntax;
 
 enum FilterKind: u8
 | SUP    = 1

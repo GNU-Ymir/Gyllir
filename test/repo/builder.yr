@@ -2,7 +2,7 @@ use ::repo::fixture;
 use gyllir::config::_;
 use gyllir::repo::{builder, defaults, manager};
 
-use std::{config::_, config::json, fs::_};
+use std::{config, config::json, fs};
 
 /**
  * Create the build cache of a target, containing a YIL and a deps file for each of the given module
@@ -14,9 +14,9 @@ use std::{config::_, config::json, fs::_};
 fn mkCacheDir(names: [[c8]])-> (Path, Path)
     throws FsError
 {
-    let dir      = sys::tempDirectory(prefix-> "gyllir_builder_test_");
+    let dir      = fs::tempDirectory(prefix-> "gyllir_builder_test_");
     let cacheDir = defaults::targetCacheDir(dir, "myapp", defaults::__CACHE_DEBUG_DIR__);
-    sys::createDir(cacheDir.push(defaults::__YIL_DIR__), recursive-> true);
+    fs::createDir(cacheDir.push(defaults::__YIL_DIR__), recursive-> true);
 
     for n in names {
         let dmut y = File::create(
@@ -39,11 +39,11 @@ fn mkBuilder(dir: Path)-> RepoBuilder {
 }
 
 fn hasYIL(cacheDir: Path, name: [c8])-> bool {
-    sys::isFile(cacheDir.push(defaults::__YIL_DIR__).push(name).addExtension(defaults::__YIL_EXTENSION__))
+    fs::isFile(cacheDir.push(defaults::__YIL_DIR__).push(name).addExtension(defaults::__YIL_EXTENSION__))
 }
 
 fn hasDeps(cacheDir: Path, name: [c8])-> bool {
-    sys::isFile(cacheDir.push(name).addExtension(defaults::__DEPS_EXTENSION__))
+    fs::isFile(cacheDir.push(name).addExtension(defaults::__DEPS_EXTENSION__))
 }
 
 /**
@@ -128,7 +128,7 @@ __test executable_project_compiles_and_produces_binary {
            "the YIL bytecode of the root module should be cached");
     assert(hasCacheFile(dir, "myapp", defaults::__CACHE_DEBUG_DIR__, "main.deps"),
            "the dependency file of the root module should be exported");
-    assert(!sys::isDir(dir.push(defaults::__CACHE_TMP_DIR__)),
+    assert(!fs::isDir(dir.push(defaults::__CACHE_TMP_DIR__)),
            "the temporary compilation directory should be cleaned up");
 
     assert(includes.len == 1us, "the root source file should be exported, for the packages depending on this one");
@@ -148,11 +148,11 @@ __test rebuild_skips_up_to_date_cache {
         .push(defaults::__YIL_DIR__)
         .push("main")
         .addExtension(defaults::__YIL_EXTENSION__);
-    let fstDate = sys::fileDate(yil);
+    let fstDate = fs::fileDate(yil);
 
     RepoBuilder(dir, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
 
-    assert(sys::fileDate(yil) == fstDate, "an unchanged module should not be recompiled");
+    assert(fs::fileDate(yil) == fstDate, "an unchanged module should not be recompiled");
     assert(hasFile(dir, "myapp"), "the executable should still be there after a no-op build");
 }
 
@@ -166,7 +166,7 @@ __test release_build_uses_separate_cache_dir {
 
     assert(hasCacheFile(dir, "myapp", defaults::__CACHE_RELEASE_DIR__, "myapp.a"),
            "the release object archive should be cached apart from the debug one");
-    assert(!sys::isDir(defaults::targetCacheDir(dir, "myapp", defaults::__CACHE_DEBUG_DIR__)),
+    assert(!fs::isDir(defaults::targetCacheDir(dir, "myapp", defaults::__CACHE_DEBUG_DIR__)),
            "a release build should not populate the debug cache");
     assert(hasFile(dir, "myapp"), "the executable should be produced at the root of the project");
 }
@@ -270,7 +270,7 @@ __test removed_module_dropped_and_target_relinked {
            "sanity: the helper module should be compiled");
 
     // drop the module, and the reference to it in the root file
-    sys::removeFile(dir.push(defaults::__SRC_DIR__).push("helper").addExtension(defaults::__YMIR_EXTENSION__));
+    fs::removeFile(dir.push(defaults::__SRC_DIR__).push("helper").addExtension(defaults::__YMIR_EXTENSION__));
     writeSource(dir.push(defaults::__SRC_DIR__).push(defaults::__LIB_FILE__), "pub fn root()-> i32 {\n    42\n}\n");
 
     RepoBuilder(dir, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
@@ -307,7 +307,7 @@ __test package_root_and_test_root_name_explicit_files {
     assert(hasFile(dir, "myapp.test"), "the unittest executable should be produced");
     assert(hasCacheFile(dir, "myapp", defaults::__CACHE_UNIT_RELEASE_DIR__, "myapp.a"),
            "a release unittest build should have a cache of its own");
-    assert(!sys::isDir(defaults::targetCacheDir(dir, "myapp", defaults::__CACHE_UNIT_DEBUG_DIR__)),
+    assert(!fs::isDir(defaults::targetCacheDir(dir, "myapp", defaults::__CACHE_UNIT_DEBUG_DIR__)),
            "a release build should not populate the debug cache");
 }
 
@@ -334,7 +334,7 @@ __test declared_target_rooted_at_named_module {
            "the target should cache under '.target/<target>'");
     assert(hasCacheFile(dir, "tool", defaults::__CACHE_DEBUG_DIR__, "yils/tool.yil"),
            "the root module of the target should be compiled");
-    assert(!sys::isDir(defaults::targetCacheDir(dir, "cli", defaults::__CACHE_DEBUG_DIR__)),
+    assert(!fs::isDir(defaults::targetCacheDir(dir, "cli", defaults::__CACHE_DEBUG_DIR__)),
            "the other targets should be left alone");
     assert(!hasFile(dir, "cli"), "the artifact of another target should not be produced");
 }
@@ -496,7 +496,7 @@ __test target_selecting_no_dependency_links_nothing {
     RepoBuilder(app, mkBuildArgs(), cfg, namedTarget(cfg, "app"), forUnitTest-> false).run(alias mgr);
 
     assert(hasFile(app, "app"), "the target should have been built");
-    assert(!sys::isDir(app.push(defaults::__DEPENCY_DIR__)), "a target selecting no dependency should not resolve any");
+    assert(!fs::isDir(app.push(defaults::__DEPENCY_DIR__)), "a target selecting no dependency should not resolve any");
 }
 
 __test target_selecting_dependency_resolves_and_links {
@@ -513,7 +513,7 @@ __test target_selecting_dependency_resolves_and_links {
 
     let (_, links) = RepoBuilder(app, mkBuildArgs(), cfg, namedTarget(cfg, "app"), forUnitTest-> false).run(alias mgr);
 
-    assert(sys::isLink(app.push(defaults::__DEPENCY_DIR__).push("mylib")),
+    assert(fs::isLink(app.push(defaults::__DEPENCY_DIR__).push("mylib")),
            "the selected dependency should be resolved");
     assert(links.len == 1us, "the archive of the selected dependency should be linked");
     assert(hasFile(app, "app"), "the target should have been built");

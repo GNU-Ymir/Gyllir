@@ -1,6 +1,6 @@
 in overlay;
 
-use std::config::data;
+use std::config;
 
 /*!
  * A 'gyllir.toml.override' sitting next to a 'gyllir.toml' is read on top of it, so that the

@@ -3,9 +3,9 @@ use ::repo::fixture;
 use gyllir::config::_;
 use gyllir::repo::{csources, defaults, manager, runner};
 
-use std::fs::_;
-use std::config::data;
-use std::time::dur;
+use std::fs;
+use std::config;
+use std::time;
 
 /**
  * A 'CSourceBuilder' over a target declaring 'cSources', rooted at 'dir'
@@ -53,7 +53,7 @@ fn hasSuffix(paths: [Path], suffix: [c8])-> bool {
 
 __test literal_pattern_resolves_as_is {
     // A literal entry is resolved as-is, relative to the package directory, without checking that it exists
-    let dir     = sys::tempDirectory(prefix-> "gyllir_csrc_test_");
+    let dir     = fs::tempDirectory(prefix-> "gyllir_csrc_test_");
     let builder = mkBuilder(dir, copy ["glue.c"]);
 
     assert(builder.resolvePatterns() == copy [dir.push("glue.c")], "a literal path should resolve to itself");
@@ -61,7 +61,7 @@ __test literal_pattern_resolves_as_is {
 
 __test nonrecursive_glob_lists_top_level_sources {
     // A non recursive glob only lists the C sources directly inside the named directory
-    let dir = sys::tempDirectory(prefix-> "gyllir_csrc_test_");
+    let dir = fs::tempDirectory(prefix-> "gyllir_csrc_test_");
     writeSource(dir.push("csrc").push("one").addExtension(defaults::__C_EXTENSION__), "int one(void) { return 1; }\n");
     writeSource(dir.push("csrc").push("two").addExtension(defaults::__C_EXTENSION__), "int two(void) { return 2; }\n");
     writeSource(dir.push("csrc").push("readme").addExtension("txt"), "not a C source\n");
@@ -77,7 +77,7 @@ __test nonrecursive_glob_lists_top_level_sources {
 
 __test recursive_glob_lists_all_depths {
     // A recursive glob lists the C sources found at any depth under the named directory
-    let dir = sys::tempDirectory(prefix-> "gyllir_csrc_test_");
+    let dir = fs::tempDirectory(prefix-> "gyllir_csrc_test_");
     writeSource(dir.push("csrc").push("one").addExtension(defaults::__C_EXTENSION__), "int one(void) { return 1; }\n");
     writeSource(dir.push("csrc").push("nested").push("deep").push("two").addExtension(defaults::__C_EXTENSION__),
                 "int two(void) { return 2; }\n");
@@ -91,7 +91,7 @@ __test recursive_glob_lists_all_depths {
 
 __test multiple_patterns_all_resolved {
     // Several patterns declared by the same target are all resolved, one after the other
-    let dir = sys::tempDirectory(prefix-> "gyllir_csrc_test_");
+    let dir = fs::tempDirectory(prefix-> "gyllir_csrc_test_");
     writeSource(dir.push("csrc").push("one").addExtension(defaults::__C_EXTENSION__), "int one(void) { return 1; }\n");
     writeSource(dir.push("extra").push("two").addExtension(defaults::__C_EXTENSION__), "int two(void) { return 2; }\n");
 
@@ -102,7 +102,7 @@ __test multiple_patterns_all_resolved {
 
 __test missing_directory_resolves_to_no_source {
     // A glob naming a directory that does not exist resolves to no source, instead of throwing
-    let dir = sys::tempDirectory(prefix-> "gyllir_csrc_test_");
+    let dir = fs::tempDirectory(prefix-> "gyllir_csrc_test_");
 
     assert(mkBuilder(dir, copy ["nope/*.c"]).resolvePatterns() == [],
            "a missing directory should resolve to no source");
@@ -120,7 +120,7 @@ __test missing_directory_resolves_to_no_source {
 
 __test missing_object_needs_recompile {
     // A missing object file always needs a (re)compile
-    let dir     = sys::tempDirectory(prefix-> "gyllir_csrc_test_");
+    let dir     = fs::tempDirectory(prefix-> "gyllir_csrc_test_");
     let builder = mkBuilder(dir, []);
     writeSource(dir.push("src.c"), "int x(void) { return 0; }\n");
 
@@ -129,7 +129,7 @@ __test missing_object_needs_recompile {
 
 __test newer_object_is_up_to_date {
     // An object file newer than its source is up to date
-    let dir     = sys::tempDirectory(prefix-> "gyllir_csrc_test_");
+    let dir     = fs::tempDirectory(prefix-> "gyllir_csrc_test_");
     let builder = mkBuilder(dir, []);
     writeSource(dir.push("src.c"), "int x(void) { return 0; }\n");
     sleep(seconds(1u64));
@@ -141,7 +141,7 @@ __test newer_object_is_up_to_date {
 
 __test newer_source_needs_recompile {
     // A source touched after its object needs a recompile
-    let dir     = sys::tempDirectory(prefix-> "gyllir_csrc_test_");
+    let dir     = fs::tempDirectory(prefix-> "gyllir_csrc_test_");
     let builder = mkBuilder(dir, []);
     writeSource(dir.push("obj.o"), "not a real object, only its date matters here\n");
     sleep(seconds(1u64));
@@ -221,14 +221,14 @@ __test target_cflags_appended_last {
 
 __test run_short_circuits_without_c_sources {
     // run() short circuits before touching the filesystem when the target declares no C source
-    let dir      = sys::tempDirectory(prefix-> "gyllir_csrc_test_");
+    let dir      = fs::tempDirectory(prefix-> "gyllir_csrc_test_");
     let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
     let builder  = mkBuilder(dir, []);
 
     let objs = builder.run(alias mgr, dir.push(".target").push("mylib").push("debug"));
 
     assert(objs == [], "a target declaring no C source should produce no object file");
-    assert(!sys::isDir(dir.push(".target")), "no cache directory should be created when there is nothing to compile");
+    assert(!fs::isDir(dir.push(".target")), "no cache directory should be created when there is nothing to compile");
 }
 
 /*!
@@ -272,11 +272,11 @@ __test rebuild_skips_up_to_date_sources {
         .push(defaults::__CACHE_C_DIR__)
         .push("csrc_nested_answer")
         .addExtension(defaults::__OBJECT_EXTENSION__);
-    let fstDate = sys::fileDate(objFile);
+    let fstDate = fs::fileDate(objFile);
 
     mgr:.buildTargets(dir, mkBuildArgs(), cfg, copy ["mylib" => ()]);
 
-    assert(sys::fileDate(objFile) == fstDate, "an unchanged C source should not be recompiled");
+    assert(fs::fileDate(objFile) == fstDate, "an unchanged C source should not be recompiled");
 }
 
 __test changed_source_triggers_recompile {

@@ -1,6 +1,6 @@
 in ressources;
 
-use std::fs::_;
+use std::fs;
 
 /**
  * The directory the html/css/js/ico resources are read from: the installed location a packaged
