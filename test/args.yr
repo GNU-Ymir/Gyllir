@@ -515,3 +515,29 @@ __test doc_serve_target_may_appear_among_flags {
     assert(flag(doc, "serve"), "\"serve\" should be set");
     assert(target(doc) == "cli", "the target should be parsed among the flags");
 }
+
+__test install_flag_defaults {
+    // 'install' defaults: nothing is installed under another prefix, and nothing is dry
+    let install = sub(parse(copy ["gyllir", "install"]), "install");
+
+    assert(!flag(install, "release"), "release should default to false");
+    assert(!flag(install, "dry-run"), "dry-run should default to false");
+    assert("prefix" !in install, "an unspecified prefix should be absent");
+    assert("target" !in install, "no target should be selected by default");
+}
+
+__test install_with_every_option {
+    // the value of '--prefix' is never mistaken for the name of a target
+    let install = sub(parse(copy ["gyllir", "install", "--prefix", "/opt/tool", "cli", "--release", "--dry-run"]),
+                      "install");
+
+    assert(flag(install, "release"), "--release should be parsed");
+    assert(flag(install, "dry-run"), "--dry-run should be parsed");
+    if let Ok(Str(value-> p)) = install["prefix"]? {
+        assert(p == "/opt/tool", "unexpected prefix: " ~ p);
+    } else assert(false, "--prefix should be parsed");
+
+    if let Ok(Str(value-> t)) = install["target"]? {
+        assert(t == "cli", "unexpected target: " ~ t);
+    } else assert(false, "the target should be extracted");
+}

@@ -1,0 +1,405 @@
+in installer;
+
+use gyllir::config::_;
+use gyllir::repo::manager;
+
+use std::{config, config::toml, stream};
+use std::fs;
+
+/**
+ * A command line 'gyllir install' runs
+ * */
+pub record InstallStep {
+
+    // Where the command line comes from, for error reporting: the '[install.<name>]' table that
+    // declares it, or the target installed by default
+    let _origin: [c8];
+
+    // The command line as written in the table, placeholders unresolved, "" for a default step
+    let _raw: [c8];
+
+    // The arguments of the command line, its program first
+    let _argv: [[c8]];
+
+    // The directory the command line runs from
+    let _cwd: Path;
+
+    pub self (origin: [c8], raw: [c8], argv: [[c8]], cwd: Path)
+        with _origin = origin
+        , _raw = raw
+        , _argv = argv
+        , _cwd = cwd
+    {}
+
+    @field
+    pub fn origin(self)-> [c8] {
+        self._origin
+    }
+
+    @field
+    pub fn raw(self)-> [c8] {
+        self._raw
+    }
+
+    @field
+    pub fn argv(self)-> [[c8]] {
+        self._argv
+    }
+
+    @field
+    pub fn cwd(self)-> Path {
+        self._cwd
+    }
+
+    /**
+     * @returns: the command line, its arguments holding a blank quoted, to be printed
+     * */
+    pub fn display(self)-> [c8] {
+        let dmut stream = copy StringStream();
+        for i, a in self._argv {
+            if (i != 0us) { stream:.write(" "s8); }
+
+            let mut blank = a.len == 0us;
+            for c in a if (c == ' 'c8 || c == '\t'c8) { blank = true; }
+
+            if (blank) {
+                stream:.write("'"s8, a, "'"s8);
+            } else {
+                stream:.write(a);
+            }
+        }
+
+        stream[]
+    }
+}
+
+/**
+ * 'gyllir install': installs a built package on the machine.
+ *
+ * A package declaring '[install.<name>]' tables says what installing it means: their command lines
+ * run once for the whole package, in the alphabetical order of the table names, and in the order
+ * they are written within a table. A package declaring none has each of its executables installed
+ * into '<prefix>/bin', and what was installed recorded in '<prefix>/share/gyllir/installed', so that
+ * it can be removed later. A library declares nothing gyllir could install without guessing, it
+ * needs an '[install]' table.
+ *
+ * Nothing is ever run with more privileges than gyllir itself has: a default install that cannot
+ * write where it installs is refused before anything is built, and a declared command line needing
+ * root writes its own 'sudo'.
+ * */
+pub record RepoInstaller {
+
+    // The root directory of the package
+    let _cwd: Path;
+
+    // The command line options
+    let _args: &Config;
+
+    // The package configuration
+    let _cfg: GyllirPackageConfiguration;
+
+    // The targets selected by the command line, in the order they are built
+    let _targets: [Target];
+
+    // The directory the package is installed under, absolute
+    let _prefix: Path;
+
+    /**
+     * @params:
+     *    - path: the root directory of the package
+     *    - args: the configuration of the 'install' sub command
+     *    - cfg: the configuration of the package
+     *    - targets: the targets selected by the command line, in the order they are built
+     * */
+    pub self (path: Path, args: &Config, cfg: GyllirPackageConfiguration, targets: [Target])
+        with _cwd = path
+        , _args = args
+        , _cfg = cfg
+        , _targets = targets
+        , _prefix = prefixOf(path, args)
+    {}
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          GETTERS          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * @returns: the directory the package is installed under, absolute
+     * */
+    pub fn prefix(self)-> Path {
+        self._prefix
+    }
+
+    /**
+     * @returns: true iif the command line only asks for the commands to be printed('--dry-run')
+     * */
+    pub fn isDry(self)-> bool {
+        if let Ok(Bool(value-> _ = true)) = self._args["dry-run"]? {
+            return true;
+        }
+
+        false
+    }
+
+    /**
+     * @returns: true iif the package declares no '[install.<name>]' table, and is installed by default
+     * */
+    pub fn isDefault(self)-> bool {
+        self._cfg.install[].len == 0us
+    }
+
+    /**
+     * The command lines installing the package, in the order they run
+     * @throws:
+     *    - AssertError: there is nothing to install(a package of libraries declaring no '[install]'
+     *      table), the command line names a target while the package declares '[install]' tables,
+     *      or a placeholder does not resolve
+     * */
+    pub fn steps(self)-> [InstallStep]
+        throws AssertError
+    {
+        if (self.isDefault()) { return self.defaultSteps(); }
+
+        if let Ok(Str(value-> name)) = self._args["target"]? {
+            throw copy AssertError("'gyllir install " ~ name ~ "': the package declares '[install.<name>]' tables, "
+                                   ~ "which install the whole package, a target can only be named when its "
+                                   ~ "executables are installed by default");
+        }
+
+        let mut res: [InstallStep] = [];
+        for entry in self._cfg.install.sorted() {
+            let (name, c) = entry;
+            let origin = "[install." ~ name ~ "]";
+            let (lines, cwd) = {
+                self._cfg.expandInstallCommand(c, self._prefix.toStr())
+            } catch {
+                err: &AssertError => {
+                    throw copy AssertError("'" ~ origin ~ "', " ~ err.msg);
+                }
+            };
+
+            let path = if (cwd.isAbsolute()) {
+                cwd
+            } else if (cwd.toStr() == "." || cwd.toStr() == "") {
+                self._cwd
+            } else { self._cwd.push(cwd.toStr()) };
+            for i, argv in lines {
+                res ~= [InstallStep(origin, c.cmds[i], argv, path)];
+            }
+        }
+
+        res
+    }
+
+    /**
+     * @returns: the files a default install installs, in the order they are installed, [] for a
+     *    package declaring '[install.<name>]' tables, whose commands gyllir knows nothing about
+     * */
+    pub fn installedFiles(self)-> [Path] {
+        if (!self.isDefault()) { return []; }
+
+        let mut res: [Path] = [];
+        for t in self._targets if t.type.isExecutable() {
+            res ~= [self.binDir().push(t.outputName())];
+        }
+
+        res
+    }
+
+    /**
+     * @returns: the file recording what a default install installed
+     * */
+    pub fn recordFile(self)-> Path {
+        self._prefix.push(defaults::__INSTALL_RECORD_DIR__).push(self._cfg.name).addExtension(defaults::__TOML_EXTENSION__)
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * =====================================          RUN          ========================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Refuse an install that cannot succeed, before anything is built: one that has nothing to
+     * install, and a default install that cannot write where it installs
+     * @throws:
+     *    - AssertError: naming what is wrong, and what to do about it
+     * */
+    pub fn check(self)
+        throws AssertError
+    {
+        self.steps();
+        if (!self.isDefault() || self.isDry()) { return; }
+
+        for dir in [self.binDir(), self.recordFile().parent()] {
+            let existing = nearestDir(dir);
+            if (!fs::isWritable(existing)) {
+                throw copy AssertError("cannot install into '" ~ dir.toStr() ~ "', '" ~ existing.toStr()
+                                       ~ "' is not writable: install with the privileges it needs (e.g. 'sudo "
+                                       ~ "gyllir install'), or somewhere else with '--prefix <dir>'");
+            }
+        }
+    }
+
+    /**
+     * Install the package, once it is built: run the command lines of 'steps', one after the other,
+     * stopping at the first that fails, then record what a default install installed. With
+     * '--dry-run', only print them
+     * @params:
+     *    - context: the manager running the sub command
+     * @throws:
+     *    - AssertError: a command line failed
+     * */
+    pub fn run(self, context: &GyllirManager)
+        throws AssertError
+    {
+        let steps = self.steps();
+        let dry   = self.isDry();
+
+        for s in steps {
+            if (dry) {
+                if (s.cwd.toStr() == self._cwd.toStr()) {
+                    utils::log::info("Would run", s.display());
+                } else {
+                    utils::log::info("Would run", s.display(), "  (in ", s.cwd.toStr(), ")");
+                }
+
+                continue;
+            }
+
+            utils::log::info("Installing", s.display());
+            let argv = s.argv;
+            let succ = if (argv.len > 0us) {
+                context.runProcess(argv[0], argv[1us .. $], cwd-> s.cwd)
+            } else { false };
+
+            if (!succ) {
+                if (s.raw != "") {
+                    throw copy AssertError("command line '" ~ s.raw ~ "' of '" ~ s.origin ~ "' failed, the lines after it "
+                                           ~ "were not run");
+                }
+
+                throw copy AssertError("failed to install " ~ s.origin ~ ": " ~ s.display());
+            }
+        }
+
+        let files = self.installedFiles();
+        if (files.len == 0us) { return; }
+
+        if (dry) {
+            utils::log::info("Would record", "the installed files in ", self.recordFile().toStr());
+        } else {
+            self.writeRecord(files);
+        }
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * ====================================          PRIVATE          =====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * @returns: the directory the executables are installed into by default
+     * */
+    prv fn binDir(self)-> Path {
+        self._prefix.push(defaults::__INSTALL_BIN_DIR__)
+    }
+
+    /**
+     * The command lines installing each selected executable into '<prefix>/bin'
+     * @throws:
+     *    - AssertError: no selected target is an executable
+     * */
+    prv fn defaultSteps(self)-> [InstallStep]
+        throws AssertError
+    {
+        let mut res: [InstallStep] = [];
+        for t in self._targets if t.type.isExecutable() {
+            let argv = copy [defaults::__INSTALL_COMMAND__,
+                             "-D",
+                             "-m",
+                             defaults::__INSTALL_EXEC_MODE__,
+                             self._cwd.push(t.outputName()).toStr(),
+                             self.binDir().push(t.outputName()).toStr()];
+
+            res ~= [InstallStep("target '" ~ t.name ~ "'", "", argv, self._cwd)];
+        }
+
+        if (res.len == 0us) {
+            let what = if (self._targets.len == 1us) {
+                "'" ~ self._targets[0].name ~ "' is a library"
+            } else { "no selected target is an executable"s8 };
+
+            throw copy AssertError("nothing to install: " ~ what ~ ", and the package declares no "
+                                   ~ "'[install.<name>]' table saying what installing it means");
+        }
+
+        res
+    }
+
+    /**
+     * Record the files a default install installed, so that they can be removed later
+     * @params:
+     *    - files: the installed files
+     * @info: the files are installed by then, failing to record them is only worth a warning
+     * */
+    prv fn writeRecord(self, files: [Path]) {
+        let dmut d = copy Dict();
+        d["name"] = copy Str(self._cfg.name);
+        d["version"] = copy Str(self._cfg.version[]);
+        d["prefix"] = copy Str(self._prefix.toStr());
+        d["files"] = copy Array(copy [copy Str(f.toStr()) for f in files]);
+
+        let file = self.recordFile();
+        fs::createDir(file.parent(), recursive-> true);
+        fs::writeFile(file, toml::dump(d));
+        utils::log::info("Recorded", "the installed files in ", file.toStr());
+    } catch {
+        e: &FsError => {
+            utils::log::warn("Installing", "could not record the installed files in ", self.recordFile().toStr(), ": ",
+                             e.msg);
+        }
+    }
+}
+
+/**
+ * @params:
+ *    - cwd: the root directory of the package
+ *    - args: the configuration of the 'install' sub command
+ * @returns: the directory to install under, absolute: the one of '--prefix', relative to the package
+ *    directory, or the default one
+ * */
+prv fn prefixOf(cwd: Path, args: &Config)-> Path {
+    if let Ok(Str(value-> p)) = args["prefix"]? {
+        let path = Path(p);
+        if (path.isAbsolute()) { return path; }
+
+        return cwd.push(p);
+    }
+
+    Path(defaults::__INSTALL_DEFAULT_PREFIX__)
+}
+
+/**
+ * @returns: 'dir' if it is an existing directory, its nearest ancestor that is one otherwise: the
+ *    one an install creating 'dir' has to write into
+ * */
+prv fn nearestDir(dir: Path)-> Path {
+    let mut d = dir;
+    while (!fs::isDir(d)) {
+        let p = d.parent();
+        if (p.toStr() == d.toStr() || p.toStr() == "") { break; }
+        d = p;
+    }
+
+    d
+}

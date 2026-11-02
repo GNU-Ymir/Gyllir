@@ -6,6 +6,7 @@ pub mod ::builder;
 pub mod ::csources;
 pub mod ::defaults;
 pub mod ::runner;
+pub mod ::installer;
 pub mod ::cleaner;
 pub mod ::bump;
 pub mod ::doc;

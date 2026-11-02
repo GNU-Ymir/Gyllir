@@ -116,6 +116,28 @@ pub class GyllirManager {
             self.writeLock(cwd, cfg);
 
             etc::c::process::_yrt_exit(RepoRunner(cwd, forwarded, cfg, target, forUnitTest-> false).run());
+        } else if let Ok(c) = self._args["install"]? {
+            let cwd       = env::currentDir();
+            let cfg       = self:.loadToml(cwd);
+            let selected  = self.selectTargets(cfg, c);
+            let mut targets: [Target] = [];
+            for t in self.orderedTargets(cfg, cfg.targets()) if t.name in selected {
+                targets ~= [t];
+            }
+
+            // refused before anything is built: an install with nothing to install, or that cannot
+            // write where it installs, is not worth a build
+            let installer = RepoInstaller(cwd, c, cfg, targets);
+            installer.check();
+
+            // '--dry-run' prints what would be installed, it builds nothing either
+            if (!installer.isDry()) {
+                self:.loadLock(cwd, c, cfg);
+                self:.buildTargets(cwd, c, cfg, selected);
+                self.writeLock(cwd, cfg);
+            }
+
+            installer.run(self);
         } else if let Ok(c) = self._args["update"]? {
             let cwd = env::currentDir();
             let cfg = self:.loadToml(cwd);
