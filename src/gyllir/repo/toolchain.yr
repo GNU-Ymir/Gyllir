@@ -413,7 +413,7 @@ fn run(cmd: [c8], args: [[c8]])-> (i32, [c8]) {
     proc:.start();
 
     let code = proc:.wait();
-    let dmut out: [c8] = [];
+    let mut out: [c8] = [];
     if (code == 0) {
         let dmut pipe = alias proc.stdout;
         while let Ok(c) = pipe:.read!c8()? { out ~= [c]; }

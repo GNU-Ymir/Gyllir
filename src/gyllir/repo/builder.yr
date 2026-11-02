@@ -926,7 +926,7 @@ pub record RepoBuilder {
             }
 
             {
-                let dmut results: [Path] = [];
+                let mut results: [Path] = [];
                 let dmut f               = File::open(depFile, read-> true);
                 while let line = f:.readUntil("\n") && line.len > 0 {
                     let currPath = if line[$ - 1] == '\n' {
@@ -963,7 +963,7 @@ pub record RepoBuilder {
      * @returns: the list of source files
      * */
     prv fn listFilesInDir(self, root: Path, curr: Path, extension: [c8])-> [Path] {
-        let dmut result: [Path] = [];
+        let mut result: [Path] = [];
         {
             for entry in fs::readDir(curr) {
                 match entry {
@@ -1159,8 +1159,8 @@ pub record RepoBuilder {
     prv fn resolveDependencies(self, dmut context: &GyllirManager)-> ([Path], [Path])
         throws RecursiveDependency
     {
-        let dmut libs: [Path]  = [];
-        let dmut names: [Path] = [];
+        let mut libs: [Path]  = [];
+        let mut names: [Path] = [];
         for k, d in self._cfg.dependencies[] if self._target.selects(k) {
             let (n, l) = context:.resolveDependency(self._args, self._cwd, k, d, dry-> (self._forDoc || self._dry));
             libs ~= l;

@@ -206,7 +206,7 @@ pub record CSourceBuilder {
      * List the source files that can be found in the directory 'root' (recursively)
      * */
     prv fn listFilesInDir(self, root: Path, curr: Path, extension: [c8])-> [Path] {
-        let dmut result: [Path] = [];
+        let mut result: [Path] = [];
         {
             for entry in fs::readDir(curr) {
                 match entry {

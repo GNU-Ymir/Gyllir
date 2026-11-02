@@ -149,7 +149,7 @@ pub record SymbolLoader {
      * Load parameters from configuration
      * */
     fn loadParams(self, func: &Dict)-> [&Variable] {
-        let mut vars: [mut &Variable] = [];
+        let mut vars: [&Variable] = [];
         if let Ok(params: &Array) = func["params"]? {
             for a in params[] {
                 let (name, doc, loc, protection) = self.loadStandard(a);
@@ -177,7 +177,7 @@ pub record SymbolLoader {
      * Load the throwers of a function/ctors/etc..
      * */
     fn loadThrowers(self, func: &Dict)-> [&Type] {
-        let mut res: [mut &Type] = [];
+        let mut res: [&Type] = [];
         if let Ok(thrs: &Array) = func["throwers"]? {
             for a in thrs[] if let d: &Dict = a {
                 res ~= [self.loadType(d)];
@@ -709,9 +709,9 @@ pub record SymbolLoader {
      * Load a function pointer from a config
      * */
     fn loadFuncPtrType(self, d: &Dict, mutability: [c8], isDelegate: bool)-> &Type {
-        let mut params: [mut &Type] = [];
-        let mut refs: [mut bool]    = [];
-        let mut lazys: [mut bool]   = [];
+        let mut params: [&Type] = [];
+        let mut refs: [bool]    = [];
+        let mut lazys: [bool]   = [];
         if let Ok(a: &Array) = d["params"]? {
             for i in a[] if let inner: &Dict = i {
                 params ~= [self.loadType(inner)];
@@ -802,7 +802,7 @@ pub record SymbolLoader {
      * Load the configuration of a tuple type
      * */
     fn loadTupleType(self, d: &Dict, mutability: [c8])-> &Type {
-        let mut inners: [mut &Type] = [];
+        let mut inners: [&Type] = [];
         if let Ok(inner: &Array) = d["inners"]? {
             for a in inner[] {
                 if let i: &Dict = a {

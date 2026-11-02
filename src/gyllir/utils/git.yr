@@ -537,7 +537,7 @@ pub record GitManager {
      * Read the content of the pipe
      * */
     prv fn readAll(self, dmut pipe: &core::concurrency::IPipe)-> [c8] {
-        let dmut str: [c8] = [];
+        let mut str: [c8] = [];
         while let Ok(c) = pipe:.read!c8()? {
             str ~= [c];
         }
