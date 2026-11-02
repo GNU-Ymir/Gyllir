@@ -6,6 +6,7 @@ pub mod ::body;
 pub mod ::head;
 pub mod ::foot;
 pub mod ::coverage;
+pub mod ::graph;
 
 use std::stream;
 

@@ -2,6 +2,7 @@ in body;
 
 use gyllir::doc::{_, symbols::_, types::_};
 use gyllir::doc::comment::parser;
+use gyllir::doc::hierarchy;
 
 use std::{conv, format, stream};
 use std::algorithm::sorting;
@@ -25,6 +26,9 @@ pub class HtmlBody over HtmlNode {
     // The path of the current module
     let _path: Path;
 
+    // The inheritance graph of the whole site, the classes and traits of the page are drawn from
+    let _graph: &InheritanceGraph;
+
     let mut _defs: [mut &Symbol]      = [];
     let mut _classes: [mut &Symbol]   = [];
     let mut _traits: [mut &Symbol]    = [];
@@ -38,11 +42,14 @@ pub class HtmlBody over HtmlNode {
      * @params:
      *    - project: the name of the project
      *    - module: the content of the page to dump
+     *    - graph: the inheritance graph of the site the page belongs to, no graph is drawn for a
+     *      class or a trait it does not know
      */
-    pub self (project: [c8], module: &Module)
+    pub self (project: [c8], module: &Module, graph: &InheritanceGraph = hierarchy::EMPTY_GRAPH)
         with _project = project
         , _module = module
         , _path = Path(module.name, sep-> "::")
+        , _graph = graph
     {
         self:.loadContent();
     }
@@ -67,6 +74,7 @@ pub class HtmlBody over HtmlNode {
         }
 
         self.dumpSubModuleTable(alias stream);
+        stream:.write(graph::moduleGraph(self._graph, self._module.name));
 
         for d in self._defs { self.dumpContent(alias stream, d); }
         for a in self._enums { self.dumpContent(alias stream, a); }
@@ -247,6 +255,7 @@ pub class HtmlBody over HtmlNode {
         innerStream:.write(self.dumpCommonSymbol(tr));
 
         let dmut contentStream = copy StringStream();
+        contentStream:.write(graph::traitGraph(self._graph, hierarchy::qualify(tr.name, self._module.name), self._module.name));
         self.dumpClassAssertions(alias contentStream, tr.asserts);
         self.dumpClassMethods(alias contentStream, tr.methods);
         self.dumpClassConditionalMethods(alias contentStream, tr.condMethods);
@@ -325,6 +334,7 @@ pub class HtmlBody over HtmlNode {
         innerStream:.write(self.dumpCommonSymbol(c));
 
         let dmut contentStream = copy StringStream();
+        contentStream:.write(graph::classGraph(self._graph, hierarchy::qualify(c.name, self._module.name), self._module.name));
         self.dumpClassAssertions(alias contentStream, c.asserts);
         self.dumpClassFields(alias contentStream, c.fields);
         self.dumpClassConditionalFields(alias contentStream, c.condFields);

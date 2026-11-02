@@ -1,7 +1,7 @@
 in doc;
 
 use gyllir::{config::_, repo::_};
-use gyllir::doc::{_, html::_, symbols::_, types};
+use gyllir::doc::{_, hierarchy, html::_, symbols::_, types};
 use gyllir::utils::git;
 
 use std::{config, env, fs, io, stream, syntax};
@@ -159,7 +159,7 @@ pub record RepoDocBuilder {
             return;
         }
 
-        self.generate(alias context, version, outputDir, htmlTable, modules, covUrl);
+        self.generate(alias context, version, outputDir, htmlTable, modules, copy InheritanceGraph(symbol), covUrl);
     }
 
     /**
@@ -237,14 +237,14 @@ pub record RepoDocBuilder {
     /**
      * Generate the documentation directory
      * */
-    fn generate(self, dmut _: &GyllirManager, version: [c8], outDir: Path, htmlTable: [c8], modules: [&Module], covUrl: [c8]) {
+    fn generate(self, dmut _: &GyllirManager, version: [c8], outDir: Path, htmlTable: [c8], modules: [&Module], graph: &InheritanceGraph, covUrl: [c8]) {
         utils::log::info("Generate", "documentation pages in '", outDir.toStr(), "'");
         self.removeOldPages(outDir);
 
         // a package declaring no 'registry' has no source to link to
         let git = if self._cfg.registry.isValid() { self._cfg.registry.path.toStr() } else { "" };
         for m in modules {
-            self.generatePage(self._cfg.name, git, version, htmlTable, m, outDir, covUrl);
+            self.generatePage(self._cfg.name, git, version, htmlTable, m, outDir, graph, covUrl);
         }
     }
 
@@ -296,10 +296,10 @@ pub record RepoDocBuilder {
     /**
      * Generate the page for a module
      * */
-    fn generatePage(self, project: [c8], git: [c8], version: [c8], table: [c8], module: &Module, outDir: Path, covUrl: [c8]) {
+    fn generatePage(self, project: [c8], git: [c8], version: [c8], table: [c8], module: &Module, outDir: Path, graph: &InheritanceGraph, covUrl: [c8]) {
         let name = if module.name == "" { "index" } else { module.name };
 
-        let body = copy HtmlBody(project, module);
+        let body = copy HtmlBody(project, module, graph-> graph);
         let head = copy HtmlHeader(project, git, version, name, table, body, coverageUrl-> covUrl);
         let foot = copy HtmlFooter(name, git, version);
 

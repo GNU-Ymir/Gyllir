@@ -1,0 +1,229 @@
+use gyllir::doc::{hierarchy, loader, symbols};
+use gyllir::doc::html::{body, graph};
+use gyllir::doc::symbols::{_, class_, module};
+
+use std::config::json;
+use std::stream;
+
+/**
+ * The inheritance graph of a package over two modules:
+ *  - app: Base (impl Printable), the traits Printable and Sized, and Lone (no relation at all)
+ *  - app::shapes: Shape over Base (impl Sized if a condition holds), Circle over Shape (impl
+ *    Printable again, which Base implements already), Err over a class of another package (impl a
+ *    trait of another package)
+ *  - app::more: Ellipse over Circle
+ * */
+prv fn sample()-> &hierarchy::InheritanceGraph {
+    copy hierarchy::InheritanceGraph((SymbolLoader()).load(json #{
+        "kind" : "module",
+        "name" : "",
+        "childs" : [
+            {"kind" : "module", "name" : "app", "childs" : [
+                {"kind" : "trait", "name" : "app::Printable"},
+                {"kind" : "trait", "name" : "app::Sized"},
+                {"kind" : "class", "name" : "app::Lone"},
+                {"kind" : "class", "name" : "app::Base",
+                 "implements" : [{"kind" : "impl", "trait" : {"kind" : "any", "name" : "app::Printable"}}]},
+                {"kind" : "module", "name" : "app::shapes", "childs" : [
+                    {"kind" : "class", "name" : "app::shapes::Shape",
+                     "ancestor" : {"kind" : "class", "name" : "app::Base"},
+                     "implements" : [{"kind" : "impl", "trait" : {"kind" : "any", "name" : "app::Sized"},
+                                      "condition" : "T < U"}]},
+                    {"kind" : "class", "name" : "app::shapes::Circle",
+                     "ancestor" : {"kind" : "class", "name" : "app::shapes::Shape"},
+                     "implements" : [{"kind" : "impl", "trait" : {"kind" : "any", "name" : "app::Printable"}}]},
+                    {"kind" : "class", "name" : "app::shapes::Err",
+                     "ancestor" : {"kind" : "class", "name" : "core::exception::Exception"},
+                     "implements" : [{"kind" : "impl", "trait" : {"kind" : "any", "name" : "std::stream::Streamable"}}]}
+                ]},
+                {"kind" : "module", "name" : "app::more", "childs" : [
+                    {"kind" : "class", "name" : "app::more::Ellipse",
+                     "ancestor" : {"kind" : "class", "name" : "app::shapes::Circle"}}
+                ]}
+            ]}
+        ]
+    }))
+}
+
+prv fn findFirst(haystack: [c8], needle: [c8])-> (bool, usize) {
+    if needle.len == 0us || haystack.len < needle.len return (false, 0us);
+
+    for i in 0us .. (haystack.len - needle.len + 1us) {
+        if haystack[i .. i + needle.len] == needle return (true, i);
+    }
+
+    (false, 0us)
+}
+
+prv fn contains(haystack: [c8], needle: [c8])-> bool {
+    findFirst(haystack, needle).0
+}
+
+/**
+ * @returns: the number of times 'needle' appears in 'haystack'
+ * */
+prv fn count(haystack: [c8], needle: [c8])-> usize {
+    let mut nb = 0us;
+    if (needle.len == 0us || haystack.len < needle.len) return 0us;
+
+    for i in 0us .. (haystack.len - needle.len + 1us) {
+        if haystack[i .. i + needle.len] == needle { nb += 1us; }
+    }
+
+    nb
+}
+
+/**
+ * @returns: 'html' without its tags, the text a browser shows without the stylesheet
+ * */
+prv fn textOf(html: [c8])-> [c8] {
+    let dmut stream = copy StringStream();
+    let mut inTag   = false;
+    for c in html {
+        if (c == '<'c8) { inTag = true; }
+        else if (c == '>'c8) { inTag = false; }
+        else if (!inTag) { stream:.write(c); }
+    }
+
+    stream[]
+}
+
+/**
+ * @returns: true iif 'first' appears in 'haystack' before 'second'
+ * */
+prv fn before(haystack: [c8], first: [c8], second: [c8])-> bool {
+    let (f, i) = findFirst(haystack, first);
+    let (s, j) = findFirst(haystack, second);
+
+    f && s && i < j
+}
+
+__test class_graph_draws_ancestors_then_descendants {
+    // From the page of 'app::shapes': the ancestors first, the class itself highlighted, then the
+    // classes declared over it, whatever their module
+    let out = graph::classGraph(sample(), "app::shapes::Circle", "app::shapes");
+
+    assert(contains(out, "<summary>Hierarchy</summary>"), "the graph should be a 'Hierarchy' member group");
+    assert(contains(out, "<a class=\"hierarchy-node kind-class symbol-link\" href=\"app.html#Base\" title=\"app::Base\">app::Base</a>"),
+           "an ancestor of another module should be linked to its page, under its qualified name");
+    assert(contains(out, "<a class=\"hierarchy-node kind-class symbol-link\" href=\"#Shape\" title=\"app::shapes::Shape\">Shape</a>"),
+           "an ancestor of the page should be linked to its anchor, under its own name");
+    assert(contains(out, "<span class=\"hierarchy-node kind-class current\" title=\"app::shapes::Circle\">Circle</span>"),
+           "the class itself should be highlighted, not linked");
+    assert(contains(out, "href=\"app_more.html#Ellipse\""), "a subclass of another module should be linked to its page");
+
+    assert(before(out, "app::Base", "#Shape"), "the farthest ancestor should come first");
+    assert(before(out, "#Shape", "current"), "the class should come after its ancestors");
+    assert(before(out, "current", "#Ellipse"), "the subclasses should come after the class");
+}
+
+__test class_graph_lists_the_traits_of_each_class {
+    // A class box is followed by the traits it implements, named alone (the qualified name is the
+    // title), the condition of an 'impl' in its title
+    let out = graph::classGraph(sample(), "app::shapes::Shape", "app::shapes");
+
+    assert(contains(out, " <span class=\"hierarchy-impls\"><span class=\"hierarchy-impls-kw\">impl</span> "
+                         ~ "<a class=\"hierarchy-impl symbol-link\" href=\"app.html#Printable\" title=\"app::Printable\">Printable</a></span>"),
+           "the trait of an ancestor should follow its box");
+    assert(contains(out, "<a class=\"hierarchy-impl conditional symbol-link\" href=\"app.html#Sized\" title=\"app::Sized (if T &lt; U)\">Sized</a>"),
+           "a conditional implementation should be marked, its condition escaped");
+}
+
+__test graphs_are_collapsed_until_opened {
+    // A graph is a member group of its own, closed by default unlike the other member groups
+    let out = graph::classGraph(sample(), "app::shapes::Circle", "app::shapes");
+
+    assert(contains(out, "<details class=\"member-group y_decl_small\">\n  <summary>Hierarchy</summary>"),
+           "the class graph should be collapsed");
+    assert(!contains(graph::traitGraph(sample(), "app::Printable", "app"), " open>"), "the trait graph should be collapsed");
+    assert(!contains(graph::moduleGraph(sample(), "app::shapes"), " open>"), "the module graph should be collapsed");
+}
+
+__test class_graph_reads_as_text_without_the_stylesheet {
+    // The separators are real text: the graph still reads (and copies) as 'Name impl Trait'
+    let out = textOf(graph::classGraph(sample(), "app::shapes::Shape", "app::shapes"));
+
+    assert(contains(out, "app::Base impl Printable"), "a box and its traits should be separated by ' impl '");
+    assert(contains(out, "Shape impl Sized"), "a box and its traits should be separated by ' impl '");
+}
+
+__test class_graph_does_not_repeat_an_inherited_trait {
+    // Circle implements Printable again, which only overrides what Base implements already
+    let out = graph::classGraph(sample(), "app::shapes::Circle", "app::shapes");
+
+    assert(count(out, "href=\"app.html#Printable\"") == 1us, "the trait should only follow the ancestor implementing it first");
+}
+
+__test class_graph_names_a_trait_of_another_package_alone {
+    let out = graph::classGraph(sample(), "app::shapes::Err", "app::shapes");
+
+    assert(contains(out, "<span class=\"hierarchy-impl external\" title=\"std::stream::Streamable\">Streamable</span>"),
+           "a trait the site does not document should be named alone, and not linked");
+}
+
+__test class_graph_qualifies_a_class_of_a_sub_module_relatively {
+    // From the page of 'app', a class of 'app::shapes' is 'shapes::Circle'
+    let out = graph::classGraph(sample(), "app::Base", "app");
+
+    assert(contains(out, ">shapes::Shape</a>"), "a class of a sub module should be qualified from the page");
+    assert(contains(out, ">more::Ellipse</a>"), "a class of a sub module should be qualified from the page");
+}
+
+__test class_graph_shows_an_undocumented_ancestor_unlinked {
+    let out = graph::classGraph(sample(), "app::shapes::Err", "app::shapes");
+
+    assert(contains(out, "<span class=\"hierarchy-node kind-class external\" title=\"core::exception::Exception\">core::exception::Exception</span>"),
+           "an ancestor of another package should be drawn, but not linked");
+}
+
+__test class_graph_is_empty_without_any_relation {
+    assert(graph::classGraph(sample(), "app::Lone", "app") == "", "a class with no relation has no graph");
+    assert(graph::classGraph(sample(), "app::Unknown", "app") == "", "a class the graph does not know has no graph");
+}
+
+__test trait_graph_lists_its_implementors_and_their_subclasses {
+    let out = graph::traitGraph(sample(), "app::Printable", "app");
+
+    assert(contains(out, "<summary>Implementors</summary>"), "the graph should be an 'Implementors' member group");
+    assert(contains(out, "<span class=\"hierarchy-node kind-trait current\" title=\"app::Printable\">Printable</span>"),
+           "the trait itself should be the highlighted root");
+    assert(contains(out, "href=\"#Base\""), "an implementor of the page should be linked to its anchor");
+    assert(contains(out, "href=\"app_shapes.html#Circle\""), "a subclass of an implementor inherits the trait");
+    assert(!contains(out, "href=\"#Printable\""), "the trait whose graph is drawn should not be repeated on its implementors");
+
+    assert(graph::traitGraph(sample(), "app::Unused", "app") == "", "a trait nothing implements has no graph");
+}
+
+__test module_graph_groups_its_classes_under_their_ancestor {
+    // The classes of the module under the class of another module they are declared over, the
+    // subclasses of another module left out
+    let out = graph::moduleGraph(sample(), "app::shapes");
+
+    assert(contains(out, "<summary>Class hierarchy</summary>"), "the graph should be a 'Class hierarchy' member group");
+    assert(before(out, "href=\"app.html#Base\"", "href=\"#Shape\""), "a class should be drawn under its ancestor of another module");
+    assert(before(out, "href=\"#Shape\"", "href=\"#Circle\""), "a class should be drawn under its ancestor of the module");
+    assert(contains(out, "title=\"core::exception::Exception\""), "an undocumented ancestor should group its subclasses");
+    assert(!contains(out, "Ellipse"), "a subclass of another module should be left out of the module graph");
+}
+
+__test module_graph_is_empty_when_no_class_inherits {
+    assert(graph::moduleGraph(sample(), "app") == "", "a module whose classes inherit nothing has no graph");
+    assert(graph::moduleGraph(sample(), "app::none") == "", "a module without class has no graph");
+}
+
+__test page_draws_the_graphs_of_its_classes_with_the_site_graph {
+    // 'HtmlBody' draws the graph of a class and the one of its module from the graph it is given,
+    // and nothing from the empty graph it defaults to
+    let dmut mod_ = copy Module("app::more", "", INTERNAL_LOCATION, Protection::PUB);
+    let c: &Symbol = copy ClassSymbol("app::more::Ellipse", "", INTERNAL_LOCATION, Protection::PUB);
+    mod_.childs = copy [c];
+
+    let dmut withGraph = copy StringStream();
+    (copy HtmlBody("app", mod_, graph-> sample())).dumpHtml(alias withGraph);
+    assert(contains(withGraph[], "<summary>Class hierarchy</summary>"), "the module graph should be drawn");
+    assert(contains(withGraph[], "<summary>Hierarchy</summary>"), "the class graph should be drawn");
+
+    let dmut withoutGraph = copy StringStream();
+    (copy HtmlBody("app", mod_)).dumpHtml(alias withoutGraph);
+    assert(!contains(withoutGraph[], "hierarchy"), "no graph should be drawn without the graph of the site");
+}
