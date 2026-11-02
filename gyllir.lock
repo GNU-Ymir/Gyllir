@@ -7,9 +7,16 @@ name = "heimdall"
 url = "git:https://github.com/GNU-Ymir/heimdall.git"
 version = "0.1.0"
 sha = "69e876ecfe7df6bbb01616d242391dcbfc34f934"
+dependencies = ["git:https://github.com/GNU-Ymir/yruntime.git"]
+
+[[package]]
+name = "heimdall/std"
+url = "git:https://github.com/GNU-Ymir/yruntime.git"
+version = "3.0.0"
+sha = "5f707cc800e5fc1a120d3f7c2f860a1dcfa7e225"
 
 [[package]]
 name = "std"
 url = "git:https://github.com/GNU-Ymir/yruntime.git"
-version = "3.0.0"
-sha = "5f707cc800e5fc1a120d3f7c2f860a1dcfa7e225"
+version = "3.0.1"
+sha = "3340bbdca5059de704906051cc9471f086e371f3"
