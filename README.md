@@ -43,8 +43,10 @@ with `gyc --version`) — this repo does not build `gyc` itself, only the `gylli
   - `defaults.yr` — shared filenames/paths/extensions (`gyllir.toml`, `.deps/`, `.target/`, ...).
 - `src/gyllir/doc/` — documentation generator: `comment/` parses doc comments into a small AST
   (`node/{text,code,list,style}.yr`), `symbols/` models documented Ymir symbols (classes,
-  functions, enums, traits, templates, ...), `types/` models Ymir types for rendering, `html/`
-  renders the result to a static HTML site (`res/html`, `res/css`, `res/js`, `res/ico`).
+  functions, enums, traits, templates, ...), `types/` models Ymir types for rendering,
+  `hierarchy.yr` builds the inheritance graph of the classes and traits of the site, `html/`
+  renders the result to a static HTML site (`res/html`, `res/css`, `res/js`, `res/ico`), the
+  inheritance graphs of the classes, traits and modules included (`html/graph.yr`).
 - `src/gyllir/utils/` — `git.yr` (`GitManager`, shells out to `git`), `log.yr` (colored CLI
   logging), `errors.yr` (shared error/exception types).
 - `bash/` — shell completion (`_gyllir`) and profile scripts (`gyllir_vars.sh` exports

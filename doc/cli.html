@@ -226,6 +226,30 @@ package with several targets, each target gets its own sub-directory:
 cache at <code>.target/&lt;target&gt;/doc/&lt;output&gt;.doc.json</code>, which is what
 <code>-i</code> expects.</p>
 
+<h3 id="doc-hierarchy">Inheritance graphs</h3>
+
+<p>The pages draw the inheritance relations of the documented classes and traits, each class or trait
+a box linking to its declaration, followed by the traits it implements (a dashed one for an
+<code>impl</code> under a condition, shown in its tooltip). A trait an ancestor implements already is
+only shown on that ancestor, the class merely overriding its methods. The sections are collapsed until
+opened:</p>
+
+<ul>
+    <li>a class gets a <em>Hierarchy</em> section: the classes it is declared <code>over</code>, the
+    farthest first, down to the class itself, then every class declared over it, whatever their
+    module;</li>
+    <li>a trait gets an <em>Implementors</em> section: the classes implementing it, each followed by the
+    classes declared over it, which inherit the implementation;</li>
+    <li>a module page gets a <em>Class hierarchy</em> section when one of its classes is declared over
+    another: the classes of the module, each under the one it is declared over, those over a class of
+    another module grouped under that class.</li>
+</ul>
+
+<p>A class of a sub module of the page is qualified from the page (<code>code::CommentCode</code> on the
+page of <code>doc::comment::node</code>), one of any other module by its whole module path; a trait is
+named alone, its qualified name in its tooltip. A class the site does not document (a class of a
+dependency, of the standard library) ends the chain, drawn dashed and without a link.</p>
+
 <h3 id="doc-coverage">Coverage pages</h3>
 
 <pre><code>./&lt;output&gt;.test -cov
