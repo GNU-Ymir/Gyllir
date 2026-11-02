@@ -148,3 +148,60 @@ __test missing_cmd_rejected {
     assert(msg == "'[commands.steps]', missing required entry 'cmd', for example: cmd = \"./tools/steps.sh\"",
            "unexpected error: " ~ msg);
 }
+
+__test install_table_has_no_post {
+    // the commands of '[install]' run once the package is built, 'post' means nothing there
+    let msg = commandError2(json #{"bin" : {"cmd" : "install a b", "post" : true}}, "install");
+    assert(msg == "'[install.bin]', 'post' is not a known entry", "unexpected error: " ~ msg);
+
+    let lst = copy CustomCommandList(json #{"bin" : {"cmd" : ["mkdir -p out", "cp a out/"], "cwd" : "build"}},
+                                     table-> "install",
+                                     withPost-> false);
+    let d = lst.serialize()["bin"];
+    assert("post" !in d, "an install command should not be written back with a 'post'");
+    assert(to!{[[c8]]} (d["cmd"]) == copy ["mkdir -p out", "cp a out/"], "unexpected serialized cmd");
+    assert(to!{[c8]} (d["cwd"]) == "build", "unexpected serialized cwd");
+}
+
+__test install_table_errors_name_the_table {
+    let msg = commandError2(json #{"bin" : {"cwd" : "."}}, "install");
+    assert(msg == "'[install.bin]', missing required entry 'cmd', for example: cmd = \"./tools/bin.sh\"",
+           "unexpected error: " ~ msg);
+
+    let mut notTable = "";
+    {
+        copy CustomCommandList(copy Str("install a b"), table-> "install", withPost-> false);
+    } catch {
+        a: &AssertError => { notTable = a.msg; }
+    }
+
+    assert(notTable == "'install' must be a table, one '[install.<name>]' entry per command",
+           "unexpected error: " ~ notTable);
+}
+
+__test sorted_commands_by_name {
+    // the order of the tables of a gyllir.toml is lost, the alphabetical order of their names is the
+    // one commands depending on each other run in
+    let lst = copy CustomCommandList(json #{
+        "b-copy" : {"cmd" : "cp a b"},
+        "a-mkdir" : {"cmd" : "mkdir b"},
+        "c-strip" : {"cmd" : "strip b"}
+    });
+
+    let mut names: [[c8]] = [];
+    for e in lst.sorted() {
+        names ~= [e.0];
+    }
+
+    assert(names == copy ["a-mkdir", "b-copy", "c-strip"], "the commands should be sorted by name");
+}
+
+fn commandError2(cfg: &Config, table: [c8])-> [c8] {
+    {
+        copy CustomCommandList(cfg, table-> table, withPost-> false);
+    } catch {
+        a: &AssertError => { return a.msg; }
+    }
+
+    ""
+}

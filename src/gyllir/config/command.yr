@@ -1,6 +1,7 @@
 in command;
 
 use std::{config, stream};
+use std::algorithm::sorting;
 use std::fs;
 
 /**
@@ -79,12 +80,20 @@ pub record Command {
 }
 
 /**
- * A command list
+ * A command list, the '[<table>.<name>]' tables of a gyllir.toml: the '[commands]' run around a
+ * build, or the '[install]' run by 'gyllir install'
  * */
 pub class CustomCommandList {
 
     // The list of command in the list
     let dmut _lst: [[c8] => Command] = copy [];
+
+    // The table the commands are declared in, for error reporting
+    let _table: [c8] = "commands";
+
+    // False iif the commands of the table have no 'post' entry: the '[install]' commands run once
+    // the package is built, there is no before and after to choose from
+    let _withPost: bool = true;
 
     /**
      * Create an empty command list
@@ -93,13 +102,19 @@ pub class CustomCommandList {
 
     /**
      * Create a command list from a configuration
+     * @params:
+     *    - cfg: the content of the table
+     *    - table: the name of the table, for error reporting
+     *    - withPost: false to refuse a 'post' entry in the commands of the table
      * */
-    pub self (cfg: &Config)
+    pub self (cfg: &Config, table: [c8] = "commands", withPost: bool = true)
+        with _table = table
+        , _withPost = withPost
         throws AssertError
     {
         if let d: &Dict = cfg {
             self:.insert(d);
-        } else throw copy AssertError("'commands' must be a table, one '[commands.<name>]' entry per command");
+        } else throw copy AssertError("'" ~ table ~ "' must be a table, one '[" ~ table ~ ".<name>]' entry per command");
     }
 
     /*!
@@ -115,6 +130,37 @@ pub class CustomCommandList {
      * */
     pub fn opIndex(self)-> [[c8] => Command] {
         self._lst
+    }
+
+    /**
+     * @returns: the commands, by name, in the alphabetical order of their names: the order of the
+     *    tables of a gyllir.toml is not kept, so this is the order commands that have to run one
+     *    after the other are run in
+     * */
+    pub fn sorted(self)-> [([c8], Command)] {
+        let names: [[c8]]       = copy [k for k, _ in self._lst];
+        let mut res: [mut [c8]] = copy names;
+        sorting::sort(alias res, |x, y| {
+            let mut i     = 0us;
+            let mut lower = x.len < y.len;
+            while i < x.len && i < y.len {
+                if (x[i] != y[i]) {
+                    lower = x[i] < y[i];
+                    break;
+                }
+
+                i += 1us;
+            }
+
+            lower
+        });
+
+        let mut out: [([c8], Command)] = [];
+        for n in res if let Ok(c) = self._lst[n] {
+            out ~= [(n, c)];
+        }
+
+        out
     }
 
     /*!
@@ -135,13 +181,16 @@ pub class CustomCommandList {
         throws AssertError
     {
         for k, v in cfg[] {
-            let ctx = gyllir::config::errors::inTable("commands", k);
+            let ctx = gyllir::config::errors::inTable(self._table, k);
 
             let (cmds, isList) = self.readCmd(v, ctx, k);
 
             // a mistyped 'post' used to be read as a pre build command, silently running it at the
-            // wrong moment, which is worse than refusing the configuration
-            let post = if let Ok(Bool(value-> p)) = v["post"]? {
+            // wrong moment, which is worse than refusing the configuration. In a table that has no
+            // 'post', it is refused as any unknown entry, by 'rejectUnknown' below
+            let post = if (!self._withPost) {
+                false
+            } else if let Ok(Bool(value-> p)) = v["post"]? {
                 p
             } else if let Ok(Str(value-> p)) = v["post"]? {
                 if (p != "true" && p != "false") {
@@ -160,7 +209,11 @@ pub class CustomCommandList {
             } else { Path(".") };
 
             if let vd: &Dict = v {
-                gyllir::config::errors::rejectUnknown(vd, ctx, "cmd", "post", "cwd");
+                if (self._withPost) {
+                    gyllir::config::errors::rejectUnknown(vd, ctx, "cmd", "post", "cwd");
+                } else {
+                    gyllir::config::errors::rejectUnknown(vd, ctx, "cmd", "cwd");
+                }
             }
 
             if (isList) {
@@ -234,7 +287,10 @@ pub class CustomCommandList {
                 } else {
                     cmd["cmd"] = copy Str(c.cmds[0]);
                 }
-                cmd["post"] = copy Bool(c.isPost());
+                if (self._withPost) {
+                    cmd["post"] = copy Bool(c.isPost());
+                }
+
                 cmd["cwd"] = copy Str(c.cwd.toStr());
 
                 ret[k] = cmd;
