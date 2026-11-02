@@ -105,7 +105,9 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     sources and the `registry`.
   - `version.yr` / `version/filter.yr` — `Version` (major.minor.patch or named) and
     `VersionFilter` (`>`, `>=`, `<`, `<=`, `=` comparators used to pick a dependency's version).
-  - `command.yr` — `Command`/`CustomCommandList`: user-declared pre/post build commands.
+  - `command.yr` — `Command`/`CustomCommandList`: user-declared pre/post build commands. A
+    command's `cmd` is one command line or an array of them (`cmds`, run in order, the build
+    stopping at the first that fails); `isList` keeps a single line written back as a string.
   - `placeholder.yr` — the `{{...}}` placeholders of a command's `cmd`/`cwd`: finds and resolves
     them against a key → value map (`keys`, `resolve`, and `resolveArgs`, which splits a command
     line on its written spaces only). The map is `GyllirPackageConfiguration::placeholderValues`

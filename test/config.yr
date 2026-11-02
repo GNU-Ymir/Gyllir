@@ -101,7 +101,7 @@ __test deserialize_full_configuration {
 
     assert(cfg.commands[].len == 1us, "expected a single command");
     if let Ok(cmd) = cfg.commands[]["build-hook"] {
-        assert(cmd.cmd == "echo hi" && cmd.isPost(), "unexpected build-hook command");
+        assert(cmd.cmds == copy ["echo hi"] && cmd.isPost(), "unexpected build-hook command");
     } else assert(false, "expected a \"build-hook\" command");
 }
 
@@ -897,16 +897,16 @@ __test command_placeholders_resolved {
     if let Ok(t) = cfg.targets()["cli"] { cli = t; } else assert(false, "expected a \"cli\" target");
 
     if let Ok(c) = cfg.commands[]["rename"] {
-        let (args, cwd) = cfg.expandCommand(c, cli);
-        assert(args == copy ["mv", "libresult.a", "libresult_1.2.3_result.a"], "unexpected rename arguments");
+        let (lines, cwd) = cfg.expandCommand(c, cli);
+        assert(lines == copy [copy ["mv", "libresult.a", "libresult_1.2.3_result.a"]], "unexpected rename arguments");
         assert(cwd.toStr() == "app/out", "unexpected rename cwd: " ~ cwd.toStr());
-        assert(c.cmd == "mv libresult.a libresult_{{version}}_{{ targets.result.name }}.a",
+        assert(c.cmds == copy ["mv libresult.a libresult_{{version}}_{{ targets.result.name }}.a"],
                "the declared command should be kept as written, to be written back as is");
     } else assert(false, "expected a \"rename\" command");
 
     if let Ok(c) = cfg.commands[]["info"] {
-        let (args, _) = cfg.expandCommand(c, cli);
-        assert(args == copy ["echo", "two targets", "alice, bob", "v1.2.3", "cli:executable", "library:res"],
+        let (lines, _) = cfg.expandCommand(c, cli);
+        assert(lines == copy [copy ["echo", "two targets", "alice, bob", "v1.2.3", "cli:executable", "library:res"]],
                "unexpected info arguments");
     } else assert(false, "expected an \"info\" command");
 }
@@ -924,11 +924,49 @@ __test command_placeholders_of_synthesized_target {
 
     for _, t in cfg.targets() {
         if let Ok(c) = cfg.commands[]["tag"] {
-            let (args, cwd) = cfg.expandCommand(c, t);
-            assert(args == copy ["cp", "libmyapp.a", "libmyapp-0.4.0.a"], "unexpected tag arguments");
+            let (lines, cwd) = cfg.expandCommand(c, t);
+            assert(lines == copy [copy ["cp", "libmyapp.a", "libmyapp-0.4.0.a"]], "unexpected tag arguments");
             assert(cwd.toStr() == ".", "the cwd should keep its default: " ~ cwd.toStr());
         } else assert(false, "expected a \"tag\" command");
     }
+}
+
+__test command_list_placeholders_resolved_per_line {
+    // Each command line of an array has its own placeholders resolved, in the declared order
+    let cfg = GyllirPackageConfiguration(json #{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "0.4.0",
+        "type" : "library",
+        "commands" : {"publish" : {"cmd" : ["mkdir -p dist/{{version}}", "cp lib{{target.output}}.a dist/{{version}}/"],
+                                   "post" : true}}
+    });
+
+    for _, t in cfg.targets() {
+        if let Ok(c) = cfg.commands[]["publish"] {
+            let (lines, _) = cfg.expandCommand(c, t);
+            assert(lines == copy [copy ["mkdir", "-p", "dist/0.4.0"], copy ["cp", "libmyapp.a", "dist/0.4.0/"]],
+                   "unexpected publish command lines");
+        } else assert(false, "expected a \"publish\" command");
+    }
+}
+
+__test unknown_placeholder_of_command_list_names_the_line {
+    // A typo in one line of an array names that line, by its index in the array
+    let msg = loadError(json #{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "commands" : {"truc" : {"cmd" : ["echo {{version}}", "echo {{verison}}"]}}
+    });
+
+    assert(msg == "'[commands.truc]', 'cmd[1]', unknown placeholder '{{verison}}', expecting one of: name, version, "
+           ~ "version.major, version.minor, version.patch, license, description, authors, target.<field>, or "
+           ~ "targets.<name>.<field>, with <field> one of: name, type, description, output, source-dir, test-dir "
+           ~ "and <name> one of: myapp",
+           "unexpected error: " ~ msg);
 }
 
 __test unknown_command_placeholder_rejected {
