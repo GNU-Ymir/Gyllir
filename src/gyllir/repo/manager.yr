@@ -73,6 +73,10 @@ pub class GyllirManager {
     // The release of gyc '_compiler' is, "" when it is not one pinned by '[compiler]'
     let mut _compilerRelease: [c8] = "";
 
+    // What tells the build of '_compiler' apart from another one(see 'gyllir::args::compilerFingerprint'),
+    // "" until it is first needed
+    let mut _compilerFingerprint: [c8] = "";
+
     // Installs the release of gyc pinned by '[compiler]'
     let _installer: CompilerInstaller;
 
@@ -685,6 +689,7 @@ pub class GyllirManager {
         let subDir = targets.len > 1us;
 
         let (stdFlags, stdLinks) = self:.resolveStd(args, cwd, cfg, dry || forDoc);
+        let toolchain            = if (dry) { "" } else { self:.toolchainOf(cwd, cfg, stdFlags) };
 
         let mut builtIncludes: [[c8] => mut [Path]] = copy [];
         let mut builtLinks: [[c8] => mut [Path]]    = copy [];
@@ -712,7 +717,8 @@ pub class GyllirManager {
                     let (i, l) = RepoBuilder(cwd, args, cfg, t,
                                              forUnitTest-> false,
                                              dry-> dry,
-                                             extraFlags-> stdFlags).run(alias self,
+                                             extraFlags-> stdFlags,
+                                             toolchain-> toolchain).run(alias self,
                                                                         targetIncludes-> includes,
                                                                         targetLinks-> links);
 
@@ -725,7 +731,11 @@ pub class GyllirManager {
 
                 if (isSelected) {
                     if (forDoc) {
-                        RepoDocBuilder(cwd, args, cfg, target-> t, subDir-> subDir, extraFlags-> stdFlags).run(
+                        RepoDocBuilder(cwd, args, cfg,
+                                       target-> t,
+                                       subDir-> subDir,
+                                       extraFlags-> stdFlags,
+                                       toolchain-> toolchain).run(
                             alias self,
                             targetIncludes-> includes,
                             targetLinks-> links
@@ -734,7 +744,8 @@ pub class GyllirManager {
                         let (i, l) = RepoBuilder(cwd, args, cfg, t,
                                                  forUnitTest-> forUnitTest,
                                                  dry-> dry,
-                                                 extraFlags-> stdFlags).run(alias self,
+                                                 extraFlags-> stdFlags,
+                                                 toolchain-> toolchain).run(alias self,
                                                                             targetIncludes-> includes,
                                                                             targetLinks-> links);
 
@@ -752,6 +763,39 @@ pub class GyllirManager {
         }
 
         (res, self.uniquePaths(outIncludes), self.uniquePaths(outLinks))
+    }
+
+    /**
+     * What the build cache of a package has to have been built with to be reused: the compiler of
+     * the run, and the std lib the package is compiled against
+     * @params:
+     *    - cwd: the root directory of the package
+     *    - cfg: the configuration of the package, set to be built with the compiler of the run
+     *    - stdFlags: the flags 'resolveStd' returned for the package, '[]' when it is built against
+     *      the std lib bundled with the compiler, which the compiler alone already tells apart
+     * @returns: the content of the stamp of the build cache, "" when the compiler cannot be run(the
+     *    build then fails on its own, and the cache is left as it is)
+     * */
+    prv fn toolchainOf(mut self, cwd: Path, cfg: GyllirPackageConfiguration, stdFlags: [[c8]])-> [c8] {
+        if (self._compilerFingerprint == "") {
+            self._compilerFingerprint = gyllir::args::compilerFingerprint(compiler-> cfg.compiler);
+        }
+
+        if (self._compilerFingerprint == "") { return ""; }
+
+        let std = if (stdFlags.len == 0us) {
+            "bundled"s8
+        } else {
+            // a commit rather than the resolved version: a 'local:' std lib is a checkout that can
+            // move without its version changing
+            {
+                GitManager(cwd-> cwd.push(defaults::__DEPENCY_DIR__).push(defaults::__STD_DEP_NAME__)).getCommitSha()
+            } catch {
+                _ => "unknown"s8
+            }
+        };
+
+        "compiler = " ~ self._compilerFingerprint ~ "\nstd = " ~ std ~ "\n"
     }
 
     /*!

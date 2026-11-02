@@ -496,6 +496,38 @@ __test std_of_a_dependency_is_locked_apart_from_the_one_of_the_package {
     assert(readLockFile(app).toToml() == first, "a build honoring the lock file should leave it as it is");
 }
 
+__test build_cache_of_another_compiler_is_rebuilt {
+    // A YIL written by another compiler(here, garbage standing for one), next to sources that did
+    // not change, is not reused: the cache records what built it, and is rebuilt when it was not
+    // the compiler of the run
+    let lib = mkLibraryProject();
+    let cfg = mkConfig("mylib", "library");
+    let t   = soleTarget(cfg).name;
+
+    {
+        let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+        mgr:.buildTargets(lib, mkBuildArgs(), cfg, copy [t => ()]);
+    }
+
+    let cacheDir = defaults::targetCacheDir(lib, t, defaults::__CACHE_DEBUG_DIR__);
+    let yil      = cacheDir.push(defaults::__YIL_DIR__).push("helper").addExtension(defaults::__YIL_EXTENSION__);
+    assert(fs::isFile(cacheDir.push(defaults::__BUILD_STAMP_FILENAME__)), "the build should stamp its cache");
+
+    writeSource(yil, "not a yil");
+    writeSource(cacheDir.push(defaults::__BUILD_STAMP_FILENAME__), "compiler = older\n");
+
+    {
+        let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+        mgr:.buildTargets(lib, mkBuildArgs(), cfg, copy [t => ()]);
+    }
+
+    let dmut r  = File::open(yil, read-> true);
+    let content = r:.readAll();
+    r:.close();
+
+    assert(content != "not a yil", "the YIL of another compiler should have been compiled again");
+}
+
 __test resolve_std_reports_an_unreachable_remote_instead_of_no_matching_version {
     // A remote std lib repository that cannot be reached is reported as such, not silently turned
     // into "no version matching the filter" the way a genuinely tagless remote would be
