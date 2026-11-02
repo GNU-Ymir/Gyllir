@@ -96,6 +96,11 @@ tools/install.sh --destdir /pkg   # stage the layout under a directory instead, 
   default); `--locked` fails instead of writing a new `gyllir.lock`, `--offline` also forbids any
   network access.
 - `gyllir run [-- args...]` — build then run the produced executable.
+- `gyllir install [target] [--release] [--prefix <dir>] [--dry-run]` — build, then install the
+  package: run its `[install.<name>]` tables, or, when it declares none, install each executable
+  into `<prefix>/bin` (`/usr/local` by default) and record it under `<prefix>/share/gyllir/installed`.
+  `--dry-run` prints the command lines and runs nothing; gyllir never escalates its privileges,
+  an install that cannot write under its prefix is refused before building.
 - `gyllir test [--release] [--dry] [--locked] [--offline] [--build-jobs N] [--env-file FILE] [-v]
   [runner options] [-- raw runner args]` — build and run the unit test suite (`--dry` to only
   compile, not run). The test runner options (`-f/--filter`, `-sf`, `-cov`, `-ct`, `-m`,
