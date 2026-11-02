@@ -148,9 +148,9 @@ strip       = { cmd = "strip myapp", post = true, cwd = "." }</code></pre>
 <div class="table-wrap">
 <table>
     <tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr>
-    <tr><td><code>cmd</code></td><td>string</td><td>required</td><td>The command line to run. It is split on spaces and executed directly — this is not a shell, so pipes, globs and quoting do not apply. Put anything more involved in a script.</td></tr>
+    <tr><td><code>cmd</code></td><td>string</td><td>required</td><td>The command line to run. It is split on spaces and executed directly — this is not a shell, so pipes, globs and quoting do not apply. Put anything more involved in a script. May hold <a href="#placeholders">placeholders</a>.</td></tr>
     <tr><td><code>post</code></td><td>boolean</td><td><code>false</code></td><td><code>false</code> runs the command before the build, <code>true</code> after it.</td></tr>
-    <tr><td><code>cwd</code></td><td>string</td><td><code>"."</code></td><td>Directory the command runs from. A relative path is resolved against the package directory.</td></tr>
+    <tr><td><code>cwd</code></td><td>string</td><td><code>"."</code></td><td>Directory the command runs from. A relative path is resolved against the package directory. May hold <a href="#placeholders">placeholders</a>.</td></tr>
 </table>
 </div>
 
@@ -163,6 +163,38 @@ the <code>[commands.&lt;name&gt;]</code> table it came from.</p>
 <code>"true"</code> / <code>"false"</code>). Anything else is refused rather than being read as a
 pre-build command, which would run it at the wrong moment.</p>
 </div>
+
+<h3 id="placeholders">Placeholders</h3>
+
+<p>The <code>cmd</code> and <code>cwd</code> of a command can read the rest of the manifest through
+<code>{{...}}</code> placeholders, replaced each time the command runs (blanks around the key are
+ignored, <code>{{ version }}</code> is <code>{{version}}</code>):</p>
+
+<pre><code>[commands]
+rename = { cmd = "mv libresult.a libresult_{{version}}.a", post = true }
+tag    = { cmd = "cp lib{{target.output}}.a lib{{targets.result.name}}-{{version.major}}.a", post = true }</code></pre>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Placeholder</th><th>Value</th></tr>
+    <tr><td><code>{{name}}</code>, <code>{{version}}</code>, <code>{{license}}</code>, <code>{{description}}</code></td><td>The top-level entry, as declared.</td></tr>
+    <tr><td><code>{{authors}}</code></td><td>The authors, comma separated.</td></tr>
+    <tr><td><code>{{version.major}}</code>, <code>{{version.minor}}</code>, <code>{{version.patch}}</code></td><td>A component of the version, for a numbered one only.</td></tr>
+    <tr><td><code>{{target.&lt;field&gt;}}</code></td><td>A field of the target being built — the command runs once per target.</td></tr>
+    <tr><td><code>{{targets.&lt;name&gt;.&lt;field&gt;}}</code></td><td>A field of any target of the package. A package declaring no <code>[targets.*]</code> table has a single target, named after the package.</td></tr>
+</table>
+</div>
+
+<p>A target <code>&lt;field&gt;</code> is one of <code>name</code>, <code>type</code>
+(<code>executable</code> or <code>library</code>), <code>description</code>, <code>output</code> (the
+name of the artifact, the target name unless it declares one), <code>source-dir</code> and
+<code>test-dir</code>.</p>
+
+<p>The line is split on the spaces written in <code>cmd</code>, never on those of a value: a
+placeholder whose value holds spaces, such as <code>{{description}}</code>, stays a single argument.
+There is no escape — a <code>{{</code> always opens a placeholder — and a placeholder that is never
+closed, or whose key names nothing, refuses the manifest when it is loaded, before anything is
+built, naming the command and the key at fault.</p>
 
 <h2 id="compiler-release">[compiler]</h2>
 

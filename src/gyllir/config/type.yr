@@ -63,6 +63,19 @@ pub record BuildType {
         self._type == BuildTypeEnum::LIBRARY.0
     }
 
+    /**
+     * @returns: the name the type is declared with in a gyllir.toml("executable", "library")
+     * */
+    pub fn name(self)-> [c8] {
+        for i in BuildTypeEnum::__members__ {
+            if i.0 == self._type {
+                return i.1;
+            }
+        }
+
+        panic;
+    }
+
     /*!
      * ====================================================================================================
      * ====================================================================================================
@@ -74,13 +87,7 @@ pub record BuildType {
     impl Streamable;
     impl Serializable {
         pub over serialize(self)-> &Config {
-            for i in BuildTypeEnum::__members__ {
-                if i.0 == self._type {
-                    return copy Str(i.1);
-                }
-            }
-
-            panic;
+            copy Str(self.name())
         }
     }
 

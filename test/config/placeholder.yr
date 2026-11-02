@@ -1,0 +1,78 @@
+use gyllir::config::placeholder;
+
+prv fn vars()-> [[c8] => [c8]] {
+    let dmut res: [[c8] => [c8]] = copy [];
+    res["version"] = copy "1.2.3";
+    res["targets.result.name"] = copy "result";
+    res["description"] = copy "a package with spaces";
+    res["empty"] = copy "";
+
+    res
+}
+
+__test keys_in_order_of_appearance {
+    // The keys of the placeholders, in order, the blanks around a key being ignored
+    let keys = placeholder::keys("mv lib{{ targets.result.name }}.a lib_{{version}}_{{\tversion\t}}.a");
+    assert(keys == copy ["targets.result.name", "version", "version"], "unexpected keys");
+}
+
+__test text_without_placeholder_unchanged {
+    // A value without any placeholder is taken verbatim, a lone brace included
+    assert(placeholder::keys("echo { } }}") == [], "a value without '{{' should have no placeholder");
+    assert(placeholder::resolve("echo { } }}", vars()) == "echo { } }}", "a value without '{{' should be unchanged");
+}
+
+__test resolve_version {
+    let res = placeholder::resolve("mv libresult.a libresult_{{version}}.a", vars());
+    assert(res == "mv libresult.a libresult_1.2.3.a", "unexpected resolution: " ~ res);
+}
+
+__test resolve_target_name {
+    let res = placeholder::resolve("mv libresult.a libresult_{{ targets.result.name }}.a", vars());
+    assert(res == "mv libresult.a libresult_result.a", "unexpected resolution: " ~ res);
+}
+
+__test resolve_args_splits_on_written_spaces_only {
+    // A value holding spaces stays one argument, and a placeholder alone is an argument even when empty
+    let args = placeholder::resolveArgs("  echo  {{description}} v{{version}}  {{empty}} ", vars());
+    assert(args == copy ["echo", "a package with spaces", "v1.2.3", ""], "unexpected arguments");
+}
+
+__test resolve_args_without_placeholder {
+    let args = placeholder::resolveArgs("./tools/set-version.sh a  b", vars());
+    assert(args == copy ["./tools/set-version.sh", "a", "b"], "unexpected arguments");
+}
+
+__test unknown_placeholder_rejected {
+    let mut msg = "";
+    {
+        placeholder::resolve("echo {{verison}}", vars());
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "unknown placeholder '{{verison}}'", "unexpected error: " ~ msg);
+}
+
+__test unclosed_placeholder_rejected {
+    let mut msg = "";
+    {
+        placeholder::keys("echo {{version");
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "placeholder '{{version' is never closed, expecting '}}'", "unexpected error: " ~ msg);
+}
+
+__test empty_placeholder_rejected {
+    let mut msg = "";
+    {
+        placeholder::keys("echo {{ }}");
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "empty placeholder '{{ }}', expecting a key between the braces, for example: {{version}}",
+           "unexpected error: " ~ msg);
+}

@@ -12,6 +12,7 @@ pub mod ::target;
 pub mod ::type;
 pub mod ::version;
 pub mod ::cache;
+pub mod ::placeholder;
 
 __test empty_configuration_defaults {
     // Defaults of an empty configuration
@@ -856,4 +857,161 @@ __test compiler_string_survives_round_trip {
     });
 
     assert(to!{[c8]} (cfg.serialize()["compiler"]) == "/opt/gyc/bin/gyc", "unexpected serialized compiler");
+}
+
+/**
+ * @returns: the error message raised by loading 'cfg' as a package configuration, "" if none
+ * */
+prv fn loadError(cfg: &Config)-> [c8] {
+    {
+        GyllirPackageConfiguration(cfg);
+    } catch {
+        a: &AssertError => { return a.msg; }
+    }
+
+    ""
+}
+
+__test command_placeholders_resolved {
+    // The placeholders of a command resolve against the package, the target being built, and any
+    // target by name; a value holding spaces stays a single argument
+    let cfg = GyllirPackageConfiguration(json #{
+        "name" : "multi",
+        "license" : "MIT",
+        "description" : "two targets",
+        "version" : "1.2.3",
+        "authors" : ["alice", "bob"],
+        "targets" : {
+            "result" : {"type" : "library", "output" : "res"},
+            "cli" : {"source-dir" : "app", "targets" : ["result"]}
+        },
+        "commands" : {
+            "rename" : {"cmd" : "mv libresult.a libresult_{{version}}_{{ targets.result.name }}.a",
+                        "post" : true,
+                        "cwd" : "{{target.source-dir}}/out"},
+            "info" : {"cmd" : "echo {{description}} {{authors}} v{{version.major}}.{{version.minor}}.{{version.patch}} {{target.name}}:{{target.type}} {{targets.result.type}}:{{targets.result.output}}"}
+        }
+    });
+
+    let mut cli = Target("", BuildType());
+    if let Ok(t) = cfg.targets()["cli"] { cli = t; } else assert(false, "expected a \"cli\" target");
+
+    if let Ok(c) = cfg.commands[]["rename"] {
+        let (args, cwd) = cfg.expandCommand(c, cli);
+        assert(args == copy ["mv", "libresult.a", "libresult_1.2.3_result.a"], "unexpected rename arguments");
+        assert(cwd.toStr() == "app/out", "unexpected rename cwd: " ~ cwd.toStr());
+        assert(c.cmd == "mv libresult.a libresult_{{version}}_{{ targets.result.name }}.a",
+               "the declared command should be kept as written, to be written back as is");
+    } else assert(false, "expected a \"rename\" command");
+
+    if let Ok(c) = cfg.commands[]["info"] {
+        let (args, _) = cfg.expandCommand(c, cli);
+        assert(args == copy ["echo", "two targets", "alice, bob", "v1.2.3", "cli:executable", "library:res"],
+               "unexpected info arguments");
+    } else assert(false, "expected an \"info\" command");
+}
+
+__test command_placeholders_of_synthesized_target {
+    // A package declaring no target has one named after the package, readable both ways
+    let cfg = GyllirPackageConfiguration(json #{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "0.4.0",
+        "type" : "library",
+        "commands" : {"tag" : {"cmd" : "cp lib{{target.output}}.a lib{{targets.myapp.name}}-{{version}}.a"}}
+    });
+
+    for _, t in cfg.targets() {
+        if let Ok(c) = cfg.commands[]["tag"] {
+            let (args, cwd) = cfg.expandCommand(c, t);
+            assert(args == copy ["cp", "libmyapp.a", "libmyapp-0.4.0.a"], "unexpected tag arguments");
+            assert(cwd.toStr() == ".", "the cwd should keep its default: " ~ cwd.toStr());
+        } else assert(false, "expected a \"tag\" command");
+    }
+}
+
+__test unknown_command_placeholder_rejected {
+    // A typo in a placeholder is refused when the configuration is loaded, naming the command
+    let msg = loadError(json #{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "commands" : {"truc" : {"cmd" : "mv libresult.a libresult_{{verison}}.a"}}
+    });
+
+    assert(msg == "'[commands.truc]', 'cmd', unknown placeholder '{{verison}}', expecting one of: name, version, "
+           ~ "version.major, version.minor, version.patch, license, description, authors, target.<field>, or "
+           ~ "targets.<name>.<field>, with <field> one of: name, type, description, output, source-dir, test-dir "
+           ~ "and <name> one of: myapp",
+           "unexpected error: " ~ msg);
+}
+
+__test missing_target_placeholder_rejected {
+    // A placeholder naming a target the package does not declare says so
+    let msg = loadError(json #{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "targets" : {"result" : {"type" : "library"}},
+        "commands" : {"truc" : {"cmd" : "mv libresult.a libresult_{{targets.reslt.name}}.a"}}
+    });
+
+    assert(msg == "'[commands.truc]', 'cmd', unknown placeholder '{{targets.reslt.name}}', the package declares no "
+           ~ "target named 'reslt', its targets are: result",
+           "unexpected error: " ~ msg);
+}
+
+__test unknown_target_field_placeholder_rejected {
+    let msg = loadError(json #{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "targets" : {"result" : {"type" : "library"}},
+        "commands" : {"truc" : {"cmd" : "echo {{targets.result.flags}}"}}
+    });
+
+    assert(msg == "'[commands.truc]', 'cmd', unknown placeholder '{{targets.result.flags}}', a target field is one "
+           ~ "of: name, type, description, output, source-dir, test-dir",
+           "unexpected error: " ~ msg);
+}
+
+__test version_component_of_named_version_rejected {
+    let msg = loadError(json #{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "nightly",
+        "commands" : {"truc" : {"cmd" : "echo {{version}} {{version.major}}"}}
+    });
+
+    assert(msg == "'[commands.truc]', 'cmd', unknown placeholder '{{version.major}}', the version \"nightly\" is not "
+           ~ "numbered, it has no major, minor or patch",
+           "unexpected error: " ~ msg);
+}
+
+__test malformed_cwd_placeholder_rejected {
+    // The cwd of a command is templated too, and checked the same way
+    // built by hand, the json macro balancing the braces even inside its strings
+    let dmut truc = copy Dict();
+    truc["cmd"] = copy Str("make");
+    truc["cwd"] = copy Str("build/{{version");
+
+    let dmut commands = copy Dict();
+    commands["truc"] = truc;
+
+    let dmut cfg = copy Dict();
+    cfg["name"] = copy Str("myapp");
+    cfg["license"] = copy Str("MIT");
+    cfg["description"] = copy Str("d");
+    cfg["version"] = copy Str("1.0.0");
+    cfg["commands"] = commands;
+
+    let msg = loadError(cfg);
+
+    assert(msg == "'[commands.truc]', 'cwd', placeholder '{{version' is never closed, expecting '}}'",
+           "unexpected error: " ~ msg);
 }

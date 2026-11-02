@@ -106,6 +106,13 @@ calls `run()`; every sub-command is dispatched and implemented from there.
   - `version.yr` / `version/filter.yr` — `Version` (major.minor.patch or named) and
     `VersionFilter` (`>`, `>=`, `<`, `<=`, `=` comparators used to pick a dependency's version).
   - `command.yr` — `Command`/`CustomCommandList`: user-declared pre/post build commands.
+  - `placeholder.yr` — the `{{...}}` placeholders of a command's `cmd`/`cwd`: finds and resolves
+    them against a key → value map (`keys`, `resolve`, and `resolveArgs`, which splits a command
+    line on its written spaces only). The map is `GyllirPackageConfiguration::placeholderValues`
+    (package fields, `target.<field>` of the target being built, `targets.<name>.<field>`);
+    `checkPlaceholders` refuses an unresolvable one when the manifest is loaded, and
+    `expandCommand` is what `builder.yr`'s `runCommands` executes. (`template` and `expand` are
+    Ymir keywords, hence the names.)
   - `overlay.yr` — `mergeOverride`: lays a `gyllir.toml.override` (machine-local, gitignored)
     onto the raw `gyllir.toml`, before the merge is validated — tables merge key by key, other values
     replace, and an url (`registry`, every `url`) is replaced whole since the TOML parser cannot

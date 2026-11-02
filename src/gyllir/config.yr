@@ -1,6 +1,6 @@
 in config;
 
-use std::{config, stream};
+use std::{config, fs, stream};
 
 pub mod ::command;
 pub mod ::url;
@@ -12,6 +12,7 @@ pub mod ::type;
 pub mod ::errors;
 pub mod ::overlay;
 pub mod ::cache;
+pub mod ::placeholder;
 
 use gyllir::config::_;
 use gyllir::config::version::filter;
@@ -21,6 +22,12 @@ use gyllir::config::version::filter;
  * table without an 'url' entry
  * */
 pub def __DEFAULT_STD_URL__ = "git:git@github.com:GNU-Ymir/yruntime.git";
+
+/**
+ * The fields of a target a templated value can read, through '{{target.<field>}}' for the target
+ * being built and '{{targets.<name>.<field>}}' for any target of the package
+ * */
+pub def __PLACEHOLDER_TARGET_FIELDS__ = ["name", "type", "description", "output", "source-dir", "test-dir"];
 
 /**
  * Record defining a gyllir configuration
@@ -135,6 +142,7 @@ pub record GyllirPackageConfiguration {
         if let d: &Dict = cfg {
             self:.parsePackage(d);
             self.checkTargetExclusivity(d);
+            self.checkPlaceholders();
         } else throw copy AssertError("expecting a table of entries describing the package");
     }
 
@@ -301,6 +309,80 @@ pub record GyllirPackageConfiguration {
         VersionFilter(self._stdVersionRaw, entry-> "'std.version'")
     }
 
+    /**
+     * The values of the '{{...}}' placeholders of the templated entries of the package(the 'cmd' and
+     * 'cwd' of its commands), see 'gyllir::config::placeholder':
+     *    - name, version, license, description, and authors(comma separated), as declared
+     *    - version.major, version.minor and version.patch, for a numbered version only
+     *    - target.<field>, a field of the target being built
+     *    - targets.<name>.<field>, a field of any target of the package, the one synthesized for a
+     *      package declaring none being named after the package
+     * with <field> one of '__PLACEHOLDER_TARGET_FIELDS__'.
+     *
+     * @params:
+     *    - target: the target being built
+     * @returns: the value of every placeholder, by key
+     * */
+    pub fn placeholderValues(self, target: Target)-> [[c8] => [c8]] {
+        let dmut vars: [[c8] => [c8]] = copy [];
+        vars["name"] = copy self._name;
+        vars["version"] = copy self._version[];
+        vars["license"] = copy self._license;
+        vars["description"] = copy self._description;
+
+        {
+            let dmut authors = copy StringStream();
+            for i, a in self._authors {
+                if (i != 0us) { authors:.write(", "s8); }
+                authors:.write(a);
+            }
+
+            vars["authors"] = copy authors[];
+        }
+
+        if (self._version.isNumbered()) {
+            let dmut major = copy StringStream(), dmut minor = copy StringStream(), dmut patch = copy StringStream();
+            major:.write(self._version.major);
+            minor:.write(self._version.minor);
+            patch:.write(self._version.patch);
+
+            vars["version.major"] = copy major[];
+            vars["version.minor"] = copy minor[];
+            vars["version.patch"] = copy patch[];
+        }
+
+        for f in __PLACEHOLDER_TARGET_FIELDS__ {
+            vars["target." ~ f] = copy targetField(target, f);
+        }
+
+        for k, t in self.targets() {
+            for f in __PLACEHOLDER_TARGET_FIELDS__ {
+                vars["targets." ~ k ~ "." ~ f] = copy targetField(t, f);
+            }
+        }
+
+        vars
+    }
+
+    /**
+     * Substitute the placeholders of a command line, and split it into its arguments
+     * @params:
+     *    - cmd: the command to run
+     *    - target: the target being built
+     * @returns:
+     *    - .0: the arguments of the command line, its program first
+     *    - .1: the directory the command is run from, relative to the package directory unless absolute
+     * @throws:
+     *    - AssertError: a placeholder does not resolve, which a command read from a gyllir.toml never
+     *      does, 'checkPlaceholders' having already refused it
+     * */
+    pub fn expandCommand(self, cmd: Command, target: Target)-> ([[c8]], Path)
+        throws AssertError
+    {
+        let vars = self.placeholderValues(target);
+        (placeholder::resolveArgs(cmd.cmd, vars), Path(placeholder::resolve(cmd.cwd.toStr(), vars)))
+    }
+
     /*!
      * ====================================================================================================
      * ====================================================================================================
@@ -436,6 +518,103 @@ pub record GyllirPackageConfiguration {
                                        ~ "move it into every target that needs it");
             }
         }
+    }
+
+    /**
+     * Refuse a templated entry with a placeholder that does not resolve, when the configuration is
+     * loaded, rather than when the command runs, half way through a build
+     *
+     * The keys are the same whatever the target being built, only their values change, so checking
+     * them against any one target is checking them against all of them.
+     *
+     * @throws:
+     *    - AssertError: on the first placeholder that is unclosed, empty, or names no known key. Its
+     *      message names the command and the entry it comes from
+     * */
+    prv fn checkPlaceholders(self)
+        throws AssertError
+    {
+        if (self._commands[].len == 0us) { return; }
+
+        for _, t in self.targets() {
+            self.checkCommandPlaceholders(self.placeholderValues(t));
+            return;
+        }
+    }
+
+    /**
+     * @params:
+     *    - vars: the value of every placeholder, for any target of the package
+     * @throws:
+     *    - AssertError: see 'checkPlaceholders'
+     * */
+    prv fn checkCommandPlaceholders(self, vars: [[c8] => [c8]])
+        throws AssertError
+    {
+        for k, c in self._commands[] {
+            let ctx = gyllir::config::errors::inTable("commands", k);
+            for entry in [("cmd", c.cmd), ("cwd", c.cwd.toStr())] {
+                let keys = {
+                    placeholder::keys(entry.1)
+                } catch {
+                    err: &AssertError => {
+                        throw copy AssertError(ctx ~ "'" ~ entry.0 ~ "', " ~ err.msg);
+                    }
+                };
+
+                for key in keys if (key !in vars) {
+                    throw copy AssertError(ctx ~ "'" ~ entry.0 ~ "', " ~ self.unknownPlaceholder(key));
+                }
+            }
+        }
+    }
+
+    /**
+     * @params:
+     *    - key: the key of a placeholder that does not resolve
+     * @returns: why it does not, and what can be written instead
+     * */
+    prv fn unknownPlaceholder(self, key: [c8])-> [c8] {
+        let dmut fields = copy StringStream();
+        for i, f in __PLACEHOLDER_TARGET_FIELDS__ {
+            if (i != 0us) { fields:.write(", "s8); }
+            fields:.write(f);
+        }
+
+        let targets = self.targets();
+        let dmut names = copy StringStream();
+        let mut first = true;
+        for k, _ in targets {
+            if (!first) { names:.write(", "s8); }
+            names:.write(k);
+            first = false;
+        }
+
+        let msg = "unknown placeholder '{{" ~ key ~ "}}'";
+        let prefix = "targets.";
+        if (key.len > prefix.len && key[0us .. prefix.len] == prefix) {
+            let rest = key[prefix.len .. $];
+            let mut name = rest;
+            for i, c in rest if (c == '.'c8) {
+                name = rest[0us .. i];
+                break;
+            }
+
+            if (name !in targets) {
+                return msg ~ ", the package declares no target named '" ~ name ~ "', its targets are: " ~ names[];
+            }
+
+            return msg ~ ", a target field is one of: " ~ fields[];
+        }
+
+        let version = "version.";
+        if (key.len > version.len && key[0us .. version.len] == version && !self._version.isNumbered()) {
+            return msg ~ ", the version \"" ~ self._version[] ~ "\" is not numbered, it has no major, minor or patch";
+        }
+
+        msg ~ ", expecting one of: name, version, version.major, version.minor, version.patch, license, description, "
+            ~ "authors, target.<field>, or targets.<name>.<field>, with <field> one of: " ~ fields[]
+            ~ " and <name> one of: " ~ names[]
     }
 
     /**
@@ -693,4 +872,21 @@ pub record GyllirPackageConfiguration {
 
         []
     }
+}
+
+/**
+ * @params:
+ *    - target: a target of the package
+ *    - field: one of '__PLACEHOLDER_TARGET_FIELDS__'
+ * @returns: the value of that field of 'target', for the placeholders of a templated entry
+ * */
+prv fn targetField(target: Target, field: [c8])-> [c8] {
+    if (field == "name") { return target.name; }
+    if (field == "type") { return target.type.name(); }
+    if (field == "description") { return target.description; }
+    if (field == "output") { return target.outputName(); }
+    if (field == "source-dir") { return target.sourceDir; }
+    if (field == "test-dir") { return target.testDir; }
+
+    ""
 }
