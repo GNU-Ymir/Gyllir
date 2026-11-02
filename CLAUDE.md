@@ -116,7 +116,8 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     for `gyllir cache --rm`, `kind`, `name`, `version`, `source`, `installed`).
   - `lock.yr` — `LockedPackage`/`LockFile`: the `gyllir.lock` schema (`lock-version`, one
     `[[package]]` array-of-tables entry per resolved package: `name`, `url`, `version`, `sha` for
-    a `git:` source, `dependencies`), plus `matches()` (does an entry still resolve a declaration), `prune()`
+    a `git:` source, `dependencies`; the std lib a dependency resolves through its own `[std]` is
+    locked as `<dependency>/std`, the package's own as `std`), plus `matches()` (does an entry still resolve a declaration), `prune()`
     (drop what the manifest no longer reaches) and `toToml()` (the sorted, canonical dump — the
     file is committed, so its bytes have to be stable).
 - `src/gyllir/repo/` — one file per sub-command, all consumed by `manager.yr`'s `run()`:

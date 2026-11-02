@@ -54,6 +54,11 @@ pub class GyllirManager {
     // True iif the resolution is not allowed to talk to a remote ('--offline')
     let mut _offline: bool = false;
 
+    // The name the dependency whose own dependencies are being resolved is locked under, "" while
+    // they are the ones of the package being built: it is what tells the std lib of a dependency
+    // from the one of the package in the lock file(see 'stdLockName')
+    let mut _owner: [c8] = "";
+
     // The names of the dependencies to resolve again, ignoring the version the lock file pins
     // ('gyllir update'), [] when the lock file is honored
     let mut _updated: [[c8]] = [];
@@ -470,17 +475,31 @@ pub class GyllirManager {
 
     /**
      * @params:
-     *    - name: the name a dependency is declared under
-     * @returns: true iif 'gyllir update' was asked to resolve that dependency again, rather than to
-     *    honor the version the lock file pins it at
+     *    - name: the name a dependency is locked under
+     * @returns: true iif 'gyllir update' was asked to resolve that dependency again(or the
+     *    dependency whose std lib it is), rather than to honor the version the lock file pins it at
      * */
     prv fn isUpdating(self, name: [c8])-> bool {
         if (self._updateAll) { return true; }
-        for u in self._updated if u == name {
+
+        // updating a dependency updates the std lib it resolves too
+        for u in self._updated if u == name || name == u ~ "/" ~ defaults::__STD_DEP_NAME__ {
             return true;
         }
 
         false
+    }
+
+    /**
+     * @returns: the name the std lib resolved by the '[std]' of the package whose dependencies are
+     *    being resolved is locked under: 'std' for the package being built, '<dependency>/std' for
+     *    one of its dependencies. Each package pins its own std lib, and two of them pinning
+     *    different versions of the same repository is the common case, not a conflict: each one is
+     *    built against its own '.deps/std'
+     * */
+    prv fn stdLockName(self)-> [c8] {
+        if (self._owner == "") { return defaults::__STD_DEP_NAME__; }
+        self._owner ~ "/" ~ defaults::__STD_DEP_NAME__
     }
 
     /**
@@ -518,6 +537,10 @@ pub class GyllirManager {
         for _, d in conf.dependencies[] {
             deps ~= [d.url];
         }
+
+        // the std lib the package resolves through '[std]' is one of its dependencies as well, the
+        // entry it is locked under is unreachable otherwise, and pruned
+        if (conf.hasStd) { deps ~= [conf.stdUrl]; }
 
         self._resolved[name] = LockedPackage(url, version, dependencies-> deps, sha-> sha);
     }
@@ -1232,12 +1255,14 @@ pub class GyllirManager {
         // Once a remote std was pinned, stay on it like any other git dependency instead of
         // re-listing the remote's tags on every single build: 'resolveDependency' checks the
         // locked commit out directly, without touching the network unless it is missing locally
-        if let Ok(_) = self.lockedEntry(defaults::__STD_DEP_NAME__, Dependency(filter, url)) {
+        let lockName = self.stdLockName();
+        if let Ok(_) = self.lockedEntry(lockName, Dependency(filter, url)) {
             let (includes, links) = self:.resolveDependency(args,
                                                             cwd,
                                                             defaults::__STD_DEP_NAME__,
                                                             Dependency(filter, url),
-                                                            dry);
+                                                            dry,
+                                                            lockName-> lockName);
             return (self.asStdPrefixFlags(includes, cfg), links);
         }
 
@@ -1320,7 +1345,8 @@ pub class GyllirManager {
                                                         cwd,
                                                         defaults::__STD_DEP_NAME__,
                                                         Dependency(pinned, url),
-                                                        dry);
+                                                        dry,
+                                                        lockName-> lockName);
         self.warnOnYmirVersionMismatch(cwd, cfg);
 
         (self.asStdPrefixFlags(includes, cfg), links)
@@ -1556,17 +1582,24 @@ pub class GyllirManager {
      * Resolve a dependency, and build it
      * @params:
      *    - args: the configuration of the current building
-     *    - name: the name of the dependency to build
+     *    - name: the name of the dependency to build, the directory of '.deps/' it is resolved in
      *    - dependency: the information about the dependency to build
+     *    - lockName: the name the dependency is locked under, 'name' when "": the lock file is flat,
+     *      and the std lib of every package is resolved under the same name(see 'stdLockName')
      * @returns:
      *    - .0: the list of path to the root files of libraries to include
      *    - .1: the list of path to the built libraries to link
      */
-    pub fn resolveDependency(mut self, args: &Config, cwd: Path, name: [c8], dependency: Dependency, dry: bool)-> (
-        [Path], [Path]
-    )
+    pub fn resolveDependency(mut self,
+                             args: &Config,
+                             cwd: Path,
+                             name: [c8],
+                             dependency: Dependency,
+                             dry: bool,
+                             lockName: [c8] = "")-> ([Path], [Path])
         throws RecursiveDependency
     {
+        let locking = if (lockName == "") { name } else { lockName };
         if (dependency.url in self._depPackages) {
             throw copy RecursiveDependency(name ~ ":"s8 ~ dependency.url.path.toStr());
         }
@@ -1575,7 +1608,7 @@ pub class GyllirManager {
         {
             utils::log::info("Resolving", "dependency ", name, " to ", depPath.toStr());
             let gM     = GitManager(cwd-> depPath);
-            let locked = self.lockedEntry(name, dependency);
+            let locked = self.lockedEntry(locking, dependency);
 
             let hasCloned = if (dependency.url.type == UrlType::LOCAL) {
                 if !isDir(depPath.parent()) {
@@ -1633,7 +1666,7 @@ pub class GyllirManager {
             // what every 'Compiling ... v<version>' log line and the lock file report from here on
             let dmut conf = self:.loadToml(depPath, withOverride-> readOverride);
             conf:.setVersion(version);
-            self:.recordResolution(name, dependency, version, sha, conf);
+            self:.recordResolution(locking, dependency, version, sha, conf);
 
             // only the library targets of a dependency are of any use here, an executable it also
             // declares is never linked into the package that depends on it
@@ -1660,7 +1693,13 @@ pub class GyllirManager {
                 RepoCleaner(depPath, args, conf).run(alias self);
             }
 
-            let (_, ext, lbs) = self:.buildTargets(depPath, args, conf, selectedTargets, dry-> dry);
+            let owner = self._owner;
+            self._owner = locking;
+            let (_, ext, lbs) = {
+                self:.buildTargets(depPath, args, conf, selectedTargets, dry-> dry)
+            } exit {
+                self._owner = owner;
+            };
 
             self._depPackages:.remove(dependency.url);
             (ext, lbs)

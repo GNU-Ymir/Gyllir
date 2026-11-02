@@ -439,6 +439,63 @@ __test std_only_package_keeps_its_lock_file {
     assert(locked.sha == "a1b2c3", "the locked std commit should survive the rewrite");
 }
 
+/**
+ * Resolve the dependencies of a project, without compiling anything, the way 'gyllir update' does,
+ * honoring and rewriting its lock file
+ * */
+fn resolveWithLock(dir: Path, cfg: GyllirPackageConfiguration)
+    throws RecursiveDependency, AssertError
+{
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    mgr:.loadLock(dir, mkBuildArgs(), cfg);
+    mgr:.buildTargets(dir, mkBuildArgs(), cfg, copy [soleTarget(cfg).name => ()], dry-> true);
+    mgr.writeLock(dir, cfg);
+}
+
+__test std_of_a_dependency_is_locked_apart_from_the_one_of_the_package {
+    // The package and its dependency both resolve a std lib through '[std]', from the same
+    // repository but at two different versions: each is built against its own, so each has to be
+    // locked, the one of the dependency must not overwrite the one of the package
+    // the filters only accept versions below anything a compiler bundles, so that both are
+    // resolved from the remote, and are upper bounds: an exact version is serialized as '=0.0.1',
+    // which a 'gyllir.toml' cannot be read back with
+    let stdRepo = mkLibraryProject(suffix-> "Std");
+    writeToml(stdRepo, mkConfig("fakestd", "library"));
+    gitInit(stdRepo);
+    commitAndTag(stdRepo, "v0.0.1");
+    commitAndTag(stdRepo, "v0.0.2");
+
+    let lib = mkLibraryProject();
+    writeToml(lib, withStd(mkConfig("mylib", "library"), "<0.0.3", stdRepo));
+    gitInit(lib);
+    commitAndTag(lib, "v1.0.0");
+
+    let app = mkExecutableProject("myapp");
+    let cfg = withStd(mkConfigWithGitDependency("myapp", "executable", "mylib", lib, version-> ">=1.0.0"),
+                      "<0.0.2",
+                      stdRepo);
+
+    resolveWithLock(app, cfg);
+
+    let own = lockedPackage(app, "std");
+    assert(own.version == Version(0u32, 0u32, 1u32), "the std lib of the package should be locked at its version");
+
+    let ofLib = lockedPackage(app, "mylib/std");
+    assert(ofLib.version == Version(0u32, 0u32, 2u32),
+           "the std lib of the dependency should be locked apart, at its own version");
+    assert(ofLib.sha == resolvedCommitOf(app.push(defaults::__DEPENCY_DIR__).push("mylib"), "std"),
+           "the std lib of the dependency should be pinned to the commit its checkout sits at");
+
+    let direct = lockedPackage(app, "mylib");
+    assert(direct.dependencies.len == 1us && direct.dependencies[0].path.toStr() == stdRepo.toStr(),
+           "the dependency should record the std lib it resolves as one of its dependencies");
+
+    // the lock file now describes the graph as it is resolved: honoring it changes nothing
+    let first = readLockFile(app).toToml();
+    resolveWithLock(app, cfg);
+    assert(readLockFile(app).toToml() == first, "a build honoring the lock file should leave it as it is");
+}
+
 __test resolve_std_reports_an_unreachable_remote_instead_of_no_matching_version {
     // A remote std lib repository that cannot be reached is reported as such, not silently turned
     // into "no version matching the filter" the way a genuinely tagless remote would be

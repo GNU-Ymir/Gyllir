@@ -854,3 +854,25 @@ pub fn withCompilerRelease(cfg: GyllirPackageConfiguration, release: [c8])-> Gyl
 
     GyllirPackageConfiguration(d)
 }
+
+/**
+ * @returns: 'cfg', with a '[std]' table resolving the std lib at 'version' from the git repository
+ *    'repo'
+ * */
+pub fn withStd(cfg: GyllirPackageConfiguration, version: [c8], repo: Path)-> GyllirPackageConfiguration
+    throws AssertError
+{
+    let dmut d = copy Dict();
+    if let s: &Dict = cfg.serialize() {
+        for k, v in s[] {
+            d[k] = v;
+        }
+    }
+
+    let dmut s = copy Dict();
+    s["version"] = copy Str(version);
+    s["url"] = copy Str("git:" ~ repo.toStr());
+    d["std"] = s;
+
+    GyllirPackageConfiguration(d)
+}
