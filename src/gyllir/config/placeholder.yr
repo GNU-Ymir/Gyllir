@@ -4,7 +4,7 @@ use std::stream;
 
 /*!
  * The '{{...}}' placeholders of the templated values of a gyllir.toml(the 'cmd' and 'cwd' of a
- * '[commands.<name>]' table).
+ * '[commands.<name>]' or an '[install.<name>]' table).
  *
  * A placeholder is a key between double braces, blanks around the key being ignored, so
  * '{{version}}' and '{{ version }}' are the same. The keys and their values are not known here:

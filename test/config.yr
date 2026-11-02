@@ -969,6 +969,84 @@ __test unknown_placeholder_of_command_list_names_the_line {
            "unexpected error: " ~ msg);
 }
 
+__test install_table_parsed_and_resolved {
+    // '[install.<name>]' tables are read, and their placeholders resolve against the package, any
+    // target by name, and the prefix the package is installed under
+    let cfg = GyllirPackageConfiguration(json #{
+        "name" : "tool",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "2.1.0",
+        "targets" : {"cli" : {"output" : "tool-cli"}},
+        "install" : {
+            "bin" : {"cmd" : ["mkdir -p {{prefix}}/bin", "cp {{targets.cli.output}} {{prefix}}/bin/"], "cwd" : "out"},
+            "doc" : {"cmd" : "cp -r __doc {{prefix}}/share/doc/{{name}}-{{version}}"}
+        }
+    });
+
+    assert(cfg.install[].len == 2us, "expected the two declared install commands");
+    if let Ok(c) = cfg.install[]["bin"] {
+        let (lines, cwd) = cfg.expandInstallCommand(c, "/opt/tool");
+        assert(lines == copy [copy ["mkdir", "-p", "/opt/tool/bin"], copy ["cp", "tool-cli", "/opt/tool/bin/"]],
+               "unexpected bin command lines");
+        assert(cwd.toStr() == "out", "unexpected cwd: " ~ cwd.toStr());
+    } else assert(false, "expected a \"bin\" install command");
+
+    if let Ok(c) = cfg.install[]["doc"] {
+        let (lines, _) = cfg.expandInstallCommand(c, "/usr/local");
+        assert(lines == copy [copy ["cp", "-r", "__doc", "/usr/local/share/doc/tool-2.1.0"]], "unexpected doc command line");
+    } else assert(false, "expected a \"doc\" install command");
+
+    // written back next to the rest of the package, and read again
+    let back = GyllirPackageConfiguration(cfg.serialize());
+    assert(back.install[].len == 2us, "the install commands should survive the round trip");
+}
+
+__test install_placeholder_of_target_being_built_rejected {
+    // an install command runs once for the package, there is no target being built
+    let msg = loadError(json #{
+        "name" : "tool",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "install" : {"bin" : {"cmd" : "cp {{target.output}} {{prefix}}/bin/"}}
+    });
+
+    assert(msg == "'[install.bin]', 'cmd', unknown placeholder '{{target.output}}', an install command runs once for "
+           ~ "the whole package, not for a target being built, name the target instead: targets.<name>.output",
+           "unexpected error: " ~ msg);
+}
+
+__test unknown_install_placeholder_rejected {
+    let msg = loadError(json #{
+        "name" : "tool",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "install" : {"bin" : {"cmd" : ["mkdir -p {{prefix}}/bin", "cp tool {{prefx}}/bin/"]}}
+    });
+
+    assert(msg == "'[install.bin]', 'cmd[1]', unknown placeholder '{{prefx}}', expecting one of: name, version, "
+           ~ "version.major, version.minor, version.patch, license, description, authors, prefix, or "
+           ~ "targets.<name>.<field>, with <field> one of: name, type, description, output, source-dir, test-dir "
+           ~ "and <name> one of: tool",
+           "unexpected error: " ~ msg);
+}
+
+__test prefix_placeholder_only_in_install_commands {
+    // a build command knows nothing of where the package is installed
+    let msg = loadError(json #{
+        "name" : "tool",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "commands" : {"truc" : {"cmd" : "echo {{prefix}}"}}
+    });
+
+    assert(msg.len > 60us && msg[0us .. 60us] == "'[commands.truc]', 'cmd', unknown placeholder '{{prefix}}', ",
+           "unexpected error: " ~ msg);
+}
+
 __test unknown_command_placeholder_rejected {
     // A typo in a placeholder is refused when the configuration is loaded, naming the command
     let msg = loadError(json #{
