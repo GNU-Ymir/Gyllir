@@ -1,0 +1,205 @@
+in placeholder;
+
+use std::stream;
+
+/*!
+ * The '{{...}}' placeholders of the templated values of a gyllir.toml(the 'cmd' and 'cwd' of a
+ * '[commands.<name>]' table).
+ *
+ * A placeholder is a key between double braces, blanks around the key being ignored, so
+ * '{{version}}' and '{{ version }}' are the same. The keys and their values are not known here:
+ * they are given as a map by 'GyllirPackageConfiguration::placeholderValues', this module only
+ * finds the placeholders and substitutes them.
+ *
+ * There is no escape: a '{{' always opens a placeholder, and one that is never closed is an error
+ * rather than text taken verbatim, just like a key that names nothing.
+ * */
+
+/**
+ * @params:
+ *    - text: a templated value
+ * @returns: the keys of the placeholders of 'text', in order of appearance
+ * @throws:
+ *    - AssertError: a placeholder is left unclosed, or names no key
+ * */
+pub fn keys(text: [c8])-> [[c8]]
+    throws AssertError
+{
+    let mut res: [[c8]] = [];
+    for s in segments(text) if s.0 {
+        res ~= [s.1];
+    }
+
+    res
+}
+
+/**
+ * Substitute every placeholder of a templated value
+ * @params:
+ *    - text: a templated value
+ *    - vars: the value of every known key
+ * @returns: 'text', each of its placeholders replaced by the value of its key
+ * @throws:
+ *    - AssertError: a placeholder is left unclosed, names no key, or names a key absent from 'vars'
+ * */
+pub fn resolve(text: [c8], vars: [[c8] => [c8]])-> [c8]
+    throws AssertError
+{
+    let dmut stream = copy StringStream();
+    for s in segments(text) {
+        if (s.0) {
+            stream:.write(lookup(s.1, vars));
+        } else {
+            stream:.write(s.1);
+        }
+    }
+
+    stream[]
+}
+
+/**
+ * Split a templated command line into its arguments, then substitute the placeholders
+ *
+ * The line is split on the spaces written in it, never on those of a substituted value: a value
+ * holding spaces(a description, an author) stays a single argument, and a placeholder standing
+ * alone is an argument of its own even when its value is empty.
+ *
+ * @params:
+ *    - text: a templated command line
+ *    - vars: the value of every known key
+ * @returns: the arguments of the command line, its program first
+ * @throws:
+ *    - AssertError: a placeholder is left unclosed, names no key, or names a key absent from 'vars'
+ * */
+pub fn resolveArgs(text: [c8], vars: [[c8] => [c8]])-> [[c8]]
+    throws AssertError
+{
+    let mut res: [[c8]] = [];
+    let dmut current = copy StringStream();
+    let mut started = false;
+
+    for s in segments(text) {
+        if (s.0) {
+            current:.write(lookup(s.1, vars));
+            started = true;
+        } else {
+            for c in s.1 {
+                if (c == ' 'c8) {
+                    if (started) {
+                        res ~= [current[]];
+                        current:.clear();
+                        started = false;
+                    }
+                } else {
+                    current:.write(c);
+                    started = true;
+                }
+            }
+        }
+    }
+
+    if (started) {
+        res ~= [current[]];
+    }
+
+    res
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * ====================================          PRIVATE          =====================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+/**
+ * @returns: the value of 'key' in 'vars'
+ * @throws:
+ *    - AssertError: 'key' is absent from 'vars'
+ * */
+prv fn lookup(key: [c8], vars: [[c8] => [c8]])-> [c8]
+    throws AssertError
+{
+    if let Ok(v) = vars[key] {
+        return v;
+    }
+
+    throw copy AssertError("unknown placeholder '{{" ~ key ~ "}}'");
+}
+
+/**
+ * Cut a templated value into its literal text and its placeholders
+ * @params:
+ *    - text: a templated value
+ * @returns: the segments of 'text', in order: (false, text) for a literal one, (true, key) for a
+ *    placeholder, its key stripped of the blanks around it
+ * @throws:
+ *    - AssertError: a placeholder is left unclosed, or names no key
+ * */
+prv fn segments(text: [c8])-> [(bool, [c8])]
+    throws AssertError
+{
+    let mut res: [(bool, [c8])] = [];
+    let mut start = 0us;
+    let mut i = 0us;
+    while (i + 1us < text.len) {
+        if (text[i] == '{'c8 && text[i + 1us] == '{'c8) {
+            let close = if let Ok(c) = findClose(text, i + 2us) {
+                c
+            } else {
+                throw copy AssertError("placeholder '" ~ text[i .. $] ~ "' is never closed, expecting '}}'");
+            };
+
+            let key = strip(text[i + 2us .. close]);
+            if (key == "") {
+                throw copy AssertError("empty placeholder '" ~ text[i .. close + 2us] ~ "', expecting a key between the braces, "
+                                       ~ "for example: {{version}}");
+            }
+
+            if (i > start) {
+                res ~= [(false, text[start .. i])];
+            }
+
+            res ~= [(true, key)];
+            i = close + 2us;
+            start = i;
+        } else {
+            i += 1us;
+        }
+    }
+
+    if (start < text.len) {
+        res ~= [(false, text[start .. $])];
+    }
+
+    res
+}
+
+/**
+ * @returns: the index of the first '}}' of 'text' at or after 'from', none if there is none
+ * */
+prv fn findClose(text: [c8], from: usize)-> (usize)? {
+    let mut i = from;
+    while (i + 1us < text.len) {
+        if (text[i] == '}'c8 && text[i + 1us] == '}'c8) {
+            return (i)?;
+        }
+
+        i += 1us;
+    }
+
+    none
+}
+
+/**
+ * @returns: 'text' without the spaces and tabs at its start and its end
+ * */
+prv fn strip(text: [c8])-> [c8] {
+    let mut s = 0us;
+    let mut e = text.len;
+    while (s < e && (text[s] == ' 'c8 || text[s] == '\t'c8)) { s += 1us; }
+    while (e > s && (text[e - 1us] == ' 'c8 || text[e - 1us] == '\t'c8)) { e -= 1us; }
+
+    text[s .. e]
+}
