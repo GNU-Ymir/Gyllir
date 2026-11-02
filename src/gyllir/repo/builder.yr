@@ -308,7 +308,12 @@ pub record RepoBuilder {
 
             submitted += 1;
             pool:.submit(copy || => {
-                             let mut modOption = options;
+                             // every task appends to its own block: 'options' has spare capacity,
+                             // and growing a slice that ends where its block's used part does
+                             // appends in place, which is not thread safe - two tasks would write
+                             // their first '-fmodule' to the same slot, and a module would go
+                             // uncompiled
+                             let mut modOption = copy options;
                              for m_ in m {
                                  modOption ~= ["-fmodule", m_.toStr()];
                              }
