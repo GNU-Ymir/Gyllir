@@ -3,7 +3,13 @@
 lock-version = 1
 
 [[package]]
+name = "heimdall"
+url = "git:https://github.com/GNU-Ymir/heimdall.git"
+version = "0.1.0"
+sha = "69e876ecfe7df6bbb01616d242391dcbfc34f934"
+
+[[package]]
 name = "std"
 url = "git:https://github.com/GNU-Ymir/yruntime.git"
-version = "1.16.6"
-sha = "259f265dcde80d3856e9fc94a4bd51393f3fc9f8"
+version = "3.0.0"
+sha = "5f707cc800e5fc1a120d3f7c2f860a1dcfa7e225"

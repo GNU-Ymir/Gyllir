@@ -4,6 +4,7 @@ use gyllir::config::_;
 use gyllir::doc::{html, index, loader, symbols};
 
 use std::{config, env, fs, io, net, stream, syntax};
+use heimdall::http;
 
 /**
  * The opening of the inline configuration object every generated page declares for its javascript

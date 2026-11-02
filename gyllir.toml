@@ -12,7 +12,9 @@ package-root = "main"
 version = "3.0.1"
 url = "https://github.com/GNU-Ymir/yruntime.git"
 
-[dependencies]
+[dependencies.heimdall]
+version = ">=0.1.0"
+url = "git:https://github.com/GNU-Ymir/heimdall.git"
 
 [registry]
 git = "git@github.com:GNU-Ymir/Gyllir.git"
