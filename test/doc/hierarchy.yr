@@ -1,0 +1,175 @@
+use gyllir::doc::{hierarchy, loader, symbols};
+use gyllir::doc::types::{_, any, class_};
+
+use std::config::{_, json};
+
+/**
+ * @returns: the inheritance graph of a documentation json, as 'gyllir doc' builds it
+ * */
+prv fn graphOf(cfg: &Config)-> &hierarchy::InheritanceGraph {
+    copy hierarchy::InheritanceGraph((SymbolLoader()).load(cfg))
+}
+
+/**
+ * A package declaring a hierarchy over two modules:
+ *  - app: Base (impl Printable), the traits Printable and Sized
+ *  - app::shapes: Shape over Base (impl Sized, if-conditional impl Printable), Circle and Square
+ *    over Shape, the template Box{T} over Shape, Err over a class of another package
+ *  - app::more: Ellipse over Circle
+ * */
+prv fn sample()-> &hierarchy::InheritanceGraph {
+    graphOf(json #{
+        "kind" : "module",
+        "name" : "",
+        "childs" : [
+            {"kind" : "module", "name" : "app", "childs" : [
+                {"kind" : "trait", "name" : "app::Printable"},
+                {"kind" : "trait", "name" : "app::Sized"},
+                {"kind" : "class", "name" : "app::Base",
+                 "implements" : [{"kind" : "impl", "trait" : {"kind" : "any", "name" : "app::Printable"}}]},
+                {"kind" : "module", "name" : "app::shapes", "childs" : [
+                    {"kind" : "class", "name" : "app::shapes::Square",
+                     "ancestor" : {"kind" : "class", "name" : "app::shapes::Shape"}},
+                    {"kind" : "class", "name" : "app::shapes::Shape",
+                     "ancestor" : {"kind" : "class", "name" : "app::Base"},
+                     "implements" : [
+                         {"kind" : "impl", "trait" : {"kind" : "any", "name" : "app::Sized"}},
+                         {"kind" : "impl", "trait" : {"kind" : "any", "name" : "app::Printable"}, "condition" : "T == i32"}
+                     ]},
+                    {"kind" : "class", "name" : "app::shapes::Circle",
+                     "ancestor" : {"kind" : "class", "name" : "app::shapes::Shape"}},
+                    {"kind" : "template", "name" : "Box",
+                     "templates" : [{"kind" : "any", "content" : "T"}],
+                     "content" : [
+                         {"kind" : "class", "name" : "Box", "ancestor" : {"kind" : "any", "name" : "Shape"}}
+                     ]},
+                    {"kind" : "class", "name" : "app::shapes::Err",
+                     "ancestor" : {"kind" : "class", "name" : "core::exception::Exception"}}
+                ]},
+                {"kind" : "module", "name" : "app::more", "childs" : [
+                    {"kind" : "class", "name" : "app::more::Ellipse",
+                     "ancestor" : {"kind" : "class", "name" : "app::shapes::Circle"}}
+                ]}
+            ]}
+        ]
+    })
+}
+
+__test graph_records_every_class_and_trait {
+    // Every class (in a template or not) and every trait of the tree is a node, keyed by its
+    // qualified name
+    let g = sample();
+    assert(g.nodes.len == 9us, "unexpected number of nodes");
+
+    if let Ok(n) = g.find("app::Printable") {
+        assert(n.isTrait, "a trait is a node of the 'trait' kind");
+        assert(n.module == "app", "unexpected module for a trait");
+    } else assert(false, "the trait should be in the graph");
+
+    if let Ok(n) = g.find("app::shapes::Circle") {
+        assert(n.kind == "class", "unexpected kind for a class");
+        assert(n.module == "app::shapes", "unexpected module for a class");
+        assert(n.display == "Circle", "a class is displayed under the last component of its name");
+        assert(n.anchor == "Circle", "the anchor of a class is the id of its declaration");
+    } else assert(false, "the class should be in the graph");
+
+    if let Ok(_) = g.find("app::Unknown") {
+        assert(false, "a class the tree does not declare is not in the graph");
+    }
+}
+
+__test graph_follows_ancestors_up_to_one_it_does_not_document {
+    // The chain goes from the direct ancestor to the root, and keeps an ancestor of another package
+    // as its last element
+    let g = sample();
+    assert(g.ancestors("app::more::Ellipse") == ["app::shapes::Circle", "app::shapes::Shape", "app::Base"],
+           "unexpected ancestors of a class two modules away from the root");
+    assert(g.ancestors("app::shapes::Err") == ["core::exception::Exception"],
+           "an ancestor the site does not document still ends the chain");
+    assert(g.ancestors("app::Base").len == 0us, "a class over nothing has no ancestor");
+}
+
+__test graph_lists_the_classes_declared_over_a_class {
+    // The reverse relation, sorted by name, whatever module declares the subclasses
+    let g = sample();
+    assert(g.children("app::shapes::Shape") == ["app::shapes::Box", "app::shapes::Circle", "app::shapes::Square"],
+           "unexpected subclasses of a class");
+    assert(g.children("app::shapes::Circle") == ["app::more::Ellipse"], "a subclass of another module is a child too");
+    assert(g.children("core::exception::Exception") == ["app::shapes::Err"],
+           "a class the site does not document still knows its documented subclasses");
+    assert(g.children("app::more::Ellipse").len == 0us, "a leaf has no child");
+}
+
+__test graph_lists_the_implementors_of_a_trait {
+    // Only the classes implementing a trait themselves, their 'impl' condition kept on the class
+    let g = sample();
+    assert(g.implementors("app::Printable") == ["app::Base", "app::shapes::Shape"], "unexpected implementors");
+    assert(g.implementors("app::Sized") == ["app::shapes::Shape"], "unexpected implementors");
+
+    if let Ok(n) = g.find("app::shapes::Shape") {
+        assert(n.traits == [("app::Sized", ""), ("app::Printable", "T == i32")], "unexpected traits of a class");
+    } else assert(false, "the class should be in the graph");
+}
+
+__test graph_qualifies_a_template_and_resolves_its_ancestor_in_its_module {
+    // The doc json names a template class, and the ancestor of its pattern, without their module
+    let g = sample();
+    if let Ok(n) = g.find("app::shapes::Box") {
+        assert(n.display == "Box{T}", "a template is displayed with its parameters");
+        assert(n.anchor == "Box", "the anchor of a template is its name alone");
+        assert(n.ancestor == "app::shapes::Shape", "the ancestor of a template is resolved in its module");
+    } else assert(false, "the template class should be qualified with its module");
+}
+
+__test graph_drops_the_template_arguments_of_an_ancestor {
+    // A class over an instance of a template is a child of the template
+    let g = graphOf(json #{
+        "kind" : "module",
+        "name" : "app",
+        "childs" : [
+            {"kind" : "template", "name" : "Box", "templates" : [{"kind" : "any", "content" : "T"}],
+             "content" : [{"kind" : "class", "name" : "Box"}]},
+            {"kind" : "class", "name" : "app::IntBox",
+             "ancestor" : {"kind" : "class", "name" : "app::Box!{i32}"}}
+        ]
+    });
+
+    assert(g.ancestors("app::IntBox") == ["app::Box"], "the template arguments should be dropped");
+    assert(g.children("app::Box") == ["app::IntBox"], "the instance should be a child of the template");
+}
+
+__test graph_survives_a_cycle {
+    // A cycle cannot be compiled, a hand written doc json can still declare one
+    let g = graphOf(json #{
+        "kind" : "module",
+        "name" : "app",
+        "childs" : [
+            {"kind" : "class", "name" : "app::A", "ancestor" : {"kind" : "class", "name" : "app::B"}},
+            {"kind" : "class", "name" : "app::B", "ancestor" : {"kind" : "class", "name" : "app::A"}},
+            {"kind" : "class", "name" : "app::C", "ancestor" : {"kind" : "class", "name" : "app::C"}}
+        ]
+    });
+
+    assert(g.ancestors("app::A") == ["app::B"], "the chain should stop where it loops");
+    assert(g.ancestors("app::C").len == 0us, "a class over itself has no ancestor");
+    assert(g.children("app::C").len == 0us, "a class over itself is not its own child");
+}
+
+__test empty_graph_has_no_node {
+    assert(hierarchy::EMPTY_GRAPH.nodes.len == 0us, "the empty graph should have no node");
+    assert(hierarchy::EMPTY_GRAPH.children("app::A").len == 0us, "the empty graph should have no relation");
+}
+
+__test type_name_of_a_class_or_a_trait {
+    assert(hierarchy::typeName(copy ClassType("app::Base", "", false)) == "app::Base", "unexpected name of a class type");
+    assert(hierarchy::typeName(copy ClassType("app::Box!{i32}", "", false)) == "app::Box",
+           "the template arguments of an instance should be dropped");
+    assert(hierarchy::typeName(copy AnyType("app::Printable", "")) == "app::Printable", "unexpected name of a trait");
+    assert(hierarchy::typeName(EMPTY_ANY) == "", "an empty type names nothing");
+}
+
+__test qualify_leaves_a_qualified_name_alone {
+    assert(hierarchy::qualify("app::Base", "app") == "app::Base", "a qualified name should be left alone");
+    assert(hierarchy::qualify("Box", "app::shapes") == "app::shapes::Box", "a template name should be qualified");
+    assert(hierarchy::qualify("Box", "") == "Box", "nothing to qualify a name with in the root module");
+}

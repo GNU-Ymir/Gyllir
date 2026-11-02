@@ -1,0 +1,366 @@
+in hierarchy;
+
+use gyllir::doc::symbols::{_, class_, module, none_, template_, trait_};
+use gyllir::doc::types::{_, any, class_};
+
+use std::{char, stream};
+use std::algorithm::{searching, sorting};
+use std::fs;
+
+/**
+ * A class (or record, entity) or a trait, as the inheritance graph of a documentation site knows it
+ * */
+pub record HierarchyNode {
+
+    // The qualified name of the symbol, without its template parameters ('app::shapes::Circle'),
+    // which is its key in the graph
+    pub let name: [c8];
+
+    // The qualified name of the module declaring the symbol ('app::shapes')
+    pub let module: [c8];
+
+    // The name the symbol is displayed under: the last component of 'name', followed by the
+    // template parameters of a template ('Box{T}')
+    pub let display: [c8];
+
+    // 'class', 'record', 'entity' or 'trait', the 'data-kind' the pages write for the symbol
+    pub let kind: [c8];
+
+    // The key of the class the symbol is declared 'over', "" if there is none. It names a symbol
+    // of the graph when the ancestor is documented by the site, anything else (e.g. a class of a
+    // dependency) is kept as the doc json names it
+    pub let ancestor: [c8];
+
+    // The traits the symbol implements, each with the condition of its 'impl' ("" if there is
+    // none), named like 'ancestor'
+    pub let traits: [([c8], [c8])];
+
+    pub self (name: [c8], module: [c8], display: [c8], kind: [c8], ancestor: [c8] = "", traits: [([c8], [c8])] = [])
+        with name = name
+        , module = module
+        , display = display
+        , kind = kind
+        , ancestor = ancestor
+        , traits = traits
+    {}
+
+    /**
+     * @returns: true iif the symbol is a trait
+     * */
+    @field
+    pub fn isTrait(self)-> bool {
+        self.kind == "trait"
+    }
+
+    /**
+     * @returns: the anchor of the symbol in the page of its module, the 'id' 'doc::html::body'
+     *    gives its declaration
+     * */
+    @field
+    pub fn anchor(self)-> [c8] {
+        Path(self.name, sep-> "::").file()
+    }
+
+    impl Streamable;
+}
+
+/**
+ * A graph without any class or trait, the one of a page rendered on its own
+ * */
+pub lazy EMPTY_GRAPH = copy InheritanceGraph(NONE_SYMBOL);
+
+/**
+ * The inheritance relations between the classes and the traits of a documentation site: the
+ * ancestor each class is declared 'over', the traits it implements, and the other way around the
+ * classes declared over a class and the ones implementing a trait.
+ *
+ * Built once from the whole symbol tree (as 'doc::loader::SymbolLoader' loads it), because a page
+ * documents a single module while the graph of a class spans the modules declaring its ancestors
+ * and its descendants.
+ * */
+pub class InheritanceGraph {
+
+    // Every class and trait of the site, by qualified name
+    let dmut _nodes: [[c8] => HierarchyNode] = copy [];
+
+    // The qualified names of '_nodes', in the order the tree was walked
+    let mut _order: [[c8]] = [];
+
+    // The key of a class => the classes declared directly over it
+    let dmut _children: [[c8] => [[c8]]] = copy [];
+
+    // The key of a trait => the classes implementing it directly
+    let dmut _implementors: [[c8] => [[c8]]] = copy [];
+
+    /**
+     * Build the graph of every class and trait reachable from a symbol tree
+     * @params:
+     *    - root: the root symbol of the tree, as returned by 'doc::loader::SymbolLoader::load'
+     * */
+    pub self (root: &Symbol) {
+        if let m: &Module = root {
+            self:.loadModule(m);
+        }
+
+        self:.link();
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * =====================================          QUERIES          ====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * @returns: every class and trait of the graph, in the order the tree declares them
+     * */
+    @field
+    pub fn nodes(self)-> [HierarchyNode] {
+        let mut res: [HierarchyNode] = [];
+        for n in self._order {
+            if let Ok(node) = self._nodes[n] { res ~= [node]; }
+        }
+
+        res
+    }
+
+    /**
+     * @returns: the class or trait named 'name', none if the site documents none of that name
+     * */
+    pub fn find(self, name: [c8])-> (HierarchyNode)? {
+        if let Ok(node) = self._nodes[name] { return (node)?; }
+
+        none
+    }
+
+    /**
+     * @returns: the ancestors of the class 'name', the one it is declared over first and the root of
+     *    its hierarchy last. The chain stops at the first ancestor the site does not document, which
+     *    is still part of it
+     * */
+    pub fn ancestors(self, name: [c8])-> [[c8]] {
+        let mut res: [[c8]] = [];
+        let mut current     = name;
+        loop {
+            let anc = if let Ok(node) = self._nodes[current] { node.ancestor } else { "" };
+
+            // a cycle cannot be compiled, but a hand written doc json may still declare one
+            if (anc.len == 0us || anc == name || contains(res, anc)) break;
+
+            res ~= [anc];
+            current = anc;
+        }
+
+        res
+    }
+
+    /**
+     * @returns: the classes declared directly over the class 'name', sorted by name
+     * */
+    pub fn children(self, name: [c8])-> [[c8]] {
+        if let Ok(l) = self._children[name] { return sorted(l); }
+
+        []
+    }
+
+    /**
+     * @returns: the classes implementing the trait 'name' themselves (not through an ancestor),
+     *    sorted by name
+     * */
+    pub fn implementors(self, name: [c8])-> [[c8]] {
+        if let Ok(l) = self._implementors[name] { return sorted(l); }
+
+        []
+    }
+
+    /*!
+     * ====================================================================================================
+     * ====================================================================================================
+     * =====================================          LOADING          ====================================
+     * ====================================================================================================
+     * ====================================================================================================
+     */
+
+    /**
+     * Load the classes and the traits a module declares, and the ones of its sub modules
+     * */
+    fn loadModule(mut self, module: &Module) {
+        for ch in module.childs {
+            self:.loadDeclaration(ch, module.name, []);
+        }
+    }
+
+    /**
+     * Load a declaration of a module
+     * @params:
+     *    - sym: the declaration
+     *    - module: the qualified name of the module declaring it
+     *    - params: the parameters of the template wrapping it, if any
+     * */
+    fn loadDeclaration(mut self, sym: &Symbol, module: [c8], params: [&TemplateParam]) {
+        match sym {
+            m: &Module   => { self:.loadModule(m); }
+            t: &Template => {
+                for i in t.inners {
+                    self:.loadDeclaration(i, module, t.params);
+                }
+            }
+            c: &ClassSymbol => {
+                let kind = if (c.isRecord) { "record" } else if (c.isEntity) { "entity" } else { "class" };
+
+                let mut traits: [([c8], [c8])] = [];
+                for im in c.implements {
+                    let t = typeName(im.0);
+                    if (t.len != 0us) traits ~= [(t, im.1)];
+                }
+
+                let name = qualify(c.name, module);
+                self:.push(HierarchyNode(name, module, displayName(name, params), kind,
+                                         ancestor-> typeName(c.ancestor),
+                                         traits-> traits));
+            }
+            t: &TraitSymbol => {
+                let name = qualify(t.name, module);
+                self:.push(HierarchyNode(name, module, displayName(name, params), "trait"));
+            }
+        }
+    }
+
+    /**
+     * Add a symbol to the graph, unless one of the same name is already in it
+     * */
+    fn push(mut self, node: HierarchyNode) {
+        if (node.name.len == 0us) { return; }
+        if let Ok(_) = self._nodes[node.name] { return; }
+
+        self._nodes[node.name] = node;
+        self._order ~= [node.name];
+    }
+
+    /**
+     * Resolve the ancestors and the traits of the loaded symbols against the graph, and record
+     * the reverse relations
+     * */
+    fn link(mut self) {
+        for n in self._order {
+            if let Ok(node) = self._nodes[n] {
+                let anc = self.resolve(node.ancestor, node.module);
+
+                let mut traits: [([c8], [c8])] = [];
+                for t in node.traits {
+                    let name = self.resolve(t.0, node.module);
+                    traits ~= [(name, t.1)];
+
+                    let impls = self.implementors(name);
+                    if (!contains(impls, n)) self._implementors[name] = dcopy (impls ~ [n]);
+                }
+
+                if (anc.len != 0us && anc != n) {
+                    self._children[anc] = dcopy (self.children(anc) ~ [n]);
+                }
+
+                let ancestor = if (anc == n) { "" } else { anc };
+                self._nodes[n] = HierarchyNode(node.name, node.module, node.display, node.kind,
+                                               ancestor-> ancestor,
+                                               traits-> traits);
+            }
+        }
+    }
+
+    /**
+     * @returns: the key in the graph of the symbol a class refers to by 'name': 'name' itself when
+     *    the graph has it, else the symbol of that name in the module of the class (the doc json
+     *    leaves the ancestor of a template class unqualified), else 'name' as it is
+     * @params:
+     *    - name: the name the doc json gives the symbol
+     *    - module: the qualified name of the module of the class referring to it
+     * */
+    fn resolve(self, name: [c8], module: [c8])-> [c8] {
+        if (name.len == 0us) return "";
+        if let Ok(_) = self._nodes[name] { return name; }
+
+        if (module.len != 0us) {
+            let local = module ~ "::" ~ name;
+            if let Ok(_) = self._nodes[local] { return local; }
+        }
+
+        name
+    }
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * ====================================          HELPERS          =====================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+/**
+ * @returns: the name of the class or the trait a type refers to, without the template arguments
+ *    of an instance ('app::Box' for 'app::Box!{i32}'), "" if it refers to none
+ * */
+pub fn typeName(type: &Type)-> [c8] {
+    let full = match type {
+        c: &ClassType => { c.fullName }
+        a: &AnyType   => { a.fullName }
+        _             => { "" }
+    };
+
+    if (full.len == 0us || !char::isAlpha(full[0])) return "";
+    if let Ok(i) = searching::find(full, '!') {
+        return full[0us .. i];
+    }
+
+    full
+}
+
+/**
+ * @returns: the qualified name of a symbol declared in 'module', its key in the graph (the doc json
+ *    leaves the name of a template unqualified)
+ * */
+pub fn qualify(name: [c8], module: [c8])-> [c8] {
+    if let Ok(_) = index::findSub(name, "::") { return name; }
+    if (module.len == 0us) return name;
+
+    module ~ "::" ~ name
+}
+
+/**
+ * @returns: the last component of 'name', followed by the template parameters if there are some
+ * */
+prv fn displayName(name: [c8], params: [&TemplateParam])-> [c8] {
+    let file = Path(name, sep-> "::").file();
+    if (params.len == 0us) return file;
+
+    let dmut stream = copy StringStream();
+    stream:.write(file, "{");
+    for i, p in params {
+        if (i != 0us) stream:.write(", ");
+        stream:.write(p);
+    }
+
+    stream:.write("}");
+    stream[]
+}
+
+/**
+ * @returns: true iif 'name' is in 'list'
+ * */
+pub fn contains(list: [[c8]], name: [c8])-> bool {
+    for l in list if (l == name) { return true; }
+
+    false
+}
+
+/**
+ * @returns: a copy of 'list', sorted
+ * */
+pub fn sorted(list: [[c8]])-> [[c8]] {
+    let mut res: [mut [c8]] = copy list;
+    sort(alias res, |x, y| => { x < y });
+
+    res
+}
