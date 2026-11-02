@@ -4,8 +4,8 @@ use gyllir::config;
 use gyllir::doc::index;
 use gyllir::repo::{builder, coverage, defaults, doc, manager};
 
-use std::fs::_;
-use std::config::data;
+use std::fs;
+use std::config;
 
 /**
  * @returns: the number of html pages generated in 'dir'
@@ -14,7 +14,7 @@ fn nbPages(dir: Path)-> usize
     throws FsError
 {
     let mut nb = 0us;
-    for i in sys::readDir(dir) match i {
+    for i in fs::readDir(dir) match i {
         FsEntry(kind-> FsEntryKind::FILE, path-> p) if p.extension() == defaults::__HTML_EXTENSION__ => {
             nb += 1us;
         }
@@ -39,9 +39,9 @@ __test doc_build_renders_page_per_module {
     RepoDocBuilder(dir, mkBuildArgs(), cfg, target-> soleTarget(cfg)).run(alias mgr);
 
     let docDir = dir.push(defaults::__DOC_DIR__);
-    assert(sys::isFile(docDir.push("index.html")), "the root module should be rendered as \"index.html\"");
-    assert(sys::isFile(docDir.push("main.html")), "the \"main\" module should be rendered as its own page");
-    assert(sys::isDir(docDir.push("css")) && sys::isDir(docDir.push("js")) && sys::isDir(docDir.push("ico")),
+    assert(fs::isFile(docDir.push("index.html")), "the root module should be rendered as \"index.html\"");
+    assert(fs::isFile(docDir.push("main.html")), "the \"main\" module should be rendered as its own page");
+    assert(fs::isDir(docDir.push("css")) && fs::isDir(docDir.push("js")) && fs::isDir(docDir.push("ico")),
            "the static assets of the pages should be copied next to them");
 }
 
@@ -50,7 +50,7 @@ __test doc_output_flag_changes_render_directory {
     let dir      = mkExecutableProject("myapp");
     let dmut mgr = copy GyllirManager(copy ["gyllir", "doc"]);
 
-    let out       = sys::tempDirectory(prefix-> "gyllir_doc_out_");
+    let out       = fs::tempDirectory(prefix-> "gyllir_doc_out_");
     let dmut args = copy Dict();
     args["output"] = copy Str(out.toStr());
     args["j"] = copy Int(1i64);
@@ -58,8 +58,8 @@ __test doc_output_flag_changes_render_directory {
     let cfg = mkConfig("myapp", "executable");
     RepoDocBuilder(dir, args, cfg, target-> soleTarget(cfg)).run(alias mgr);
 
-    assert(sys::isFile(out.push("index.html")), "the pages should be rendered in the requested directory");
-    assert(!sys::isDir(dir.push(defaults::__DOC_DIR__)), "the default documentation directory should be left alone");
+    assert(fs::isFile(out.push("index.html")), "the pages should be rendered in the requested directory");
+    assert(!fs::isDir(dir.push(defaults::__DOC_DIR__)), "the default documentation directory should be left alone");
 }
 
 __test doc_input_flag_renders_from_doc_file {
@@ -73,9 +73,9 @@ __test doc_input_flag_renders_from_doc_file {
     let input = defaults::targetCacheDir(dir, "myapp", defaults::__CACHE_DOC_DIR__)
         .push("myapp")
         .addExtension(defaults::__DOC_EXTENSION__);
-    assert(sys::isFile(input), "sanity: the documentation file should have been produced");
+    assert(fs::isFile(input), "sanity: the documentation file should have been produced");
 
-    let out       = sys::tempDirectory(prefix-> "gyllir_doc_out_");
+    let out       = fs::tempDirectory(prefix-> "gyllir_doc_out_");
     let dmut args = copy Dict();
     args["output"] = copy Str(out.toStr());
 
@@ -83,7 +83,7 @@ __test doc_input_flag_renders_from_doc_file {
         alias mgr
     );
 
-    assert(sys::isFile(out.push("index.html")), "the pages should be rendered from the input documentation file");
+    assert(fs::isFile(out.push("index.html")), "the pages should be rendered from the input documentation file");
 }
 
 __test doc_build_removes_stale_pages {
@@ -101,7 +101,7 @@ __test doc_build_removes_stale_pages {
 
     RepoDocBuilder(dir, mkBuildArgs(), cfg, target-> soleTarget(cfg)).run(alias mgr);
 
-    assert(!sys::isFile(docDir.push("stale.html")), "an html page left by a previous run should be removed");
+    assert(!fs::isFile(docDir.push("stale.html")), "an html page left by a previous run should be removed");
     assert(nbPages(docDir) == nb, "the pages of the modules that are still there should be rendered again");
 }
 
@@ -115,10 +115,10 @@ __test doc_pages_link_the_coverage_pages {
     let link     = "href=\"" ~ defaults::__COVERAGE_DIR__ ~ "/index.html\">Coverage</a>";
 
     RepoDocBuilder(dir, mkBuildArgs(), cfg, target-> soleTarget(cfg)).run(alias mgr);
-    assert(!contains(sys::readFile(index), link), "the pages should not link coverage pages that are not rendered");
+    assert(!contains(fs::readFile(index), link), "the pages should not link coverage pages that are not rendered");
 
     RepoDocBuilder(dir, mkBuildArgs(flags-> copy ["coverage"]), cfg, target-> soleTarget(cfg)).run(alias mgr);
-    assert(contains(sys::readFile(index), link), "the pages should link the coverage pages rendered with them");
+    assert(contains(fs::readFile(index), link), "the pages should link the coverage pages rendered with them");
 }
 
 __test doc_build_renders_every_symbol_kind {
@@ -132,8 +132,8 @@ __test doc_build_renders_every_symbol_kind {
     RepoDocBuilder(dir, mkBuildArgs(), cfg, target-> soleTarget(cfg)).run(alias mgr);
 
     let docDir = dir.push(defaults::__DOC_DIR__);
-    assert(sys::isFile(docDir.push("main.html")), "the root module should be rendered");
-    assert(sys::isFile(docDir.push("main_sub.html")), "the sub module should be rendered, on a page of its own");
+    assert(fs::isFile(docDir.push("main.html")), "the root module should be rendered");
+    assert(fs::isFile(docDir.push("main_sub.html")), "the sub module should be rendered, on a page of its own");
 
     let dmut f = File::open(docDir.push("main.html"));
     let page   = f:.readAll();
@@ -187,11 +187,11 @@ __test doc_multi_target_renders_separate_sites {
 
     let docDir = dir.push(defaults::__DOC_DIR__);
     for name in copy ["cli", "mylib", "tool"] {
-        assert(sys::isFile(docDir.push(name).push("index.html")),
+        assert(fs::isFile(docDir.push(name).push("index.html")),
                "the target '" ~ name ~ "' should have a site of its own");
     }
 
-    assert(!sys::isFile(docDir.push("index.html")), "a multi target package should not render a flat site");
+    assert(!fs::isFile(docDir.push("index.html")), "a multi target package should not render a flat site");
 
     // the coverage pages of the package sit next to the sites, which link them, and link them back
     let dmut args = copy Dict();
@@ -199,7 +199,7 @@ __test doc_multi_target_renders_separate_sites {
     writeSource(dir.push("cov.json"), "{\"functions\": []}");
 
     RepoCoverageBuilder(dir, args, cfg).run();
-    let cov = sys::readFile(docDir.push(defaults::__COVERAGE_DIR__).push("index.html"));
+    let cov = fs::readFile(docDir.push(defaults::__COVERAGE_DIR__).push("index.html"));
     for name in copy ["cli", "mylib", "tool"] {
         assert(contains(cov, "href=\"../" ~ name ~ "/index.html\""),
                "the coverage pages should link the site of '" ~ name ~ "'");
@@ -222,9 +222,9 @@ __test doc_target_uses_own_doc_cache {
 
     assert(hasCacheFile(dir, "tool", defaults::__CACHE_DOC_DIR__, "tool.doc.json"),
            "the documentation file should be cached under the target");
-    assert(sys::isFile(dir.push(defaults::__DOC_DIR__).push("tool").push("index.html")),
+    assert(fs::isFile(dir.push(defaults::__DOC_DIR__).push("tool").push("index.html")),
            "the site of the named target should be rendered");
-    assert(!sys::isDir(dir.push(defaults::__DOC_DIR__).push("cli")), "the other targets should not be documented");
+    assert(!fs::isDir(dir.push(defaults::__DOC_DIR__).push("cli")), "the other targets should not be documented");
 }
 
 /**

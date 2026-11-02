@@ -3,7 +3,7 @@ in parser;
 use gyllir::doc::comment::{node, node::_, tokens, utf};
 
 use std::stream;
-use std::syntax::lexer;
+use std::syntax;
 
 /**
  * This class parse Comment in order to transform documentation blocks into html elements

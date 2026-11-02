@@ -1,7 +1,7 @@
 in enum_;
 
 use std::stream;
-use std::fs::path;
+use std::fs;
 
 @final
 pub class EnumType over Type {

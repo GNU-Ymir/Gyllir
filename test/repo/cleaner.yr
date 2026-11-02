@@ -2,31 +2,31 @@ use ::repo::fixture;
 use gyllir::config::_;
 use gyllir::repo::cleaner;
 
-use std::{config::_, config::json, fs::_};
+use std::{config, config::json, fs};
 
 __test clean_doc_removes_doc_directory {
     // cleanDoc() removes the "__doc" directory under the repo's cwd
-    let dir    = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
+    let dir    = fs::tempDirectory(prefix-> "gyllir_cleaner_test_");
     let docDir = dir.push("__doc");
-    sys::createDir(docDir);
+    fs::createDir(docDir);
     let dmut f = File::create(docDir.push("index.html"), write-> true);
     f:.write("hello");
     f:.close();
 
-    assert(sys::isDir(docDir), "sanity: __doc should exist before cleaning");
+    assert(fs::isDir(docDir), "sanity: __doc should exist before cleaning");
 
     let cfg     = GyllirPackageConfiguration::empty();
     let cleaner = RepoCleaner(dir, copy Dict(), cfg);
     cleaner.cleanDoc();
 
-    assert(!sys::isDir(docDir), "cleanDoc() should remove the __doc directory");
+    assert(!fs::isDir(docDir), "cleanDoc() should remove the __doc directory");
 }
 
 __test clean_outputs_removes_target_and_executable {
     // cleanOutputs() removes .target, and the built executable/test file named after the config
-    let dir       = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
+    let dir       = fs::tempDirectory(prefix-> "gyllir_cleaner_test_");
     let targetDir = dir.push(".target");
-    sys::createDir(targetDir);
+    fs::createDir(targetDir);
 
     let cfg = GyllirPackageConfiguration("myexe",
                                          "MIT",
@@ -48,14 +48,14 @@ __test clean_outputs_removes_target_and_executable {
     let cleaner = RepoCleaner(dir, copy Dict(), cfg);
     cleaner.cleanOutputs();
 
-    assert(!sys::isDir(targetDir), "cleanOutputs() should remove the .target directory");
-    assert(!sys::isFile(exePath), "cleanOutputs() should remove the built executable");
-    assert(!sys::isFile(testPath), "cleanOutputs() should remove the built test executable");
+    assert(!fs::isDir(targetDir), "cleanOutputs() should remove the .target directory");
+    assert(!fs::isFile(exePath), "cleanOutputs() should remove the built executable");
+    assert(!fs::isFile(testPath), "cleanOutputs() should remove the built test executable");
 }
 
 __test clean_outputs_removes_library_archive {
     // For a library config, cleanOutputs() removes "lib<name>.a" instead of a bare executable
-    let dir = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
+    let dir = fs::tempDirectory(prefix-> "gyllir_cleaner_test_");
     let cfg = GyllirPackageConfiguration("mylib",
                                          "MIT",
                                          "d",
@@ -71,7 +71,7 @@ __test clean_outputs_removes_library_archive {
     let cleaner = RepoCleaner(dir, copy Dict(), cfg);
     cleaner.cleanOutputs();
 
-    assert(!sys::isFile(libPath), "cleanOutputs() should remove the built library archive");
+    assert(!fs::isFile(libPath), "cleanOutputs() should remove the built library archive");
 }
 
 /*!
@@ -85,7 +85,7 @@ __test clean_outputs_removes_library_archive {
 __test clean_outputs_removes_all_target_artifacts {
     // cleanOutputs() removes the artifact and the unittest executable of every declared target,
     // whatever "output" named them
-    let dir = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
+    let dir = fs::tempDirectory(prefix-> "gyllir_cleaner_test_");
     let cfg = mkTargetsConfig("multi", json #{
         "mylib" : {"type" : "library"},
         "cli" : {"type" : "executable"},
@@ -98,22 +98,22 @@ __test clean_outputs_removes_all_target_artifacts {
         f:.close();
     }
 
-    sys::createDir(dir.push(".target").push("cli"), recursive-> true);
+    fs::createDir(dir.push(".target").push("cli"), recursive-> true);
 
     RepoCleaner(dir, copy Dict(), cfg).cleanOutputs();
 
-    assert(!sys::isDir(dir.push(".target")), "the build cache of every target should be removed");
+    assert(!fs::isDir(dir.push(".target")), "the build cache of every target should be removed");
     for name in copy ["libmylib.a", "mylib.test", "cli", "cli.test", "renamed", "renamed.test"] {
-        assert(!sys::isFile(dir.push(name)), "the artifact \"" ~ name ~ "\" should have been removed");
+        assert(!fs::isFile(dir.push(name)), "the artifact \"" ~ name ~ "\" should have been removed");
     }
 }
 
 __test clean_outputs_missing_artifact_is_not_error {
     // The artifact of a target that was never built is simply not there, cleaning is not an error
-    let dir = sys::tempDirectory(prefix-> "gyllir_cleaner_test_");
+    let dir = fs::tempDirectory(prefix-> "gyllir_cleaner_test_");
     let cfg = mkTargetsConfig("multi", json #{"cli" : {"type" : "executable"}});
 
     RepoCleaner(dir, copy Dict(), cfg).cleanOutputs();
 
-    assert(!sys::isFile(dir.push("cli")), "nothing should have been produced by a clean");
+    assert(!fs::isFile(dir.push("cli")), "nothing should have been produced by a clean");
 }

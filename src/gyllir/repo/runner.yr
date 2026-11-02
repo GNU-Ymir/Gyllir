@@ -3,9 +3,9 @@ in runner;
 use gyllir::args;
 use gyllir::config::_;
 
-use std::{config::_, env, io, stream};
-use std::concurrency::process;
-use std::fs::{errors, path};
+use std::{config, env, io, stream};
+use std::concurrency;
+use std::fs;
 
 pub record RepoRunner {
 

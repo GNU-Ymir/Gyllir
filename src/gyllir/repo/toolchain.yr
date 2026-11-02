@@ -4,9 +4,9 @@ use gyllir::config::cache;
 use gyllir::repo::cache;
 use gyllir::utils::progress;
 
-use std::{fs::_, io, stream};
-use std::concurrency::process;
-use std::time::{_, date::conv};
+use std::{fs, io, stream};
+use std::concurrency;
+use std::{time, time::date};
 
 /**
  * Installs the releases of gyc pinned by '[compiler]' tables into the gyllir cache, one directory
@@ -60,7 +60,7 @@ pub record CompilerInstaller {
         throws AssertError
     {
         let dir = self._cache.compilerDir(version);
-        if (sys::isFile(dir.push(defaults::__GYC_BINARY__))) {
+        if (fs::isFile(dir.push(defaults::__GYC_BINARY__))) {
             let known = if let Ok(_) = self._cache.load().find(self.itemPath(version)) { true } else { false };
             if (!known) {
                 self._cache.add(CachedItem(self.itemPath(version), __COMPILER_ITEM_KIND__, "gyc", version));
@@ -84,8 +84,8 @@ pub record CompilerInstaller {
         let (major, url, size) = self.findRelease(version, majors);
         let parent       = dir.parent();
         let tmp = {
-            sys::createDir(parent, recursive-> true)?;
-            sys::tempDirectory(root-> parent, prefix-> "." ~ version ~ ".")
+            fs::createDir(parent, recursive-> true)?;
+            fs::tempDirectory(root-> parent, prefix-> "." ~ version ~ ".")
         } catch {
             e: &FsError => {
                 throw copy AssertError("could not create a directory in '" ~ parent.toStr() ~ "': " ~ e.msg);
@@ -99,9 +99,9 @@ pub record CompilerInstaller {
             self.checkDependencies(version, tmp.push("gyc.deb"));
 
             // an installation of the same release made meanwhile by another gyllir is just as good
-            if (!sys::isFile(dir.push(defaults::__GYC_BINARY__))) {
+            if (!fs::isFile(dir.push(defaults::__GYC_BINARY__))) {
                 {
-                    sys::rename(tmp.push("root"), dir);
+                    fs::rename(tmp.push("root"), dir);
                 } catch {
                     e: &FsError => {
                         throw copy AssertError("could not install gyc " ~ version ~ " in '" ~ dir.toStr() ~ "': "
@@ -110,7 +110,7 @@ pub record CompilerInstaller {
                 }
             }
         } exit {
-            sys::removeDir(tmp, recursive-> true)?;
+            fs::removeDir(tmp, recursive-> true)?;
         }
 
         self.check(version, dir);
@@ -140,14 +140,14 @@ pub record CompilerInstaller {
         let libexec = self._system.push("libexec/gcc").push(defaults::__GYC_TRIPLE__);
 
         let mut found: [u32] = [];
-        for entry in sys::readDir(lib) {
+        for entry in fs::readDir(lib) {
             let name = entry.path.file();
             let mut numeric = name.len != 0us;
             for c in name if !std::char::isDigit(c) {
                 numeric = false;
             }
 
-            if (numeric && sys::isDir(libexec.push(name))) {
+            if (numeric && fs::isDir(libexec.push(name))) {
                 found ~= [std::conv::to!{u32} (name)];
             }
         }
@@ -219,7 +219,7 @@ pub record CompilerInstaller {
                                    ~ utils::errors::singleLine(err));
         }
 
-        if (!sys::isFile(tmp.push("root").push(defaults::__GYC_BINARY__))) {
+        if (!fs::isFile(tmp.push("root").push(defaults::__GYC_BINARY__))) {
             throw copy AssertError("the .deb of gyc " ~ version ~ " has no " ~ defaults::__GYC_BINARY__);
         }
     }
@@ -240,9 +240,9 @@ pub record CompilerInstaller {
         // run from outside its prefix, the driver hands ymir1 '-iprefix <usr>/lib/gcc/<triple>/<major>/',
         // and ymir1 silently falls back to the std lib of the system when 'include/ymir' is not there
         let include = usr.push(lib).push("include");
-        sys::createDir(include, recursive-> true)?;
-        if (!sys::exists(include.push("ymir"), followLink-> false)) {
-            sys::symlink(Path("../../../../../" ~ libexec ~ "/include/ymir"), include.push("ymir"));
+        fs::createDir(include, recursive-> true)?;
+        if (!fs::exists(include.push("ymir"), followLink-> false)) {
+            fs::symlink(Path("../../../../../" ~ libexec ~ "/include/ymir"), include.push("ymir"));
         }
 
         self.linkMissing(self._system.push(lib).push("include"), include);
@@ -260,13 +260,13 @@ pub record CompilerInstaller {
     prv fn linkMissing(self, system: Path, local: Path)
         throws FsError
     {
-        if (!sys::isDir(system)) { return; }
+        if (!fs::isDir(system)) { return; }
 
-        sys::createDir(local, recursive-> true)?;
-        for entry in sys::readDir(system) {
+        fs::createDir(local, recursive-> true)?;
+        for entry in fs::readDir(system) {
             let to = local.push(entry.path.file());
-            if (!sys::exists(to, followLink-> false)) {
-                sys::symlink(entry.path, to);
+            if (!fs::exists(to, followLink-> false)) {
+                fs::symlink(entry.path, to);
             }
         }
     }
@@ -316,7 +316,7 @@ pub record CompilerInstaller {
         let (code, err) = run(dir.push(defaults::__GYC_BINARY__).toStr(), copy ["--version"]);
         if (code != 0) {
             {
-                sys::removeDir(dir, recursive-> true);
+                fs::removeDir(dir, recursive-> true);
             } catch {
                 _ => {}
             }

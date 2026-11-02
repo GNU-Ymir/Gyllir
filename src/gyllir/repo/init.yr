@@ -3,7 +3,7 @@ in init;
 use gyllir::{config::_, utils::_};
 use gyllir::repo::manager;
 
-use std::{config::_, env, fs::_, io, stream};
+use std::{config, env, fs, io, stream};
 
 pub record RepoInitializer {
 
@@ -35,7 +35,7 @@ pub record RepoInitializer {
      * */
     pub fn run(self, context: &GyllirManager) {
         let path = env::currentDir();
-        if (std::fs::sys::isFile(path.push(defaults::__GYLLIR_CONFIG_FILENAME__))) {
+        if (std::fs::isFile(path.push(defaults::__GYLLIR_CONFIG_FILENAME__))) {
             throw copy AssertError("The target directory already contains a 'gyllir.toml' file. Aborting.");
         }
 
@@ -84,8 +84,8 @@ pub record RepoInitializer {
             f:.close();
         }
 
-        fs::sys::createDir(Path(".").push(defaults::__SRC_DIR__))?;
-        fs::sys::createDir(Path(".").push(defaults::__TEST_DIR__))?;
+        fs::createDir(Path(".").push(defaults::__SRC_DIR__))?;
+        fs::createDir(Path(".").push(defaults::__TEST_DIR__))?;
         if (cfg.type.isExecutable()) {
             {
                 let dmut f = File::create(Path(defaults::__SRC_DIR__).push(defaults::__MAIN_FILE__), write-> true);

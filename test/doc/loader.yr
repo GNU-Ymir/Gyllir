@@ -1,7 +1,7 @@
 use gyllir::doc::{loader, types::_};
 use gyllir::doc::symbols::{_, template_::_};
 
-use std::{config::_, config::json, stream};
+use std::{config, config::json, stream};
 
 __test unknown_kind_loads_as_none {
     // An unrecognized "kind" (or a missing/malformed config) loads as a None symbol

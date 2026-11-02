@@ -3,8 +3,8 @@ in cache;
 use gyllir::config::cache;
 use gyllir::repo::manager;
 
-use std::{config::_, fs::_, io, stream};
-use std::syntax::errors;
+use std::{config, fs, io, stream};
+use std::syntax;
 
 /**
  * The gyllir cache: a directory shared by every package of the machine('~/.local/gyllir' by
@@ -51,10 +51,10 @@ pub record GyllirCache {
         throws AssertError
     {
         let file = self.indexFile();
-        if (!sys::isFile(file)) { return copy CacheIndex(); }
+        if (!fs::isFile(file)) { return copy CacheIndex(); }
 
         {
-            copy CacheIndex(std::config::toml::parse(sys::readFile(file)))
+            copy CacheIndex(std::config::toml::parse(fs::readFile(file)))
         } catch {
             a: &AssertError => {
                 throw copy AssertError("the cache index '" ~ file.toStr() ~ "' is malformed: " ~ a.msg);
@@ -79,9 +79,9 @@ pub record GyllirCache {
         let file = self.indexFile();
         let tmp  = self._root.push(defaults::__CACHE_INDEX_FILENAME__ ~ ".tmp");
         {
-            sys::createDir(self._root, recursive-> true)?;
-            sys::writeFile(tmp, index.toToml());
-            sys::rename(tmp, file);
+            fs::createDir(self._root, recursive-> true)?;
+            fs::writeFile(tmp, index.toToml());
+            fs::rename(tmp, file);
         } catch {
             e: &FsError => {
                 throw copy AssertError("could not write the cache index '" ~ file.toStr() ~ "': " ~ e.msg);
@@ -116,10 +116,10 @@ pub record GyllirCache {
 
         let dir = self._root.push(item.path);
         {
-            if (sys::isLink(dir)) {
-                sys::removeFsEntry(dir);
-            } else if (sys::exists(dir, followLink-> false)) {
-                sys::removeDir(dir, recursive-> true);
+            if (fs::isLink(dir)) {
+                fs::removeFsEntry(dir);
+            } else if (fs::exists(dir, followLink-> false)) {
+                fs::removeDir(dir, recursive-> true);
             }
         } catch {
             e: &FsError => {
@@ -138,9 +138,9 @@ pub record GyllirCache {
     pub fn partialInstalls(self)-> [Path] {
         let mut res: [Path] = [];
         let dir = self._root.push(defaults::__CACHE_COMPILER_DIR__);
-        if (!sys::isDir(dir)) { return res; }
+        if (!fs::isDir(dir)) { return res; }
 
-        for entry in sys::readDir(dir) {
+        for entry in fs::readDir(dir) {
             match entry {
                 FsEntry(path-> p, kind-> FsEntryKind::DIR) => {
                     if (p.file().len > 0us && p.file()[0] == '.') { res ~= [p]; }
@@ -178,9 +178,9 @@ pub fn isCachePath(path: [c8])-> bool {
  * */
 pub fn directorySize(dir: Path)-> usize {
     let mut res = 0us;
-    for entry in sys::walkDir(dir) {
+    for entry in fs::walkDir(dir) {
         if (entry.kind == FsEntryKind::FILE) {
-            res += sys::fileSize(entry.path).bytes;
+            res += fs::fileSize(entry.path).bytes;
         }
     }
 
@@ -269,7 +269,7 @@ pub record RepoCache {
             line:.write(i.name, " ", i.version);
 
             let dir = self._cache.root.push(i.path);
-            if (sys::isDir(dir)) {
+            if (fs::isDir(dir)) {
                 line:.write(", ", formatSize(directorySize(dir)));
             } else {
                 line:.write(", missing from the cache");
@@ -338,7 +338,7 @@ pub record RepoCache {
 
         for p in partial {
             {
-                sys::removeDir(p, recursive-> true);
+                fs::removeDir(p, recursive-> true);
             } catch {
                 e: &FsError => {
                     throw copy AssertError("could not remove '" ~ p.toStr() ~ "': " ~ e.msg);

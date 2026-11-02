@@ -1,6 +1,6 @@
 use gyllir::config::version;
 
-use std::config::{_, conv};
+use std::config;
 
 pub mod ::filter;
 

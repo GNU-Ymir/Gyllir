@@ -2,7 +2,7 @@ use ::repo::fixture;
 
 use gyllir::repo::{cache, defaults, toolchain};
 
-use std::fs::_;
+use std::fs;
 
 /**
  * @returns: an installer of the fake releases of 'mkFakeGycRelease', into a cache of its own
@@ -34,17 +34,17 @@ __test content_length_of_the_last_response {
 
 __test system_gcc_majors_newest_first {
     // Only the majors installed in both lib/gcc and libexec/gcc count, newest first
-    let system  = sys::tempDirectory(prefix-> "gyllir_sys_");
+    let system  = fs::tempDirectory(prefix-> "gyllir_sys_");
     let lib     = system.push("lib/gcc").push(defaults::__GYC_TRIPLE__);
     let libexec = system.push("libexec/gcc").push(defaults::__GYC_TRIPLE__);
     for m in ["13", "15", "9"] {
-        sys::createDir(lib.push(m), recursive-> true);
-        sys::createDir(libexec.push(m), recursive-> true);
+        fs::createDir(lib.push(m), recursive-> true);
+        fs::createDir(libexec.push(m), recursive-> true);
     }
 
-    sys::createDir(lib.push("14"), recursive-> true);
-    sys::createDir(lib.push("x86"), recursive-> true);
-    sys::createDir(libexec.push("x86"), recursive-> true);
+    fs::createDir(lib.push("14"), recursive-> true);
+    fs::createDir(lib.push("x86"), recursive-> true);
+    fs::createDir(libexec.push("x86"), recursive-> true);
 
     let majors = CompilerInstaller(cache-> GyllirCache(root-> system.push("cache")), system-> system).systemGccMajors();
     assert(majors == ["15", "13", "9"], "unexpected majors");
@@ -60,18 +60,18 @@ __test relocate_links_the_system_gcc {
     let usr = releases.parent().push("usr");
     let libexec = usr.push("libexec/gcc").push(defaults::__GYC_TRIPLE__).push("15");
     writeSource(libexec.push("ymir1"), "release");
-    sys::createDir(libexec.push("include/ymir/1.16"), recursive-> true);
+    fs::createDir(libexec.push("include/ymir/1.16"), recursive-> true);
 
     CompilerInstaller(cache-> GyllirCache(root-> releases.parent().push("cache")), system-> system).relocate(usr, "15");
 
     let lib = usr.push("lib/gcc").push(defaults::__GYC_TRIPLE__).push("15");
-    assert(sys::isLink(lib.push("crtbegin.o")), "crtbegin.o should be linked from the system gcc");
-    assert(sys::isLink(libexec.push("collect2")), "collect2 should be linked from the system gcc");
-    assert(!sys::isLink(libexec.push("ymir1")) && sys::readFile(libexec.push("ymir1")) == "release",
+    assert(fs::isLink(lib.push("crtbegin.o")), "crtbegin.o should be linked from the system gcc");
+    assert(fs::isLink(libexec.push("collect2")), "collect2 should be linked from the system gcc");
+    assert(!fs::isLink(libexec.push("ymir1")) && fs::readFile(libexec.push("ymir1")) == "release",
            "ymir1 of the release should not be replaced by the one of the system");
-    assert(!sys::isLink(lib.push("include")) && sys::isLink(lib.push("include/stddef.h")),
+    assert(!fs::isLink(lib.push("include")) && fs::isLink(lib.push("include/stddef.h")),
            "the include directory should be the release's own, holding links to the system headers");
-    assert(sys::isDir(lib.push("include/ymir/1.16")), "the std lib of the release should be reachable from lib/gcc");
+    assert(fs::isDir(lib.push("include/ymir/1.16")), "the std lib of the release should be reachable from lib/gcc");
 }
 
 __test install_extracts_a_release_into_the_cache {
@@ -81,8 +81,8 @@ __test install_extracts_a_release_into_the_cache {
 
     let dir = installer.install("1.0.1");
     assert(dir == installer.cache.compilerDir("1.0.1"), "unexpected installation directory: " ~ dir.toStr());
-    assert(sys::isFile(dir.push(defaults::__GYC_BINARY__)), "the driver should be installed");
-    assert(sys::isDir(dir.push("usr/lib/gcc").push(defaults::__GYC_TRIPLE__).push("15/include/ymir/1.16")),
+    assert(fs::isFile(dir.push(defaults::__GYC_BINARY__)), "the driver should be installed");
+    assert(fs::isDir(dir.push("usr/lib/gcc").push(defaults::__GYC_TRIPLE__).push("15/include/ymir/1.16")),
            "the installation should be relocated, its internal links surviving the move into the cache");
     assert(installer.cache.partialInstalls().len == 0us, "nothing should be left of the installation");
 
@@ -100,7 +100,7 @@ __test install_reuses_an_installed_release {
     let installer = fakeInstaller(releases, system);
     let dir       = installer.install("1.0.2");
 
-    sys::removeDir(releases, recursive-> true);
+    fs::removeDir(releases, recursive-> true);
     assert(installer.install("1.0.2", offline-> true) == dir, "the installed release should be reused");
 }
 
@@ -110,7 +110,7 @@ __test install_records_an_unlisted_installation {
     let installer = fakeInstaller(releases, system);
     installer.install("1.0.3");
 
-    sys::removeFile(installer.cache.indexFile());
+    fs::removeFile(installer.cache.indexFile());
     installer.install("1.0.3");
     let found = if let Ok(_) = installer.cache.load().find("compiler/1.0.3") { true } else { false };
     assert(found, "the release should be recorded again");

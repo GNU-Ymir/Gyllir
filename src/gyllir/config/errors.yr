@@ -1,7 +1,7 @@
 in errors;
 
 use std::stream;
-use std::config::data;
+use std::config;
 
 /*!
  * Every error raised while reading a gyllir.toml is an 'AssertError' whose message is written for

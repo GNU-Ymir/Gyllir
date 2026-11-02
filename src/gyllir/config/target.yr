@@ -2,7 +2,7 @@ in target;
 
 use gyllir::config::type;
 
-use std::{config::_, stream};
+use std::{config, stream};
 
 /**
  * The source directory of a target that does not declare one

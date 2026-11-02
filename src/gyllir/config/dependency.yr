@@ -3,7 +3,7 @@ in dependency;
 use gyllir::config::url;
 use gyllir::config::version::filter;
 
-use std::{config::_, stream};
+use std::{config, stream};
 
 /**
  * A dependency to an external package

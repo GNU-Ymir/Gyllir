@@ -5,7 +5,7 @@ use gyllir::doc::comment::parser;
 
 use std::{conv, format, stream};
 use std::algorithm::sorting;
-use std::fs::path;
+use std::fs;
 
 /**
  * Html body of a page

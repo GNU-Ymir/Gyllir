@@ -2,8 +2,8 @@ use ::repo::fixture;
 use gyllir::config::_;
 use gyllir::repo::runner;
 
-use std::{config::_, config::json, fs::_};
-use std::concurrency::process;
+use std::{config, config::json, fs};
+use std::concurrency;
 
 /**
  * Write an executable shell script exiting with a given code, standing in for an artifact that
@@ -90,7 +90,7 @@ __test reject_library_target_run {
 __test run_returns_artifact_exit_code {
     // The runner returns the exit code of the artifact instead of exiting itself, so that
     // 'gyllir test' can run the tests of every target before failing on the first one that did not pass
-    let dir = sys::tempDirectory(prefix-> "gyllir_runner_test_");
+    let dir = fs::tempDirectory(prefix-> "gyllir_runner_test_");
     let cfg = mkConfig("myapp", "executable");
     mkArtifact(dir, "myapp", "0");
 
@@ -103,7 +103,7 @@ __test run_returns_artifact_exit_code {
 
 __test unittest_run_executes_test_binary {
     // A unittest run executes "<output>.test", not the artifact itself
-    let dir = sys::tempDirectory(prefix-> "gyllir_runner_test_");
+    let dir = fs::tempDirectory(prefix-> "gyllir_runner_test_");
     let cfg = mkConfig("myapp", "executable");
     mkArtifact(dir, "myapp", "1");
     mkArtifact(dir, "myapp.test", "0");
@@ -114,7 +114,7 @@ __test unittest_run_executes_test_binary {
 
 __test run_executes_renamed_output_artifact {
     // The runner executes the artifact of the target, which "output" may have renamed
-    let dir = sys::tempDirectory(prefix-> "gyllir_runner_test_");
+    let dir = fs::tempDirectory(prefix-> "gyllir_runner_test_");
     let cfg = mkTargetsConfig("myapp", json #{"app" : {"output" : "renamed"}});
     mkArtifact(dir, "renamed", "5");
 
@@ -124,7 +124,7 @@ __test run_executes_renamed_output_artifact {
 
 __test library_target_unittest_runs_normally {
     // A library target is only a library for 'gyllir run': its unittest executable is run like any other
-    let dir = sys::tempDirectory(prefix-> "gyllir_runner_test_");
+    let dir = fs::tempDirectory(prefix-> "gyllir_runner_test_");
     let cfg = mkTargetsConfig("multi", json #{"mylib" : {"type" : "library"}});
     mkArtifact(dir, "mylib.test", "2");
 
@@ -134,7 +134,7 @@ __test library_target_unittest_runs_normally {
 
 __test run_forwards_command_line_arguments_to_the_artifact {
     // 'gyllir run' forwards its own command line to the artifact it runs
-    let dir = sys::tempDirectory(prefix-> "gyllir_runner_test_");
+    let dir = fs::tempDirectory(prefix-> "gyllir_runner_test_");
     let cfg = mkConfig("myapp", "executable");
     mkArgRecordingArtifact(dir, "myapp", "witness.txt");
 
@@ -153,7 +153,7 @@ __test run_forwards_command_line_arguments_to_the_artifact {
 
 __test unittest_run_forwards_test_runner_options {
     // A unittest run passes the test runner options of 'gyllir test' to the unittest executable
-    let dir = sys::tempDirectory(prefix-> "gyllir_runner_test_");
+    let dir = fs::tempDirectory(prefix-> "gyllir_runner_test_");
     let cfg = mkConfig("myapp", "executable");
     mkArgRecordingArtifact(dir, "myapp.test", "witness.txt");
 
@@ -175,7 +175,7 @@ __test unittest_run_forwards_test_runner_options {
 
 __test unittest_run_sets_environment {
     // A unittest run sets the given variables in the environment of the unittest executable
-    let dir = sys::tempDirectory(prefix-> "gyllir_runner_test_");
+    let dir = fs::tempDirectory(prefix-> "gyllir_runner_test_");
     let cfg = mkConfig("myapp", "executable");
 
     let dmut f = File::create(dir.push("myapp.test"), write-> true);
@@ -202,7 +202,7 @@ __test unittest_run_sets_environment {
 
 __test run_reports_signal_as_128_plus_signal_number {
     // A run() killed by a signal reports "128 + <signal>", the way a shell does, rather than 0
-    let dir = sys::tempDirectory(prefix-> "gyllir_runner_test_");
+    let dir = fs::tempDirectory(prefix-> "gyllir_runner_test_");
     let cfg = mkConfig("myapp", "executable");
     mkSignalKilledArtifact(dir, "myapp");
 

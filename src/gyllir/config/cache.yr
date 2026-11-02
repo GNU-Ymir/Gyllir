@@ -1,6 +1,6 @@
 in cache;
 
-use std::{config::_, stream};
+use std::{config, stream};
 use std::algorithm::sorting;
 
 /**

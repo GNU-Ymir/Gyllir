@@ -4,10 +4,10 @@ use gyllir::{args, args::_, repo::_, utils::_, utils::dotenv};
 use gyllir::config::_;
 use gyllir::config::version::filter;
 
-use std::{config::_, fs::_, io, stream};
+use std::{config, fs, io, stream};
 use std::algorithm::sorting;
-use std::concurrency::process;
-use std::syntax::{errors, tokenizer};
+use std::concurrency;
+use std::syntax;
 
 extern (C) fn printf(c: *c8,...);
 extern (C) fn fflush(i: *void);
@@ -192,7 +192,7 @@ pub class GyllirManager {
         // 'gyllir.toml' has to be valid on its own, it is the file every other machine reads: an
         // error that only shows once the override is laid on top of it is the override's own
         let cfg = self.readPackage(path, defaults::__GYLLIR_CONFIG_FILENAME__, tracked);
-        if (!withOverride || !fs::sys::isFile(path.push(defaults::__GYLLIR_OVERRIDE_FILENAME__))) {
+        if (!withOverride || !fs::isFile(path.push(defaults::__GYLLIR_OVERRIDE_FILENAME__))) {
             return cfg;
         }
 
@@ -216,7 +216,7 @@ pub class GyllirManager {
         readConfigFile(path.push(name))
     } catch {
         FsError() => {
-            if (!fs::sys::isFile(path.push(name))) {
+            if (!fs::isFile(path.push(name))) {
                 utils::log::error("Error",
                                   "no ",
                                   name,
@@ -290,7 +290,7 @@ pub class GyllirManager {
     prv fn tryLoadToml(self, path: Path)-> GyllirPackageConfiguration {
         let tracked  = readConfigFile(path.push(defaults::__GYLLIR_CONFIG_FILENAME__));
         let overFile = path.push(defaults::__GYLLIR_OVERRIDE_FILENAME__);
-        if (!fs::sys::isFile(overFile)) {
+        if (!fs::isFile(overFile)) {
             return GyllirPackageConfiguration(tracked);
         }
 
@@ -333,7 +333,7 @@ pub class GyllirManager {
         }
 
         let file = cwd.push(defaults::__GYLLIR_LOCK_FILENAME__);
-        if (!fs::sys::isFile(file)) {
+        if (!fs::isFile(file)) {
             if (self._lockedMode && cfg.dependencies[].len != 0us) {
                 utils::log::error("Error",
                                   "there is no '",
@@ -585,7 +585,7 @@ pub class GyllirManager {
 
         // the last dependency of the package was dropped: there is nothing left to lock
         if (merged[].len == 0us) {
-            fs::sys::removeFile(file)?;
+            fs::removeFile(file)?;
             return;
         }
 
@@ -1328,7 +1328,7 @@ pub class GyllirManager {
 
     /**
      * A remote std lib is resolved like any other dependency, whose root include is its own
-     * '__lib__.yr'('pub mod std; pub mod core; pub mod etc;'). Passing that as an '-I' alongside
+     * '__lib__.yr'('pub mod .std; pub mod .core; pub mod .etc;'). Passing that as an '-I' alongside
      * '-nostdinc' was the first approach tried here, but '-nostdinc' does not just drop the
      * compiler's default search path: it skips its implicit-prelude machinery entirely('Hashable',
      * 'AssertError', 'etc::c::process::_yrt_exit', even the built-in check that lets a char be used
@@ -1389,8 +1389,8 @@ pub class GyllirManager {
         let prefixRoot = stdDir.parent().push(".iprefix"s8);
         let verDir     = prefixRoot.push("include"s8).push("ymir"s8).push(verName);
 
-        fs::sys::removeDir(verDir, recursive-> true)?;
-        fs::sys::createDir(verDir, recursive-> true);
+        fs::removeDir(verDir, recursive-> true)?;
+        fs::createDir(verDir, recursive-> true);
 
         for name in ["__lib__.yr"s8, "std.yr"s8, "std"s8, "core.yr"s8, "core"s8, "etc.yr"s8, "etc"s8] {
             self.runProcess("ln"s8, copy ["-sfn"s8, stdDir.push(name).toStr(), verDir.push(name).toStr()]);
@@ -1446,7 +1446,7 @@ pub class GyllirManager {
 
         let probePath = cwd.push(defaults::__DEPENCY_DIR__).push(defaults::__STD_PROBE_DIR__);
         let found = {
-            fs::sys::removeDir(probePath, recursive-> true)?;
+            fs::removeDir(probePath, recursive-> true)?;
 
             let gM = GitManager(cwd-> probePath);
             gM.clonePartial(url.path.toStr());
@@ -1470,7 +1470,7 @@ pub class GyllirManager {
             _ => none
         };
 
-        fs::sys::removeDir(probePath, recursive-> true)?;
+        fs::removeDir(probePath, recursive-> true)?;
 
         if let Ok(m) = found {
             return (m, true);
@@ -1579,7 +1579,7 @@ pub class GyllirManager {
 
             let hasCloned = if (dependency.url.type == UrlType::LOCAL) {
                 if !isDir(depPath.parent()) {
-                    fs::sys::createDir(depPath.parent(), recursive-> true);
+                    fs::createDir(depPath.parent(), recursive-> true);
                 }
 
                 if isLink(depPath) {

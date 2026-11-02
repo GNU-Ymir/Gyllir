@@ -1,7 +1,7 @@
 use gyllir::args;
 use gyllir::config::version;
 
-use std::config::_;
+use std::config;
 
 /**
  * Run the real gyllir command line parser

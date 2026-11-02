@@ -1,8 +1,8 @@
 in args;
 
-use std::{config::_, fs::_, io, stream};
-use std::concurrency::process;
-use std::syntax::tokenizer;
+use std::{config, config::args, fs, io, stream};
+use std::concurrency;
+use std::syntax;
 
 /**
  * The version of the gyllir binary.
@@ -308,7 +308,7 @@ pub class GyllirArgumentParser {
         return ({
             parser.parse(args)
         } catch {
-            err: &std::config::args::errors::HelpRequestError => {
+            err: &std::config::args::HelpRequestError => {
                 std::io::eprintln(parser.explain(err, usage-> "gyllir init"));
                 etc::c::process::_yrt_exit(-1);
                 panic;
@@ -337,7 +337,7 @@ pub class GyllirArgumentParser {
         return ({
             self.withTarget(parser.parse(rest), target)
         } catch {
-            err: &std::config::args::errors::HelpRequestError => {
+            err: &std::config::args::HelpRequestError => {
                 std::io::eprintln(parser.explain(err, usage-> "gyllir build [target]"));
                 etc::c::process::_yrt_exit(-1);
                 panic;
@@ -400,7 +400,7 @@ pub class GyllirArgumentParser {
 
             res
         } catch {
-            err: &std::config::args::errors::HelpRequestError => {
+            err: &std::config::args::HelpRequestError => {
                 std::io::println(parser.explain(err, usage-> "gyllir bump"));
                 etc::c::process::_yrt_exit(-1);
                 panic;
@@ -423,7 +423,7 @@ pub class GyllirArgumentParser {
         return ({
             parser.parse(args)
         } catch {
-            err: &std::config::args::errors::HelpRequestError => {
+            err: &std::config::args::HelpRequestError => {
                 std::io::eprintln(parser.explain(err, usage-> "gyllir clean"));
                 etc::c::process::_yrt_exit(-1);
                 panic;
@@ -465,7 +465,7 @@ pub class GyllirArgumentParser {
         return ({
             self.withTarget(parser.parse(rest), target)
         } catch {
-            err: &std::config::args::errors::HelpRequestError => {
+            err: &std::config::args::HelpRequestError => {
                 std::io::eprintln(parser.explain(err, usage-> "gyllir doc [target]"));
                 etc::c::process::_yrt_exit(-1);
                 panic;
@@ -496,7 +496,7 @@ pub class GyllirArgumentParser {
         return ({
             self.withServe(self.withTarget(parser.parse(rest), target))
         } catch {
-            err: &std::config::args::errors::HelpRequestError => {
+            err: &std::config::args::HelpRequestError => {
                 std::io::eprintln(parser.explain(err, usage-> "gyllir doc serve [target]"));
                 etc::c::process::_yrt_exit(-1);
                 panic;
@@ -547,7 +547,7 @@ pub class GyllirArgumentParser {
 
             res
         } catch {
-            err: &std::config::args::errors::HelpRequestError => {
+            err: &std::config::args::HelpRequestError => {
                 std::io::eprintln(parser.explain(err, usage-> "gyllir test [target] [-- runner arguments]"));
                 etc::c::process::_yrt_exit(-1);
                 panic;
@@ -571,7 +571,7 @@ pub class GyllirArgumentParser {
         return ({
             self.withPackages(parser.parse(rest), packages)
         } catch {
-            err: &std::config::args::errors::HelpRequestError => {
+            err: &std::config::args::HelpRequestError => {
                 std::io::eprintln(parser.explain(err, usage-> "gyllir update [--std] [dependency...]"));
                 etc::c::process::_yrt_exit(-1);
                 panic;
@@ -604,7 +604,7 @@ pub class GyllirArgumentParser {
 
             res
         } catch {
-            err: &std::config::args::errors::HelpRequestError => {
+            err: &std::config::args::HelpRequestError => {
                 std::io::eprintln(parser.explain(err, usage-> "gyllir cache"));
                 etc::c::process::_yrt_exit(-1);
                 panic;

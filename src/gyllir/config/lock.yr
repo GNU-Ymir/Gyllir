@@ -2,7 +2,7 @@ in lock;
 
 use gyllir::config::{dependency, url, version};
 
-use std::{config::_, stream};
+use std::{config, stream};
 use std::algorithm::sorting;
 
 /**

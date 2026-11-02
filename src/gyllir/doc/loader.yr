@@ -3,7 +3,7 @@ in loader;
 use gyllir::doc::types::_;
 use gyllir::doc::symbols::{_, template_::_};
 
-use std::config::data;
+use std::config;
 
 pub record SymbolLoader {
 

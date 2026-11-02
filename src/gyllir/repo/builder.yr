@@ -2,8 +2,8 @@ in builder;
 
 use gyllir::{config::_, repo::_, utils};
 
-use std::{config::_, env, fs::_, io, stream, time::_};
-use std::syntax::tokenizer;
+use std::{config, env, fs, io, stream, time};
+use std::syntax;
 
 /**
  * Build a repository
@@ -148,9 +148,9 @@ pub record RepoBuilder {
         let objFile = cacheDir.push(self._target.outputName()).addExtension(defaults::__LIBRARY_EXTENSION__);
 
         let yilDir = cacheDir.push(defaults::__YIL_DIR__);
-        if !sys::isDir(yilDir) {
+        if !fs::isDir(yilDir) {
             {
-                fs::sys::createDir(yilDir);
+                fs::createDir(yilDir);
             } catch {
                 err => {
                     utils::log::error("Error", "failed to compile unittests '", self._cfg.name, "' ", err);
@@ -164,7 +164,7 @@ pub record RepoBuilder {
         let pruned = self.pruneRemovedModules(cacheDir, sources);
 
         // if something has to be compiled
-        if (changed.len != 0 || pruned || !sys::isFile(objFile)) {
+        if (changed.len != 0 || pruned || !fs::isFile(objFile)) {
             utils::log::info("Compiling",
                              "target ",
                              self._target.name,
@@ -209,9 +209,9 @@ pub record RepoBuilder {
         let objFile = cacheDir.push(self._target.outputName()).addExtension(defaults::__LIBRARY_EXTENSION__);
 
         let yilDir = cacheDir.push(defaults::__YIL_DIR__);
-        if !sys::isDir(yilDir) {
+        if !fs::isDir(yilDir) {
             {
-                fs::sys::createDir(yilDir);
+                fs::createDir(yilDir);
             } catch {
                 err => {
                     utils::log::error("Error", "failed to compile unittests '", self._cfg.name, "' ", err);
@@ -225,7 +225,7 @@ pub record RepoBuilder {
         let pruned = self.pruneRemovedModules(cacheDir, unitSources);
 
         // If something has to be compiled
-        if (unitChanged.len != 0 || pruned || !sys::isFile(objFile)) {
+        if (unitChanged.len != 0 || pruned || !fs::isFile(objFile)) {
             let srcTest = self.findRootTestFile();
 
             utils::log::info("Compiling",
@@ -256,7 +256,7 @@ pub record RepoBuilder {
      *    error message: 'gyllir.toml', and its override when there is one
      * */
     prv fn configFiles(self)-> [c8] {
-        if (fs::sys::isFile(self._cwd.push(defaults::__GYLLIR_OVERRIDE_FILENAME__))) {
+        if (fs::isFile(self._cwd.push(defaults::__GYLLIR_OVERRIDE_FILENAME__))) {
             return defaults::__GYLLIR_CONFIG_FILENAME__ ~ " or " ~ defaults::__GYLLIR_OVERRIDE_FILENAME__;
         }
 
@@ -292,7 +292,7 @@ pub record RepoBuilder {
                              sources: [Path],
                              changed: [Path],
                              yilDir: Path)-> bool {
-        let dmut pool     = copy std::concurrency::task::TaskPool(nbThreads-> self._nbThreads);
+        let dmut pool     = copy std::concurrency::TaskPool(nbThreads-> self._nbThreads);
         let dmut success  = copy [0us];
         let mut submitted = 0u32;
 
@@ -372,16 +372,16 @@ pub record RepoBuilder {
      *   than the previous '.doc.json')
      * */
     prv fn docNeedsRebuild(self, jsonFile: Path, objectFile: Path)-> bool {
-        if (!sys::isFile(jsonFile) || !sys::isFile(objectFile)) { return true; }
+        if (!fs::isFile(jsonFile) || !fs::isFile(objectFile)) { return true; }
 
         let mut jsonDate = 0u64;
-        if let Ok(Instant(sec-> d)) = sys::fileDate(jsonFile)? {
+        if let Ok(Instant(sec-> d)) = fs::fileDate(jsonFile)? {
             jsonDate = d;
         } else { return true; }
 
         let rootDir = self._cwd.push(self._target.sourceDir);
         for src in self.listFilesInDir(rootDir, rootDir, extension-> defaults::__YMIR_EXTENSION__) {
-            if let Ok(Instant(sec-> d)) = sys::fileDate(rootDir.push(src))? {
+            if let Ok(Instant(sec-> d)) = fs::fileDate(rootDir.push(src))? {
                 if d > jsonDate { return true; }
             } else { return true; }
         }
@@ -441,7 +441,7 @@ pub record RepoBuilder {
                 .push(source.stripExtension().toStr(sep-> "_"))
                 .addExtension(defaults::__YIL_EXTENSION__);
 
-            if !fs::sys::isFile(objFile) {
+            if !fs::isFile(objFile) {
                 log::warn("Warning", "source module ", source.toStr(), " not attached to package");
                 {
                     let dmut f = File::create(objFile, write-> true);
@@ -449,7 +449,7 @@ pub record RepoBuilder {
                 }?;
             }
 
-            if !fs::sys::isFile(depFile) {
+            if !fs::isFile(depFile) {
                 {
                     let dmut f = File::create(depFile, write-> true);
                     f:.close();
@@ -624,13 +624,13 @@ pub record RepoBuilder {
      * */
     fn exportDepsFiles(self, cacheDir: Path) {
         let src = self._cwd.push(defaults::__CACHE_TMP_DIR__);
-        for i in fs::sys::readDir(src) match i {
+        for i in fs::readDir(src) match i {
             FsEntry(kind-> FsEntryKind::FILE, path-> p) if (p.extension() == defaults::__DEPS_EXTENSION__) => {
-                fs::sys::copyFile(p, cacheDir.push(p.removePrefix(src)))?;
+                fs::copyFile(p, cacheDir.push(p.removePrefix(src)))?;
             }
         }
 
-        fs::sys::removeDir(src, recursive-> true)?;
+        fs::removeDir(src, recursive-> true)?;
     } catch {
         _ => {
             utils::log::error("Error", "failed to create output directory '", cacheDir.toStr(), "'");
@@ -643,12 +643,12 @@ pub record RepoBuilder {
      * Create the directory in which cache will be stored
      * */
     fn createCacheDirs(self, cacheDir: Path) {
-        if (!sys::isDir(self._cwd.push(defaults::__CACHE_TMP_DIR__))) {
-            sys::createDir(self._cwd.push(defaults::__CACHE_TMP_DIR__), recursive-> true);
+        if (!fs::isDir(self._cwd.push(defaults::__CACHE_TMP_DIR__))) {
+            fs::createDir(self._cwd.push(defaults::__CACHE_TMP_DIR__), recursive-> true);
         }
         // Create the output directory
-        if (!sys::isDir(cacheDir)) {
-            sys::createDir(cacheDir, recursive-> true);
+        if (!fs::isDir(cacheDir)) {
+            fs::createDir(cacheDir, recursive-> true);
         }
     } catch {
         _ => {
@@ -741,8 +741,8 @@ pub record RepoBuilder {
                 etc::c::process::_yrt_exit(-1);
             }
         } else {
-            if (sys::isFile(resultFile)) {
-                sys::removeFile(resultFile)?;
+            if (fs::isFile(resultFile)) {
+                fs::removeFile(resultFile)?;
             }
 
             let mut arOptions = copy ["rcs", resultFile.toStr(), createdTmp];
@@ -837,8 +837,8 @@ pub record RepoBuilder {
      *           a file we cannot get rid of does not force a relink at every single build
      * */
     prv fn removeCacheFile(self, file: Path)-> bool {
-        sys::removeFile(file)?;
-        if sys::isFile(file) {
+        fs::removeFile(file)?;
+        if fs::isFile(file) {
             utils::log::warn("Warning", "failed to remove obsolete cache file ", file.toStr());
             return false;
         }
@@ -863,7 +863,7 @@ pub record RepoBuilder {
         let mut results: [Path]            = [];
         let mut deps: [Path => mut [Path]] = copy [];
         for src in sources {
-            if let Ok(Instant(sec-> d)) = sys::fileDate(prefix.push(src))? {
+            if let Ok(Instant(sec-> d)) = fs::fileDate(prefix.push(src))? {
                 let (exits, srcDeps) = self.readCacheDependencies(prefix,
                                                                   cacheDir,
                                                                   src,
@@ -918,10 +918,10 @@ pub record RepoBuilder {
             .addExtension(defaults::__YIL_EXTENSION__);
         let packageDir = self._cwd.push(self._target.sourceDir);
 
-        if let Ok(Instant(sec-> d)) = sys::fileDate(depFile)? {
-            if d < date || !sys::isFile(objFile) || !sys::isFile(depFile) {
-                sys::removeFile(objFile)?;
-                sys::removeFile(depFile)?;
+        if let Ok(Instant(sec-> d)) = fs::fileDate(depFile)? {
+            if d < date || !fs::isFile(objFile) || !fs::isFile(depFile) {
+                fs::removeFile(objFile)?;
+                fs::removeFile(depFile)?;
                 return (false, []);
             }
 
@@ -939,8 +939,8 @@ pub record RepoBuilder {
                         results ~= [currPath.removePrefix(sourceDir)];
                     } else if forUnitTest && packageDir.isPrefix(currPath) {
                         for z in changedSources if packageDir.push(z) == currPath {
-                            sys::removeFile(objFile)?;
-                            sys::removeFile(depFile)?;
+                            fs::removeFile(objFile)?;
+                            fs::removeFile(depFile)?;
                             return (false, []);
                         }
                     }
@@ -965,7 +965,7 @@ pub record RepoBuilder {
     prv fn listFilesInDir(self, root: Path, curr: Path, extension: [c8])-> [Path] {
         let dmut result: [Path] = [];
         {
-            for entry in sys::readDir(curr) {
+            for entry in fs::readDir(curr) {
                 match entry {
                     FsEntry(path-> p, kind-> FsEntryKind::DIR) => {
                         result ~= self.listFilesInDir(root, p, extension);
@@ -994,7 +994,7 @@ pub record RepoBuilder {
         // Overriden by configuration file, a declared root that does not exist is an error, never a fallback
         if let name = self._target.packageRoot && name != "" {
             let rootPath = srcDir.push(name).addExtension(defaults::__YMIR_EXTENSION__);
-            if (!fs::sys::isFile(rootPath)) {
+            if (!fs::isFile(rootPath)) {
                 throw copy AssertError(self.targetContext() ~ "'package-root' names '" ~ name ~ "', but there is no "
                                        ~ rootPath.toStr());
             }
@@ -1013,7 +1013,7 @@ pub record RepoBuilder {
                 defaults::__LIB_FILE__
             };
             let rootPath = srcDir.push(fileName);
-            if (fs::sys::isFile(rootPath)) {
+            if (fs::isFile(rootPath)) {
                 return rootPath;
             }
 
@@ -1023,7 +1023,7 @@ pub record RepoBuilder {
 
         // A declared target roots at its own name and nowhere else
         let rootPath = srcDir.push(self._target.rootModule()).addExtension(defaults::__YMIR_EXTENSION__);
-        if (fs::sys::isFile(rootPath)) {
+        if (fs::isFile(rootPath)) {
             return rootPath;
         }
 
@@ -1041,7 +1041,7 @@ pub record RepoBuilder {
         // Overriden by configuration file
         if let name = self._target.testRoot && name != "" {
             let mainPath = self._cwd.push(self._target.testDir).push(name).addExtension(defaults::__YMIR_EXTENSION__);
-            if (!fs::sys::isFile(mainPath)) {
+            if (!fs::isFile(mainPath)) {
                 throw copy AssertError(self.targetContext() ~ "'test-root' names '" ~ name ~ "', but there is no "
                                        ~ mainPath.toStr());
             }
@@ -1051,7 +1051,7 @@ pub record RepoBuilder {
 
         // Searching for default root file __test__.yr
         let libPath = self._cwd.push(self._target.testDir).push(defaults::__FST_TEST_FILE__);
-        if (fs::sys::isFile(libPath)) {
+        if (fs::isFile(libPath)) {
             return libPath;
         }
 

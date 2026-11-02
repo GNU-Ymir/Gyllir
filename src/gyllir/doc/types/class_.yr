@@ -1,7 +1,7 @@
 in class_;
 
 use std::stream;
-use std::fs::path;
+use std::fs;
 
 /**
  * A classure type

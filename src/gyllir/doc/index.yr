@@ -5,7 +5,7 @@ use gyllir::repo::defaults;
 
 use std::{char, stream};
 use std::algorithm::searching;
-use std::fs::path;
+use std::fs;
 
 /**
  * One symbol of a documentation site, as the '/symbol' endpoint of 'gyllir doc serve' returns it
