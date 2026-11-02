@@ -38,12 +38,17 @@ pub record RepoDocBuilder {
     // compiles the target ahead of generating its documentation)
     let _extraFlags: [[c8]];
 
+    // What the build cache has to have been built with to be reused(forwarded to the 'RepoBuilder'
+    // as well)
+    let _toolchain: [c8];
+
     /**
      * @params:
      *    - target: the target to document(unused when 'fromFile' is set)
      *    - input: the input file to parse
      *    - subDir: true iif the pages go to '<output>/<target>' instead of '<output>'
      *    - extraFlags: extra compiler flags gyllir itself needs for this build
+     *    - toolchain: what the build cache has to have been built with to be reused
      * */
     pub self (path: Path,
               args: &Config,
@@ -52,7 +57,8 @@ pub record RepoDocBuilder {
               input: [c8] = "",
               fromFile: bool = false,
               subDir: bool = false,
-              extraFlags: [[c8]] = [])
+              extraFlags: [[c8]] = [],
+              toolchain: [c8] = "")
         with _cwd = path
         , _args = args
         , _cfg = cfg
@@ -62,6 +68,7 @@ pub record RepoDocBuilder {
         , _input = input
         , _git = GitManager(cwd-> path)
         , _extraFlags = extraFlags
+        , _toolchain = toolchain
     {}
 
     /**
@@ -93,7 +100,8 @@ pub record RepoDocBuilder {
             RepoBuilder(self._cwd, self._args, self._cfg, self._target,
                         forUnitTest-> false,
                         forDoc-> true,
-                        extraFlags-> self._extraFlags).run(alias context,
+                        extraFlags-> self._extraFlags,
+                        toolchain-> self._toolchain).run(alias context,
                                                            targetIncludes-> targetIncludes,
                                                            targetLinks-> targetLinks);
             jsonFile

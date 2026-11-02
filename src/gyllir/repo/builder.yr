@@ -42,12 +42,18 @@ pub record RepoBuilder {
     // put ahead of the target's own 'flags' so a target can still override them if it has to
     let _extraFlags: [[c8]];
 
+    // What the build cache has to have been built with to be reused: the compiler and the std lib
+    // the target is compiled against(see 'invalidateStaleCache'), "" when unknown, and the cache is
+    // then reused as it is
+    let _toolchain: [c8];
+
     /**
      * @params:
      *    - cfg: the configuration of the repo
      *    - target: the target of the package to build, the single target synthesized from the top
      *      level fields of 'cfg' when it declares no '[targets.<name>]' table
      *    - extraFlags: extra compiler flags gyllir itself needs for this build
+     *    - toolchain: what the build cache has to have been built with to be reused
      * */
     pub self (path: Path,
               args: &Config,
@@ -56,7 +62,8 @@ pub record RepoBuilder {
               forUnitTest: bool,
               forDoc: bool = false,
               dry: bool = false,
-              extraFlags: [[c8]] = [])
+              extraFlags: [[c8]] = [],
+              toolchain: [c8] = "")
         with _cwd = path
         , _args = args
         , _cfg = cfg
@@ -65,6 +72,7 @@ pub record RepoBuilder {
         , _forDoc = forDoc
         , _dry = dry
         , _extraFlags = extraFlags
+        , _toolchain = toolchain
         , _verbose = (if let Ok(Bool(value-> true)) = args["verbose"]? {
             true
         } else { false })
@@ -137,7 +145,9 @@ pub record RepoBuilder {
     prv fn buildSourceDir(self, dmut context: &GyllirManager, includes: [Path])-> (Path, Path, [Path])
         throws AssertError
     {
-        let srcPath                      = self.findRootSourceFile();
+        let srcPath = self.findRootSourceFile();
+        self.invalidateStaleCache(self.defineOutputDirectory());
+
         let (cacheDir, sources, changed) = self.listChangedFiles();
 
         if (self._dry) { return (srcPath, cacheDir, changed); }
@@ -200,6 +210,7 @@ pub record RepoBuilder {
     prv fn buildUnitTest(self, dmut context: &GyllirManager, srcPath: Path, includes: [Path], changedSources: [Path])
         throws AssertError
     {
+        self.invalidateStaleCache(self.targetCacheDir(defaults::__CACHE_TEST_DIR__));
         let (unitSources, unitChanged) = self.listUnittestChangedFiles(changedSources);
 
         // create the output directory if not exist
@@ -343,6 +354,7 @@ pub record RepoBuilder {
     {
         let srcPath  = self.findRootSourceFile();
         let cacheDir = self.targetCacheDir(defaults::__CACHE_DOC_DIR__);
+        self.invalidateStaleCache(cacheDir);
         self.createCacheDirs(cacheDir);
 
         let jsonFile   = cacheDir.push(self._target.outputName()).addExtension(defaults::__DOC_EXTENSION__);
@@ -660,6 +672,56 @@ pub record RepoBuilder {
             utils::log::error("Error", "failed to create output directory '", cacheDir.toStr(), "'");
             etc::c::process::_yrt_exit(-1);
             panic;
+        }
+    }
+
+    /**
+     * Drop a build cache built with another compiler or std lib than the ones the target is about
+     * to be built with. What is reused is decided from the sources alone, but a YIL written by
+     * another compiler cannot be read back, and a module compiled against another std lib may no
+     * longer compile against this one: neither shows in the dates of the sources.
+     * A cache recording nothing(written by an older gyllir) is dropped as well, nothing tells what
+     * built it.
+     * @params:
+     *    - cacheDir: the build cache directory, holding the YILs, the dependency files and the
+     *      objects of one kind of build of the target
+     * */
+    pub fn invalidateStaleCache(self, cacheDir: Path) {
+        if (self._toolchain == "" || self._dry) { return; }
+
+        let stampFile = cacheDir.push(defaults::__BUILD_STAMP_FILENAME__);
+        let previous = {
+            let dmut f  = File::open(stampFile, read-> true);
+            let content = f:.readAll();
+            f:.close();
+            content
+        } catch {
+            _ => ""
+        };
+
+        if (previous == self._toolchain) { return; }
+
+        if (fs::isDir(cacheDir)) {
+            utils::log::info("Removing",
+                             "build cache ",
+                             cacheDir.toStr(),
+                             (if (previous == "") {
+                                 ", nothing records what it was built with"
+                             } else {
+                                 ", it was built with another compiler or std lib"
+                             }));
+            fs::removeDir(cacheDir, recursive-> true);
+        }
+
+        fs::createDir(cacheDir, recursive-> true);
+
+        let dmut f = File::create(stampFile, write-> true);
+        f:.write(self._toolchain);
+        f:.close();
+    } catch {
+        e: &FsError => {
+            utils::log::error("Error", "failed to reset the build cache '", cacheDir.toStr(), "': ", e.msg);
+            etc::c::process::_yrt_exit(-1);
         }
     }
 

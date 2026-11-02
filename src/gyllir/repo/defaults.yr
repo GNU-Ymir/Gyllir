@@ -204,6 +204,12 @@ pub def __COVERAGE_PID_SUFFIX__  = ".json";
 pub def __COVERAGE_SUMMARY_FILE__ = "coverage.json";
 
 /**
+ * The file of a build cache directory recording what the cache was built with(the compiler and the
+ * std lib, see 'RepoBuilder::invalidateStaleCache'): a cache built with anything else is dropped
+ */
+pub def __BUILD_STAMP_FILENAME__ = "toolchain.stamp";
+
+/**
  * The build cache of a package, holding one sub directory per target
  * @info: '__CACHE_TMP_DIR__' is the only one shared by every target, gyllir builds the targets of
  *   a package one after the other, so they never write it at the same time

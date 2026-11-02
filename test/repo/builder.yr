@@ -58,6 +58,57 @@ fn indexOf(haystack: [[c8]], needle: [c8])-> usize {
     haystack.len
 }
 
+fn mkStampedBuilder(dir: Path, toolchain: [c8])-> RepoBuilder {
+    RepoBuilder(dir, copy Dict(), GyllirPackageConfiguration::empty(), Target("myapp", BuildType()), false,
+                toolchain-> toolchain)
+}
+
+fn readStamp(cacheDir: Path)-> [c8] {
+    let dmut f  = File::open(cacheDir.push(defaults::__BUILD_STAMP_FILENAME__), read-> true);
+    let content = f:.readAll();
+    f:.close();
+    content
+} catch {
+    _ => ""
+}
+
+__test invalidate_stale_cache_drops_a_cache_built_with_another_toolchain {
+    // A YIL written by another compiler cannot be read back, and a module compiled against another
+    // std lib may no longer compile: the cache is reused only by the toolchain that built it
+    let (dir, cacheDir) = mkCacheDir(copy ["main"]);
+
+    mkStampedBuilder(dir, "compiler = a").invalidateStaleCache(cacheDir);
+    assert(!hasYIL(cacheDir, "main"), "a cache recording nothing should be dropped, nothing tells what built it");
+    assert(readStamp(cacheDir) == "compiler = a", "the cache should record what it is now built with");
+
+    fs::createDir(cacheDir.push(defaults::__YIL_DIR__), recursive-> true);
+    {
+        let dmut y = File::create(
+            cacheDir.push(defaults::__YIL_DIR__).push("main").addExtension(defaults::__YIL_EXTENSION__),
+            write-> true
+        );
+        y:.write("yil");
+        y:.close();
+    }
+
+    mkStampedBuilder(dir, "compiler = a").invalidateStaleCache(cacheDir);
+    assert(hasYIL(cacheDir, "main"), "a cache built with the same toolchain should be kept");
+
+    mkStampedBuilder(dir, "compiler = b").invalidateStaleCache(cacheDir);
+    assert(!hasYIL(cacheDir, "main"), "a cache built with another toolchain should be dropped");
+    assert(readStamp(cacheDir) == "compiler = b", "the cache should record the toolchain it is now built with");
+}
+
+__test invalidate_stale_cache_without_toolchain_keeps_the_cache {
+    // A toolchain that could not be told(the compiler cannot be run) leaves the cache as it is
+    let (dir, cacheDir) = mkCacheDir(copy ["main"]);
+
+    mkBuilder(dir).invalidateStaleCache(cacheDir);
+
+    assert(hasYIL(cacheDir, "main"), "the cache should be kept when the toolchain is unknown");
+    assert(!fs::isFile(cacheDir.push(defaults::__BUILD_STAMP_FILENAME__)), "no stamp should be written");
+}
+
 __test prune_removed_modules_drops_stale_cache {
     // pruneRemovedModules() drops the YIL and deps files of a module whose source is gone, and keeps the others
     let (dir, cacheDir) = mkCacheDir(copy ["main", "gone"]);
