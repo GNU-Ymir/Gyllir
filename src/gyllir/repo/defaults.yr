@@ -261,3 +261,27 @@ pub def __CACHE_C_DIR__ = "c-objs";
  * produced static library
  */
 pub def __AR_COMMAND__ = "ar";
+
+/**
+ * The directory 'gyllir install' installs under when the command line passes no '--prefix'
+ * */
+pub def __INSTALL_DEFAULT_PREFIX__ = "/usr/local";
+
+/**
+ * The directory of the prefix the executables of a package declaring no '[install]' table are
+ * installed into
+ * */
+pub def __INSTALL_BIN_DIR__ = "bin";
+
+/**
+ * The directory of the prefix holding the record of what 'gyllir install' installed by default, one
+ * '<package>.toml' file per package, so that it can be uninstalled
+ * */
+pub def __INSTALL_RECORD_DIR__ = "share/gyllir/installed";
+pub def __TOML_EXTENSION__     = "toml";
+
+/**
+ * The command installing a file by default, and the mode it gives an executable
+ * */
+pub def __INSTALL_COMMAND__   = "install";
+pub def __INSTALL_EXEC_MODE__ = "755";

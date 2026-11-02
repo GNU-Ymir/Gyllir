@@ -15,6 +15,7 @@ _gyllir() {
 		init\
 		build
 		run
+		install
 		clean
 		test
 		doc
@@ -29,6 +30,9 @@ _gyllir() {
 
     BUILD_OPTIONS="\
 		-h --help --release --locked --offline -v --verbose"
+
+    INSTALL_OPTIONS="\
+		-h --help --release --prefix --dry-run -j --locked --offline -v --verbose"
 
     BUMP_OPTIONS="\
 		-h --help --major --minor --patch --set --dry --commit --tag -m --message"
@@ -72,6 +76,12 @@ _gyllir() {
 
 	run)
 	    complete_words="$(_gyllir_get_targets)"
+	    ;;
+
+	install)
+	    complete_options="$INSTALL_OPTIONS"
+	    complete_words="$(_gyllir_get_targets)"
+	    [[ $prev == "--prefix" ]] && complete_words="$(compgen -d -- "$cur")"
 	    ;;
 
 	clean)

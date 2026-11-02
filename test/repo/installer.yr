@@ -1,0 +1,261 @@
+use ::repo::fixture;
+use gyllir::config::_;
+use gyllir::repo::{defaults, installer, manager};
+
+use std::{config, config::json, config::toml, fs};
+use std::concurrency;
+
+/**
+ * The configuration of the 'install' sub command
+ * @params:
+ *    - prefix: the '--prefix' of the command line, "" for none
+ *    - dry: true for '--dry-run'
+ *    - target: the target named by the command line, "" for none
+ * */
+fn mkInstallArgs(prefix: [c8] = "", dry: bool = false, target: [c8] = "")-> &Config {
+    let dmut d = copy Dict();
+    d["release"] = copy Bool(false);
+    d["dry-run"] = copy Bool(dry);
+    if (prefix != "") { d["prefix"] = copy Str(prefix); }
+    if (target != "") { d["target"] = copy Str(target); }
+
+    d
+}
+
+/**
+ * @returns: the targets of a package, ordered by name
+ * */
+fn allTargets(cfg: GyllirPackageConfiguration)-> [Target] {
+    let mut res: [Target] = [];
+    for t in (copy GyllirManager(copy ["gyllir", "install"])).orderedTargets(cfg, cfg.targets()) {
+        res ~= [t];
+    }
+
+    res
+} catch {
+    _ => []
+}
+
+fn installError(inst: RepoInstaller)-> [c8] {
+    {
+        inst.check();
+    } catch {
+        a: &AssertError => { return a.msg; }
+    }
+
+    ""
+}
+
+/**
+ * A package of two executables and a library
+ * */
+fn mkMultiConfig()-> GyllirPackageConfiguration
+    throws AssertError
+{
+    mkTargetsConfig("tool", json #{
+        "core" : {"type" : "library"},
+        "cli" : {"targets" : ["core"], "output" : "tool"},
+        "daemon" : {"targets" : ["core"]}
+    })
+}
+
+/**
+ * Write a file standing in for an executable 'gyllir install' would have built
+ * */
+fn mkBuilt(dir: Path, name: [c8])
+    throws FsError
+{
+    let dmut f = File::create(dir.push(name), write-> true);
+    f:.write("#!/bin/sh\n");
+    f:.close();
+}
+
+fn displayed(inst: RepoInstaller)-> [c8] {
+    let mut res = "";
+    for s in inst.steps() {
+        res = res ~ s.display() ~ " | ";
+    }
+
+    res
+} catch {
+    _ => ""
+}
+
+__test default_install_steps_of_executables {
+    // A package declaring no '[install]' table has each selected executable installed into
+    // '<prefix>/bin', under the name of its artifact; its libraries are left alone
+    let cfg  = mkMultiConfig();
+    let inst = RepoInstaller(Path("/project"), mkInstallArgs(prefix-> "/opt/tool"), cfg, allTargets(cfg));
+
+    let mut lines: [[[c8]]] = [];
+    for s in inst.steps() {
+        lines ~= [s.argv];
+    }
+
+    // in the order the targets are built
+    assert(lines == copy [copy ["install", "-D", "-m", "755", "/project/daemon", "/opt/tool/bin/daemon"],
+                          copy ["install", "-D", "-m", "755", "/project/tool", "/opt/tool/bin/tool"]],
+           "unexpected default install steps: " ~ displayed(inst));
+
+    let files = copy [f.toStr() for f in inst.installedFiles()];
+    assert(files == copy ["/opt/tool/bin/daemon", "/opt/tool/bin/tool"], "unexpected installed files");
+    assert(inst.recordFile().toStr() == "/opt/tool/share/gyllir/installed/tool.toml", "unexpected record file");
+}
+
+__test prefix_defaults_and_relative_prefix {
+    let cfg = mkConfig("myapp", "executable");
+
+    let byDefault = RepoInstaller(Path("/project"), mkInstallArgs(), cfg, allTargets(cfg));
+    assert(byDefault.prefix().toStr() == defaults::__INSTALL_DEFAULT_PREFIX__, "unexpected default prefix");
+
+    // the command lines may run elsewhere than the package directory, the prefix they read is absolute
+    let relative = RepoInstaller(Path("/project"), mkInstallArgs(prefix-> "out"), cfg, allTargets(cfg));
+    assert(relative.prefix().toStr() == "/project/out", "a relative prefix should be read from the package directory");
+}
+
+__test library_without_install_table_refused {
+    // gyllir would have to guess what installing a library means
+    let cfg = mkConfig("mylib", "library");
+    let msg = installError(RepoInstaller(Path("/project"), mkInstallArgs(prefix-> "/tmp"), cfg, allTargets(cfg)));
+
+    assert(msg == "nothing to install: 'mylib' is a library, and the package declares no '[install.<name>]' table "
+           ~ "saying what installing it means",
+           "unexpected error: " ~ msg);
+}
+
+__test declared_install_steps_in_order {
+    // The '[install]' tables run in the alphabetical order of their names, and the command lines of
+    // a table in the order they are written, their placeholders resolved, from their own directory
+    let cfg = GyllirPackageConfiguration(json #{
+        "name" : "mylib",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "type" : "library",
+        "install" : {
+            "b-assets" : {"cmd" : ["mkdir -p {{prefix}}/share/{{name}}", "cp -r res {{prefix}}/share/{{name}}/"]},
+            "a-lib" : {"cmd" : "install -D lib{{targets.mylib.output}}.a {{prefix}}/lib/lib{{name}}.a", "cwd" : "out"}
+        }
+    });
+
+    let inst = RepoInstaller(Path("/project"), mkInstallArgs(prefix-> "/opt"), cfg, allTargets(cfg));
+    let steps = inst.steps();
+
+    assert(steps.len == 3us, "expected the three declared command lines");
+    assert(steps[0].argv == copy ["install", "-D", "libmylib.a", "/opt/lib/libmylib.a"], "unexpected first line");
+    assert(steps[0].cwd.toStr() == "/project/out", "the cwd of a table should be read from the package directory");
+    assert(steps[0].origin == "[install.a-lib]", "unexpected origin: " ~ steps[0].origin);
+    assert(steps[1].argv == copy ["mkdir", "-p", "/opt/share/mylib"], "unexpected second line");
+    assert(steps[2].argv == copy ["cp", "-r", "res", "/opt/share/mylib/"], "unexpected third line");
+    assert(steps[2].cwd.toStr() == "/project", "a table declaring no cwd runs from the package directory");
+    assert(steps[2].raw == "cp -r res {{prefix}}/share/{{name}}/", "the line should be kept as written");
+
+    assert(inst.installedFiles().len == 0us, "gyllir knows nothing of what a declared command installs");
+    assert(installError(inst) == "", "a declared install has nothing to refuse beforehand");
+}
+
+__test target_named_with_install_table_refused {
+    let cfg = GyllirPackageConfiguration(json #{
+        "name" : "mylib",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "install" : {"lib" : {"cmd" : "true"}}
+    });
+
+    let msg = installError(RepoInstaller(Path("/project"), mkInstallArgs(target-> "mylib"), cfg, allTargets(cfg)));
+    assert(msg == "'gyllir install mylib': the package declares '[install.<name>]' tables, which install the whole "
+           ~ "package, a target can only be named when its executables are installed by default",
+           "unexpected error: " ~ msg);
+}
+
+__test unwritable_prefix_refused_before_building {
+    // Nothing is run with more privileges than gyllir has: a default install that cannot write where
+    // it installs is refused, before the package is even built
+    let dir    = fs::tempDirectory(prefix-> "gyllir_install_test_");
+    let locked = dir.push("locked");
+    fs::createDir(locked);
+    {
+        let dmut proc = copy SubProcess("chmod", copy ["555", locked.toStr()], cwd-> dir);
+        proc:.start();
+        proc:.wait();
+    }
+
+    // run as root(e.g. in a container), every directory is writable, there is nothing to refuse
+    if (fs::isWritable(locked)) { return; }
+
+    let cfg = mkConfig("myapp", "executable");
+    let msg = installError(RepoInstaller(dir, mkInstallArgs(prefix-> locked.push("usr").toStr()), cfg, allTargets(cfg)));
+
+    assert(msg == "cannot install into '" ~ locked.push("usr").push("bin").toStr() ~ "', '" ~ locked.toStr()
+           ~ "' is not writable: install with the privileges it needs (e.g. 'sudo gyllir install'), or somewhere "
+           ~ "else with '--prefix <dir>'",
+           "unexpected error: " ~ msg);
+
+    // '--dry-run' writes nothing, it is not refused
+    assert(installError(RepoInstaller(dir, mkInstallArgs(prefix-> locked.push("usr").toStr(), dry-> true), cfg,
+                                      allTargets(cfg))) == "",
+           "a dry run should not be refused");
+}
+
+__test default_install_installs_and_records {
+    let dir = fs::tempDirectory(prefix-> "gyllir_install_test_");
+    mkBuilt(dir, "myapp");
+
+    let cfg      = mkConfig("myapp", "executable");
+    let mgr = copy GyllirManager(copy ["gyllir", "install"]);
+    let inst     = RepoInstaller(dir, mkInstallArgs(prefix-> "out"), cfg, allTargets(cfg));
+
+    inst.check();
+    inst.run(mgr);
+
+    assert(hasFile(dir, "out/bin/myapp"), "the executable should be installed into <prefix>/bin");
+    assert(fs::isExecutable(dir.push("out/bin/myapp")), "the installed executable should be executable");
+
+    let recorded = toml::parse(fs::readFile(dir.push("out/share/gyllir/installed/myapp.toml")));
+    assert(to!{[c8]} (recorded["name"]) == "myapp", "the record should name the package");
+    assert(to!{[c8]} (recorded["version"]) == "1.0.0", "the record should hold the installed version");
+    assert(to!{[[c8]]} (recorded["files"]) == copy [dir.push("out/bin/myapp").toStr()],
+           "the record should list the installed files");
+}
+
+__test dry_run_installs_nothing {
+    let dir = fs::tempDirectory(prefix-> "gyllir_install_test_");
+    mkBuilt(dir, "myapp");
+
+    let cfg      = mkConfig("myapp", "executable");
+    let mgr = copy GyllirManager(copy ["gyllir", "install"]);
+    RepoInstaller(dir, mkInstallArgs(prefix-> "out", dry-> true), cfg, allTargets(cfg)).run(mgr);
+
+    assert(!fs::exists(dir.push("out")), "a dry run should neither install nor record anything");
+}
+
+__test failing_install_line_stops_the_install {
+    // the lines after a failing one are not run
+    let dir = fs::tempDirectory(prefix-> "gyllir_install_test_");
+    let cfg = GyllirPackageConfiguration(json #{
+        "name" : "mylib",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "type" : "library",
+        "install" : {
+            "a" : {"cmd" : ["touch first.witness", "false", "touch second.witness"]},
+            "b" : {"cmd" : "touch third.witness"}
+        }
+    });
+
+    let mgr = copy GyllirManager(copy ["gyllir", "install"]);
+    let mut msg  = "";
+    {
+        RepoInstaller(dir, mkInstallArgs(), cfg, allTargets(cfg)).run(mgr);
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "command line 'false' of '[install.a]' failed, the lines after it were not run",
+           "unexpected error: " ~ msg);
+    assert(hasFile(dir, "first.witness"), "the lines before the failing one should have run");
+    assert(!hasFile(dir, "second.witness") && !hasFile(dir, "third.witness"),
+           "nothing should run after the failing line");
+}

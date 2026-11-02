@@ -3,6 +3,7 @@ pub mod ::builder;
 pub mod ::csources;
 pub mod ::cleaner;
 pub mod ::runner;
+pub mod ::installer;
 pub mod ::manager;
 pub mod ::doc;
 pub mod ::doc_server;

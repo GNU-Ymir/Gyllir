@@ -51,7 +51,7 @@ directory — the one holding <code>gyllir.toml</code>.</p>
 
 <h2 id="target-argument">The <code>[target]</code> argument</h2>
 
-<p><code>build</code>, <code>test</code>, <code>doc</code> and <code>run</code> accept the name of a
+<p><code>build</code>, <code>test</code>, <code>doc</code>, <code>run</code> and <code>install</code> accept the name of a
 <a href="targets.html">target</a> as an optional first argument. A package that declares no
 <code>[targets.*]</code> table has exactly one target, named after the package itself, so you can
 ignore this until you need several artifacts.</p>
@@ -106,6 +106,42 @@ signal killed it.</p>
 <div class="note">
 <p>With several targets declared, <code>gyllir run</code> needs a target name — it will not guess.
 Running a library target is an error.</p>
+</div>
+
+<h2 id="install">gyllir install</h2>
+
+<pre><code>gyllir install [target] [--release] [--prefix &lt;dir&gt;] [--dry-run] [--locked] [--offline] [-j N] [-v]</code></pre>
+
+<div class="table-wrap">
+<table>
+    <tr><th>Flag</th><th>Effect</th></tr>
+    <tr><td><code>--prefix &lt;dir&gt;</code></td><td>The directory to install under, <code>/usr/local</code> by default. A relative one is read from the package directory.</td></tr>
+    <tr><td><code>--dry-run</code></td><td>Print every command line that would install the package, in the order they would run, and do nothing else — not even the build.</td></tr>
+    <tr><td><code>--release</code>, <code>--locked</code>, <code>--offline</code>, <code>-j N</code>, <code>-v</code></td><td>As for <a href="#build"><code>gyllir build</code></a>.</td></tr>
+</table>
+</div>
+
+<p>Builds the package, then installs it. What installing means is up to the package:</p>
+
+<ul>
+    <li>A package declaring <a href="manifest.html#install"><code>[install.&lt;name&gt;]</code></a>
+        tables runs their command lines, once for the whole package. Naming a target is then an
+        error: the tables install the whole package.</li>
+    <li>A package declaring none has each executable target (or the one named) installed as
+        <code>&lt;prefix&gt;/bin/&lt;output&gt;</code>, by <code>install -D -m 755</code>. What was
+        installed is recorded in <code>&lt;prefix&gt;/share/gyllir/installed/&lt;name&gt;.toml</code>,
+        so that it can be removed later. A library declares nothing Gyllir could install without
+        guessing: installing a package of libraries with no <code>[install]</code> table is an
+        error.</li>
+</ul>
+
+<div class="warn">
+<p><strong>Gyllir never escalates its own privileges.</strong> A default install that cannot write
+under its prefix is refused before anything is built, with a message saying to re-run with the
+privileges it needs (<code>sudo gyllir install</code>) or to pick another <code>--prefix</code>.
+A declared command line that needs root writes its own <code>sudo</code>; it runs with the
+terminal, so <code>sudo</code> can ask for a password. Building first with <code>gyllir build</code>
+keeps the build cache owned by you when the install itself runs under <code>sudo</code>.</p>
 </div>
 
 <h2 id="test">gyllir test</h2>

@@ -90,8 +90,8 @@ Entry point `src/main.yr` constructs a `gyllir::repo::manager::GyllirManager` fr
 calls `run()`; every sub-command is dispatched and implemented from there.
 
 - `src/gyllir/args.yr` — `GyllirArgumentParser`, built on `std::config::ArgumentParser`: one
-  sub-parser per command (`init`, `build`, `run`, `test`, `clean`, `doc`, `bump`, `update`,
-  `cache`), each returning a `&Config` of parsed flags consumed by the matching `repo/*.yr`
+  sub-parser per command (`init`, `build`, `run`, `install`, `test`, `clean`, `doc`, `bump`,
+  `update`, `cache`), each returning a `&Config` of parsed flags consumed by the matching `repo/*.yr`
   runner.
 - `src/gyllir/config/` — the `gyllir.toml` schema, all `Serializable`/deserializable via
   `std::config`:
@@ -108,6 +108,8 @@ calls `run()`; every sub-command is dispatched and implemented from there.
   - `command.yr` — `Command`/`CustomCommandList`: user-declared pre/post build commands. A
     command's `cmd` is one command line or an array of them (`cmds`, run in order, the build
     stopping at the first that fails); `isList` keeps a single line written back as a string.
+    The same list holds the `[install.<name>]` tables (`table-> "install", withPost-> false`),
+    `sorted()` being the order `gyllir install` runs them in.
   - `placeholder.yr` — the `{{...}}` placeholders of a command's `cmd`/`cwd`: finds and resolves
     them against a key → value map (`keys`, `resolve`, and `resolveArgs`, which splits a command
     line on its written spaces only). The map is `GyllirPackageConfiguration::placeholderValues`
@@ -157,6 +159,12 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     entries are passed as `-fversion=<ident>` to the compilation of its sources and to its doc
     build, not to the link nor the YIL assembly.
   - `runner.yr` — `RepoRunner`: executes the built executable or test binary as a subprocess.
+  - `installer.yr` — `RepoInstaller`: `gyllir install`. `steps()` is the plan: the declared
+    `[install.<name>]` command lines (once per package, placeholders from
+    `installPlaceholderValues`: no `target.*`, plus `{{prefix}}`), or by default an `install -D -m
+    755` of each selected executable into `<prefix>/bin`, recorded in
+    `<prefix>/share/gyllir/installed/<name>.toml`. `check()` runs before the build (nothing to
+    install, unwritable prefix: never escalates), `--dry-run` prints the plan and builds nothing.
   - `cleaner.yr` — `RepoCleaner`: removes `.target/` outputs, optionally `__doc/` and resolved
     `.deps/` (recursively, reusing `manager.yr`'s dependency graph).
   - `bump.yr` — `RepoBumper`: `gyllir bump`, the next `Version` (`--major`/`--minor`/`--patch`,

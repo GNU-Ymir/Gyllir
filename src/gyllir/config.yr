@@ -92,6 +92,11 @@ pub record GyllirPackageConfiguration {
     // The list of custom commands to run when building the project
     let mut _commands: &CustomCommandList = copy CustomCommandList();
 
+    // The commands 'gyllir install' runs to install the built package, declared by the
+    // '[install.<name>]' tables; empty when the package declares none, its executables then being
+    // installed by default
+    let mut _install: &CustomCommandList = copy CustomCommandList();
+
     // The version filter of the std lib(midgard) the package requires, declared by an optional
     // '[std]' table; '[]' when the package declares none, in which case std lib resolution is
     // left entirely to the compiler, exactly as it always has been
@@ -282,6 +287,14 @@ pub record GyllirPackageConfiguration {
     }
 
     /**
+     * @returns: the commands of the '[install.<name>]' tables, run by 'gyllir install'
+     * */
+    @field
+    pub fn install(self)-> &CustomCommandList {
+        self._install
+    }
+
+    /**
      * @returns: true iif the package declares a '[std]' table, requiring a specific version of
      *    the std lib(midgard)
      * */
@@ -325,6 +338,36 @@ pub record GyllirPackageConfiguration {
      * */
     pub fn placeholderValues(self, target: Target)-> [[c8] => [c8]] {
         let dmut vars: [[c8] => [c8]] = copy [];
+        self.fillPackagePlaceholders(alias vars);
+        for f in __PLACEHOLDER_TARGET_FIELDS__ {
+            vars["target." ~ f] = copy targetField(target, f);
+        }
+
+        vars
+    }
+
+    /**
+     * The values of the '{{...}}' placeholders of the '[install.<name>]' commands: the ones of
+     * 'placeholderValues' that do not depend on a target being built, an install command running
+     * once for the whole package, and 'prefix', the directory the package is installed under
+     * @params:
+     *    - prefix: the directory the package is installed under
+     * @returns: the value of every placeholder, by key
+     * */
+    pub fn installPlaceholderValues(self, prefix: [c8])-> [[c8] => [c8]] {
+        let dmut vars: [[c8] => [c8]] = copy [];
+        self.fillPackagePlaceholders(alias vars);
+        vars["prefix"] = copy prefix;
+        vars
+    }
+
+    /**
+     * Set the values of the placeholders that do not depend on the target being built, see
+     * 'placeholderValues'
+     * @params:
+     *    - vars: the map to set them in
+     * */
+    prv fn fillPackagePlaceholders(self, dmut vars: [[c8] => [c8]]) {
         vars["name"] = copy self._name;
         vars["version"] = copy self._version[];
         vars["license"] = copy self._license;
@@ -351,17 +394,11 @@ pub record GyllirPackageConfiguration {
             vars["version.patch"] = copy patch[];
         }
 
-        for f in __PLACEHOLDER_TARGET_FIELDS__ {
-            vars["target." ~ f] = copy targetField(target, f);
-        }
-
         for k, t in self.targets() {
             for f in __PLACEHOLDER_TARGET_FIELDS__ {
                 vars["targets." ~ k ~ "." ~ f] = copy targetField(t, f);
             }
         }
-
-        vars
     }
 
     /**
@@ -380,13 +417,23 @@ pub record GyllirPackageConfiguration {
     pub fn expandCommand(self, cmd: Command, target: Target)-> ([[[c8]]], Path)
         throws AssertError
     {
-        let vars = self.placeholderValues(target);
-        let mut lines: [[[c8]]] = [];
-        for c in cmd.cmds {
-            lines ~= [placeholder::resolveArgs(c, vars)];
-        }
+        expandWith(cmd, self.placeholderValues(target))
+    }
 
-        (lines, Path(placeholder::resolve(cmd.cwd.toStr(), vars)))
+    /**
+     * Substitute the placeholders of the command lines of an '[install.<name>]' command, and split
+     * each into its arguments
+     * @params:
+     *    - cmd: the install command to run
+     *    - prefix: the directory the package is installed under
+     * @returns: see 'expandCommand'
+     * @throws:
+     *    - AssertError: a placeholder does not resolve, see 'expandCommand'
+     * */
+    pub fn expandInstallCommand(self, cmd: Command, prefix: [c8])-> ([[[c8]]], Path)
+        throws AssertError
+    {
+        expandWith(cmd, self.installPlaceholderValues(prefix))
     }
 
     /*!
@@ -434,6 +481,9 @@ pub record GyllirPackageConfiguration {
             d["version"] = self._version.serialize();
             d["dependencies"] = self._dependencies.serialize();
             d["commands"] = self._commands.serialize();
+            if (self._install[].len != 0us) {
+                d["install"] = self._install.serialize();
+            }
             if (self._hasCompilerVersion) {
                 let dmut c = copy Dict();
                 c["version"] = self._compilerVersion.serialize();
@@ -540,25 +590,31 @@ pub record GyllirPackageConfiguration {
     prv fn checkPlaceholders(self)
         throws AssertError
     {
-        if (self._commands[].len == 0us) { return; }
-
-        for _, t in self.targets() {
-            self.checkCommandPlaceholders(self.placeholderValues(t));
-            return;
+        if (self._commands[].len != 0us) {
+            for _, t in self.targets() {
+                self.checkCommandPlaceholders(self._commands, "commands", self.placeholderValues(t), forInstall-> false);
+                break;
+            }
         }
+
+        // the keys of an install command do not depend on the prefix it is run with
+        self.checkCommandPlaceholders(self._install, "install", self.installPlaceholderValues(""), forInstall-> true);
     }
 
     /**
      * @params:
-     *    - vars: the value of every placeholder, for any target of the package
+     *    - commands: the commands to check
+     *    - table: the table they are declared in, for error reporting
+     *    - vars: the value of every placeholder they can hold
+     *    - forInstall: true iif they are '[install.<name>]' commands, which have their own keys
      * @throws:
      *    - AssertError: see 'checkPlaceholders'
      * */
-    prv fn checkCommandPlaceholders(self, vars: [[c8] => [c8]])
+    prv fn checkCommandPlaceholders(self, commands: &CustomCommandList, table: [c8], vars: [[c8] => [c8]], forInstall: bool)
         throws AssertError
     {
-        for k, c in self._commands[] {
-            let ctx = gyllir::config::errors::inTable("commands", k);
+        for k, c in commands[] {
+            let ctx = gyllir::config::errors::inTable(table, k);
 
             // a line of an array is named by its index, the way the array is written
             let mut entries: [([c8], [c8])] = [];
@@ -583,7 +639,7 @@ pub record GyllirPackageConfiguration {
                 };
 
                 for key in keys if (key !in vars) {
-                    throw copy AssertError(ctx ~ "'" ~ entry.0 ~ "', " ~ self.unknownPlaceholder(key));
+                    throw copy AssertError(ctx ~ "'" ~ entry.0 ~ "', " ~ self.unknownPlaceholder(key, forInstall-> forInstall));
                 }
             }
         }
@@ -592,9 +648,10 @@ pub record GyllirPackageConfiguration {
     /**
      * @params:
      *    - key: the key of a placeholder that does not resolve
+     *    - forInstall: true iif the placeholder is the one of an '[install.<name>]' command
      * @returns: why it does not, and what can be written instead
      * */
-    prv fn unknownPlaceholder(self, key: [c8])-> [c8] {
+    prv fn unknownPlaceholder(self, key: [c8], forInstall: bool)-> [c8] {
         let dmut fields = copy StringStream();
         for i, f in __PLACEHOLDER_TARGET_FIELDS__ {
             if (i != 0us) { fields:.write(", "s8); }
@@ -630,6 +687,18 @@ pub record GyllirPackageConfiguration {
         let version = "version.";
         if (key.len > version.len && key[0us .. version.len] == version && !self._version.isNumbered()) {
             return msg ~ ", the version \"" ~ self._version[] ~ "\" is not numbered, it has no major, minor or patch";
+        }
+
+        if (forInstall) {
+            let target = "target.";
+            if (key.len > target.len && key[0us .. target.len] == target) {
+                return msg ~ ", an install command runs once for the whole package, not for a target being built, "
+                    ~ "name the target instead: targets.<name>." ~ key[target.len .. $];
+            }
+
+            return msg ~ ", expecting one of: name, version, version.major, version.minor, version.patch, license, "
+                ~ "description, authors, prefix, or targets.<name>.<field>, with <field> one of: " ~ fields[]
+                ~ " and <name> one of: " ~ names[];
         }
 
         msg ~ ", expecting one of: name, version, version.major, version.minor, version.patch, license, description, "
@@ -700,6 +769,10 @@ pub record GyllirPackageConfiguration {
             self._commands = copy CustomCommandList(x);
         }
 
+        if let Ok(x) = d["install"]? {
+            self._install = copy CustomCommandList(x, table-> "install", withPost-> false);
+        }
+
         if let Ok(x) = d["std"]? {
             self:.parseStd(x);
         }
@@ -722,6 +795,7 @@ pub record GyllirPackageConfiguration {
                                               "dependencies",
                                               "targets",
                                               "commands",
+                                              "install",
                                               "std");
     }
 
@@ -900,6 +974,24 @@ pub record GyllirPackageConfiguration {
  *    - field: one of '__PLACEHOLDER_TARGET_FIELDS__'
  * @returns: the value of that field of 'target', for the placeholders of a templated entry
  * */
+/**
+ * Substitute the placeholders of the command lines of a command, and split each into its arguments
+ * @params:
+ *    - cmd: the command
+ *    - vars: the value of every placeholder it can hold
+ * @returns: see 'GyllirPackageConfiguration::expandCommand'
+ * */
+prv fn expandWith(cmd: Command, vars: [[c8] => [c8]])-> ([[[c8]]], Path)
+    throws AssertError
+{
+    let mut lines: [[[c8]]] = [];
+    for c in cmd.cmds {
+        lines ~= [placeholder::resolveArgs(c, vars)];
+    }
+
+    (lines, Path(placeholder::resolve(cmd.cwd.toStr(), vars)))
+}
+
 prv fn targetField(target: Target, field: [c8])-> [c8] {
     if (field == "name") { return target.name; }
     if (field == "type") { return target.type.name(); }
