@@ -337,6 +337,31 @@ __test custom_commands_run_before_and_after_build {
     assert(hasFile(dir, "post.witness"), "the post build command should have run in the project directory");
 }
 
+__test command_lines_run_in_declared_order {
+    // The command lines of an array run one after the other, in the declared order: the second
+    // line can only succeed once the first one ran, and the third only after the second
+    let dir      = mkExecutableProject("myapp");
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    let cfg = GyllirPackageConfiguration(json #{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "commands" : {
+            "steps" : {"cmd" : ["mkdir out", "touch out/first.witness", "mv out/first.witness out/second.witness"],
+                       "post" : true}
+        }
+    });
+
+    RepoBuilder(dir, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
+
+    assert(hasFile(dir, "out/second.witness"), "every command line should have run, in the declared order");
+    assert(!hasFile(dir, "out/first.witness"), "the last command line should have run after the second one");
+}
+
 __test removed_module_dropped_and_target_relinked {
     // A module removed from the sources is dropped from the cache, and the target relinked without it
     let dir      = mkLibraryProject();

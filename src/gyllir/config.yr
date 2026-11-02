@@ -365,22 +365,28 @@ pub record GyllirPackageConfiguration {
     }
 
     /**
-     * Substitute the placeholders of a command line, and split it into its arguments
+     * Substitute the placeholders of the command lines of a command, and split each into its arguments
      * @params:
      *    - cmd: the command to run
      *    - target: the target being built
      * @returns:
-     *    - .0: the arguments of the command line, its program first
-     *    - .1: the directory the command is run from, relative to the package directory unless absolute
+     *    - .0: the arguments of each command line, its program first, in the order they are run
+     *    - .1: the directory the command lines are run from, relative to the package directory unless
+     *      absolute
      * @throws:
      *    - AssertError: a placeholder does not resolve, which a command read from a gyllir.toml never
      *      does, 'checkPlaceholders' having already refused it
      * */
-    pub fn expandCommand(self, cmd: Command, target: Target)-> ([[c8]], Path)
+    pub fn expandCommand(self, cmd: Command, target: Target)-> ([[[c8]]], Path)
         throws AssertError
     {
         let vars = self.placeholderValues(target);
-        (placeholder::resolveArgs(cmd.cmd, vars), Path(placeholder::resolve(cmd.cwd.toStr(), vars)))
+        let mut lines: [[[c8]]] = [];
+        for c in cmd.cmds {
+            lines ~= [placeholder::resolveArgs(c, vars)];
+        }
+
+        (lines, Path(placeholder::resolve(cmd.cwd.toStr(), vars)))
     }
 
     /*!
@@ -553,7 +559,21 @@ pub record GyllirPackageConfiguration {
     {
         for k, c in self._commands[] {
             let ctx = gyllir::config::errors::inTable("commands", k);
-            for entry in [("cmd", c.cmd), ("cwd", c.cwd.toStr())] {
+
+            // a line of an array is named by its index, the way the array is written
+            let mut entries: [([c8], [c8])] = [];
+            for i, line in c.cmds {
+                if (c.isList()) {
+                    let dmut name = copy StringStream();
+                    name:.write("cmd["s8, i, "]"s8);
+                    entries ~= [(name[], line)];
+                } else {
+                    entries ~= [("cmd"s8, line)];
+                }
+            }
+
+            entries ~= [("cwd"s8, c.cwd.toStr())];
+            for entry in entries {
                 let keys = {
                     placeholder::keys(entry.1)
                 } catch {

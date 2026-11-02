@@ -1200,7 +1200,8 @@ pub record RepoBuilder {
 
     /**
      * Execute the commands to run before(or after) the compilation, their '{{...}}' placeholders
-     * resolved against the package and the target being built
+     * resolved against the package and the target being built. The command lines of a command run
+     * in the order they are declared, and the build stops at the first one that fails
      * */
     prv fn runCommands(self, dmut context: &GyllirManager, post: bool) {
         // a dry run resolves the dependencies and compiles nothing, the commands of a package are
@@ -1209,7 +1210,7 @@ pub record RepoBuilder {
 
         for k, c in self._cfg.commands[] {
             if c.isPost() == post {
-                let (cmd, cwd) = {
+                let (lines, cwd) = {
                     self._cfg.expandCommand(c, self._target)
                 } catch {
                     err: &AssertError => {
@@ -1223,21 +1224,23 @@ pub record RepoBuilder {
                     cwd
                 } else { self._cwd.push(cwd) };
 
-                let succ = if (cmd.len > 0) {
-                    context.runProcess(cmd[0], cmd[1 .. $], cwd-> path)
-                } else { false };
+                for i, cmd in lines {
+                    let succ = if (cmd.len > 0) {
+                        context.runProcess(cmd[0], cmd[1 .. $], cwd-> path)
+                    } else { false };
 
-                if !succ {
-                    utils::log::error("Error",
-                                      "command '",
-                                      k,
-                                      "' failed: ",
-                                      c.cmd,
-                                      ", declared by '[commands.",
-                                      k,
-                                      "]' of ",
-                                      self.configFiles());
-                    etc::c::process::_yrt_exit(-1);
+                    if !succ {
+                        utils::log::error("Error",
+                                          "command '",
+                                          k,
+                                          "' failed: ",
+                                          c.cmds[i],
+                                          ", declared by '[commands.",
+                                          k,
+                                          "]' of ",
+                                          self.configFiles());
+                        etc::c::process::_yrt_exit(-1);
+                    }
                 }
             }
         }
