@@ -547,6 +547,130 @@ details.member-group[open] > summary::before {
 }
 
 /* ==========================================================================
+   Inheritance graphs (src/gyllir/doc/html/graph.yr): nested lists of boxes,
+   the connectors drawn by the ::before/::after of each nested item
+   ========================================================================== */
+
+.hierarchy {
+    --hierarchy-indent: 1.4rem;
+    --hierarchy-mid: .95rem; /* from the top of an item to the middle of its box */
+    --hierarchy-line: var(--color-text-muted);
+
+    overflow-x: auto;
+    padding: .2rem 0 .4rem;
+}
+
+.hierarchy-tree, .hierarchy-tree ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+
+.hierarchy-tree ul {
+    margin-inline-start: .8rem;
+    padding-inline-start: var(--hierarchy-indent);
+}
+
+.hierarchy-tree li {
+    position: relative;
+    padding: .2rem 0;
+    white-space: nowrap;
+}
+
+.hierarchy-tree ul > li::before,
+.hierarchy-tree ul > li::after {
+    content: "";
+    position: absolute;
+    inset-inline-start: calc(-1 * var(--hierarchy-indent));
+    border-inline-start: 1px solid var(--hierarchy-line);
+}
+
+/* the elbow from the parent line to the box */
+.hierarchy-tree ul > li::before {
+    top: 0;
+    height: var(--hierarchy-mid);
+    width: calc(var(--hierarchy-indent) - .3rem);
+    border-block-end: 1px solid var(--hierarchy-line);
+}
+
+/* the parent line, down to the next sibling */
+.hierarchy-tree ul > li::after {
+    top: var(--hierarchy-mid);
+    bottom: 0;
+}
+
+.hierarchy-tree ul > li:last-child::after {
+    display: none;
+}
+
+.hierarchy-node {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: .85rem;
+    line-height: 1.4;
+    padding: .15rem .55rem;
+    color: var(--color-text);
+    background: var(--color-bg);
+    border: 1px solid var(--color-border);
+    border-inline-start: 3px solid var(--kind-class);
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-sm);
+}
+
+.hierarchy-node.kind-trait {
+    border-inline-start-color: var(--kind-trait);
+}
+
+a.hierarchy-node:hover, a.hierarchy-node:focus-visible {
+    color: var(--color-link-hover);
+    border-color: var(--color-link);
+    text-decoration: none;
+}
+
+.hierarchy-node.current {
+    font-weight: 700;
+    background: var(--color-accent-soft);
+    border-color: var(--color-accent);
+}
+
+/* a class the site does not document */
+.hierarchy-node.external {
+    color: var(--color-text-muted);
+    background: transparent;
+    border-style: dashed;
+    box-shadow: none;
+}
+
+.hierarchy-impls {
+    margin-inline-start: .25rem;
+    font-size: .8rem;
+    color: var(--color-text-muted);
+}
+
+.hierarchy-impls-kw {
+    margin-inline-end: .1rem;
+}
+
+.hierarchy-impl {
+    display: inline-block;
+    font-family: var(--font-mono);
+    padding: 0 .45rem;
+    color: var(--kind-trait);
+    background: var(--color-bg-inset);
+    border: 1px solid transparent;
+    border-radius: 999px;
+}
+
+.hierarchy-impl.conditional {
+    border-color: currentColor;
+    border-style: dashed;
+}
+
+.hierarchy-impl.external {
+    color: var(--color-text-muted);
+}
+
+/* ==========================================================================
    Doc / comment content
    ========================================================================== */
 

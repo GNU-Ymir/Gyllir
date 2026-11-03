@@ -1,0 +1,278 @@
+in graph;
+
+use gyllir::doc::hierarchy;
+
+use std::stream;
+use std::fs;
+
+// The inheritance graphs of the documentation pages, drawn from a 'doc::hierarchy::InheritanceGraph'
+// as nested lists ('<ul class="hierarchy-tree">'), each class or trait a box linked to its
+// declaration, the connectors between them being drawn by 'res/css/style.css'.
+//
+// A class or a trait of the page is linked to its anchor ('#Name'), one of another module to the
+// page of that module, and one the site does not document (e.g. a class of a dependency) is not
+// linked at all. Each class box is followed by the traits the class implements itself.
+
+/**
+ * @returns: the "Hierarchy" member group of the class 'name': the ancestors of the class, the
+ *    farthest first, down to the class itself, then every class declared over it, recursively. ""
+ *    when the class has neither an ancestor, nor a descendant, nor a trait
+ * @params:
+ *    - graph: the inheritance graph of the site
+ *    - name: the qualified name of the class (see 'hierarchy::qualify')
+ *    - page: the qualified name of the module documented by the page
+ * */
+pub fn classGraph(graph: &InheritanceGraph, name: [c8], page: [c8])-> [c8] {
+    if let Ok(node) = graph.find(name) {
+        let ancestors = graph.ancestors(name);
+        if (ancestors.len == 0us && graph.children(name).len == 0us && node.traits.len == 0us) {
+            return "";
+        }
+
+        let mut tree = subtree(graph, name, page, current-> name);
+        for a in ancestors {
+            tree = "<li>" ~ nodeHtml(graph, a, page) ~ "<ul>" ~ tree ~ "</ul></li>";
+        }
+
+        return group("Hierarchy", tree);
+    }
+
+    ""
+}
+
+/**
+ * @returns: the "Implementors" member group of the trait 'name': the classes implementing it, and
+ *    under each of them the classes declared over it, which inherit the implementation. "" when no
+ *    class of the site implements the trait
+ * @params:
+ *    - graph: the inheritance graph of the site
+ *    - name: the qualified name of the trait (see 'hierarchy::qualify')
+ *    - page: the qualified name of the module documented by the page
+ * */
+pub fn traitGraph(graph: &InheritanceGraph, name: [c8], page: [c8])-> [c8] {
+    let impls = graph.implementors(name);
+    if (impls.len == 0us) return "";
+
+    let dmut childs = copy StringStream();
+    for c in impls {
+        childs:.write(subtree(graph, c, page, skipTrait-> name, visited-> copy [name]));
+    }
+
+    group("Implementors", "<li>" ~ nodeHtml(graph, name, page, current-> name) ~ "<ul>" ~ childs[] ~ "</ul></li>")
+}
+
+/**
+ * @returns: the "Class hierarchy" member group of a module page: every class the module declares,
+ *    under the class it is declared over. A class declared over a class of another module is put
+ *    under that class, which closes the branch: the module graph only follows the classes of the
+ *    module. "" when no class of the module is declared over another
+ * @params:
+ *    - graph: the inheritance graph of the site
+ *    - module: the qualified name of the module
+ * */
+pub fn moduleGraph(graph: &InheritanceGraph, module: [c8])-> [c8] {
+    let mut classes: [[c8]] = [];
+    let mut inherits        = false;
+    for n in graph.nodes if (n.module == module && !n.isTrait) {
+        classes ~= [n.name];
+        if (n.ancestor.len != 0us) inherits = true;
+    }
+
+    if (!inherits) return "";
+
+    // the roots of the module graph, by the class of another module they are declared over ("" for
+    // the ones declared over no class)
+    let mut outside: [[c8]] = [];
+    for c in hierarchy::sorted(classes) {
+        let anc = rootAncestor(graph, c, module);
+        if (anc.len != 0us && !hierarchy::contains(outside, anc)) outside ~= [anc];
+    }
+
+    let dmut tree = copy StringStream();
+    for c in hierarchy::sorted(classes) if (ancestorOf(graph, c) == "") {
+        tree:.write(subtree(graph, c, module, onlyPage-> true));
+    }
+
+    for anc in hierarchy::sorted(outside) {
+        tree:.write("<li>", nodeHtml(graph, anc, module), "<ul>");
+        for c in hierarchy::sorted(classes) if (rootAncestor(graph, c, module) == anc) {
+            tree:.write(subtree(graph, c, module, onlyPage-> true));
+        }
+
+        tree:.write("</ul></li>");
+    }
+
+    group("Class hierarchy", tree[])
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * =====================================          NODES          ======================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+/**
+ * @returns: the '<li>' of the class 'name', with the classes declared over it in a nested list
+ * @params:
+ *    - current: the symbol the graph is drawn for, which is highlighted instead of linked
+ *    - skipTrait: a trait not to list among the ones of the classes (the trait whose graph is drawn)
+ *    - onlyPage: true iif only the classes of the module of the page are followed
+ *    - visited: the classes already drawn above it, a cycle is never followed
+ * */
+prv fn subtree(graph: &InheritanceGraph,
+               name: [c8],
+               page: [c8],
+               current: [c8] = "",
+               skipTrait: [c8] = "",
+               onlyPage: bool = false,
+               visited: [[c8]] = [])-> [c8]
+{
+    let path = visited ~ [name];
+
+    let dmut childs = copy StringStream();
+    for c in graph.children(name) if (!hierarchy::contains(path, c) && (!onlyPage || moduleOf(graph, c) == page)) {
+        childs:.write(subtree(graph, c, page, current-> current, skipTrait-> skipTrait, onlyPage-> onlyPage, visited-> path));
+    }
+
+    let inner = if (childs[].len != 0us) { "<ul>" ~ childs[] ~ "</ul>" } else { "" };
+    "<li>" ~ nodeHtml(graph, name, page, current-> current, skipTrait-> skipTrait) ~ inner ~ "</li>"
+}
+
+/**
+ * @returns: the box of the class or the trait 'name', followed by the traits it implements, the
+ *    ones an ancestor implements already left out (the class only overrides their methods). The
+ *    separators are real text, so that the graph still reads (and copies) as 'Name impl Trait'
+ *    without the stylesheet
+ * */
+prv fn nodeHtml(graph: &InheritanceGraph, name: [c8], page: [c8], current: [c8] = "", skipTrait: [c8] = "")-> [c8] {
+    if let Ok(n) = graph.find(name) {
+        let classes = "hierarchy-node kind-" ~ n.kind;
+        let label   = formatter::htmlEscape(labelOf(n, page));
+        let title   = formatter::htmlEscape(n.name);
+
+        let box = if (name == current) {
+            "<span class=\"" ~ classes ~ " current\" title=\"" ~ title ~ "\">" ~ label ~ "</span>"
+        } else {
+            "<a class=\"" ~ classes ~ " symbol-link\" href=\"" ~ formatter::htmlEscape(linkOf(n, page))
+            ~ "\" title=\"" ~ title ~ "\">" ~ label ~ "</a>"
+        };
+
+        let dmut impls = copy StringStream();
+        for t in n.traits if (t.0 != skipTrait && !inherits(graph, name, t.0)) {
+            impls:.write(" ", traitHtml(graph, t.0, t.1, page));
+        }
+
+        if (impls[].len == 0us) { return box; }
+        return box ~ " <span class=\"hierarchy-impls\"><span class=\"hierarchy-impls-kw\">impl</span>" ~ impls[] ~ "</span>";
+    }
+
+    // a class the site does not document, an ancestor is all it can be in a graph
+    "<span class=\"hierarchy-node kind-class external\" title=\"" ~ formatter::htmlEscape(name) ~ "\">"
+    ~ formatter::htmlEscape(name) ~ "</span>"
+}
+
+/**
+ * @returns: the chip of a trait a class implements, labelled with the name of the trait alone (the
+ *    qualified one is its title)
+ * @params:
+ *    - cond: the condition of the 'impl', "" if there is none
+ * */
+prv fn traitHtml(graph: &InheritanceGraph, name: [c8], cond: [c8], page: [c8])-> [c8] {
+    let classes = if (cond.len != 0us) { "hierarchy-impl conditional" } else { "hierarchy-impl" };
+    let title   = formatter::htmlEscape(if (cond.len != 0us) { name ~ " (if " ~ cond ~ ")" } else { name });
+
+    if let Ok(n) = graph.find(name) {
+        return "<a class=\"" ~ classes ~ " symbol-link\" href=\"" ~ formatter::htmlEscape(linkOf(n, page))
+            ~ "\" title=\"" ~ title ~ "\">" ~ formatter::htmlEscape(n.display) ~ "</a>";
+    }
+
+    "<span class=\"" ~ classes ~ " external\" title=\"" ~ title ~ "\">"
+    ~ formatter::htmlEscape(Path(name, sep-> "::").file()) ~ "</span>"
+}
+
+/**
+ * @returns: the member group titled 'title' holding the list items 'tree', collapsed until opened
+ *    (see 'res/html/hierarchy.html')
+ * */
+prv fn group(title: [c8], tree: [c8])-> [c8] {
+    let dmut stream = copy StringStream();
+    formatter::format(alias stream, ressources::HIERARCHY, copy ["Kind" => title, "Content" => tree]);
+    stream[]
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * ====================================          HELPERS          =====================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+/**
+ * @returns: the name a node is displayed under in the page of 'page': its own name in the page of
+ *    its module, qualified relatively to 'page' in the page of a parent module ('code::CommentCode'
+ *    from 'doc::comment::node'), fully qualified elsewhere
+ * */
+prv fn labelOf(n: HierarchyNode, page: [c8])-> [c8] {
+    if (n.module == page || n.module.len == 0us) { return n.display; }
+
+    let prefix = page ~ "::";
+    if (page.len != 0us && n.module.len > prefix.len && n.module[0us .. prefix.len] == prefix) {
+        return n.module[prefix.len .. $] ~ "::" ~ n.display;
+    }
+
+    n.module ~ "::" ~ n.display
+}
+
+/**
+ * @returns: true iif an ancestor of the class 'name' implements the trait 'tr'
+ * */
+prv fn inherits(graph: &InheritanceGraph, name: [c8], tr: [c8])-> bool {
+    for a in graph.ancestors(name) {
+        if let Ok(n) = graph.find(a) {
+            for t in n.traits if (t.0 == tr) { return true; }
+        }
+    }
+
+    false
+}
+
+/**
+ * @returns: the url of the declaration of a node, from the page of 'page'
+ * */
+prv fn linkOf(n: HierarchyNode, page: [c8])-> [c8] {
+    if (n.module == page) { return "#" ~ n.anchor; }
+
+    index::pageUrl(n.module) ~ "#" ~ n.anchor
+}
+
+/**
+ * @returns: the module of the class 'name', "" if the site does not document it
+ * */
+prv fn moduleOf(graph: &InheritanceGraph, name: [c8])-> [c8] {
+    if let Ok(n) = graph.find(name) { return n.module; }
+
+    ""
+}
+
+/**
+ * @returns: the class 'name' is declared over when it is not a class of 'module', "" otherwise
+ * */
+prv fn rootAncestor(graph: &InheritanceGraph, name: [c8], module: [c8])-> [c8] {
+    if let Ok(n) = graph.find(name) {
+        if (n.ancestor.len != 0us && moduleOf(graph, n.ancestor) != module) { return n.ancestor; }
+    }
+
+    ""
+}
+
+/**
+ * @returns: the class 'name' is declared over, "" if there is none
+ * */
+prv fn ancestorOf(graph: &InheritanceGraph, name: [c8])-> [c8] {
+    if let Ok(n) = graph.find(name) { return n.ancestor; }
+
+    ""
+}

@@ -1,3 +1,4 @@
 pub mod ::formatter;
 pub mod ::body;
 pub mod ::coverage;
+pub mod ::graph;

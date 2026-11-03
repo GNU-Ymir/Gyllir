@@ -32,7 +32,8 @@ pub enum GyllirHtmlFiles
 | COVERAGE_SUMMARY = "html/coverage_summary.html"
 | COVERAGE_ROW     = "html/coverage_row.html"
 | COVERAGE_SOURCE  = "html/coverage_source.html"
-| COVERAGE_LINE    = "html/coverage_line.html";
+| COVERAGE_LINE    = "html/coverage_line.html"
+| HIERARCHY        = "html/hierarchy.html";
 
 pub lazy LEAF_NODE = {
     {
@@ -172,6 +173,15 @@ pub lazy COVERAGE_SOURCE = {
 pub lazy COVERAGE_LINE = {
     {
         let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::COVERAGE_LINE));
+        f:.readAll()
+    } catch {
+        _ => ""
+    }
+};
+
+pub lazy HIERARCHY = {
+    {
+        let dmut f = File::open(RES_ROOT.push(GyllirHtmlFiles::HIERARCHY));
         f:.readAll()
     } catch {
         _ => ""

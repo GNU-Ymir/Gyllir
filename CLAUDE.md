@@ -212,7 +212,18 @@ calls `run()`; every sub-command is dispatched and implemented from there.
   - `types/` — mirrors Ymir's type system for rendering signatures (`class_`, `enum_`, `array`,
     `slice`, `map`, `tuple`, `option`, `fptr`, `pointer`, `range`, `scalar`, `any`).
   - `html/` — renders parsed symbols/comments to a static site (`head.yr`, `body.yr`, `foot.yr`,
-    `formatter.yr`, `ressources.yr`), using the static assets under `res/`.
+    `formatter.yr`, `ressources.yr`), using the static assets under `res/`. `graph.yr` draws the
+    inheritance graphs `body.yr` puts in the pages (a class's *Hierarchy*: ancestors then every
+    descendant; a trait's *Implementors*; a module's *Class hierarchy*) as nested `<ul
+    class="hierarchy-tree">` lists in a member group of their own, collapsed by default
+    (`res/html/hierarchy.html`), the connectors being drawn by `res/css/style.css`.
+  - `hierarchy.yr` — `InheritanceGraph`: every class/record/entity/trait of the site keyed by
+    qualified name (`qualify`: the doc json leaves a template's name, and its pattern's ancestor,
+    unqualified), its `over` ancestor and implemented traits (`typeName` drops an instance's
+    `!{...}`), plus the reverse `children`/`implementors`. Built once from the whole loaded tree by
+    `repo/doc.yr` and handed to every `HtmlBody`, since a page documents one module while a graph
+    spans several; `HtmlBody` defaults to `EMPTY_GRAPH`, which draws nothing. An ancestor the site
+    does not document stays in the graph by name, unlinked.
   - `loader.yr` — loads a previously-produced `*.doc.json` (the `-i`/`--input` flag of
     `gyllir doc`), so docs can be regenerated without recompiling the whole project.
   - `coverage.yr` — `CoverageReport`/`CoverageFile`: the coverage json of test-rt folded per
