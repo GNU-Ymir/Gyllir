@@ -786,8 +786,9 @@ pub record RepoBuilder {
             .push(output)
             .addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
 
+        let resultFile = self.artifactFile(output ~ defaults::__TEST_EXECUTABLE_SUFFIX__);
         let options = self.createLinkOptions(copy [createdTmp, createdUnittests],
-                                             output ~ ".test",
+                                             resultFile.toStr(),
                                              dependencyLibs,
                                              cObjects);
 
@@ -796,7 +797,8 @@ pub record RepoBuilder {
             etc::c::process::_yrt_exit(-1);
         }
 
-        utils::log::info("Produced", "executable file ", output, ".test");
+        utils::log::info("Produced", "executable file ",
+                         self._target.artifactDisplay(output ~ defaults::__TEST_EXECUTABLE_SUFFIX__));
     }
 
     /**
@@ -810,14 +812,15 @@ pub record RepoBuilder {
         let output     = self._target.outputName();
         let createdTmp = (cacheDir.push(output).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
 
-        let options = self.createLinkOptions(copy [createdTmp], output, dependencyLibs, cObjects);
+        let resultFile = self.artifactFile(output);
+        let options    = self.createLinkOptions(copy [createdTmp], resultFile.toStr(), dependencyLibs, cObjects);
 
         if (!context.runProcess(self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose)) {
             self.reportCompilerFailure("failed to link the executable of target");
             etc::c::process::_yrt_exit(-1);
         }
 
-        utils::log::info("Produced", "executable file ", output);
+        utils::log::info("Produced", "executable file ", self._target.artifactDisplay(output));
     }
 
     /**
@@ -827,7 +830,8 @@ pub record RepoBuilder {
     prv fn finalizeLibrary(self, dmut context: &GyllirManager, cacheDir: Path, _: [Path], cObjects: [Path])-> Path {
         let output     = self._target.outputName();
         let createdTmp = (cacheDir.push(output).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
-        let resultFile = self._cwd.push("lib" ~ output).addExtension(defaults::__LIBRARY_EXTENSION__);
+        let library    = defaults::libraryFileName(output);
+        let resultFile = self.artifactFile(library);
 
         // 'createdTmp' is a single relocatable object gathering every compiled module, not a real
         // 'ar' archive: a target with no C source just wears it under the 'lib*.a' name, one that
@@ -859,8 +863,36 @@ pub record RepoBuilder {
             }
         }
 
-        utils::log::info("Produced", "library file ", "lib", output, ".", defaults::__LIBRARY_EXTENSION__);
+        utils::log::info("Produced", "library file ", self._target.artifactDisplay(library));
         resultFile
+    }
+
+    /**
+     * The path an artifact of the target is written to, creating the output directory of the target
+     * when it is missing
+     * @params:
+     *    - file: the name of the artifact
+     * @returns: the path of the artifact, in the output directory of the target
+     * */
+    prv fn artifactFile(self, file: [c8])-> Path {
+        let dir = self._target.outputPath(self._cwd);
+        if (!fs::isDir(dir)) {
+            {
+                fs::createDir(dir, recursive-> true);
+            } catch {
+                e: &FsError => {
+                    utils::log::error("Error",
+                                      self.targetContext(),
+                                      "failed to create the output directory '",
+                                      dir.toStr(),
+                                      "': ",
+                                      e.msg);
+                    etc::c::process::_yrt_exit(-1);
+                }
+            }
+        }
+
+        dir.push(file)
     }
 
     /*!

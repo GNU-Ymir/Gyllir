@@ -57,7 +57,8 @@ pub record RepoRunner {
             utils::log::info("Executing", "tests ", output, " v", self._cfg.version[]);
             std::io::println("\n");
             std::io::flush();
-            let (cmd, options) = self.withEnv("./" ~ output ~ ".test", testRunnerArguments(self._args));
+            let (cmd, options) = self.withEnv(self.artifact(output ~ defaults::__TEST_EXECUTABLE_SUFFIX__),
+                                              testRunnerArguments(self._args));
             let dmut subProc   = copy SubProcess(cmd, options, cwd-> self._cwd);
             subProc:.start(redirect-> false);
 
@@ -78,11 +79,22 @@ pub record RepoRunner {
             utils::log::info("Executing", "project ", output, " v", self._cfg.version[]);
             std::io::println("\n");
             std::io::flush();
-            let dmut subProc = copy SubProcess("./" ~ output, options, cwd-> self._cwd);
+            let dmut subProc = copy SubProcess(self.artifact(output), options, cwd-> self._cwd);
             subProc:.start(redirect-> false);
 
             subProc:.wait()
         }
+    }
+
+    /**
+     * @params:
+     *    - file: the name of an artifact of the target
+     * @returns: the path the artifact is executed from, in the output directory of the target. The
+     *    working directory of the artifact stays the package directory, so that the relative paths
+     *    it opens(its resources, ...) keep resolving whatever the output directory is
+     * */
+    prv fn artifact(self, file: [c8])-> [c8] {
+        self._target.artifactPath(self._cwd, file).toStr()
     }
 
     /**

@@ -251,6 +251,20 @@ pub def __HTML_EXTENSION__     = "html";
 pub def __C_EXTENSION__        = "c";
 
 /**
+ * The suffix of the unittest executable of a target, appended to its output name
+ * */
+pub def __TEST_EXECUTABLE_SUFFIX__ = ".test";
+
+/**
+ * @params:
+ *    - output: the output name of a library target
+ * @returns: the name of the archive the target produces, 'lib<output>.a'
+ * */
+pub fn libraryFileName(output: [c8])-> [c8] {
+    "lib" ~ output ~ "." ~ __LIBRARY_EXTENSION__
+}
+
+/**
  * The sub directory of a target's build cache holding the object files compiled from its
  * 'c-sources'
  */
