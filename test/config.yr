@@ -964,7 +964,7 @@ __test unknown_placeholder_of_command_list_names_the_line {
 
     assert(msg == "'[commands.truc]', 'cmd[1]', unknown placeholder '{{verison}}', expecting one of: name, version, "
            ~ "version.major, version.minor, version.patch, license, description, authors, target.<field>, or "
-           ~ "targets.<name>.<field>, with <field> one of: name, type, description, output, source-dir, test-dir "
+           ~ "targets.<name>.<field>, with <field> one of: name, type, description, output, output-dir, source-dir, test-dir "
            ~ "and <name> one of: myapp",
            "unexpected error: " ~ msg);
 }
@@ -1028,7 +1028,7 @@ __test unknown_install_placeholder_rejected {
 
     assert(msg == "'[install.bin]', 'cmd[1]', unknown placeholder '{{prefx}}', expecting one of: name, version, "
            ~ "version.major, version.minor, version.patch, license, description, authors, prefix, or "
-           ~ "targets.<name>.<field>, with <field> one of: name, type, description, output, source-dir, test-dir "
+           ~ "targets.<name>.<field>, with <field> one of: name, type, description, output, output-dir, source-dir, test-dir "
            ~ "and <name> one of: tool",
            "unexpected error: " ~ msg);
 }
@@ -1059,7 +1059,7 @@ __test unknown_command_placeholder_rejected {
 
     assert(msg == "'[commands.truc]', 'cmd', unknown placeholder '{{verison}}', expecting one of: name, version, "
            ~ "version.major, version.minor, version.patch, license, description, authors, target.<field>, or "
-           ~ "targets.<name>.<field>, with <field> one of: name, type, description, output, source-dir, test-dir "
+           ~ "targets.<name>.<field>, with <field> one of: name, type, description, output, output-dir, source-dir, test-dir "
            ~ "and <name> one of: myapp",
            "unexpected error: " ~ msg);
 }
@@ -1091,7 +1091,7 @@ __test unknown_target_field_placeholder_rejected {
     });
 
     assert(msg == "'[commands.truc]', 'cmd', unknown placeholder '{{targets.result.flags}}', a target field is one "
-           ~ "of: name, type, description, output, source-dir, test-dir",
+           ~ "of: name, type, description, output, output-dir, source-dir, test-dir",
            "unexpected error: " ~ msg);
 }
 
@@ -1130,4 +1130,113 @@ __test malformed_cwd_placeholder_rejected {
 
     assert(msg == "'[commands.truc]', 'cwd', placeholder '{{version' is never closed, expecting '}}'",
            "unexpected error: " ~ msg);
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * ===================================          OUTPUT DIR          ===================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+__test top_level_output_dir_applies_to_synthesized_target {
+    // The "output-dir" of a package declaring no target is the one of its synthesized target
+    let cfg = GyllirPackageConfiguration(json #{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "output-dir" : "bin"
+    });
+
+    assert(cfg.outputDir == "bin", "unexpected package output directory");
+    if let Ok(t) = cfg.targets()["myapp"] {
+        assert(t.outputDirectory() == "bin", "the synthesized target should write to the package output directory");
+    } else assert(false, "expected a target named after the package");
+
+    assert(to!{[c8]} (cfg.serialize()["output-dir"]) == "bin", "the package output directory should be serialized");
+}
+
+__test target_output_dir_takes_precedence_over_package_one {
+    // A top level "output-dir" sits next to "[targets.*]" tables, a target declaring its own wins
+    let cfg = GyllirPackageConfiguration(json #{
+        "name" : "multi",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "output-dir" : "bin",
+        "targets" : {
+            "mylib" : {"type" : "library", "output-dir" : "lib"},
+            "cli" : {"targets" : ["mylib"]}
+        }
+    });
+
+    let targets = cfg.targets();
+    if let Ok(t) = targets["mylib"] {
+        assert(t.outputDirectory() == "lib", "the output directory of the target should win");
+    } else assert(false, "expected a \"mylib\" target");
+
+    if let Ok(t) = targets["cli"] {
+        assert(t.outputDirectory() == "bin", "a target declaring none should use the one of the package");
+    } else assert(false, "expected a \"cli\" target");
+
+    // only the declared values are written back, not the inherited one
+    let serialized = cfg.serialize();
+    if let Ok(_) = serialized["targets"]["cli"]["output-dir"]? {
+        assert(false, "the inherited output directory should not be serialized as the one of the target");
+    }
+}
+
+__test output_dir_override_takes_precedence_over_every_declared_one {
+    // The command line ('--output-dir') wins over the package and the targets, and is never written back
+    let mut cfg = GyllirPackageConfiguration(json #{
+        "name" : "multi",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "output-dir" : "bin",
+        "targets" : {"mylib" : {"type" : "library", "output-dir" : "lib"}, "cli" : {}}
+    });
+    cfg:.setOutputDirOverride("out");
+
+    for _, t in cfg.targets() {
+        assert(t.outputDirectory() == "out", "the overridden output directory should be used by every target");
+    }
+
+    assert(to!{[c8]} (cfg.serialize()["output-dir"]) == "bin", "the override should not be serialized");
+}
+
+__test empty_top_level_output_dir_rejected {
+    // An empty top level "output-dir" names no directory either
+    let msg = loadError(json #{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "output-dir" : ""
+    });
+
+    assert(msg == "'output-dir' must name a directory, \".\" being the package directory, for example: output-dir = \"bin\"",
+           "unexpected error: " ~ msg);
+}
+
+__test output_dir_placeholder_resolved {
+    // '{{target.output-dir}}' is the directory the artifacts of the target being built are written to
+    let cfg = GyllirPackageConfiguration(json #{
+        "name" : "multi",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "targets" : {"cli" : {"output-dir" : "bin"}, "tool" : {}},
+        "commands" : {"copy" : {"cmd" : "cp {{target.output-dir}}/{{target.output}} {{targets.tool.output-dir}}", "post" : true}}
+    });
+
+    let mut cli = Target("", BuildType());
+    if let Ok(t) = cfg.targets()["cli"] { cli = t; } else assert(false, "expected a \"cli\" target");
+
+    if let Ok(c) = cfg.commands[]["copy"] {
+        let (lines, _) = cfg.expandCommand(c, cli);
+        assert(lines == copy [copy ["cp", "bin/cli", "."]], "unexpected expanded command");
+    } else assert(false, "expected a \"copy\" command");
 }
