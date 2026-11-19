@@ -110,7 +110,7 @@ __test invalidate_stale_cache_without_toolchain_keeps_the_cache {
 }
 
 __test invalidate_stale_cache_drops_a_cache_built_with_other_versions {
-    // A module whose sources did not change is reused as it is, with the '__version' blocks it was
+    // A module whose sources did not change is reused as it is, with the '__pragma!has_version' blocks it was
     // compiled with: a cache compiled with other version identifiers has to be dropped
     let (dir, cacheDir) = mkCacheDir(copy ["main"]);
     let cfg = mkTargetsConfig("myapp", json #{"app" : {"version" : ["WITH_CLI"]}});
@@ -588,7 +588,7 @@ __test target_versions_reach_the_compile_steps {
     assert(indexOf(docOptions, "-fversion=WITH_CLI") < docOptions.len && indexOf(docOptions, "-fversion=NO_COLOR") < docOptions.len,
            "the documentation should be built with the version identifiers of the target");
 
-    // the '__version' blocks are resolved by then
+    // the '__pragma!has_version' blocks are resolved by then
     let linkOptions = builder.createLinkOptions(copy ["/project/.target/app/debug/app.a"], "app", [], []);
     assert(indexOf(linkOptions, "-fversion=WITH_CLI") == linkOptions.len, "the link step needs no version identifier");
 }
@@ -608,7 +608,7 @@ __test version_block_compiled_in {
     // declares it
     let dir = mkExecutableProject("myapp");
     writeSource(dir.push(defaults::__SRC_DIR__).push(defaults::__MAIN_FILE__),
-                "use std::io;\n\nfn main() {\n    cte if __version!WITH_CLI {\n        println(\"with cli\");\n    } "
+                "use std::io;\n\nfn main() {\n    cte if __pragma!has_version(WITH_CLI) {\n        println(\"with cli\");\n    } "
                 ~ "else {\n        this_function_does_not_exist();\n    }\n}\n");
 
     let cfg      = mkTargetsConfig("myapp", json #{"app" : {"package-root" : "main", "version" : ["WITH_CLI"]}});

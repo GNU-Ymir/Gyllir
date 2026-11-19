@@ -541,7 +541,7 @@ pub record RepoBuilder {
     /**
      * @returns: one '-fversion=<ident>' option per version identifier of the target. They only
      *    matter to the compilation of the sources, by the time of the YIL assembly and the link
-     *    the '__version' blocks are long resolved
+     *    the '__pragma!has_version' blocks are long resolved
      * */
     pub fn versionOptions(self)-> [[c8]] {
         copy ["-fversion=" ~ v for v in self._target.version]
@@ -692,7 +692,7 @@ pub record RepoBuilder {
      * longer compile against this one: neither shows in the dates of the sources.
      * A cache recording nothing(written by an older gyllir) is dropped as well, nothing tells what
      * built it. So is one compiled with other version identifiers: a module whose sources did not
-     * change would otherwise keep the '__version' blocks it was first compiled with.
+     * change would otherwise keep the '__pragma!has_version' blocks it was first compiled with.
      * @params:
      *    - cacheDir: the build cache directory, holding the YILs, the dependency files and the
      *      objects of one kind of build of the target

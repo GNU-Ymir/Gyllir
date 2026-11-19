@@ -251,7 +251,7 @@ __test array_with_non_string_element_rejected {
 
 __test version_not_an_identifier_rejected {
     // A version identifier the sources could not name is rejected: the compiler would take it,
-    // and no '__version' block would ever be compiled in
+    // and no '__pragma!has_version' block would ever be compiled in
     for v in ["WITH-CLI", "2D", "", "-fno-inline", "a b"] {
         let mut msg = "";
         {

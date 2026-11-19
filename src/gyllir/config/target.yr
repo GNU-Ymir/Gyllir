@@ -60,7 +60,7 @@ pub record Target {
     let _libraries: [[c8]];
 
     // The version identifiers the target is compiled with, each passed as '-fversion=<ident>' so
-    // the 'cte if __version!<ident>' blocks of its sources can be gated per target
+    // the 'cte if __pragma!has_version(<ident>)' blocks of its sources can be gated per target
     let _version: [[c8]];
 
     // The names of the package dependencies linked by the target
@@ -550,7 +550,7 @@ pub class TargetList {
      *    - ctx: the prefix naming the target, for error reporting
      * @throws:
      *    - AssertError: an entry is not an identifier. The compiler would take it, but no
-     *      '__version' block can ever name it, so it would be ignored in silence
+     *      '__pragma!has_version' block can ever name it, so it would be ignored in silence
      * */
     prv fn readVersions(self, cfg: &Config, ctx: [c8])-> [[c8]]
         throws AssertError

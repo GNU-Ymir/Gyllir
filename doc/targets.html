@@ -160,7 +160,8 @@ artifacts still resolve.</p>
 
 <h2 id="versions">Version identifiers</h2>
 
-<p><code>version</code> turns on the <code>cte if __version!&lt;ident&gt;</code> blocks of the
+<p><code>version</code> turns on the <code>cte if __pragma!has_version(&lt;ident&gt;)</code> (and
+<code>#if &lt;ident&gt;</code>) blocks of the
 sources, per target: each entry is passed to the compiler as <code>-fversion=&lt;ident&gt;</code>.
 Two targets can build the same sources with different code compiled in.</p>
 
@@ -169,7 +170,7 @@ package-root = "main"
 version = ["WITH_CLI", "NO_COLOR"]</code></pre>
 
 <pre><code>fn main() {
-    cte if __version!WITH_CLI {
+    cte if __pragma!has_version(WITH_CLI) {
         runCli();
     } else {
         runDaemon();
@@ -177,7 +178,7 @@ version = ["WITH_CLI", "NO_COLOR"]</code></pre>
 }</code></pre>
 
 <p>Each entry has to be an identifier — letters, digits and <code>_</code>, not starting with a
-digit — since nothing else can be named by a <code>__version!</code> block. The identifiers go on
+digit — since nothing else can be named by a <code>__pragma!has_version</code> block. The identifiers go on
 the compilation of the sources and on the documentation build, ahead of the target's
 <a href="#flags"><code>flags</code></a>; the link does not need them. Changing them drops the build
 cache of the target, as a module whose sources did not change would otherwise keep the blocks it
