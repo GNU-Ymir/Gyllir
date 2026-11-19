@@ -302,12 +302,11 @@ pub record RepoBuilder {
                              sources: [Path],
                              changed: [Path],
                              yilDir: Path)-> bool {
-        let dmut pool     = copy std::concurrency::TaskPool(nbThreads-> self._nbThreads);
-        let dmut success  = copy [0us];
-        let mut submitted = 0u32;
-
         let parallel_changed = self.cutModuleList(changed, self._nbThreads);
 
+        // one thread per block of modules: 'cutModuleList' already cut them in '_nbThreads' blocks,
+        // and each thread spends its time waiting for the compiler it runs
+        let mut workers: [mut future-> bool] = [];
         for i, m in parallel_changed if m.len > 0 {
             let msg = std::format::format("{} modules in thread {} (among {} changed files of {}) ",
                                           m.len,
@@ -316,33 +315,44 @@ pub record RepoBuilder {
                                           sources.len);
             utils::log::info("Compiling", msg);
 
-            submitted += 1;
-            pool:.submit(copy || => {
-                             // every task appends to its own block: 'options' has spare capacity,
-                             // and growing a slice that ends where its block's used part does
-                             // appends in place, which is not thread safe - two tasks would write
-                             // their first '-fmodule' to the same slot, and a module would go
-                             // uncompiled
-                             let mut modOption = copy options;
-                             for m_ in m {
-                                 modOption ~= ["-fmodule", m_.toStr()];
-                             }
-                             modOption ~= ["-fyil", yilDir.toStr()];
-
-                             // Execute the compile command
-                             if (!context.runProcess(self._cfg.compiler, modOption,
-                                                     cwd-> self._cwd,
-                                                     verbose-> self._verbose)) {
-                                 pool:.clear();
-                             } else {
-                                 atomic { success[0] += 1; }
-                                 self.ensureYILAndDepFiles(alias context, yilDir.parent(), m);
-                             }
-                         });
+            workers ~= copy [spawn self.compileModulesToYIL(alias context, options, m, yilDir)];
         }
-        pool:.join();
 
-        return (success[0] == submitted);
+        let mut success = true;
+        for i in 0us .. workers.len {
+            if (!workers[i].value) {
+                success = false;
+            }
+        }
+
+        success
+    }
+
+    /**
+     * Compile a block of modules to YIL bytecode files, run by a thread of 'compileFilesToYIL'
+     * @params:
+     *    - options: the compile options shared by every block
+     *    - modules: the modules of the block
+     *    - yilDir: the directory the YIL files are written to
+     * @returns: true iif the compilation succeeded
+     * */
+    prv fn compileModulesToYIL(self, dmut context: &GyllirManager, options: [[c8]], modules: [Path], yilDir: Path)-> bool {
+        // every thread appends to its own block: 'options' has spare capacity, and growing a slice
+        // that ends where its block's used part does appends in place, which is not thread safe -
+        // two threads would write their first '-fmodule' to the same slot, and a module would go
+        // uncompiled
+        let mut modOption = copy options;
+        for m in modules {
+            modOption ~= ["-fmodule", m.toStr()];
+        }
+        modOption ~= ["-fyil", yilDir.toStr()];
+
+        if (!context.runProcess(self._cfg.compiler, modOption, cwd-> self._cwd, verbose-> self._verbose)) {
+            return false;
+        }
+
+        self.ensureYILAndDepFiles(alias context, yilDir.parent(), modules);
+        true
     }
 
     /**
