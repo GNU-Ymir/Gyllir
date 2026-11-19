@@ -209,3 +209,40 @@ __test run_reports_signal_as_128_plus_signal_number {
     assert(RepoRunner(dir, copy Dict(), cfg, soleTarget(cfg), false).run() == 128 + 9,
            "a SIGKILL'd artifact should report 128 + 9");
 }
+
+__test run_executes_artifact_of_output_dir_from_package_directory {
+    // An artifact built into an "output-dir" is executed from there, with the package directory as
+    // its working directory, so the relative paths it opens keep resolving
+    let dir = fs::tempDirectory(prefix-> "gyllir_runner_test_");
+    let cfg = mkTargetsConfig("myapp", json #{"app" : {"output-dir" : "bin"}});
+    fs::createDir(dir.push("bin"));
+
+    let dmut f = File::create(dir.push("bin").push("app"), write-> true);
+    f:.write("#!/bin/sh\npwd > witness.txt\nexit 4\n");
+    f:.close();
+
+    let dmut proc = copy SubProcess("chmod", copy ["+x", dir.push("bin").push("app").toStr()], cwd-> dir);
+    proc:.start();
+    proc:.wait();
+
+    assert(RepoRunner(dir, copy Dict(), cfg, namedTarget(cfg, "app"), false).run() == 4,
+           "the artifact of the output directory should be the one run");
+
+    let dmut w  = File::open(dir.push("witness.txt"), read-> true);
+    let content = w:.readAll();
+    w:.close();
+
+    assert(Path(content[0us .. $ - 1us]).normalize().toStr() == dir.normalize().toStr(),
+           "the artifact should run from the package directory, not from \"" ~ content ~ "\"");
+}
+
+__test unittest_run_executes_test_binary_of_output_dir {
+    // The unittest executable of a target is looked up in its output directory too
+    let dir = fs::tempDirectory(prefix-> "gyllir_runner_test_");
+    let cfg = mkTargetsConfig("myapp", json #{"app" : {"output-dir" : "out/bin"}});
+    fs::createDir(dir.push("out").push("bin"), recursive-> true);
+    mkArtifact(dir.push("out").push("bin"), "app.test", "6");
+
+    assert(RepoRunner(dir, copy Dict(), cfg, namedTarget(cfg, "app"), true).run() == 6,
+           "the unittest executable of the output directory should be the one run");
+}

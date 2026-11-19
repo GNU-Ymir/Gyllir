@@ -142,29 +142,54 @@ pub record CSourceBuilder {
     prv fn compile(self, dmut context: &GyllirManager, srcs: [Path], objs: [Path]) {
         utils::log::info("Compiling", srcs.len, " C source(s) of ", self._target.name);
 
-        let dmut pool    = copy std::concurrency::TaskPool(nbThreads-> self._nbThreads);
-        let dmut success = copy [0us];
-        for i in 0us .. srcs.len {
-            let src     = srcs[i];
-            let objFile = objs[i];
-            pool:.submit(copy || => {
-                             let options = self.createCompileOptions(src, objFile);
-                             if (!context.runProcess(self._cfg.compiler, options,
-                                                     cwd-> self._cwd,
-                                                     verbose-> self._verbose)) {
-                                 pool:.clear();
-                             } else {
-                                 atomic { success[0] += 1us; }
-                             }
-                         });
-        }
-        pool:.join();
+        // the sources are dealt round robin to at most '_nbThreads' threads, each compiling its own
+        // one after the other, and stopping at the first that fails
+        let threads = if (self._nbThreads == 0u32) { 1us } else { cast!usize(self._nbThreads) };
+        let nb      = if (threads < srcs.len) { threads } else { srcs.len };
+        let mut workers: [mut future-> bool] = [];
+        for t in 0us .. nb {
+            let mut mySrcs: [Path] = [];
+            let mut myObjs: [Path] = [];
+            let mut i = t;
+            while i < srcs.len {
+                mySrcs ~= [srcs[i]];
+                myObjs ~= [objs[i]];
+                i += nb;
+            }
 
-        if (success[0] != cast!usize(srcs.len)) {
+            workers ~= copy [spawn self.compileSources(alias context, mySrcs, myObjs)];
+        }
+
+        let mut success = true;
+        for i in 0us .. workers.len {
+            if (!workers[i].value) {
+                success = false;
+            }
+        }
+
+        if (!success) {
             utils::log::error("Error", "failed to compile C sources of target '", self._target.name, "'");
             etc::c::process::_yrt_exit(-1);
             panic;
         }
+    }
+
+    /**
+     * Compile C source files one after the other, run by a thread of 'compile'
+     * @params:
+     *    - srcs: the source files
+     *    - objs: the object file of each of them
+     * @returns: true iif they all compiled, false at the first that did not
+     * */
+    prv fn compileSources(self, dmut context: &GyllirManager, srcs: [Path], objs: [Path])-> bool {
+        for i in 0us .. srcs.len {
+            let options = self.createCompileOptions(srcs[i], objs[i]);
+            if (!context.runProcess(self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose)) {
+                return false;
+            }
+        }
+
+        true
     }
 
     /**

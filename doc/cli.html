@@ -74,7 +74,7 @@ asks.</p>
 
 <h2 id="build">gyllir build</h2>
 
-<pre><code>gyllir build [target] [--release] [--locked] [--offline] [-j N] [-v]</code></pre>
+<pre><code>gyllir build [target] [--release] [--locked] [--offline] [--output-dir &lt;dir&gt;] [-j N] [-v]</code></pre>
 
 <div class="table-wrap">
 <table>
@@ -82,21 +82,29 @@ asks.</p>
     <tr><td><code>--release</code></td><td>Compile with <code>-O3</code> instead of <code>-g</code>, into the <code>release</code> cache.</td></tr>
     <tr><td><code>--locked</code></td><td>Fail instead of writing a new <a href="dependencies.html#lock"><code>gyllir.lock</code></a>. The CI flag: it turns a dependency that would move into an error.</td></tr>
     <tr><td><code>--offline</code></td><td>Resolve without any network access — no clone, no fetch. Implies <code>--locked</code>.</td></tr>
+    <tr id="output-dir"><td><code>--output-dir &lt;dir&gt;</code></td><td>Write the artifacts of every target to <code>&lt;dir&gt;</code> for this invocation, overriding every <a href="manifest.html#output-dir"><code>output-dir</code></a> of the manifest. Relative to the package directory, created when missing. The dependencies keep writing theirs where their own manifest says.</td></tr>
     <tr><td><code>-j N</code></td><td>Number of compilation threads. Defaults to the number of processors.</td></tr>
     <tr><td><code>-v</code>, <code>--verbose</code></td><td>Print every command line Gyllir runs, and pass <code>-fv</code> to the compiler.</td></tr>
 </table>
 </div>
 
 <p>Resolves and builds dependencies first, then the targets, in an order where a target is always
-built after the targets it links. Produces <code>./&lt;output&gt;</code> for an executable target
-and <code>./lib&lt;output&gt;.a</code> for a library target.</p>
+built after the targets it links. Produces <code>&lt;output-dir&gt;/&lt;output&gt;</code> for an
+executable target and <code>&lt;output-dir&gt;/lib&lt;output&gt;.a</code> for a library target, the
+<a href="manifest.html#output-dir"><code>output-dir</code></a> being the package directory unless the
+manifest or <code>--output-dir</code> says otherwise.</p>
 
 <h2 id="run">gyllir run</h2>
 
-<pre><code>gyllir run [target] [-- args...]
-gyllir run [target] [args...]</code></pre>
+<pre><code>gyllir run [--output-dir &lt;dir&gt;] [target] [-- args...]
+gyllir run [--output-dir &lt;dir&gt;] [target] [args...]</code></pre>
 
-<p>Builds the target (always in debug mode) and executes its binary from the package directory.
+<p>Builds the target (always in debug mode) and executes its binary, wherever its
+<a href="manifest.html#output-dir"><code>output-dir</code></a> put it, with the package directory as
+its working directory — the relative paths it opens (<code>res/</code>, …) resolve as they always
+have. A leading <code>--output-dir &lt;dir&gt;</code> (or <code>--output-dir=&lt;dir&gt;</code>) is
+read by Gyllir, as for <a href="#output-dir"><code>gyllir build</code></a>; one written after the
+target name or after <code>--</code> is forwarded to the program.
 Everything after the target name is forwarded to your program untouched; use <code>--</code> when
 the first argument might otherwise be read as a target name, or starts with a dash.</p>
 
@@ -146,7 +154,7 @@ keeps the build cache owned by you when the install itself runs under <code>sudo
 
 <h2 id="test">gyllir test</h2>
 
-<pre><code>gyllir test [target] [--release] [--dry] [--locked] [--offline] [--build-jobs N] [--env-file FILE] [-v]
+<pre><code>gyllir test [target] [--release] [--dry] [--locked] [--offline] [--build-jobs N] [--env-file FILE] [--output-dir &lt;dir&gt;] [-v]
             [runner options] [-- raw runner arguments]</code></pre>
 
 <div class="table-wrap">
@@ -156,12 +164,13 @@ keeps the build cache owned by you when the install itself runs under <code>sudo
     <tr><td><code>--release</code></td><td>Compile the tests with <code>-O3</code>.</td></tr>
     <tr><td><code>--locked</code> / <code>--offline</code></td><td>As for <a href="#build"><code>gyllir build</code></a>.</td></tr>
     <tr><td><code>--build-jobs N</code></td><td>Number of compilation threads.</td></tr>
+    <tr><td><code>--output-dir &lt;dir&gt;</code></td><td>As for <a href="#output-dir"><code>gyllir build</code></a>: where the test binaries are written, and run from.</td></tr>
     <tr><td><code>--env-file FILE</code></td><td>Set the variables of <code>FILE</code> in the environment of the test binary: one <code>KEY=VALUE</code> per line, blank lines and <code>#</code> comments skipped, a leading <code>export</code> ignored, a quoted value unquoted.</td></tr>
     <tr><td><code>-v</code>, <code>--verbose</code></td><td>Verbose mode.</td></tr>
 </table>
 </div>
 
-<p>The options of the test runner are passed to <code>./&lt;output&gt;.test</code>:</p>
+<p>The options of the test runner are passed to <code>&lt;output-dir&gt;/&lt;output&gt;.test</code>:</p>
 
 <div class="table-wrap">
 <table>
@@ -183,7 +192,7 @@ keeps the build cache owned by you when the install itself runs under <code>sudo
 <code>gyllir test</code> does not know about.</p>
 
 <p>Compiles the target together with its <code>test/</code> tree and links
-<code>./&lt;output&gt;.test</code>. Without a target name it tests every target that has not opted
+<code>&lt;output-dir&gt;/&lt;output&gt;.test</code>, run from the package directory. Without a target name it tests every target that has not opted
 out with <a href="targets.html#tests"><code>tests = false</code></a>, running the binaries one
 after the other; the exit code is that of the first one that failed. Naming a target that opted out
 is an error, and so is running <code>gyllir test</code> on a package where no target is
@@ -196,7 +205,7 @@ testable.</p>
 <div class="table-wrap">
 <table>
     <tr><th>Form</th><th>Removes</th></tr>
-    <tr><td><code>gyllir clean</code></td><td><code>.target/</code>, and the artifacts of every target (<code>./&lt;output&gt;</code> or <code>./lib&lt;output&gt;.a</code>, and <code>./&lt;output&gt;.test</code>).</td></tr>
+    <tr><td><code>gyllir clean</code></td><td><code>.target/</code>, and the artifacts of every target from its <a href="manifest.html#output-dir"><code>output-dir</code></a> (<code>&lt;output&gt;</code> or <code>lib&lt;output&gt;.a</code>, and <code>&lt;output&gt;.test</code>), then that directory once it is empty — only one inside the package is ever removed.</td></tr>
     <tr><td><code>gyllir clean --doc</code></td><td>Only the <code>__doc/</code> directory.</td></tr>
     <tr><td><code>gyllir clean --all</code></td><td>All of the above, plus <code>.deps/</code> — cleaning local dependencies recursively before removing the directory.</td></tr>
 </table>

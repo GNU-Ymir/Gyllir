@@ -328,7 +328,7 @@ pub record RepoInstaller {
                              "-D",
                              "-m",
                              defaults::__INSTALL_EXEC_MODE__,
-                             self._cwd.push(t.outputName()).toStr(),
+                             t.artifactPath(self._cwd, t.outputName()).toStr(),
                              self.binDir().push(t.outputName()).toStr()];
 
             res ~= [InstallStep("target '" ~ t.name ~ "'", "", argv, self._cwd)];

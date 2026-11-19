@@ -241,6 +241,89 @@ pub fn testRunnerArguments(cfg: &Config)-> [[c8]] {
 }
 
 /**
+ * The option name of the directory the artifacts are written to, see 'splitRunOutputDir'
+ * */
+pub def __OUTPUT_DIR_OPTION__ = "--output-dir";
+
+/**
+ * Split the '--output-dir' option off the arguments of 'gyllir run'.
+ *
+ * 'gyllir run' forwards its arguments to the executable it runs, so it parses none of them, but an
+ * '--output-dir <dir>'(or '--output-dir=<dir>') put first, before the target name, is the one of
+ * gyllir; a '--' first forwards everything that follows untouched, an '--output-dir' included.
+ * @params:
+ *    - cfg: the configuration of the 'run' sub command, the array of its arguments
+ * @returns:
+ *    - .0: the output directory, "" when the command line sets none
+ *    - .1: the remaining arguments, in the same shape as 'cfg'
+ * @throws:
+ *    - AssertError: '--output-dir' is given no directory
+ * */
+pub fn splitRunOutputDir(cfg: &Config)-> ([c8], &Config)
+    throws AssertError
+{
+    let mut values: [[c8]] = [];
+    if let a: &Array = cfg {
+        for i in a[] if let Str(value-> v) = i {
+            values ~= [v];
+        }
+    }
+
+    let mut dir   = "";
+    let mut start = 0us;
+    let prefix    = __OUTPUT_DIR_OPTION__ ~ "=";
+    if (values.len > 0us) {
+        if (values[0] == __OUTPUT_DIR_OPTION__) {
+            if (values.len < 2us) {
+                throw copy AssertError("'" ~ __OUTPUT_DIR_OPTION__ ~ "' needs a directory, for example: gyllir run "
+                                       ~ __OUTPUT_DIR_OPTION__ ~ " bin");
+            }
+
+            dir = values[1];
+            start = 2us;
+        } else if (values[0].len >= prefix.len && values[0][0us .. prefix.len] == prefix) {
+            dir = values[0][prefix.len .. $];
+            start = 1us;
+        }
+    }
+
+    if (start != 0us && dir == "") {
+        throw copy AssertError("'" ~ __OUTPUT_DIR_OPTION__ ~ "' needs a directory, for example: gyllir run "
+                               ~ __OUTPUT_DIR_OPTION__ ~ " bin");
+    }
+
+    let dmut rest = copy Array();
+    for v in values[start .. $] {
+        rest:.push(copy Str(v));
+    }
+
+    (dir, rest)
+}
+
+/**
+ * The output directory set by the command line of a sub command parsed with an '--output-dir' option
+ * @params:
+ *    - cfg: the configuration of the sub command
+ * @returns: the directory, "" when the command line sets none
+ * @throws:
+ *    - AssertError: the command line sets an empty one, which names no directory
+ * */
+pub fn outputDirOption(cfg: &Config)-> [c8]
+    throws AssertError
+{
+    if let Ok(Str(value-> v)) = cfg["output-dir"]? {
+        if (v == "") {
+            throw copy AssertError("'" ~ __OUTPUT_DIR_OPTION__ ~ "' needs a directory, for example: "
+                                   ~ __OUTPUT_DIR_OPTION__ ~ " bin");
+        }
+
+        return v;
+    }
+
+    ""
+}
+
+/**
  * Argument parser of the gyllir building tool
  * */
 pub class GyllirArgumentParser {
@@ -369,13 +452,16 @@ pub class GyllirArgumentParser {
             :.help("help", short-> "h", comments-> "print this help and exit")
             :.flag("release", comments-> "build the release mode (debug by default)")
             :.option!{i32} ("j", comments-> "number of parallel threads to spawn")
+            :.option!{[c8]} ("output-dir",
+                             comments-> "the directory the artifacts are written to, overriding the 'output-dir' of "
+                                        ~ repo::defaults::__GYLLIR_CONFIG_FILENAME__)
             :.flag("locked",
                    comments-> "fail if the dependency versions differ from the ones "
                               ~ repo::defaults::__GYLLIR_LOCK_FILENAME__ ~ " pins")
             :.flag("offline", comments-> "resolve the dependencies without any network access (implies --locked)")
             :.flag("verbose", short-> "v", comments-> "verbose mode");
 
-        let (rest, target) = self.extractTarget(args, copy ["j"]);
+        let (rest, target) = self.extractTarget(args, copy ["j", "output-dir"]);
         return ({
             self.withTarget(parser.parse(rest), target)
         } catch {
@@ -597,6 +683,9 @@ pub class GyllirArgumentParser {
             :.flag("offline", comments-> "resolve the dependencies without any network access (implies --locked)")
             :.option!{i32} ("build-jobs", comments-> "number of parallel threads compiling the tests")
             :.option!{[c8]} ("env-file", comments-> "file of KEY=VALUE lines to set in the environment of the tests")
+            :.option!{[c8]} ("output-dir",
+                             comments-> "the directory the artifacts are written to, overriding the 'output-dir' of "
+                                        ~ repo::defaults::__GYLLIR_CONFIG_FILENAME__)
             :.option!{[c8]} ("filter", short-> "f", comments-> "unittest filter")
             :.flag("stop-first", short-> "sf", comments-> "stop after first test failure")
             :.flag("coverage", short-> "cov", comments-> "print coverage report")
@@ -609,7 +698,7 @@ pub class GyllirArgumentParser {
             :.option!{i64} ("jobs", short-> "j", comments-> "number of worker threads running the tests");
 
         let (options, raw)  = self.extractRaw(args);
-        let (rest, target)  = self.extractTarget(options, copy ["build-jobs", "env-file", "filter", "f", "jobs", "j"]);
+        let (rest, target)  = self.extractTarget(options, copy ["build-jobs", "env-file", "output-dir", "filter", "f", "jobs", "j"]);
         return ({
             let res = self.withRaw(self.withTarget(parser.parse(rest), target), raw);
             if let Ok(Bool(value-> _ = true)) = res["dry"]? {

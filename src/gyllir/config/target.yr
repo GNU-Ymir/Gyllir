@@ -2,7 +2,7 @@ in target;
 
 use gyllir::config::type;
 
-use std::{char, config, stream};
+use std::{char, config, fs, stream};
 
 /**
  * The source directory of a target that does not declare one
@@ -13,6 +13,12 @@ pub def __DEFAULT_SOURCE_DIR__ = "src";
  * The test directory of a target that does not declare one
  * */
 pub def __DEFAULT_TEST_DIR__ = "test";
+
+/**
+ * The directory the artifacts of a target are written to when neither the target nor its package
+ * declares one: the package directory itself
+ * */
+pub def __DEFAULT_OUTPUT_DIR__ = ".";
 
 /**
  * A build target, declared by a '[targets.<name>]' table of a gyllir.toml.
@@ -53,6 +59,10 @@ pub record Target {
     // The name of the produced artifact ("" when the name of the target is used instead)
     let _output: [c8];
 
+    // The directory the artifacts of the target are written to, relative to the package directory
+    // unless absolute ("" when the target declares none, the one of its package is used instead)
+    let _outputDir: [c8];
+
     // The raw options passed to the compiler when building the target
     let _flags: [[c8]];
 
@@ -60,7 +70,7 @@ pub record Target {
     let _libraries: [[c8]];
 
     // The version identifiers the target is compiled with, each passed as '-fversion=<ident>' so
-    // the 'cte if __version!<ident>' blocks of its sources can be gated per target
+    // the 'cte if __pragma!has_version(<ident>)' blocks of its sources can be gated per target
     let _version: [[c8]];
 
     // The names of the package dependencies linked by the target
@@ -95,6 +105,7 @@ pub record Target {
      *    - testRoot: the root module of its unittests, relative to 'testDir'
      *    - tests: false to opt the target out of unittesting
      *    - output: the name of the produced artifact
+     *    - outputDir: the directory the artifacts are written to
      *    - flags: the raw options passed to the compiler
      *    - libraries: the C libraries to link
      *    - version: the version identifiers the target is compiled with
@@ -113,6 +124,7 @@ pub record Target {
               testRoot: [c8] = "",
               tests: bool = true,
               output: [c8] = "",
+              outputDir: [c8] = "",
               flags: [[c8]] = [],
               libraries: [[c8]] = [],
               version: [[c8]] = [],
@@ -130,6 +142,7 @@ pub record Target {
         , _testRoot = testRoot
         , _tests = tests
         , _output = output
+        , _outputDir = outputDir
         , _flags = flags
         , _libraries = libraries
         , _version = version
@@ -193,6 +206,15 @@ pub record Target {
         self._output
     }
 
+    /**
+     * @returns: the directory the artifacts of the target are written to, as it is declared ("" when
+     *    it declares none), see 'outputDirectory' for the one actually used
+     * */
+    @field
+    pub fn outputDir(self)-> [c8] {
+        self._outputDir
+    }
+
     @field
     pub fn flags(self)-> [[c8]] {
         self._flags
@@ -250,6 +272,78 @@ pub record Target {
         if (self._output != "") { return self._output; }
 
         self._name
+    }
+
+    /**
+     * @returns: the directory the artifacts of the target are written to, '.'(the package directory)
+     *    when it declares none
+     * */
+    pub fn outputDirectory(self)-> [c8] {
+        if (self._outputDir != "") { return self._outputDir; }
+
+        __DEFAULT_OUTPUT_DIR__
+    }
+
+    /**
+     * @params:
+     *    - cwd: the package directory
+     * @returns: the directory the artifacts of the target are written to, 'outputDirectory' resolved
+     *    against the package directory, unless it is absolute
+     * */
+    pub fn outputPath(self, cwd: Path)-> Path {
+        let dir = Path(self.outputDirectory());
+        if (dir.isAbsolute()) { return dir.normalize(); }
+
+        cwd.push(dir).normalize()
+    }
+
+    /**
+     * @params:
+     *    - cwd: the package directory
+     *    - file: the name of an artifact of the target
+     * @returns: the path of that artifact, in the output directory of the target
+     * */
+    pub fn artifactPath(self, cwd: Path, file: [c8])-> Path {
+        self.outputPath(cwd).push(file)
+    }
+
+    /**
+     * @params:
+     *    - file: the name of an artifact of the target
+     * @returns: how that artifact is named to the user: relative to the package directory, unless the
+     *    output directory is absolute, and without a leading './'
+     * */
+    pub fn artifactDisplay(self, file: [c8])-> [c8] {
+        let dir = Path(self.outputDirectory()).normalize();
+        if (dir.isAbsolute()) { return dir.push(file).toStr(); }
+        if (dir.toStr() == ".") { return file; }
+
+        dir.push(file).toStr()
+    }
+
+    /**
+     * @params:
+     *    - dir: the output directory to use
+     * @returns: the target, writing its artifacts to 'dir'
+     * */
+    pub fn withOutputDir(self, dir: [c8])-> Target {
+        Target(self._name, self._type,
+               description-> self._description,
+               sourceDir-> self._sourceDir,
+               packageRoot-> self._packageRoot,
+               testDir-> self._testDir,
+               testRoot-> self._testRoot,
+               tests-> self._tests,
+               output-> self._output,
+               outputDir-> dir,
+               flags-> self._flags,
+               libraries-> self._libraries,
+               version-> self._version,
+               dependencies-> self._dependencies,
+               targets-> self._targets,
+               cSources-> self._cSources,
+               cFlags-> self._cFlags,
+               synthesized-> self._synthesized)
     }
 
     /**
@@ -379,6 +473,10 @@ pub class TargetList {
                     trg["output"] = copy Str(t.output);
                 }
 
+                if (t.outputDir != "") {
+                    trg["output-dir"] = copy Str(t.outputDir);
+                }
+
                 if (t.flags.len != 0us) {
                     trg["flags"] = copy Array(copy [copy Str(i) for i in t.flags]);
                 }
@@ -477,6 +575,7 @@ pub class TargetList {
                                                   "test-dir",
                                                   "test-root",
                                                   "output",
+                                                  "output-dir",
                                                   "flags",
                                                   "libraries",
                                                   "version",
@@ -494,6 +593,7 @@ pub class TargetList {
                testRoot-> self.readString(cfg, "test-root", ctx),
                tests-> tests,
                output-> self.readString(cfg, "output", ctx),
+               outputDir-> readOutputDir(cfg, ctx),
                flags-> self.readStringArray(cfg, "flags", ctx),
                libraries-> self.readStringArray(cfg, "libraries", ctx),
                version-> self.readVersions(cfg, ctx),
@@ -550,7 +650,7 @@ pub class TargetList {
      *    - ctx: the prefix naming the target, for error reporting
      * @throws:
      *    - AssertError: an entry is not an identifier. The compiler would take it, but no
-     *      '__version' block can ever name it, so it would be ignored in silence
+     *      '__pragma!has_version' block can ever name it, so it would be ignored in silence
      * */
     prv fn readVersions(self, cfg: &Config, ctx: [c8])-> [[c8]]
         throws AssertError
@@ -605,4 +705,31 @@ prv fn isIdentifier(name: [c8])-> bool {
     }
 
     true
+}
+
+/**
+ * Read the optional 'output-dir' entry of a table, the directory the artifacts of a target are
+ * written to
+ * @params:
+ *    - cfg: the content of the table, the top level of the package or a '[targets.<name>]' one
+ *    - ctx: the prefix naming the table, for error reporting
+ * @returns: the declared directory, "" when the table declares none
+ * @throws:
+ *    - AssertError: the entry is not a string, or is an empty one, which names no directory
+ * */
+pub fn readOutputDir(cfg: &Config, ctx: [c8])-> [c8]
+    throws AssertError
+{
+    if let Ok(Str(value-> v)) = cfg["output-dir"]? {
+        if (v == "") {
+            throw copy AssertError(ctx ~ "'output-dir' must name a directory, \"" ~ __DEFAULT_OUTPUT_DIR__
+                                   ~ "\" being the package directory, for example: output-dir = \"bin\"");
+        }
+
+        return v;
+    } else if let Ok(_) = cfg["output-dir"]? {
+        throw copy AssertError(ctx ~ "'output-dir' must be a string, for example: output-dir = \"bin\"");
+    }
+
+    ""
 }

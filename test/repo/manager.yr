@@ -2,7 +2,7 @@ use ::repo::fixture;
 
 use gyllir::config::_;
 use gyllir::config::version::filter;
-use gyllir::repo::{builder, cache, cleaner, defaults, manager, toolchain};
+use gyllir::repo::{builder, cache, cleaner, defaults, manager, runner, toolchain};
 use gyllir::utils::git;
 
 use std::{config, config::json, fs};
@@ -1273,4 +1273,108 @@ __test dependency_is_built_with_the_compiler_of_the_package {
     assert(items.len == 1us && items[0].version == "1.0.9", "only the release of the package should be installed");
     assert(!fs::exists(lib.push(defaults::__DEPENCY_DIR__).push(defaults::__COMPILER_DEP_NAME__), followLink-> false),
            "a dependency should not link a compiler of its own");
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * ===================================          OUTPUT DIR          ===================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+/**
+ * @returns: the names of the entries of the package directory 'dir', but the sources, the build
+ *    cache and the dependencies, the ones every build leaves there, and the '.ymir_*' files the test
+ *    runner writes in its working directory(its coverage, read back from there by 'gyllir doc
+ *    --coverage', and its record of the passing tests), which are not build artifacts
+ * */
+fn producedInRoot(dir: Path)-> [[c8]] {
+    let prefix          = ".ymir_";
+    let mut res: [[c8]] = [];
+    for e in fs::readDir(dir) {
+        let name = e.path.file();
+        let runnerFile = name.len >= prefix.len && name[0us .. prefix.len] == prefix;
+        if (!runnerFile && name !in copy [defaults::__SRC_DIR__, defaults::__TEST_DIR__, ".target", defaults::__DEPENCY_DIR__]) {
+            res ~= [name];
+        }
+    }
+
+    res
+} catch {
+    _ => copy ["<unreadable>"]
+}
+
+__test package_with_output_dir_builds_runs_and_tests_outside_its_root {
+    // With 'output-dir = "bin"', the executable and the unittest one are written to 'bin', created
+    // on the fly, and run from there: nothing is produced in the package root
+    let dir = mkExecutableProject("myapp");
+    addUnitTests(dir);
+    let cfg = GyllirPackageConfiguration(json #{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "output-dir" : "bin"
+    });
+
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    mgr:.buildTargets(dir, mkBuildArgs(), cfg, copy ["myapp" => ()]);
+    let (built, _, _) = mgr:.buildTargets(dir, mkBuildArgs(), cfg, copy ["myapp" => ()], forUnitTest-> true);
+
+    assert(hasFile(dir, "bin/myapp") && hasFile(dir, "bin/myapp.test"), "the artifacts should be written to bin");
+    assert(RepoRunner(dir, copy Dict(), cfg, soleTarget(cfg), false).run() == 0, "the executable should run");
+    assert(mgr.runUnitTests(dir, cfg, built, copy Dict()) == 0, "the unittests should run and pass");
+
+    let produced = producedInRoot(dir);
+    let mut shown = "";
+    for p in produced { shown = shown ~ " " ~ p; }
+    assert(produced == copy ["bin"], "nothing but the output directory should be produced in the root:" ~ shown);
+
+    RepoCleaner(dir, copy Dict(), cfg).cleanOutputs();
+    assert(!fs::isDir(dir.push("bin")), "cleaning should remove the artifacts, and their emptied directory");
+}
+
+__test library_built_into_output_dir_is_linked_by_its_dependent {
+    // A dependency writing its archive to its own 'output-dir' is linked from there
+    let lib = mkLibraryProject();
+    let libCfg = GyllirPackageConfiguration(json #{
+        "name" : "mylib",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "type" : "library",
+        "output-dir" : "out/lib"
+    });
+    writeToml(lib, libCfg);
+    gitInit(lib);
+
+    let app      = mkExecutableProject("myapp");
+    let cfg      = mkConfigWithDependency("myapp", "executable", "mylib", lib);
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+
+    let (_, links) = RepoBuilder(app, mkBuildArgs(), cfg, soleTarget(cfg), forUnitTest-> false).run(alias mgr);
+
+    let depPath = app.push(defaults::__DEPENCY_DIR__).push("mylib");
+    assert(hasFile(lib, "out/lib/libmylib.a") && !hasFile(lib, "libmylib.a"),
+           "the dependency should write its archive to its output directory");
+    assert(links.len == 1us && links[0] == depPath.push("out").push("lib").push("libmylib.a"),
+           "the archive should be linked from the output directory of the dependency");
+    assert(hasFile(app, "myapp"), "the dependent, declaring no output directory, should be produced in its root");
+}
+
+__test output_dir_override_moves_every_target {
+    // '--output-dir' moves the artifacts of every target, the library another one links included
+    let multi = mkMultiTargetProject();
+    let mut cfg = mkMultiTargetConfig();
+    cfg:.setOutputDirOverride("build/out");
+
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    mgr:.buildTargets(multi, mkBuildArgs(), cfg, copy ["cli" => ()]);
+
+    assert(hasFile(multi, "build/out/libmylib.a") && hasFile(multi, "build/out/cli"),
+           "every target should write to the overridden directory, the linked library included");
+    assert(!hasFile(multi, "libmylib.a") && !hasFile(multi, "cli"), "nothing should be produced in the root");
+    assert(RepoRunner(multi, copy Dict(), cfg, namedTarget(cfg, "cli"), false).run() == 0,
+           "the executable linking the library of the output directory should run");
 }

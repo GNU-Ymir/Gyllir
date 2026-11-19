@@ -74,7 +74,8 @@ output = "myapp"</code></pre>
     <tr id="test-dir"><td><code>test-dir</code></td><td>string</td><td><code>"test"</code></td><td>Directory holding the unit tests of the target.</td></tr>
     <tr id="test-root"><td><code>test-root</code></td><td>string</td><td><code>"__test__"</code></td><td>Root module of the unit tests, relative to <code>test-dir</code>.</td></tr>
     <tr id="tests"><td><code>tests</code></td><td>boolean</td><td><code>true</code></td><td><code>false</code> opts the target out of unit testing. It then cannot declare <code>test-dir</code> or <code>test-root</code>.</td></tr>
-    <tr id="output"><td><code>output</code></td><td>string</td><td>the target name</td><td>Name of the produced artifact: <code>./&lt;output&gt;</code>, <code>./lib&lt;output&gt;.a</code>, <code>./&lt;output&gt;.test</code>.</td></tr>
+    <tr id="output"><td><code>output</code></td><td>string</td><td>the target name</td><td>Name of the produced artifact: <code>&lt;output&gt;</code>, <code>lib&lt;output&gt;.a</code>, <code>&lt;output&gt;.test</code>.</td></tr>
+    <tr id="output-dir"><td><code>output-dir</code></td><td>string</td><td>the package <a href="manifest.html#output-dir"><code>output-dir</code></a>, else <code>"."</code></td><td>Directory the artifacts of the target are written to, relative to the package directory unless absolute, created when missing. Takes precedence over the top level one; <a href="cli.html#output-dir"><code>--output-dir</code></a> overrides both. A target linking this one, or a package depending on it, links the archive from there.</td></tr>
     <tr id="flags"><td><code>flags</code></td><td>array of strings</td><td><code>[]</code></td><td>Raw compiler options, appended last so they override the ones Gyllir picked.</td></tr>
     <tr id="libraries"><td><code>libraries</code></td><td>array of strings</td><td><code>[]</code></td><td>C libraries to link, each passed as <code>-l&lt;name&gt;</code>.</td></tr>
     <tr id="version"><td><code>version</code></td><td>array of strings</td><td><code>[]</code></td><td>Version identifiers the target is compiled with, each passed as <code>-fversion=&lt;ident&gt;</code>. See <a href="#versions">below</a>.</td></tr>
@@ -160,7 +161,8 @@ artifacts still resolve.</p>
 
 <h2 id="versions">Version identifiers</h2>
 
-<p><code>version</code> turns on the <code>cte if __version!&lt;ident&gt;</code> blocks of the
+<p><code>version</code> turns on the <code>cte if __pragma!has_version(&lt;ident&gt;)</code> (and
+<code>#if &lt;ident&gt;</code>) blocks of the
 sources, per target: each entry is passed to the compiler as <code>-fversion=&lt;ident&gt;</code>.
 Two targets can build the same sources with different code compiled in.</p>
 
@@ -169,7 +171,7 @@ package-root = "main"
 version = ["WITH_CLI", "NO_COLOR"]</code></pre>
 
 <pre><code>fn main() {
-    cte if __version!WITH_CLI {
+    cte if __pragma!has_version(WITH_CLI) {
         runCli();
     } else {
         runDaemon();
@@ -177,7 +179,7 @@ version = ["WITH_CLI", "NO_COLOR"]</code></pre>
 }</code></pre>
 
 <p>Each entry has to be an identifier — letters, digits and <code>_</code>, not starting with a
-digit — since nothing else can be named by a <code>__version!</code> block. The identifiers go on
+digit — since nothing else can be named by a <code>__pragma!has_version</code> block. The identifiers go on
 the compilation of the sources and on the documentation build, ahead of the target's
 <a href="#flags"><code>flags</code></a>; the link does not need them. Changing them drops the build
 cache of the target, as a module whose sources did not change would otherwise keep the blocks it

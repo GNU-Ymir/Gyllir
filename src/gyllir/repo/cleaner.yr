@@ -91,14 +91,15 @@ pub record RepoCleaner {
     }
 
     /**
-     * Remove the artifacts of a single target
+     * Remove the artifacts of a single target, from its output directory, and that directory itself
+     * when nothing else is left in it
      * */
     prv fn cleanTargetOutputs(self, target: Target) {
         let output = target.outputName();
         let outFile = if target.type.isExecutable() {
-            self._cwd.push(output)
+            target.artifactPath(self._cwd, output)
         } else {
-            self._cwd.push("lib" ~ output).addExtension(defaults::__LIBRARY_EXTENSION__)
+            target.artifactPath(self._cwd, defaults::libraryFileName(output))
         };
 
         utils::log::info("Removing", "output file ", outFile.toStr());
@@ -106,10 +107,35 @@ pub record RepoCleaner {
             fs::removeFile(outFile);
         }?;
 
-        let testFile = self._cwd.push(output).addExtension("test");
+        let testFile = target.artifactPath(self._cwd, output ~ defaults::__TEST_EXECUTABLE_SUFFIX__);
         utils::log::info("Removing", "test file ", testFile.toStr());
         {
             fs::removeFile(testFile);
+        }?;
+
+        self.cleanOutputDir(target);
+    }
+
+    /**
+     * Remove the output directory of a target, if it is empty. Only a directory inside the package
+     * is ever removed: one outside of it(absolute, or reached through '..') is shared with whatever
+     * else is there, and the package directory itself is never removed
+     * */
+    prv fn cleanOutputDir(self, target: Target) {
+        let dir = Path(target.outputDirectory()).normalize();
+        let rel = dir.toStr();
+        if (dir.isAbsolute() || rel == "." || rel == ".." || (rel.len > 3us && rel[0us .. 3us] == "../")) {
+            return;
+        }
+
+        let path = self._cwd.push(dir);
+        if (!fs::isDir(path, followLink-> false)) { return; }
+
+        // not recursive: a directory still holding anything else(the artifacts of another target,
+        // a file of the user) is refused by the system, and left where it is
+        {
+            fs::removeDir(path);
+            utils::log::info("Removing", "output directory ", path.toStr());
         }?;
     }
 }

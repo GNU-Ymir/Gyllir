@@ -27,7 +27,7 @@ pub def __DEFAULT_STD_URL__ = "git:git@github.com:GNU-Ymir/yruntime.git";
  * The fields of a target a templated value can read, through '{{target.<field>}}' for the target
  * being built and '{{targets.<name>.<field>}}' for any target of the package
  * */
-pub def __PLACEHOLDER_TARGET_FIELDS__ = ["name", "type", "description", "output", "source-dir", "test-dir"];
+pub def __PLACEHOLDER_TARGET_FIELDS__ = ["name", "type", "description", "output", "output-dir", "source-dir", "test-dir"];
 
 /**
  * Record defining a gyllir configuration
@@ -83,6 +83,15 @@ pub record GyllirPackageConfiguration {
 
     // The list of dependencies of the package
     let mut _dependencies: &DependencyList = copy DependencyList();
+
+    // The directory the artifacts of every target are written to, relative to the package directory
+    // unless absolute, a target declaring its own 'output-dir' taking precedence ("" when the package
+    // declares none, the package directory itself)
+    let mut _outputDir: [c8] = "";
+
+    // The output directory set by the command line ('--output-dir'), taking precedence over the one
+    // of every target; never serialized, "" when the command line sets none
+    let mut _outputDirOverride: [c8] = "";
 
     // The list of targets declared by the package
     // @info: empty for a package declaring no '[targets.<name>]' table, 'targets' then
@@ -264,21 +273,43 @@ pub record GyllirPackageConfiguration {
         let dmut res: [[c8] => Target] = copy [];
         if (self._targets.len() != 0us) {
             for k, t in self._targets[] {
-                res[k] = t;
+                res[k] = self.withPackageOutputDir(t);
             }
 
             return res;
         }
 
-        res[self._name] = Target(self._name, self._type,
-                                 packageRoot-> self._packageRoot,
-                                 testRoot-> self._testRoot,
-                                 tests-> self._tests,
-                                 flags-> self._flags,
-                                 libraries-> self._libraries,
-                                 synthesized-> true);
+        res[self._name] = self.withPackageOutputDir(Target(self._name, self._type,
+                                                           packageRoot-> self._packageRoot,
+                                                           testRoot-> self._testRoot,
+                                                           tests-> self._tests,
+                                                           flags-> self._flags,
+                                                           libraries-> self._libraries,
+                                                           synthesized-> true));
 
         res
+    }
+
+    /**
+     * @returns: the directory the artifacts of the targets are written to, as the package declares
+     *    it at its top level ("" when it declares none)
+     * */
+    @field
+    pub fn outputDir(self)-> [c8] {
+        self._outputDir
+    }
+
+    /**
+     * @params:
+     *    - target: a target of the package
+     * @returns: the target, writing its artifacts to the directory the command line sets, or else to
+     *    the one it declares, or else to the one of the package
+     * */
+    prv fn withPackageOutputDir(self, target: Target)-> Target {
+        if (self._outputDirOverride != "") { return target.withOutputDir(self._outputDirOverride); }
+        if (target.outputDir != "" || self._outputDir == "") { return target; }
+
+        target.withOutputDir(self._outputDir)
     }
 
     @field
@@ -452,6 +483,15 @@ pub record GyllirPackageConfiguration {
     }
 
     /**
+     * Set the directory the artifacts of every target are written to, the one the command line sets
+     * ('--output-dir'), taking precedence over every 'output-dir' the package declares
+     * @info: never written back by 'serialize', the command line only concerns one invocation
+     * */
+    pub fn setOutputDirOverride(mut self, dir: [c8]) {
+        self._outputDirOverride = dir;
+    }
+
+    /**
      * Set the compiler binary the package is built with, the one a '[compiler]' table resolved to
      * @info: never written back by 'serialize', which keeps writing the '[compiler]' table
      * */
@@ -493,6 +533,10 @@ pub record GyllirPackageConfiguration {
             }
 
             d["authors"] = copy Array(copy [copy Str(i) for i in self._authors]);
+
+            if (self._outputDir != "") {
+                d["output-dir"] = copy Str(self._outputDir);
+            }
 
             if (self._targets.len() != 0us) {
                 d["targets"] = self._targets.serialize();
@@ -756,6 +800,7 @@ pub record GyllirPackageConfiguration {
         self._authors = self.readStringArray(d, "authors", example-> "authors = [\"me <me@example.com>\"]");
         self._libraries = self.readStringArray(d, "libraries", example-> "libraries = [\"pthread\"]");
         self._flags = self.readStringArray(d, "flags", example-> "flags = [\"-Wall\"]");
+        self._outputDir = gyllir::config::target::readOutputDir(d, "");
 
         if let Ok(x) = d["dependencies"]? {
             self._dependencies = copy DependencyList(x);
@@ -792,6 +837,7 @@ pub record GyllirPackageConfiguration {
                                               "authors",
                                               "libraries",
                                               "flags",
+                                              "output-dir",
                                               "dependencies",
                                               "targets",
                                               "commands",
@@ -997,6 +1043,7 @@ prv fn targetField(target: Target, field: [c8])-> [c8] {
     if (field == "type") { return target.type.name(); }
     if (field == "description") { return target.description; }
     if (field == "output") { return target.outputName(); }
+    if (field == "output-dir") { return target.outputDirectory(); }
     if (field == "source-dir") { return target.sourceDir; }
     if (field == "test-dir") { return target.testDir; }
 

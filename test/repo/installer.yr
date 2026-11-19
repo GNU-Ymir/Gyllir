@@ -259,3 +259,18 @@ __test failing_install_line_stops_the_install {
     assert(!hasFile(dir, "second.witness") && !hasFile(dir, "third.witness"),
            "nothing should run after the failing line");
 }
+
+__test default_install_reads_executables_from_output_dir {
+    // An executable built into an "output-dir" is installed from there, under its own name
+    let cfg  = mkTargetsConfig("tool", json #{"cli" : {"output-dir" : "bin"}, "daemon" : {}});
+    let inst = RepoInstaller(Path("/project"), mkInstallArgs(prefix-> "/opt/tool"), cfg, allTargets(cfg));
+
+    let mut lines: [[[c8]]] = [];
+    for s in inst.steps() {
+        lines ~= [s.argv];
+    }
+
+    assert(lines == copy [copy ["install", "-D", "-m", "755", "/project/bin/cli", "/opt/tool/bin/cli"],
+                          copy ["install", "-D", "-m", "755", "/project/daemon", "/opt/tool/bin/daemon"]],
+           "unexpected default install steps: " ~ displayed(inst));
+}

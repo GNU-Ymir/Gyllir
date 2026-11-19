@@ -1,6 +1,7 @@
 use gyllir::config::_;
 
 use std::config::{_, json};
+use std::fs;
 
 __test target_defaults_fall_back_to_name {
     // A target only given a name and a type falls back on the name for everything it does not declare
@@ -251,7 +252,7 @@ __test array_with_non_string_element_rejected {
 
 __test version_not_an_identifier_rejected {
     // A version identifier the sources could not name is rejected: the compiler would take it,
-    // and no '__version' block would ever be compiled in
+    // and no '__pragma!has_version' block would ever be compiled in
     for v in ["WITH-CLI", "2D", "", "-fno-inline", "a b"] {
         let mut msg = "";
         {
@@ -379,4 +380,100 @@ __test empty_target_list_serializes_empty {
     if let d: &Dict = lst.serialize() {
         assert(d[].len == 0us, "an empty target list should serialize to an empty dictionary");
     } else assert(false, "a target list should serialize to a dictionary");
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * ===================================          OUTPUT DIR          ===================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+__test output_dir_defaults_to_package_directory {
+    // A target declaring no "output-dir" writes its artifacts to the package directory, as it always has
+    let t = Target("cli", BuildType("executable"));
+
+    assert(t.outputDir == "", "an undeclared output directory should be empty");
+    assert(t.outputDirectory() == ".", "the output directory should default to the package directory");
+    assert(t.outputPath(Path("/pkg")).toStr() == "/pkg", "unexpected output path");
+    assert(t.artifactPath(Path("/pkg"), "cli").toStr() == "/pkg/cli", "unexpected artifact path");
+    assert(t.artifactDisplay("cli") == "cli", "an artifact of the package directory is named as it is");
+}
+
+__test output_dir_parsed_and_resolved_against_package {
+    // "output-dir" is relative to the package directory
+    let lst = copy TargetList(json #{"cli" : {"output-dir" : "bin"}});
+
+    if let Ok(t) = lst[]["cli"] {
+        assert(t.outputDir == "bin", "unexpected declared output directory");
+        assert(t.outputDirectory() == "bin", "unexpected output directory");
+        assert(t.outputPath(Path("/pkg")).toStr() == "/pkg/bin", "unexpected output path");
+        assert(t.artifactPath(Path("/pkg"), "cli.test").toStr() == "/pkg/bin/cli.test", "unexpected artifact path");
+        assert(t.artifactDisplay("cli") == "bin/cli", "unexpected displayed artifact");
+    } else assert(false, "expected a \"cli\" target");
+}
+
+__test output_dir_normalized {
+    // A "./", a trailing "/" or a ".." are resolved, both in the path and in what is shown to the user
+    let t = Target("cli", BuildType("executable"), outputDir-> "./out/../bin/");
+
+    assert(t.outputPath(Path("/pkg")).toStr() == "/pkg/bin", "unexpected output path");
+    assert(t.artifactDisplay("cli") == "bin/cli", "unexpected displayed artifact");
+}
+
+__test absolute_output_dir_used_as_it_is {
+    // An absolute "output-dir" is not resolved against the package directory
+    let t = Target("cli", BuildType("executable"), outputDir-> "/tmp/out");
+
+    assert(t.outputPath(Path("/pkg")).toStr() == "/tmp/out", "unexpected output path");
+    assert(t.artifactDisplay("cli") == "/tmp/out/cli", "unexpected displayed artifact");
+}
+
+__test with_output_dir_keeps_every_other_field {
+    // 'withOutputDir' only changes the output directory
+    let t = Target("cli", BuildType("library"), output-> "renamed", flags-> copy ["-O0"], synthesized-> true)
+        .withOutputDir("bin");
+
+    assert(t.outputDir == "bin", "the output directory should be replaced");
+    assert(t.name == "cli" && t.type.isLibrary() && t.output == "renamed" && t.flags == copy ["-O0"] && t.synthesized,
+           "the other fields should be kept");
+}
+
+__test empty_output_dir_rejected {
+    // An empty "output-dir" names no directory: the package directory is written "."
+    let mut msg = "";
+    {
+        copy TargetList(json #{"cli" : {"output-dir" : ""}});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[targets.cli]', 'output-dir' must name a directory, \".\" being the package directory, for "
+           ~ "example: output-dir = \"bin\"",
+           "unexpected error: " ~ msg);
+}
+
+__test non_string_output_dir_rejected {
+    // "output-dir" is a single directory
+    let mut msg = "";
+    {
+        copy TargetList(json #{"cli" : {"output-dir" : ["bin"]}});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[targets.cli]', 'output-dir' must be a string, for example: output-dir = \"bin\"",
+           "unexpected error: " ~ msg);
+}
+
+__test output_dir_serialized_only_when_declared {
+    // "output-dir" is written back only by a target declaring one
+    let lst = copy TargetList(json #{"cli" : {"output-dir" : "bin"}, "tool" : {}});
+
+    let serialized = lst.serialize();
+    assert(to!{[c8]} (serialized["cli"]["output-dir"]) == "bin", "unexpected serialized output directory");
+    if let Ok(_) = serialized["tool"]["output-dir"]? {
+        assert(false, "an undeclared output directory should not be serialized");
+    }
 }

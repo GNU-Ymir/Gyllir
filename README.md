@@ -94,19 +94,21 @@ tools/install.sh --destdir /pkg   # stage the layout under a directory instead, 
 
 - `gyllir init` — interactively create a new `gyllir.toml` project in the current directory
   (name, author, description, license, executable/library type).
-- `gyllir build [--release] [--locked] [--offline] [-j N] [-v]` — build the project (debug by
-  default); `--locked` fails instead of writing a new `gyllir.lock`, `--offline` also forbids any
-  network access.
-- `gyllir run [-- args...]` — build then run the produced executable.
+- `gyllir build [--release] [--locked] [--offline] [--output-dir <dir>] [-j N] [-v]` — build the
+  project (debug by default); `--locked` fails instead of writing a new `gyllir.lock`, `--offline`
+  also forbids any network access, `--output-dir` writes the artifacts to `<dir>` for this
+  invocation, whatever the `output-dir` of `gyllir.toml` says.
+- `gyllir run [--output-dir <dir>] [-- args...]` — build then run the produced executable (an
+  `--output-dir` is only read by gyllir when it comes first).
 - `gyllir install [target] [--release] [--prefix <dir>] [--dry-run]` — build, then install the
   package: run its `[install.<name>]` tables, or, when it declares none, install each executable
   into `<prefix>/bin` (`/usr/local` by default) and record it under `<prefix>/share/gyllir/installed`.
   `--dry-run` prints the command lines and runs nothing; gyllir never escalates its privileges,
   an install that cannot write under its prefix is refused before building.
-- `gyllir test [--release] [--dry] [--locked] [--offline] [--build-jobs N] [--env-file FILE] [-v]
-  [runner options] [-- raw runner args]` — build and run the unit test suite (`--dry` to only
+- `gyllir test [--release] [--dry] [--locked] [--offline] [--build-jobs N] [--env-file FILE]
+  [--output-dir <dir>] [-v] [runner options] [-- raw runner args]` — build and run the unit test suite (`--dry` to only
   compile, not run). The test runner options (`-f/--filter`, `-sf`, `-cov`, `-ct`, `-m`,
-  `--resume`, `-d`, `-l`, `-s`, `-j/--jobs N` test workers) are passed to `./<name>.test`;
+  `--resume`, `-d`, `-l`, `-s`, `-j/--jobs N` test workers) are passed to `<output-dir>/<name>.test`;
   `--env-file` sets the `KEY=VALUE` lines of a file in its environment.
 - `gyllir clean [-a|--all] [--doc]` — remove generated build outputs; `--doc` also removes
   generated documentation, `--all` also removes resolved dependencies.
@@ -141,6 +143,7 @@ compiler = "gyc"          # optional, defaults to "gyc" on PATH, or a [compiler]
 package-root = "main"     # optional, root module under src/ (defaults to src/__lib__.yr for a library, src/main.yr for an executable)
 test-root = "__test__"    # optional, root module under test/ (defaults to test/__test__.yr)
 registry = "git:git@github.com:jane/my-project.git"   # optional, the repository the doc pages link their sources to
+output-dir = "bin"        # optional, where the artifacts are written, relative to the package (defaults to "."); a [targets.<name>] may declare its own
 
 [dependencies.somelib]
 version = ">=1.2.0"

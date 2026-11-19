@@ -6,14 +6,14 @@ use std::fs;
  * The directory the html/css/js/ico resources are read from: the installed location a packaged
  * gyllir copies 'res/' into (see the Dockerfile's `package` stage). The unittest executable is
  * compiled with '-funittest' (see 'createCompileOptions' in 'repo::builder'), which makes
- * '__version!unittest' true for every module it links, including this one - so only that binary
+ * '__pragma!has_version(unittest)' true for every module it links, including this one - so only that binary
  * reads the repo's own 'res/' instead, exercising the templates actually committed on the branch
  * under test rather than whatever happens to be installed system-wide. A regular 'gyllir build'
  * never takes this branch, so a project directory that happens to contain a 'res/' of its own is
  * never mistaken for it.
  */
 pub lazy RES_ROOT = {
-    cte if __version!unittest { Path("res") } else { Path("/etc/gyllir/res") }
+    cte if __pragma!has_version(unittest) { Path("res") } else { Path("/etc/gyllir/res") }
 };
 
 pub enum GyllirHtmlFiles

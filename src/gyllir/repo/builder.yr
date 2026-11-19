@@ -302,12 +302,11 @@ pub record RepoBuilder {
                              sources: [Path],
                              changed: [Path],
                              yilDir: Path)-> bool {
-        let dmut pool     = copy std::concurrency::TaskPool(nbThreads-> self._nbThreads);
-        let dmut success  = copy [0us];
-        let mut submitted = 0u32;
-
         let parallel_changed = self.cutModuleList(changed, self._nbThreads);
 
+        // one thread per block of modules: 'cutModuleList' already cut them in '_nbThreads' blocks,
+        // and each thread spends its time waiting for the compiler it runs
+        let mut workers: [mut future-> bool] = [];
         for i, m in parallel_changed if m.len > 0 {
             let msg = std::format::format("{} modules in thread {} (among {} changed files of {}) ",
                                           m.len,
@@ -316,33 +315,44 @@ pub record RepoBuilder {
                                           sources.len);
             utils::log::info("Compiling", msg);
 
-            submitted += 1;
-            pool:.submit(copy || => {
-                             // every task appends to its own block: 'options' has spare capacity,
-                             // and growing a slice that ends where its block's used part does
-                             // appends in place, which is not thread safe - two tasks would write
-                             // their first '-fmodule' to the same slot, and a module would go
-                             // uncompiled
-                             let mut modOption = copy options;
-                             for m_ in m {
-                                 modOption ~= ["-fmodule", m_.toStr()];
-                             }
-                             modOption ~= ["-fyil", yilDir.toStr()];
-
-                             // Execute the compile command
-                             if (!context.runProcess(self._cfg.compiler, modOption,
-                                                     cwd-> self._cwd,
-                                                     verbose-> self._verbose)) {
-                                 pool:.clear();
-                             } else {
-                                 atomic { success[0] += 1; }
-                                 self.ensureYILAndDepFiles(alias context, yilDir.parent(), m);
-                             }
-                         });
+            workers ~= copy [spawn self.compileModulesToYIL(alias context, options, m, yilDir)];
         }
-        pool:.join();
 
-        return (success[0] == submitted);
+        let mut success = true;
+        for i in 0us .. workers.len {
+            if (!workers[i].value) {
+                success = false;
+            }
+        }
+
+        success
+    }
+
+    /**
+     * Compile a block of modules to YIL bytecode files, run by a thread of 'compileFilesToYIL'
+     * @params:
+     *    - options: the compile options shared by every block
+     *    - modules: the modules of the block
+     *    - yilDir: the directory the YIL files are written to
+     * @returns: true iif the compilation succeeded
+     * */
+    prv fn compileModulesToYIL(self, dmut context: &GyllirManager, options: [[c8]], modules: [Path], yilDir: Path)-> bool {
+        // every thread appends to its own block: 'options' has spare capacity, and growing a slice
+        // that ends where its block's used part does appends in place, which is not thread safe -
+        // two threads would write their first '-fmodule' to the same slot, and a module would go
+        // uncompiled
+        let mut modOption = copy options;
+        for m in modules {
+            modOption ~= ["-fmodule", m.toStr()];
+        }
+        modOption ~= ["-fyil", yilDir.toStr()];
+
+        if (!context.runProcess(self._cfg.compiler, modOption, cwd-> self._cwd, verbose-> self._verbose)) {
+            return false;
+        }
+
+        self.ensureYILAndDepFiles(alias context, yilDir.parent(), modules);
+        true
     }
 
     /**
@@ -541,7 +551,7 @@ pub record RepoBuilder {
     /**
      * @returns: one '-fversion=<ident>' option per version identifier of the target. They only
      *    matter to the compilation of the sources, by the time of the YIL assembly and the link
-     *    the '__version' blocks are long resolved
+     *    the '__pragma!has_version' blocks are long resolved
      * */
     pub fn versionOptions(self)-> [[c8]] {
         copy ["-fversion=" ~ v for v in self._target.version]
@@ -692,7 +702,7 @@ pub record RepoBuilder {
      * longer compile against this one: neither shows in the dates of the sources.
      * A cache recording nothing(written by an older gyllir) is dropped as well, nothing tells what
      * built it. So is one compiled with other version identifiers: a module whose sources did not
-     * change would otherwise keep the '__version' blocks it was first compiled with.
+     * change would otherwise keep the '__pragma!has_version' blocks it was first compiled with.
      * @params:
      *    - cacheDir: the build cache directory, holding the YILs, the dependency files and the
      *      objects of one kind of build of the target
@@ -776,8 +786,9 @@ pub record RepoBuilder {
             .push(output)
             .addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
 
+        let resultFile = self.artifactFile(output ~ defaults::__TEST_EXECUTABLE_SUFFIX__);
         let options = self.createLinkOptions(copy [createdTmp, createdUnittests],
-                                             output ~ ".test",
+                                             resultFile.toStr(),
                                              dependencyLibs,
                                              cObjects);
 
@@ -786,7 +797,8 @@ pub record RepoBuilder {
             etc::c::process::_yrt_exit(-1);
         }
 
-        utils::log::info("Produced", "executable file ", output, ".test");
+        utils::log::info("Produced", "executable file ",
+                         self._target.artifactDisplay(output ~ defaults::__TEST_EXECUTABLE_SUFFIX__));
     }
 
     /**
@@ -800,14 +812,15 @@ pub record RepoBuilder {
         let output     = self._target.outputName();
         let createdTmp = (cacheDir.push(output).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
 
-        let options = self.createLinkOptions(copy [createdTmp], output, dependencyLibs, cObjects);
+        let resultFile = self.artifactFile(output);
+        let options    = self.createLinkOptions(copy [createdTmp], resultFile.toStr(), dependencyLibs, cObjects);
 
         if (!context.runProcess(self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose)) {
             self.reportCompilerFailure("failed to link the executable of target");
             etc::c::process::_yrt_exit(-1);
         }
 
-        utils::log::info("Produced", "executable file ", output);
+        utils::log::info("Produced", "executable file ", self._target.artifactDisplay(output));
     }
 
     /**
@@ -817,7 +830,8 @@ pub record RepoBuilder {
     prv fn finalizeLibrary(self, dmut context: &GyllirManager, cacheDir: Path, _: [Path], cObjects: [Path])-> Path {
         let output     = self._target.outputName();
         let createdTmp = (cacheDir.push(output).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
-        let resultFile = self._cwd.push("lib" ~ output).addExtension(defaults::__LIBRARY_EXTENSION__);
+        let library    = defaults::libraryFileName(output);
+        let resultFile = self.artifactFile(library);
 
         // 'createdTmp' is a single relocatable object gathering every compiled module, not a real
         // 'ar' archive: a target with no C source just wears it under the 'lib*.a' name, one that
@@ -849,8 +863,36 @@ pub record RepoBuilder {
             }
         }
 
-        utils::log::info("Produced", "library file ", "lib", output, ".", defaults::__LIBRARY_EXTENSION__);
+        utils::log::info("Produced", "library file ", self._target.artifactDisplay(library));
         resultFile
+    }
+
+    /**
+     * The path an artifact of the target is written to, creating the output directory of the target
+     * when it is missing
+     * @params:
+     *    - file: the name of the artifact
+     * @returns: the path of the artifact, in the output directory of the target
+     * */
+    prv fn artifactFile(self, file: [c8])-> Path {
+        let dir = self._target.outputPath(self._cwd);
+        if (!fs::isDir(dir)) {
+            {
+                fs::createDir(dir, recursive-> true);
+            } catch {
+                e: &FsError => {
+                    utils::log::error("Error",
+                                      self.targetContext(),
+                                      "failed to create the output directory '",
+                                      dir.toStr(),
+                                      "': ",
+                                      e.msg);
+                    etc::c::process::_yrt_exit(-1);
+                }
+            }
+        }
+
+        dir.push(file)
     }
 
     /*!

@@ -117,3 +117,45 @@ __test clean_outputs_missing_artifact_is_not_error {
 
     assert(!fs::isFile(dir.push("cli")), "nothing should have been produced by a clean");
 }
+
+__test clean_outputs_removes_artifacts_of_output_dir {
+    // The artifacts of a target are removed from its output directory, and that directory with them
+    // once it is empty
+    let dir = fs::tempDirectory(prefix-> "gyllir_cleaner_test_");
+    let cfg = mkTargetsConfig("multi", json #{
+        "mylib" : {"type" : "library", "output-dir" : "out/lib"},
+        "cli" : {"output-dir" : "bin"}
+    });
+
+    fs::createDir(dir.push("out").push("lib"), recursive-> true);
+    fs::createDir(dir.push("bin"));
+    for name in copy ["out/lib/libmylib.a", "out/lib/mylib.test", "bin/cli", "bin/cli.test"] {
+        let dmut f = File::create(dir.push(name), write-> true);
+        f:.write("an artifact");
+        f:.close();
+    }
+
+    RepoCleaner(dir, copy Dict(), cfg).cleanOutputs();
+
+    assert(!fs::isDir(dir.push("bin")), "the emptied output directory should be removed");
+    assert(!fs::isDir(dir.push("out").push("lib")), "the emptied output directory should be removed");
+    assert(fs::isDir(dir.push("out")), "only the output directory itself is removed, not its parents");
+}
+
+__test clean_outputs_keeps_output_dir_holding_other_files {
+    // An output directory holding anything else than the artifacts is left where it is
+    let dir = fs::tempDirectory(prefix-> "gyllir_cleaner_test_");
+    let cfg = mkTargetsConfig("multi", json #{"cli" : {"output-dir" : "bin"}});
+
+    fs::createDir(dir.push("bin"));
+    for name in copy ["bin/cli", "bin/README"] {
+        let dmut f = File::create(dir.push(name), write-> true);
+        f:.write("a file");
+        f:.close();
+    }
+
+    RepoCleaner(dir, copy Dict(), cfg).cleanOutputs();
+
+    assert(!fs::isFile(dir.push("bin").push("cli")), "the artifact should be removed");
+    assert(fs::isFile(dir.push("bin").push("README")), "a file of the user should be left alone");
+}
