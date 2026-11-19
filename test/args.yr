@@ -541,3 +541,58 @@ __test install_with_every_option {
         assert(t == "cli", "unexpected target: " ~ t);
     } else assert(false, "the target should be extracted");
 }
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * ===================================          OUTPUT DIR          ===================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+__test build_and_test_take_output_dir {
+    // '--output-dir' takes a value, which is not mistaken for the target name
+    for name in copy ["build", "test"] {
+        let cfg = sub(parse(copy ["gyllir", name, "--output-dir", "bin", "cli"]), name);
+        assert(outputDirOption(cfg) == "bin", "unexpected output directory of " ~ name);
+        assert(target(cfg) == "cli", "unexpected target of " ~ name);
+
+        assert(outputDirOption(sub(parse(copy ["gyllir", name]), name)) == "", "no output directory should be set");
+    }
+}
+
+/**
+ * @returns: the output directory and the remaining arguments 'splitRunOutputDir' splits a 'gyllir run'
+ *    command line into, or the message of the error it raises as the directory
+ * */
+fn splitRun(args: [[c8]])-> ([c8], [[c8]]) {
+    let (dir, rest) = splitRunOutputDir(sub(parse(copy ["gyllir", "run"] ~ args), "run"));
+    let mut values: [[c8]] = [];
+    if let a: &Array = rest {
+        for i in a[] if let Str(value-> v) = i {
+            values ~= [v];
+        }
+    }
+
+    (dir, values)
+} catch {
+    a: &AssertError => { (a.msg, []) }
+}
+
+__test run_takes_leading_output_dir {
+    // '--output-dir' is read by gyllir only when it comes first, everything else is forwarded
+    assert(splitRun(copy ["--output-dir", "bin", "cli", "--x"]) == ("bin", copy ["cli", "--x"]),
+           "a leading '--output-dir <dir>' should be split off");
+    assert(splitRun(copy ["--output-dir=bin"]) == ("bin", []), "a leading '--output-dir=<dir>' should be split off");
+    assert(splitRun(copy ["cli", "--output-dir", "bin"]) == ("", copy ["cli", "--output-dir", "bin"]),
+           "an '--output-dir' following the target is forwarded to the executable");
+    assert(splitRun(copy ["--", "--output-dir", "bin"]) == ("", copy ["--", "--output-dir", "bin"]),
+           "an '--output-dir' following '--' is forwarded to the executable");
+    assert(splitRun([]) == ("", []), "nothing to split off an empty command line");
+}
+
+__test run_output_dir_without_directory_rejected {
+    let expected = "'--output-dir' needs a directory, for example: gyllir run --output-dir bin";
+    assert(splitRun(copy ["--output-dir"])._0 == expected, "a missing directory should be rejected");
+    assert(splitRun(copy ["--output-dir="])._0 == expected, "an empty directory should be rejected");
+}

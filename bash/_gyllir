@@ -29,7 +29,7 @@ _gyllir() {
 	     -h --help --name"
 
     BUILD_OPTIONS="\
-		-h --help --release --locked --offline -v --verbose"
+		-h --help --release --output-dir --locked --offline -v --verbose"
 
     INSTALL_OPTIONS="\
 		-h --help --release --prefix --dry-run -j --locked --offline -v --verbose"
@@ -41,7 +41,7 @@ _gyllir() {
 		-h --help --doc --all"
 
     TEST_OPTIONS="\
-		-h --help -v --verbose --dry --release --locked --offline --build-jobs --env-file\
+		-h --help -v --verbose --dry --release --locked --offline --build-jobs --env-file --output-dir\
 		-f --filter -sf --stop-first -cov --coverage -ct --call-tree -m --missing --resume\
 		-d --durations -l --list -s --no-capture -j --jobs"
 
@@ -67,15 +67,19 @@ _gyllir() {
 	build)
 	    complete_options="$BUILD_OPTIONS"
 	    complete_words="$(_gyllir_get_targets)"
+	    [[ $prev == "--output-dir" ]] && complete_words="$(compgen -d -- "$cur")"
 	    ;;
 
 	test)
 	    complete_options="$TEST_OPTIONS"
 	    complete_words="$(_gyllir_get_targets)"
+	    [[ $prev == "--output-dir" ]] && complete_words="$(compgen -d -- "$cur")"
 	    ;;
 
 	run)
+	    complete_options="--output-dir"
 	    complete_words="$(_gyllir_get_targets)"
+	    [[ $prev == "--output-dir" ]] && complete_words="$(compgen -d -- "$cur")"
 	    ;;
 
 	install)

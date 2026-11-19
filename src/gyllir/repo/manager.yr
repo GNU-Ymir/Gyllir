@@ -100,14 +100,15 @@ pub class GyllirManager {
             RepoInitializer(c).run(self)
         } else if let Ok(c) = self._args["build"]? {
             let cwd = env::currentDir();
-            let cfg = self:.loadToml(cwd);
+            let cfg = withOutputDirOverride(self:.loadToml(cwd), gyllir::args::outputDirOption(c));
             self:.loadLock(cwd, c, cfg);
             self:.buildTargets(cwd, c, cfg, self.selectTargets(cfg, c));
             self.writeLock(cwd, cfg);
         } else if let Ok(c) = self._args["run"]? {
             let cwd                 = env::currentDir();
-            let cfg                 = self:.loadToml(cwd);
-            let (target, forwarded) = self.selectRunTarget(cfg, c);
+            let (outputDir, args)   = gyllir::args::splitRunOutputDir(c);
+            let cfg                 = withOutputDirOverride(self:.loadToml(cwd), outputDir);
+            let (target, forwarded) = self.selectRunTarget(cfg, args);
 
             // every argument of 'gyllir run' is forwarded to the executable, so it carries no flag
             // of its own: the lock file is honored, and rewritten when it is out of date
@@ -154,7 +155,7 @@ pub class GyllirManager {
             RepoBumper(env::currentDir(), c, self:.loadToml(env::currentDir(), withOverride-> false)).run();
         } else if let Ok(c) = self._args["test"]? {
             let cwd = env::currentDir();
-            let cfg = self:.loadToml(cwd);
+            let cfg = withOutputDirOverride(self:.loadToml(cwd), gyllir::args::outputDirOption(c));
 
             // read before compiling anything, a typo in its name is not worth a whole build
             let vars = if let Ok(Str(value-> file)) = c["env-file"]? { readEnvFile(Path(file)) } else { [] };
@@ -2116,4 +2117,20 @@ pub class GyllirManager {
 
         false
     }
+}
+
+/**
+ * @params:
+ *    - cfg: the configuration of the package being built
+ *    - dir: the output directory the command line sets('--output-dir'), "" when it sets none
+ * @returns: the configuration, writing the artifacts of every target to 'dir' when it is set
+ * @info: only ever applied to the package the command runs on, a dependency keeps writing its
+ *   artifacts where its own 'gyllir.toml' says, and is linked from there
+ * */
+prv fn withOutputDirOverride(cfg: GyllirPackageConfiguration, dir: [c8])-> GyllirPackageConfiguration {
+    if (dir == "") { return cfg; }
+
+    let mut res = cfg;
+    res:.setOutputDirOverride(dir);
+    res
 }
