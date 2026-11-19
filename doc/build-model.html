@@ -143,15 +143,19 @@ number of processors.</p>
 <div class="table-wrap">
 <table>
     <tr><th>Target</th><th>Produces</th></tr>
-    <tr><td>executable</td><td><code>./&lt;output&gt;</code></td></tr>
-    <tr><td>library</td><td><code>./lib&lt;output&gt;.a</code></td></tr>
-    <tr><td>either, with <code>gyllir test</code></td><td><code>./&lt;output&gt;.test</code></td></tr>
+    <tr><td>executable</td><td><code>&lt;output-dir&gt;/&lt;output&gt;</code></td></tr>
+    <tr><td>library</td><td><code>&lt;output-dir&gt;/lib&lt;output&gt;.a</code></td></tr>
+    <tr><td>either, with <code>gyllir test</code></td><td><code>&lt;output-dir&gt;/&lt;output&gt;.test</code></td></tr>
     <tr><td>either, with <code>gyllir doc</code></td><td><code>__doc/</code>, or <code>__doc/&lt;target&gt;/</code> when the package has several targets</td></tr>
 </table>
 </div>
 
 <p><code>&lt;output&gt;</code> is the target's <a href="targets.html#output"><code>output</code></a>
-key, defaulting to the target name — which for a single-target package is the package name.</p>
+key, defaulting to the target name — which for a single-target package is the package name.
+<code>&lt;output-dir&gt;</code> is the target's <a href="targets.html#output-dir"><code>output-dir</code></a>,
+else the package's <a href="manifest.html#output-dir"><code>output-dir</code></a>, else the package
+directory itself; <a href="cli.html#output-dir"><code>--output-dir</code></a> overrides it for one
+invocation. Executables and test binaries are still run from the package directory.</p>
 
 <h2>Troubleshooting</h2>
 

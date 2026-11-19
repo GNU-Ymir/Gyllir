@@ -99,6 +99,13 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     `"gyc"`, or a `[compiler]` table pinning a release of gyc: `hasCompilerVersion`/`compilerVersion`,
     `setCompiler` being what the manager points at the installed driver, never serialized), `package-root`/`test-root`, `BuildType` (`type.yr`, executable/library), the optional `registry`
     `Url` (the repository the doc pages link their sources to, invalid when undeclared), `Version`, authors, C `libraries`, `DependencyList`, `CustomCommandList`.
+    The top level `output-dir` is not exclusive with `[targets.*]`: `targets()` hands each target
+    the command line's `--output-dir` (`setOutputDirOverride`, never serialized, set by `manager.yr`
+    on the package the command runs on only), else its own `output-dir`, else the package one.
+  - `target.yr` — `Target`/`TargetList`, the `[targets.<name>]` tables. Every artifact path goes
+    through `artifactPath(cwd, file)` (`outputPath`: the `output-dir`, `.` by default, resolved
+    against the package directory unless absolute) and is shown with `artifactDisplay`; the
+    artifact names are `defaults.yr`'s `libraryFileName` and `__TEST_EXECUTABLE_SUFFIX__`.
   - `dependency.yr` — `Dependency` (a `VersionFilter` + `Url`) and `DependencyList`, the
     `[dependencies.<name>]` tables in `gyllir.toml`.
   - `url.yr` — `Url`/`UrlType`: `local:<path>` or `git:<remote>`, used for both dependency
@@ -157,16 +164,22 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     plus the `version` identifiers of the target when it declares some, see `cacheStamp`): a cache
     stamped with anything else, or with nothing, is dropped before it is read. A target's `version`
     entries are passed as `-fversion=<ident>` to the compilation of its sources and to its doc
-    build, not to the link nor the YIL assembly.
-  - `runner.yr` — `RepoRunner`: executes the built executable or test binary as a subprocess.
+    build, not to the link nor the YIL assembly. The `finalize*` functions write the artifacts
+    into the target's `output-dir` (created when missing, `artifactFile`), and `finalizeLibrary`
+    returns that path, which is what dependents link. Parallel compilation spawns one thread per
+    block of modules (`compileModulesToYIL`, and `csources.yr`'s `compileSources`): std 4's
+    `TaskPool` only polls `async` values, and the work here is a blocking subprocess.
+  - `runner.yr` — `RepoRunner`: executes the built executable or test binary, from the target's
+    `output-dir`, as a subprocess whose working directory stays the package directory.
   - `installer.yr` — `RepoInstaller`: `gyllir install`. `steps()` is the plan: the declared
     `[install.<name>]` command lines (once per package, placeholders from
     `installPlaceholderValues`: no `target.*`, plus `{{prefix}}`), or by default an `install -D -m
     755` of each selected executable into `<prefix>/bin`, recorded in
     `<prefix>/share/gyllir/installed/<name>.toml`. `check()` runs before the build (nothing to
     install, unwritable prefix: never escalates), `--dry-run` prints the plan and builds nothing.
-  - `cleaner.yr` — `RepoCleaner`: removes `.target/` outputs, optionally `__doc/` and resolved
-    `.deps/` (recursively, reusing `manager.yr`'s dependency graph).
+  - `cleaner.yr` — `RepoCleaner`: removes `.target/` and the artifacts from each target's
+    `output-dir` (then the directory, if empty and inside the package), optionally `__doc/` and
+    resolved `.deps/` (recursively, reusing `manager.yr`'s dependency graph).
   - `bump.yr` — `RepoBumper`: `gyllir bump`, the next `Version` (`--major`/`--minor`/`--patch`,
     or `--set`) written back to `gyllir.toml`; committing (`gyllir.toml` alone) and tagging
     (`v<version>`) are opt-in, and `--dry` changes nothing. A named version is an error, not a

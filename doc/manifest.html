@@ -68,6 +68,7 @@ set-version = { cmd = "./tools/set-version.sh", post = false }</code></pre>
     <tr id="version"><td><code>version</code></td><td>string</td><td>yes</td><td>Version of the package, <code>"major.minor.patch"</code>. Rewritten by <a href="versioning.html"><code>gyllir bump</code></a>.</td></tr>
     <tr id="registry"><td><code>registry</code></td><td>string or table</td><td>no</td><td>The repository of the package, which the pages of <a href="cli.html#doc"><code>gyllir doc</code></a> link their sources to — an ssh remote such as <code>git@github.com:jane/myapp.git</code> becomes its web url. Without it, the pages have no source link. See <a href="#urls">URLs</a>.</td></tr>
     <tr id="authors"><td><code>authors</code></td><td>array of strings</td><td>no</td><td>The authors of the package.</td></tr>
+    <tr id="output-dir"><td><code>output-dir</code></td><td>string</td><td>no</td><td>The directory the artifacts of every target are written to — executables, <code>lib&lt;output&gt;.a</code> archives and <code>&lt;output&gt;.test</code> binaries — relative to the package directory unless absolute, and created when missing. Defaults to <code>"."</code>, the package directory itself. Unlike the keys <a href="#exclusivity">below</a>, it sits next to <a href="targets.html"><code>[targets.*]</code></a> tables: a target declaring its own <a href="targets.html#output-dir"><code>output-dir</code></a> takes precedence, and <a href="cli.html#output-dir"><code>--output-dir</code></a> overrides both for one invocation.</td></tr>
     <tr id="compiler"><td><code>compiler</code></td><td>string or table</td><td>no</td><td>The compiler binary Gyllir drives, looked up on <code>PATH</code>. Defaults to <code>"gyc"</code>. A <a href="#compiler-release"><code>[compiler]</code></a> table pins a release of gyc instead, which Gyllir installs itself.</td></tr>
 </table>
 </div>
@@ -81,7 +82,7 @@ set-version = { cmd = "./tools/set-version.sh", post = false }</code></pre>
 <div class="table-wrap">
 <table>
     <tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr>
-    <tr id="type"><td><code>type</code></td><td><code>"executable"</code> or <code>"library"</code></td><td><code>"executable"</code></td><td>An executable is linked into <code>./&lt;name&gt;</code>; a library is archived into <code>./lib&lt;name&gt;.a</code>.</td></tr>
+    <tr id="type"><td><code>type</code></td><td><code>"executable"</code> or <code>"library"</code></td><td><code>"executable"</code></td><td>An executable is linked into <code>&lt;output-dir&gt;/&lt;name&gt;</code>; a library is archived into <code>&lt;output-dir&gt;/lib&lt;name&gt;.a</code>.</td></tr>
     <tr id="package-root"><td><code>package-root</code></td><td>string</td><td>—</td><td>Root module of the sources, relative to <code>src/</code> and without the <code>.yr</code> extension. Without it, an executable roots at <code>src/main.yr</code> and a library at <code>src/__lib__.yr</code>. A declared root that does not exist is an error, never a fallback.</td></tr>
     <tr id="test-root"><td><code>test-root</code></td><td>string</td><td>—</td><td>Root module of the unit tests, relative to <code>test/</code>. Defaults to <code>test/__test__.yr</code>.</td></tr>
     <tr id="tests"><td><code>tests</code></td><td>boolean</td><td><code>true</code></td><td>Set to <code>false</code> to opt the package out of unit testing. It then cannot declare <code>test-root</code>.</td></tr>
@@ -190,7 +191,8 @@ tag    = { cmd = "cp lib{{target.output}}.a lib{{targets.result.name}}-{{version
 
 <p>A target <code>&lt;field&gt;</code> is one of <code>name</code>, <code>type</code>
 (<code>executable</code> or <code>library</code>), <code>description</code>, <code>output</code> (the
-name of the artifact, the target name unless it declares one), <code>source-dir</code> and
+name of the artifact, the target name unless it declares one), <code>output-dir</code> (the directory
+it is written to, <code>.</code> unless one is declared), <code>source-dir</code> and
 <code>test-dir</code>.</p>
 
 <p>The line is split on the spaces written in <code>cmd</code>, never on those of a value: a
