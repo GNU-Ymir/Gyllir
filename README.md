@@ -205,7 +205,10 @@ sha = "9f1c0d0a1b0e5f6d7c8b9a0f1e2d3c4b5a697887"
 
 A build honors it and never bumps a pinned version, even when a newer tag exists upstream — it
 re-resolves only what the lock file does not pin (a new dependency, a url that changed, a filter
-narrowed past the pinned version). `gyllir update [<name>]` is the deliberate bump, `--locked`
+narrowed past the pinned version), and contacts no remote for what it does. The std lib `[std]`
+resolves is locked as `std` (`<dependency>/std` for a dependency's), with `bundled = true` and no
+`sha` when it is the one bundled with the compiler, honored while the compiler bundles that same
+version. `gyllir update [<name>]` is the deliberate bump, `--locked`
 turns an out-of-date lock file into an error (the CI mode), and `--offline` additionally forbids
 cloning, fetching and pulling.
 

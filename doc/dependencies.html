@@ -135,6 +135,7 @@ sha = "0b1a2c3d4e5f60718293a4b5c6d7e8f901234567"</code></pre>
     <tr><td><code>name</code></td><td>The name the package is declared under.</td></tr>
     <tr><td><code>url</code></td><td>Where the package was resolved from. An entry only applies while the manifest still declares that same url.</td></tr>
     <tr><td><code>version</code></td><td>The version that was resolved — what the filter is re-checked against on the next build.</td></tr>
+    <tr><td><code>bundled</code></td><td><code>true</code> when <code>[std]</code> resolved to the std lib bundled with the compiler, which carries no <code>sha</code>: nothing was cloned.</td></tr>
     <tr><td><code>sha</code></td><td>The commit that version pointed at, for a <code>git:</code> url. A tag can be moved, a commit cannot.</td></tr>
     <tr><td><code>dependencies</code></td><td>The urls that package depends on, which is what makes the file a graph rather than a list.</td></tr>
 </table>
@@ -143,6 +144,22 @@ sha = "0b1a2c3d4e5f60718293a4b5c6d7e8f901234567"</code></pre>
 <p>Every dependency is in there, transitively — the entry for an indirect dependency looks exactly
 like the one for a direct one. A <code>local:</code> path is recorded but never pinned to a commit:
 it is a working checkout of yours, not a released version, and it carries no <code>sha</code>.</p>
+
+<p>The std lib a <code>[std]</code> table resolves is locked too, as <code>std</code> (and as
+<code>&lt;dependency&gt;/std</code> for the one of a dependency). When the compiler's own bundled
+std lib is the one chosen, the entry says <code>bundled = true</code> and records the version the
+compiler bundles:</p>
+
+<pre><code>[[package]]
+name = "std"
+url = "git:https://github.com/GNU-Ymir/yruntime.git"
+version = "4.0.1"
+bundled = true</code></pre>
+
+<p>A build then uses it without listing the std lib's remote, for as long as the compiler bundles
+that same version; a compiler bundling another one resolves it again. Either way, once
+<code>gyllir.lock</code> settles a dependency and <code>.deps/</code> holds what it pins, only
+<code>gyllir update</code> goes back to the remotes.</p>
 
 <p>A dependency redeclared by a <a href="manifest.html#override"><code>gyllir.toml.override</code></a>
 is resolved on this machine only, so while an override redeclares <code>[dependencies]</code> or
@@ -175,8 +192,9 @@ gyllir build --offline    # ... and without touching the network at all</code></
 
 <p><code>--locked</code> turns "the lock file is out of date" into an error rather than a rewrite,
 which is what makes a CI run prove that the committed lock file describes the build.
-<code>--offline</code> adds to it: nothing is cloned, fetched or pulled, so every dependency has to
-be pinned and already present in <code>.deps/</code>.</p>
+<code>--offline</code> adds to it: nothing is cloned, fetched or pulled, and no remote is listed, so
+every dependency — the std lib included — has to be pinned and already present in
+<code>.deps/</code>.</p>
 
 <div class="note">
 <p>A pinned commit that has disappeared from its remote — a force-pushed branch, a deleted tag — is
