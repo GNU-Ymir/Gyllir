@@ -713,6 +713,28 @@ __test offline_refuses_an_unlocked_std_before_listing_its_remote {
            "unexpected error: " ~ msg);
 }
 
+__test locked_git_dependency_is_built_without_its_remote {
+    // A dependency the lock file pins, whose checkout already holds the pinned commit, is checked
+    // out without contacting its remote: here, a remote that no longer exists
+    let lib = mkLibraryProject();
+    writeToml(lib, mkConfig("mylib", "library"));
+    gitInit(lib);
+    commitAndTag(lib, "v1.0.0");
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkConfigWithGitDependency("myapp", "executable", "mylib", lib, version-> ">=1.0.0");
+
+    resolveWithLock(app, cfg);
+    let first = readLockFile(app).toToml();
+
+    fs::removeDir(lib, recursive-> true);
+
+    resolveWithLock(app, cfg);
+    assert(readLockFile(app).toToml() == first, "a build honoring the lock file should leave it as it is");
+    assert(resolvedCommitOf(app, "mylib") == lockedPackage(app, "mylib").sha,
+           "the checkout should sit at the pinned commit");
+}
+
 __test update_std_flag_accepted_before_it_is_ever_locked {
     // '--std' is accepted by 'selectUpdated' even before the std lib was ever resolved, and
     // 'gyllir.lock' holds no 'std' entry yet
