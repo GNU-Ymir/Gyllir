@@ -1,9 +1,10 @@
 use ::repo::fixture;
 
+use gyllir::args;
 use gyllir::config::_;
 use gyllir::config::version::filter;
 use gyllir::repo::{builder, cache, cleaner, defaults, manager, runner, toolchain};
-use gyllir::utils::git;
+use gyllir::utils::{errors, git};
 
 use std::{config, config::json, fs};
 use std::concurrency;
@@ -558,10 +559,185 @@ __test resolve_std_reports_an_unreachable_remote_instead_of_no_matching_version 
            "unexpected error: " ~ msg);
 }
 
+/**
+ * Write the 'gyllir.lock' of a project
+ * */
+fn writeLockFile(dir: Path, lock: &LockFile)
+    throws FsError
+{
+    let dmut f = File::create(dir.push(defaults::__GYLLIR_LOCK_FILENAME__), write-> true);
+    f:.write(lock.toToml());
+    f:.close();
+}
+
+/**
+ * A git repository standing for a remote std lib, with a single version, lower than anything a
+ * compiler bundles: a '[std]' accepting any version resolves to the bundled one
+ * */
+fn mkFakeStdRepo()-> Path
+    throws FsError, GitError, AssertError
+{
+    let stdRepo = mkLibraryProject(suffix-> "Std");
+    writeToml(stdRepo, mkConfig("fakestd", "library"));
+    gitInit(stdRepo);
+    commitAndTag(stdRepo, "v0.0.1");
+
+    stdRepo
+}
+
+__test bundled_std_is_locked_and_honored_without_its_remote {
+    // The std lib bundled with the compiler is locked, for the package and for its dependency, and
+    // the next build honors it without listing the remote: here, a remote that no longer exists
+    let bundled = gyllir::args::compilerStdVersion();
+    assert(bundled != "", "sanity: the compiler should report the version of the std lib it bundles");
+
+    let stdRepo = mkFakeStdRepo();
+
+    let lib = mkLibraryProject();
+    writeToml(lib, withStd(mkConfig("mylib", "library"), "*", stdRepo));
+    gitInit(lib);
+    commitAndTag(lib, "v1.0.0");
+
+    let app = mkExecutableProject("myapp");
+    let cfg = withStd(mkConfigWithGitDependency("myapp", "executable", "mylib", lib, version-> ">=1.0.0"),
+                      "*",
+                      stdRepo);
+
+    resolveWithLock(app, cfg);
+
+    let own = lockedPackage(app, "std");
+    assert(own.bundled, "the std lib of the package should be locked as the bundled one");
+    assert(own.version == Version(bundled), "the bundled std lib should be locked at the version the compiler bundles");
+    assert(!own.pinned(), "the bundled std lib should not be pinned to a commit");
+    assert(own.url.path.toStr() == stdRepo.toStr(), "the bundled std lib should be locked under the url '[std]' declares");
+
+    let ofLib = lockedPackage(app, "mylib/std");
+    assert(ofLib.bundled, "the std lib of the dependency should be locked as the bundled one too");
+
+    let first = readLockFile(app).toToml();
+    fs::removeDir(stdRepo, recursive-> true);
+    fs::removeDir(lib, recursive-> true);
+
+    resolveWithLock(app, cfg);
+    assert(readLockFile(app).toToml() == first, "a build honoring the lock file should leave it as it is");
+}
+
+__test bundled_std_of_another_compiler_is_resolved_again {
+    // A std lib locked as the one bundled with the compiler holds only while the compiler bundles
+    // that version: another one(here, a version no compiler bundles) is resolved again
+    let bundled = gyllir::args::compilerStdVersion();
+    let stdRepo = mkFakeStdRepo();
+
+    let app = mkExecutableProject("myapp");
+    let cfg = withStd(mkConfig("myapp", "executable"), "*", stdRepo);
+
+    let dmut lock = copy LockFile();
+    lock:.insert("std", LockedPackage(Url("git:" ~ stdRepo.toStr()), Version(0u32, 0u32, 0u32), bundled-> true));
+    writeLockFile(app, lock);
+
+    resolveWithLock(app, cfg);
+
+    let own = lockedPackage(app, "std");
+    assert(own.bundled, "the std lib should still be the bundled one");
+    assert(own.version == Version(bundled), "the std lib should be locked again, at the version the compiler bundles");
+}
+
+__test locked_mode_refuses_a_bundled_std_another_compiler_bundles {
+    // '--locked' refuses to move a std lib locked as the one another compiler bundled, instead of
+    // listing the remote(which cannot even be reached here) to resolve it again
+    let bundled = gyllir::args::compilerStdVersion();
+    let stdUrl  = "git:/no/such/repository/here";
+
+    let app = mkExecutableProject("myapp");
+    let cfg = GyllirPackageConfiguration(json #{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "std" : {"version" : "*", "url" : stdUrl}
+    });
+
+    let dmut lock = copy LockFile();
+    lock:.insert("std", LockedPackage(Url(stdUrl), Version(0u32, 0u32, 0u32), bundled-> true));
+    writeLockFile(app, lock);
+
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    mgr:.loadLock(app, mkBuildArgs(flags-> copy ["locked"]), cfg);
+
+    let mut msg = "";
+    {
+        mgr:.resolveStd(mkBuildArgs(flags-> copy ["locked"]), app, cfg, false);
+    } catch {
+        a: &AssertError         => { msg = a.msg; }
+        _: &RecursiveDependency => { assert(false, "no recursive dependency should be detected here"); }
+    }
+
+    assert(msg
+           == "the std lib resolved by '[std]' is locked as the one bundled with 'gyc', version 0.0.0, but 'gyc' "
+              ~ "bundles version " ~ bundled ~ ", run 'gyllir update --std' to lock it again",
+           "unexpected error: " ~ msg);
+}
+
+__test offline_refuses_an_unlocked_std_before_listing_its_remote {
+    // A std lib the lock file does not pin cannot be resolved offline: that is reported as such,
+    // rather than by the failure of the remote listing it would otherwise take
+    let app = mkExecutableProject("myapp");
+    let cfg = GyllirPackageConfiguration(json #{
+        "name" : "myapp",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "executable",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "std" : {"version" : ">=1.0.0", "url" : "git:/no/such/repository/here"}
+    });
+
+    writeLockFile(app, copy LockFile());
+
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    mgr:.loadLock(app, mkBuildArgs(flags-> copy ["offline"]), cfg);
+
+    let mut msg = "";
+    {
+        mgr:.resolveStd(mkBuildArgs(flags-> copy ["offline"]), app, cfg, false);
+    } catch {
+        a: &AssertError         => { msg = a.msg; }
+        _: &RecursiveDependency => { assert(false, "no recursive dependency should be detected here"); }
+    }
+
+    assert(msg
+           == "the std lib resolved by '[std]' is not locked at a version matching [>=1.0.0] by 'gyllir.lock', run "
+              ~ "'gyllir update --std' to lock it",
+           "unexpected error: " ~ msg);
+}
+
+__test locked_git_dependency_is_built_without_its_remote {
+    // A dependency the lock file pins, whose checkout already holds the pinned commit, is checked
+    // out without contacting its remote: here, a remote that no longer exists
+    let lib = mkLibraryProject();
+    writeToml(lib, mkConfig("mylib", "library"));
+    gitInit(lib);
+    commitAndTag(lib, "v1.0.0");
+
+    let app = mkExecutableProject("myapp");
+    let cfg = mkConfigWithGitDependency("myapp", "executable", "mylib", lib, version-> ">=1.0.0");
+
+    resolveWithLock(app, cfg);
+    let first = readLockFile(app).toToml();
+
+    fs::removeDir(lib, recursive-> true);
+
+    resolveWithLock(app, cfg);
+    assert(readLockFile(app).toToml() == first, "a build honoring the lock file should leave it as it is");
+    assert(resolvedCommitOf(app, "mylib") == lockedPackage(app, "mylib").sha,
+           "the checkout should sit at the pinned commit");
+}
+
 __test update_std_flag_accepted_before_it_is_ever_locked {
-    // '--std' is accepted by 'selectUpdated' even before the std lib was ever resolved as a remote
-    // lock entry(the bundled compiler's std lib can already be satisfying the declared filter, in
-    // which case nothing is cloned and 'std' never appears as a key of 'gyllir.lock')
+    // '--std' is accepted by 'selectUpdated' even before the std lib was ever resolved, and
+    // 'gyllir.lock' holds no 'std' entry yet
     // 'selectUpdated' exits the process on an unrecognized name, so reaching past this call is
     // itself the assertion
     let app = mkExecutableProject("myapp");

@@ -54,17 +54,23 @@ pub record LockedPackage {
     let mut _version: Version = Version(0u32, 0u32, 0u32);
 
     // The exact commit the resolved version was checked out at, "" for a 'local:' package, which
-    // is never pinned to a commit
+    // is never pinned to a commit, and for the std lib bundled with the compiler
     let mut _sha: [c8] = "";
+
+    // True iif this entry is the std lib a '[std]' table resolved to the one bundled with the
+    // compiler: nothing was cloned, '_url' is the one '[std]' declares, and '_version' the one the
+    // compiler bundles
+    let mut _bundled: bool = false;
 
     // The urls of the packages this one depends on, at the time it was resolved
     let mut _dependencies: [Url] = [];
 
-    pub self (url: Url, version: Version, dependencies: [Url] = [], sha: [c8] = "")
+    pub self (url: Url, version: Version, dependencies: [Url] = [], sha: [c8] = "", bundled: bool = false)
         with _url = url
         , _version = version
         , _dependencies = dependencies
         , _sha = sha
+        , _bundled = bundled
     {}
 
     /**
@@ -101,11 +107,12 @@ pub record LockedPackage {
             throw copy AssertError(ctx ~ "missing required entry 'version', for example: version = \"1.0.0\"");
         };
 
-        self._sha = self.readSha(cfg, self._url, ctx);
+        self._bundled = self.readBundled(cfg, ctx);
+        self._sha = self.readSha(cfg, self._url, self._bundled, ctx);
         self._dependencies = self.readDependencies(cfg, ctx);
 
         if let d: &Dict = cfg {
-            gyllir::config::errors::rejectUnknown(d, ctx, "name", "url", "version", "sha", "dependencies");
+            gyllir::config::errors::rejectUnknown(d, ctx, "name", "url", "version", "bundled", "sha", "dependencies");
         }
     }
 
@@ -135,6 +142,15 @@ pub record LockedPackage {
     @field
     pub fn dependencies(self)-> [Url] {
         self._dependencies
+    }
+
+    /**
+     * @returns: true iif this entry locks the std lib bundled with the compiler, rather than a
+     *    package that was cloned or linked into '.deps/'
+     * */
+    @field
+    pub fn bundled(self)-> bool {
+        self._bundled
     }
 
     /**
@@ -168,15 +184,38 @@ pub record LockedPackage {
      */
 
     /**
+     * Read the optional "bundled" entry
+     * @throws:
+     *    - AssertError: "bundled" is not a boolean
+     * */
+    prv fn readBundled(self, cfg: &Config, ctx: [c8])-> bool
+        throws AssertError
+    {
+        if let Ok(Bool(value-> b)) = cfg["bundled"]? {
+            return b;
+        } else if let Ok(_) = cfg["bundled"]? {
+            throw copy AssertError(ctx ~ "'bundled' must be a boolean, true when the std lib bundled with the "
+                                   ~ "compiler was resolved");
+        }
+
+        false
+    }
+
+    /**
      * Read the optional "sha" entry, only meaningful for a 'git:' package
      * @throws:
-     *    - AssertError: a 'local:' package declares a "sha" (it is never pinned to a commit), or a
-     *      'git:' package declares none (a lock entry with no commit locks nothing)
+     *    - AssertError: a 'local:' or a bundled package declares a "sha" (neither is pinned to a
+     *      commit), or a 'git:' one declares none (a lock entry with no commit locks nothing)
      * */
-    prv fn readSha(self, cfg: &Config, url: Url, ctx: [c8])-> [c8]
+    prv fn readSha(self, cfg: &Config, url: Url, bundled: bool, ctx: [c8])-> [c8]
         throws AssertError
     {
         if let Ok(Str(value-> s)) = cfg["sha"]? {
+            if (bundled) {
+                throw copy AssertError(ctx ~ "'sha' cannot be declared for the std lib bundled with the compiler, "
+                                       ~ "nothing was checked out");
+            }
+
             if (url.type == UrlType::LOCAL) {
                 throw copy AssertError(ctx ~ "'sha' cannot be declared for a local dependency, "
                                        ~ "only a 'git:' url is pinned to a commit");
@@ -188,7 +227,7 @@ pub record LockedPackage {
                                    ~ "'sha' must be a string, the exact commit the resolved version was checked out at");
         }
 
-        if (url.type == UrlType::GIT) {
+        if (url.type == UrlType::GIT && !bundled) {
             throw copy AssertError(ctx ~ "missing required entry 'sha', for example: sha = \"a1b2c3d4e5f6...\", "
                                    ~ "the exact commit the resolved version was checked out at");
         }
@@ -235,6 +274,10 @@ pub record LockedPackage {
             let dmut res = copy Dict();
             res["url"] = copy Str(self._url.toStr());
             res["version"] = self._version.serialize();
+
+            if (self._bundled) {
+                res["bundled"] = copy Bool(true);
+            }
 
             if (self._sha != "") {
                 res["sha"] = copy Str(self._sha);
@@ -388,6 +431,10 @@ pub class LockFile {
                 stream:.write("name = \"", name, "\"\n");
                 stream:.write("url = \"", p.url.toStr(), "\"\n");
                 stream:.write("version = \"", p.version[], "\"\n");
+
+                if (p.bundled) {
+                    stream:.write("bundled = true\n");
+                }
 
                 if (p.sha != "") {
                     stream:.write("sha = \"", p.sha, "\"\n");

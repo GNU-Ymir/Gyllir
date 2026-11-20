@@ -134,7 +134,8 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     for `gyllir cache --rm`, `kind`, `name`, `version`, `source`, `installed`).
   - `lock.yr` — `LockedPackage`/`LockFile`: the `gyllir.lock` schema (`lock-version`, one
     `[[package]]` array-of-tables entry per resolved package: `name`, `url`, `version`, `sha` for
-    a `git:` source, `dependencies`; the std lib a dependency resolves through its own `[std]` is
+    a `git:` source, `bundled` (no `sha`) for a `[std]` resolved to the std lib the compiler
+    bundles, `dependencies`; the std lib a dependency resolves through its own `[std]` is
     locked as `<dependency>/std`, the package's own as `std`), plus `matches()` (does an entry still resolve a declaration), `prune()`
     (drop what the manifest no longer reaches) and `toToml()` (the sorted, canonical dump — the
     file is committed, so its bytes have to be stable).
@@ -153,7 +154,11 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     (one pinning another release only gets a warning).
     Also the lock lifecycle of a command — `loadLock` before the build, `recordResolution` per
     dependency, `writeLock` after — the `--locked`/`--offline` flags, and `gyllir update`, which
-    is a `dry` build pass (dependencies resolved, nothing compiled) followed by a rewrite.
+    is a `dry` build pass (dependencies resolved, nothing compiled) followed by a rewrite. A lock
+    entry that still holds is honored without contacting any remote: a pinned commit already in
+    `.deps/<name>` is checked out, and `resolveStd` takes a `bundled` std entry as long as the
+    compiler's `--version` still reports that version (`useBundledStd` records the choice), only
+    listing the `[std]` remote when nothing in the lock settles it.
   - `init.yr` — `RepoInitializer`: interactively prompts for project metadata and writes
     `gyllir.toml`, `src/`, `test/`, `.gitignore`, then `git init`+commit.
   - `builder.yr` — `RepoBuilder`: the largest file in the repo: resolves dependencies, invokes

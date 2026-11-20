@@ -366,7 +366,7 @@ pub class GyllirManager {
 
         let file = cwd.push(defaults::__GYLLIR_LOCK_FILENAME__);
         if (!fs::isFile(file)) {
-            if (self._lockedMode && cfg.dependencies[].len != 0us) {
+            if (self._lockedMode && (cfg.dependencies[].len != 0us || cfg.hasStd)) {
                 utils::log::error("Error",
                                   "there is no '",
                                   self.namedFile(cwd, defaults::__GYLLIR_LOCK_FILENAME__),
@@ -1297,6 +1297,11 @@ pub class GyllirManager {
      * matches the declared filter at least as well as what the remote repository offers. Only a
      * remote version that matches the filter strictly better is cloned into '.deps/std' and built
      * like a regular dependency.
+     *
+     * Either choice is locked, and a lock entry that still holds is honored without contacting the
+     * remote: a cloned std lib like any other git dependency, the bundled one as long as the
+     * compiler still bundles the version it was locked at. Only 'gyllir update' lists the remote
+     * again then.
      * @params:
      *    - args: the configuration of the current building
      *    - cwd: the root directory of the package
@@ -1309,7 +1314,8 @@ pub class GyllirManager {
      *    - AssertError: neither the bundled std lib nor the remote repository has a version
      *      matching the declared filter, or the remote repository's tags could not be listed(a
      *      network or authentication failure is reported as such, not silently treated as "no
-     *      matching version")
+     *      matching version"), or '--locked'(or '--offline') forbids resolving a std lib the lock
+     *      file does not pin
      * */
     pub fn resolveStd(mut self, args: &Config, cwd: Path, cfg: GyllirPackageConfiguration, dry: bool)-> ([[c8]], [Path])
         throws RecursiveDependency, AssertError
@@ -1319,21 +1325,49 @@ pub class GyllirManager {
         let filter = cfg.stdVersion();
         let url    = cfg.stdUrl;
 
-        // Once a remote std was pinned, stay on it like any other git dependency instead of
-        // re-listing the remote's tags on every single build: 'resolveDependency' checks the
-        // locked commit out directly, without touching the network unless it is missing locally
+        let dmut filterStream = copy StringStream();
+        filterStream:.write(filter);
+        let filterStr = filterStream[];
+
         let lockName = self.stdLockName();
-        if let Ok(_) = self.lockedEntry(lockName, Dependency(filter, url)) {
-            let (includes, links) = self:.resolveDependency(args,
-                                                            cwd,
-                                                            defaults::__STD_DEP_NAME__,
-                                                            Dependency(filter, url),
-                                                            dry,
-                                                            lockName-> lockName);
-            return (self.asStdPrefixFlags(includes, cfg), links);
+        let bundled  = gyllir::args::compilerStdVersion(compiler-> cfg.compiler);
+
+        if let Ok(locked) = self.lockedEntry(lockName, Dependency(filter, url)) {
+            // Once a remote std was pinned, stay on it like any other git dependency instead of
+            // re-listing the remote's tags on every single build: 'resolveDependency' checks the
+            // locked commit out directly, without touching the network unless it is missing locally
+            if (!locked.bundled) {
+                let (includes, links) = self:.resolveDependency(args,
+                                                                cwd,
+                                                                defaults::__STD_DEP_NAME__,
+                                                                Dependency(filter, url),
+                                                                dry,
+                                                                lockName-> lockName);
+                return (self.asStdPrefixFlags(includes, cfg), links);
+            }
+
+            // the std lib bundled with the compiler was locked, which holds for as long as the
+            // compiler bundles that same version: its '--version' tells, the remote has nothing to
+            // add to it
+            if (bundled != "" && Version(bundled) == locked.version) {
+                return self:.useBundledStd(lockName, url, locked.version);
+            }
+
+            if (self._lockedMode) {
+                throw copy AssertError(self.stdDescription() ~ " is locked as the one bundled with '" ~ cfg.compiler
+                                       ~ "', version " ~ locked.version[] ~ ", but '" ~ cfg.compiler ~ "' "
+                                       ~ (if (bundled != "") { "bundles version " ~ bundled }
+                                          else { "printed no 'Midgard version' line" })
+                                       ~ ", run '" ~ self.stdUpdateCommand() ~ "' to lock it again");
+            }
+        } else if (self._lockedMode) {
+            // checked before the remote is listed: '--offline' implies '--locked', and the listing
+            // is what would need the network
+            throw copy AssertError(self.stdDescription() ~ " is not locked at a version matching " ~ filterStr
+                                   ~ " by '" ~ defaults::__GYLLIR_LOCK_FILENAME__ ~ "', run '"
+                                   ~ self.stdUpdateCommand() ~ "' to lock it");
         }
 
-        let bundled   = gyllir::args::compilerStdVersion(compiler-> cfg.compiler);
         let bundledOk = bundled != "" && filter.pass(Version(bundled));
 
         let matches = {
@@ -1351,12 +1385,8 @@ pub class GyllirManager {
             }
         };
 
-        let dmut filterStream = copy StringStream();
-        filterStream:.write(filter);
-        let filterStr = filterStream[];
-
         if (matches.len == 0us) {
-            if (bundledOk) { return ([], []); }
+            if (bundledOk) { return self:.useBundledStd(lockName, url, Version(bundled)); }
 
             if (bundled == "") {
                 throw copy AssertError("could not determine the version of the std lib bundled with '" ~ cfg.compiler
@@ -1372,7 +1402,7 @@ pub class GyllirManager {
         }
 
         if (bundledOk && Version(bundled) >= matches[0]._0) {
-            return ([], []);
+            return self:.useBundledStd(lockName, url, Version(bundled));
         }
 
         // among the remote versions matching the filter, prefer the newest one bootstrapped with a
@@ -1383,7 +1413,7 @@ pub class GyllirManager {
         let (chosen, ymirCompatible) = self.selectYmirCompatible(cwd, url, matches, installedYmir);
 
         if (bundledOk && Version(bundled) >= chosen._0) {
-            return ([], []);
+            return self:.useBundledStd(lockName, url, Version(bundled));
         }
 
         utils::log::info(
@@ -1417,6 +1447,38 @@ pub class GyllirManager {
         self.warnOnYmirVersionMismatch(cwd, cfg);
 
         (self.asStdPrefixFlags(includes, cfg), links)
+    }
+
+    /**
+     * Build against the std lib bundled with the compiler, and lock that choice: the next build
+     * honors it without listing the remote again
+     * @params:
+     *    - lockName: the name the std lib is locked under(see 'stdLockName')
+     *    - url: the url '[std]' declares, the one the entry is matched against on the next build
+     *    - version: the version the compiler bundles
+     * @returns: no root file to include, and no library to link: the compiler finds its bundled std
+     *    lib on its own
+     * */
+    prv fn useBundledStd(mut self, lockName: [c8], url: Url, version: Version)-> ([[c8]], [Path]) {
+        self._resolved[lockName] = LockedPackage(url, version, bundled-> true);
+        ([], [])
+    }
+
+    /**
+     * @returns: the std lib whose resolution is under way, as an error message names it
+     * */
+    prv fn stdDescription(self)-> [c8] {
+        if (self._owner == "") { return "the std lib resolved by '[std]'"; }
+        "the std lib resolved by the '[std]' of dependency '" ~ self._owner ~ "'"
+    }
+
+    /**
+     * @returns: the command resolving the std lib under way again: '--std' for the one of the
+     *    package being built, the dependency it belongs to otherwise(see 'isUpdating')
+     * */
+    prv fn stdUpdateCommand(self)-> [c8] {
+        if (self._owner == "") { return "gyllir update --std"; }
+        "gyllir update " ~ self._owner
     }
 
     /**
