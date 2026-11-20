@@ -129,6 +129,61 @@ __test missing_sha_on_git_package_rejected {
            "unexpected error: " ~ msg);
 }
 
+__test deserialize_bundled_std_without_sha {
+    // The std lib bundled with the compiler is locked under the url '[std]' declares, with no
+    // commit: nothing was cloned, and a git url does not require a sha then
+    let ctx = gyllir::config::errors::inTableArray("package", "std");
+    let p = LockedPackage(json #{
+        "url" : {"git" : "git@host.com:org/std.git"},
+        "version" : "4.0.1",
+        "bundled" : true
+    }, ctx);
+
+    assert(p.bundled, "the entry should be read as the bundled std lib");
+    assert(!p.pinned(), "the bundled std lib should never be pinned to a commit");
+    assert(p.sha == "", "the bundled std lib should carry no sha");
+    assert(p.version == Version(4u32, 0u32, 1u32), "unexpected version");
+}
+
+__test sha_on_bundled_std_rejected {
+    // The bundled std lib was never checked out, a commit locks nothing there
+    let mut msg = "";
+    {
+        LockedPackage(json #{
+            "url" : {"git" : "git@host.com:org/std.git"},
+            "version" : "4.0.1",
+            "bundled" : true,
+            "sha" : "a1b2c3"
+        }, gyllir::config::errors::inTableArray("package", "std"));
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg
+           == "'[[package]]' (name = \"std\"), 'sha' cannot be declared for the std lib bundled with the compiler, "
+              ~ "nothing was checked out",
+           "unexpected error: " ~ msg);
+}
+
+__test non_boolean_bundled_rejected {
+    // A non boolean 'bundled' is rejected rather than silently coerced
+    let mut msg = "";
+    {
+        LockedPackage(json #{
+            "url" : {"git" : "git@host.com:org/std.git"},
+            "version" : "4.0.1",
+            "bundled" : "yes"
+        }, gyllir::config::errors::inTableArray("package", "std"));
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg
+           == "'[[package]]' (name = \"std\"), 'bundled' must be a boolean, true when the std lib bundled with the "
+              ~ "compiler was resolved",
+           "unexpected error: " ~ msg);
+}
+
 __test non_string_sha_rejected {
     // A non string sha is rejected rather than silently coerced
     let mut msg = "";
@@ -192,6 +247,7 @@ __test package_serialize_omits_sha_and_dependencies_when_unset {
 
     assert("sha" !in serialized, "an unset sha should not be written back");
     assert("dependencies" !in serialized, "an empty dependency list should not be written back");
+    assert("bundled" !in serialized, "a package that is not the bundled std lib should not say so");
 }
 
 __test package_serialize_writes_compact_urls {
@@ -513,6 +569,27 @@ __test to_toml_is_read_back_by_the_parser {
     if let Ok(zeta) = back[]["zeta"] {
         assert(!zeta.pinned(), "a local package should still be unpinned after the dump");
     } else assert(false, "expected a locked \"zeta\" package after the dump");
+}
+
+__test to_toml_writes_and_reads_back_the_bundled_std {
+    // The bundled std lib is written with its flag, right after its version, and no sha
+    let dmut l = copy LockFile();
+    l:.insert("std", LockedPackage(Url("git:host:std.git"), Version(4u32, 0u32, 1u32), bundled-> true));
+
+    let expected = gyllir::config::lock::__LOCK_HEADER__ ~ "lock-version = 1\n"
+                   ~ "\n[[package]]\nname = \"std\"\nurl = \"git:host:std.git\"\nversion = \"4.0.1\"\nbundled = true\n";
+    assert(l.toToml() == expected, "unexpected lock file content:\n" ~ l.toToml());
+
+    let back = LockFile(std::config::toml::parse(l.toToml()));
+    if let Ok(s) = back[]["std"] {
+        assert(s.bundled, "the bundled flag should survive the dump");
+        assert(s.version == Version(4u32, 0u32, 1u32), "unexpected version after the dump");
+    } else assert(false, "expected a locked \"std\" package after the dump");
+
+    let again = LockFile(back.serialize());
+    if let Ok(s) = again[]["std"] {
+        assert(s.bundled, "the bundled flag should survive the serialize round trip");
+    } else assert(false, "expected a locked \"std\" package after the round trip");
 }
 
 __test to_toml_of_an_empty_lock_file {
