@@ -3,6 +3,7 @@ use gyllir::config::_;
 use gyllir::repo::{builder, defaults, manager};
 
 use std::{config, config::json, fs};
+use std::concurrency;
 
 /**
  * Create the build cache of a target, containing a YIL and a deps file for each of the given module
@@ -669,4 +670,127 @@ __test target_selecting_dependency_resolves_and_links {
            "the selected dependency should be resolved");
     assert(links.len == 1us, "the archive of the selected dependency should be linked");
     assert(hasFile(app, "app"), "the target should have been built");
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * =================================          SHARED TARGETS          =================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+__test relative_dir_from_artifact_to_shared_library {
+    // The rpath of an artifact leads from its own directory to the one of the shared library
+    assert(relativeDir(Path("/p"), Path("/p")) == "$ORIGIN", "a library next to the artifact");
+    assert(relativeDir(Path("/p/bin"), Path("/p")) == "$ORIGIN/..", "a library one level up");
+    assert(relativeDir(Path("/p"), Path("/p/.deps/game/lib")) == "$ORIGIN/.deps/game/lib", "a library below");
+    assert(relativeDir(Path("/p/bin/x"), Path("/p/./lib/../out")) == "$ORIGIN/../../out", "normalized first");
+}
+
+__test shared_target_link_line {
+    // A shared target is linked '-shared', named by its soname, bound to its own symbols, and
+    // without the std lib, which is the one of its host
+    let cfg     = mkTargetsConfig("proj", json #{"game" : {"type" : "shared", "flags" : ["-Wl,-z,defs"]}});
+    let builder = RepoBuilder(Path("/project"), mkBuildArgs(), cfg, namedTarget(cfg, "game"), forUnitTest-> false);
+
+    let options = builder.createLinkOptions(copy ["/project/.target/game/debug/game.a"],
+                                            "/project/libgame.so",
+                                            copy [Path("/dep/libengine.a")],
+                                            []);
+
+    assert(indexOf(options, "-shared") < options.len, "a shared target should be linked -shared");
+    assert(indexOf(options, "-Wl,-soname,libgame.so") < options.len, "a shared target should carry its soname");
+    assert(indexOf(options, "-Wl,-Bsymbolic") < options.len, "a shared target binds to its own symbols");
+    assert(indexOf(options, "-nomidgardlib") < options.len, "a shared target leaves the std lib to its host");
+    assert(indexOf(options, "/dep/libengine.a") < options.len, "a linked dependency is on the line");
+    assert(options[$ - 1us] == "-Wl,-z,defs", "the flags of the target should still come last");
+    assert(indexOf(options, "-rdynamic") == options.len, "a shared target exports nothing");
+}
+
+__test shared_target_unittest_link_line_is_an_executable {
+    // The unittests of a shared target are an executable, linking the std lib like any other
+    let cfg     = mkTargetsConfig("proj", json #{"game" : {"type" : "shared"}});
+    let builder = RepoBuilder(Path("/project"), mkBuildArgs(), cfg, namedTarget(cfg, "game"), forUnitTest-> true);
+
+    let options = builder.createLinkOptions(copy ["/a.a", "/b.a"], "/project/game.test", [], []);
+
+    assert(indexOf(options, "-shared") == options.len, "the unittests of a shared target are not a shared library");
+    assert(indexOf(options, "-nomidgardlib") == options.len, "the unittests link the std lib");
+}
+
+__test exporting_executable_link_line {
+    // An executable exporting its symbols is linked -rdynamic, its archives and the std lib whole
+    let cfg     = mkTargetsConfig("proj", json #{"editor" : {"exports" : true}});
+    let builder = RepoBuilder(Path("/project"), mkBuildArgs(), cfg, namedTarget(cfg, "editor"), forUnitTest-> false);
+
+    let options = builder.createLinkOptions(copy ["/project/.target/editor/debug/editor.a"],
+                                            "/project/editor",
+                                            copy [Path("/dep/libengine.a")],
+                                            []);
+
+    let whole = indexOf(options, "-Wl,--whole-archive");
+    let lib   = indexOf(options, "/dep/libengine.a");
+    let noMore = indexOf(options, "-Wl,--no-whole-archive");
+    assert(indexOf(options, "-rdynamic") < options.len, "an exporting executable is linked -rdynamic");
+    assert(whole < lib && lib < noMore && noMore < options.len, "the archives should be taken whole");
+
+    let std = options[$ - 2us];
+    assert(std.len > 12us && std[0us .. 12us] == "-lgymidgard-", "the std lib should be taken whole last, got " ~ std);
+    assert(options[$ - 3us] == "-Wl,--whole-archive" && options[$ - 1us] == "-Wl,--no-whole-archive",
+           "the std lib should be wrapped in --whole-archive");
+}
+
+__test non_exporting_executable_link_line {
+    let cfg     = mkTargetsConfig("proj", json #{"cli" : {}});
+    let builder = RepoBuilder(Path("/project"), mkBuildArgs(), cfg, namedTarget(cfg, "cli"), forUnitTest-> false);
+
+    let options = builder.createLinkOptions(copy ["/a.a"], "/project/cli", copy [Path("/dep/libengine.a")], []);
+    assert(indexOf(options, "-rdynamic") == options.len, "an executable exports nothing by default");
+    assert(indexOf(options, "-Wl,--whole-archive") == options.len, "nor takes its archives whole");
+}
+
+__test shared_libraries_get_an_rpath {
+    // An artifact linking a shared library finds it at run time relative to its own directory
+    let cfg     = mkTargetsConfig("proj", json #{"cli" : {"output-dir" : "bin"}});
+    let builder = RepoBuilder(Path("/project"), mkBuildArgs(), cfg, namedTarget(cfg, "cli"), forUnitTest-> false);
+
+    let options = builder.createLinkOptions(copy ["/a.a"],
+                                            "/project/bin/cli",
+                                            copy [Path("/project/libgame.so"),
+                                                  Path("/project/libengine.a"),
+                                                  Path("/project/libother.so")],
+                                            []);
+
+    let rpath = indexOf(options, "-Wl,-rpath,$ORIGIN/..");
+    assert(rpath < options.len, "the directory of the shared libraries should be on the rpath");
+    let mut count = 0us;
+    for o in options if o.len > 11us && o[0us .. 11us] == "-Wl,-rpath," { count += 1us; }
+    assert(count == 1us, "a directory should be on the rpath once");
+}
+
+__test shared_target_built_and_linked_dynamically {
+    // A shared target is built as 'lib<output>.so', and an executable linking it finds it at run time
+    let dir = fs::tempDirectory(prefix-> "gyllir_it_shared_");
+    writeSource(dir.push("src-game").push("game.yr"),
+                "in game;\n\nclass Counter {\n    pub let n: i32;\n    pub self (n: i32) with n = n {}\n}\n\n"
+                ~ "pub extern (C) fn game_value()-> i32 {\n    let c = copy Counter(7);\n    c.n\n}\n");
+    writeSource(dir.push("src-host").push("host.yr"),
+                "in host;\n\nextern (C) fn game_value()-> i32;\n\nfn main()-> i32 {\n    if (game_value() == 7) { 0 } else { 1 }\n}\n");
+
+    let cfg = mkTargetsConfig("proj", json #{
+        "game" : {"type" : "shared", "source-dir" : "src-game", "tests" : false},
+        "host" : {"source-dir" : "src-host", "targets" : ["game"], "output-dir" : "bin", "tests" : false}
+    });
+
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    mgr:.buildTargets(dir, mkBuildArgs(), cfg, copy ["host" => ()]);
+
+    assert(hasFile(dir, "libgame.so"), "the shared library should be produced");
+    assert(!hasFile(dir, "libgame.a"), "a shared target produces no archive");
+    assert(hasFile(dir, "bin/host"), "the executable linking it should be produced");
+
+    let dmut proc = copy SubProcess(dir.push("bin").push("host").toStr(), [], cwd-> dir);
+    proc:.start();
+    assert(proc:.wait() == 0, "the executable should find the shared library through its rpath");
 }

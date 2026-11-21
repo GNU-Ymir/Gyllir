@@ -1554,3 +1554,111 @@ __test output_dir_override_moves_every_target {
     assert(RepoRunner(multi, copy Dict(), cfg, namedTarget(cfg, "cli"), false).run() == 0,
            "the executable linking the library of the output directory should run");
 }
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * =================================          SHARED TARGETS          =================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+__test host_provided_naming_nothing_selected_rejected {
+    // 'host-provided' only narrows what a shared target compiles against: a name it neither selects
+    // as a dependency nor links as a target is a typo
+    let mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    let cfg = mkTargetsConfig("multi", json #{
+        "engine" : {"type" : "library"},
+        "game" : {"type" : "shared", "targets" : ["engine"], "host-provided" : ["engin"]}
+    });
+
+    let mut msg = "";
+    {
+        mgr.orderedTargets(cfg, cfg.targets());
+    } catch {
+        a: &AssertError         => { msg = a.msg; }
+        r: &RecursiveDependency => { msg = r.msg; }
+    }
+
+    assert(msg == "target 'game' leaves 'engin' to its host, but neither selects a dependency nor links a target of "
+           ~ "that name: 'host-provided' names an entry of its 'dependencies' or of its 'targets'",
+           "unexpected error: " ~ msg);
+}
+
+__test host_provided_linked_target_accepted {
+    let mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    let cfg = mkTargetsConfig("multi", json #{
+        "engine" : {"type" : "library"},
+        "game" : {"type" : "shared", "targets" : ["engine"], "host-provided" : ["engine"]}
+    });
+
+    let ordered = mgr.orderedTargets(cfg, cfg.targets());
+    assert(ordered.len == 2us && ordered[0].name == "engine", "the host provided target is still built first");
+}
+
+__test select_dependency_targets_skips_shared_by_default {
+    // Absent 'link-targets', only the static libraries of a dependency are linked: its shared ones
+    // are loaded, or linked, only when named
+    let mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    let cfg = mkTargetsConfig("multi", json #{
+        "engine" : {"type" : "library"},
+        "game" : {"type" : "shared"},
+        "cli" : {"type" : "executable"}
+    });
+
+    let all = mgr.selectDependencyTargets("multi",
+                                          Dependency(VersionFilter(copy ["*"]), Url("local:some/dir")),
+                                          cfg.targets(),
+                                          libTargetsOf(cfg));
+    assert(all.len == 1us && "engine" in all, "only the static library should be linked by default");
+
+    let named = mgr.selectDependencyTargets("multi",
+                                            Dependency(VersionFilter(copy ["*"]),
+                                                       Url("local:some/dir"),
+                                                       targets-> copy ["game"]),
+                                            cfg.targets(),
+                                            libTargetsOf(cfg));
+    assert(named.len == 1us && "game" in named, "a shared target named by 'link-targets' should be linked");
+}
+
+__test shared_target_leaves_host_provided_out {
+    // The archive of a host provided target is not linked into the shared library, but is handed
+    // to what links it, along with the shared library itself
+    let dir = fs::tempDirectory(prefix-> "gyllir_it_shared_");
+    writeSource(dir.push("src-engine").push("engine.yr"), "in engine;\n\npub fn engineValue()-> i32 {\n    40\n}\n");
+    writeSource(dir.push("src-game").push("game.yr"),
+                "in game;\n\nuse engine;\n\npub extern (C) fn game_value()-> i32 {\n    engineValue() + 2\n}\n");
+    writeSource(dir.push("src-host").push("host.yr"),
+                "in host;\n\nextern (C) fn game_value()-> i32;\n\nfn main()-> i32 {\n    if (game_value() == 42) { 0 } else { 1 }\n}\n");
+
+    let cfg = mkTargetsConfig("proj", json #{
+        "engine" : {"type" : "library", "source-dir" : "src-engine", "tests" : false},
+        "game" : {"type" : "shared", "source-dir" : "src-game", "targets" : ["engine"], "host-provided" : ["engine"],
+                  "tests" : false},
+        "host" : {"source-dir" : "src-host", "targets" : ["game"], "tests" : false}
+    });
+
+    let dmut mgr = copy GyllirManager(copy ["gyllir", "build"]);
+    let (_, _, links) = mgr:.buildTargets(dir, mkBuildArgs(), cfg, copy ["game" => ()]);
+
+    assert(links.len == 2us && links[0] == dir.push("libgame.so") && links[1] == dir.push("libengine.a"),
+           "the shared library and what it leaves to its host should be handed on");
+
+    let dmut nm = copy SubProcess("nm", copy ["--defined-only", "-D", dir.push("libgame.so").toStr()]);
+    nm:.start();
+    assert(nm:.wait() == 0, "the shared library should be readable by nm");
+    let dmut out = alias nm.stdout;
+    let mut text: [c8] = [];
+    while let Ok(c) = out:.read!c8()? { text ~= [c]; }
+    assert(text.len > 0us, "the shared library should define symbols");
+    for i in 0us .. text.len {
+        if (i + 11us <= text.len && text[i .. i + 11us] == "engineValue") {
+            assert(false, "the host provided engine should not be linked into the shared library");
+        }
+    }
+
+    mgr:.buildTargets(dir, mkBuildArgs(), cfg, copy ["host" => ()]);
+    let dmut proc = copy SubProcess(dir.push("host").toStr(), [], cwd-> dir);
+    proc:.start();
+    assert(proc:.wait() == 0, "the executable should define what the shared library left to it");
+}

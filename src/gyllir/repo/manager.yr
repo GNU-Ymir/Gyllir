@@ -80,6 +80,10 @@ pub class GyllirManager {
     // Installs the release of gyc pinned by '[compiler]'
     let _installer: CompilerInstaller;
 
+    // The archives of every std lib resolved by '[std]' in this run(the one of the package and the
+    // ones of its dependencies), which a shared target never links: its host already holds a std lib
+    let dmut _stdArchives: [[c8] => ()] = copy [];
+
     /**
      * Create a Gyllir builder from an argument
      * @params:
@@ -729,6 +733,7 @@ pub class GyllirManager {
                 let (rawIncludes, rawLinks) = self.gatherTargetArtifacts(t, builtIncludes, builtLinks);
                 let includes                = self.uniquePaths(rawIncludes);
                 let links                   = self.uniquePaths(rawLinks ~ stdLinks);
+                let hostLinks               = self.hostProvidedArtifacts(t, builtLinks);
 
                 let mut ownIncludes: [Path] = [];
                 let mut ownLinks: [Path]    = [];
@@ -741,9 +746,11 @@ pub class GyllirManager {
                                              forUnitTest-> false,
                                              dry-> dry,
                                              extraFlags-> stdFlags,
-                                             toolchain-> toolchain).run(alias self,
-                                                                        targetIncludes-> includes,
-                                                                        targetLinks-> links);
+                                             toolchain-> toolchain,
+                                             bundledStd-> stdFlags.len == 0us).run(alias self,
+                                                                                   targetIncludes-> includes,
+                                                                                   targetLinks-> links,
+                                                                                   hostLinks-> hostLinks);
 
                     builtIncludes[t.name] = i;
                     builtLinks[t.name] = l;
@@ -768,9 +775,11 @@ pub class GyllirManager {
                                                  forUnitTest-> forUnitTest,
                                                  dry-> dry,
                                                  extraFlags-> stdFlags,
-                                                 toolchain-> toolchain).run(alias self,
-                                                                            targetIncludes-> includes,
-                                                                            targetLinks-> links);
+                                                 toolchain-> toolchain,
+                                                 bundledStd-> stdFlags.len == 0us).run(alias self,
+                                                                                       targetIncludes-> includes,
+                                                                                       targetLinks-> links,
+                                                                                       hostLinks-> hostLinks);
 
                         if (!hasOwn) {
                             ownIncludes = i;
@@ -1070,6 +1079,21 @@ pub class GyllirManager {
             for d in t.dependencies if d !in dependencies {
                 throw copy AssertError("target '" ~ name ~ "' selects the unknown dependency '" ~ d ~ "'");
             }
+
+            // 'host-provided' only ever narrows what the target already compiles against
+            for h in t.hostProvided {
+                let isTarget = {
+                    let mut found = false;
+                    for d in t.targets if d == h { found = true; }
+                    found
+                };
+
+                if (!isTarget && !(h in dependencies && t.selects(h))) {
+                    throw copy AssertError("target '" ~ name ~ "' leaves '" ~ h ~ "' to its host, but neither selects a "
+                                           ~ "dependency nor links a target of that name: 'host-provided' names "
+                                           ~ "an entry of its 'dependencies' or of its 'targets'");
+                }
+            }
         }
     }
 
@@ -1121,6 +1145,32 @@ pub class GyllirManager {
         }
 
         (self.uniquePaths(resIncludes), self.uniquePaths(resLinks))
+    }
+
+    /**
+     * The artifacts of the targets of the same package a shared target leaves to its host
+     * @params:
+     *    - t: the target about to be built
+     *    - links: the archives produced by the targets already built, by target name
+     * @returns: the archives of the targets 't' lists in its 'host-provided', and of everything they
+     *    link, [] for a target that is not a shared one
+     * */
+    prv fn hostProvidedArtifacts(self, t: Target, links: [[c8] => [Path]])-> [Path] {
+        let mut res: [Path] = [];
+        for d in t.targets if t.isHostProvided(d) {
+            if let Ok(l) = links[d] { res ~= l; }
+        }
+
+        self.uniquePaths(res)
+    }
+
+    /**
+     * @params:
+     *    - path: an archive on the link line of a target
+     * @returns: true iif it is the archive of a std lib resolved by '[std]' in this run
+     * */
+    pub fn isStdArchive(self, path: Path)-> bool {
+        path.toStr() in self._stdArchives
     }
 
     /**
@@ -1248,8 +1298,9 @@ pub class GyllirManager {
      *    - dependency: the dependency declaration, carrying the optional 'link-targets' selection
      *    - targets: every target the dependency package declares, by name
      *    - libTargets: the non-executable ones among them, by name
-     * @returns: 'libTargets' narrowed down to 'dependency's selection, or 'libTargets' unchanged
-     *    when it selects none in particular (absent 'link-targets' links every one of them)
+     * @returns: 'libTargets' narrowed down to 'dependency's selection, or the static libraries among
+     *    'libTargets' when it selects none in particular (absent 'link-targets' links every one of
+     *    them, a shared target being only ever linked when it is named)
      * @throws:
      *    - AssertError: 'dependency' selects a target the package does not declare, or one that is
      *      not a library
@@ -1261,9 +1312,17 @@ pub class GyllirManager {
                                    libTargets: [[c8] => ()])-> [[c8] => ()]
         throws AssertError
     {
-        if (dependency.targets.len == 0us) { return libTargets; }
-
         let dmut res: [[c8] => ()] = copy [];
+        if (dependency.targets.len == 0us) {
+            for k, _ in libTargets {
+                if let Ok(t) = targets[k] && !t.type.isShared() {
+                    res[k] = ();
+                }
+            }
+
+            return res;
+        }
+
         for t in dependency.targets {
             if (t !in libTargets) {
                 if (t in targets) {
@@ -1343,6 +1402,7 @@ pub class GyllirManager {
                                                                 Dependency(filter, url),
                                                                 dry,
                                                                 lockName-> lockName);
+                self:.recordStdArchives(links);
                 return (self.asStdPrefixFlags(includes, cfg), links);
             }
 
@@ -1445,6 +1505,7 @@ pub class GyllirManager {
                                                         dry,
                                                         lockName-> lockName);
         self.warnOnYmirVersionMismatch(cwd, cfg);
+        self:.recordStdArchives(links);
 
         (self.asStdPrefixFlags(includes, cfg), links)
     }
@@ -1479,6 +1540,15 @@ pub class GyllirManager {
     prv fn stdUpdateCommand(self)-> [c8] {
         if (self._owner == "") { return "gyllir update --std"; }
         "gyllir update " ~ self._owner
+    }
+
+    /**
+     * Remember the archives of a resolved std lib, see 'isStdArchive'
+     * */
+    prv fn recordStdArchives(mut self, links: [Path]) {
+        for l in links {
+            self._stdArchives[l.toStr()] = ();
+        }
     }
 
     /**
@@ -1816,6 +1886,17 @@ pub class GyllirManager {
             }
 
             let selectedTargets = self.selectDependencyTargets(name, dependency, conf.targets(), libTargets);
+            if (selectedTargets.len == 0us) {
+                utils::log::error("Resolving",
+                                  "dependency '",
+                                  name,
+                                  "' at '",
+                                  dependency.url.path.toStr(),
+                                  "' declares no static library target, its shared ones are only linked when its "
+                                  ~ "'link-targets' names them");
+                etc::c::process::_yrt_exit(-1);
+                panic;
+            }
 
             self._depPackages[dependency.url] = ();
             if (hasCloned) {
