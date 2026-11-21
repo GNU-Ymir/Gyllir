@@ -55,7 +55,7 @@ url = "local:/home/jane/ymir/midgard"</code></pre>
     <tr><th>Key</th><th>Type</th><th>Required</th><th>Description</th></tr>
     <tr><td><code>version</code></td><td>string or array</td><td>yes</td><td>The <a href="#filters">version filter</a> deciding which version is checked out.</td></tr>
     <tr><td><code>url</code></td><td>string or table</td><td>yes</td><td>Where to get it: <code>git:&lt;remote&gt;</code> or <code>local:&lt;path&gt;</code>, see <a href="manifest.html#urls">URLs</a>.</td></tr>
-    <tr><td><code>link-targets</code></td><td>array of strings</td><td>no</td><td>Which of the dependency's library targets to link. Omit to link all of them; it cannot be empty.</td></tr>
+    <tr><td><code>link-targets</code></td><td>array of strings</td><td>no</td><td>Which of the dependency's library targets to link. Omit to link all its static libraries (a shared one is linked only when named); it cannot be empty.</td></tr>
 </table>
 </div>
 
@@ -213,8 +213,9 @@ repository. If it is not, the error says so explicitly.</p>
 also declares is never linked into your package. A dependency that declares no library target at
 all is an error.</p>
 
-<p>By default every library target of the dependency is linked. <code>link-targets</code> narrows
-that down:</p>
+<p>By default every static library target of the dependency is linked. A
+<a href="targets.html#shared">shared library</a> target is only linked when
+<code>link-targets</code> names it. <code>link-targets</code> narrows the selection down:</p>
 
 <pre><code>[dependencies.toolkit]
 version = "&gt;=2.0.0"

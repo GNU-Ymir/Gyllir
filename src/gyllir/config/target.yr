@@ -89,6 +89,16 @@ pub record Target {
     // target can add its own include directories or defines (e.g. "-I", "-D...")
     let _cFlags: [[c8]];
 
+    // The dependencies and targets of the same package a shared target compiles against, but
+    // leaves to the process loading it: they are not linked into the shared library, their
+    // symbols staying undefined until it is loaded(only ever set on a shared target)
+    let _hostProvided: [[c8]];
+
+    // True iif an executable target exports its symbols to the shared libraries it loads: linked
+    // '-rdynamic', with the archives it links and the std lib taken whole(only ever set on an
+    // executable target)
+    let _exports: bool;
+
     // True iif the target was synthesized from the top level fields of a package declaring no
     // '[targets.<name>]' table, in which case its root module keeps the historical fallback to
     // 'src/main.yr' that a declared target does not have
@@ -113,6 +123,8 @@ pub record Target {
      *    - targets: the names of the targets of the same package to link
      *    - cSources: the C source files to archive
      *    - cFlags: the raw options passed to the C compiler when building 'cSources'
+     *    - hostProvided: the dependencies and targets a shared target leaves to its host
+     *    - exports: true for an executable exporting its symbols to the libraries it loads
      *    - synthesized: true iif the target is not declared by a '[targets.<name>]' table
      * */
     pub self (name: [c8],
@@ -132,6 +144,8 @@ pub record Target {
               targets: [[c8]] = [],
               cSources: [[c8]] = [],
               cFlags: [[c8]] = [],
+              hostProvided: [[c8]] = [],
+              exports: bool = false,
               synthesized: bool = false)
         with _name = name
         , _type = type
@@ -150,6 +164,8 @@ pub record Target {
         , _targets = targets
         , _cSources = cSources
         , _cFlags = cFlags
+        , _hostProvided = hostProvided
+        , _exports = exports
         , _synthesized = synthesized
     {}
 
@@ -251,6 +267,29 @@ pub record Target {
     }
 
     @field
+    pub fn hostProvided(self)-> [[c8]] {
+        self._hostProvided
+    }
+
+    @field
+    pub fn exports(self)-> bool {
+        self._exports
+    }
+
+    /**
+     * @params:
+     *    - name: the name of a dependency of the package, or of one of its targets
+     * @returns: true iif the target leaves that dependency, or target, to the process loading it
+     * */
+    pub fn isHostProvided(self, name: [c8])-> bool {
+        for h in self._hostProvided if h == name {
+            return true;
+        }
+
+        false
+    }
+
+    @field
     pub fn synthesized(self)-> bool {
         self._synthesized
     }
@@ -343,6 +382,8 @@ pub record Target {
                targets-> self._targets,
                cSources-> self._cSources,
                cFlags-> self._cFlags,
+               hostProvided-> self._hostProvided,
+               exports-> self._exports,
                synthesized-> self._synthesized)
     }
 
@@ -505,6 +546,14 @@ pub class TargetList {
                     trg["c-flags"] = copy Array(copy [copy Str(i) for i in t.cFlags]);
                 }
 
+                if (t.hostProvided.len != 0us) {
+                    trg["host-provided"] = copy Array(copy [copy Str(i) for i in t.hostProvided]);
+                }
+
+                if (t.exports) {
+                    trg["exports"] = copy Bool(true);
+                }
+
                 res[k] = trg;
             }
 
@@ -582,8 +631,13 @@ pub class TargetList {
                                                   "dependencies",
                                                   "targets",
                                                   "c-sources",
-                                                  "c-flags");
+                                                  "c-flags",
+                                                  "host-provided",
+                                                  "exports");
         }
+
+        let hostProvided = readHostProvided(cfg, ctx, type);
+        let exports      = readExports(cfg, ctx, type);
 
         Target(name, type,
                description-> self.readString(cfg, "description", ctx),
@@ -600,7 +654,9 @@ pub class TargetList {
                dependencies-> self.readStringArray(cfg, "dependencies", ctx),
                targets-> self.readStringArray(cfg, "targets", ctx),
                cSources-> self.readStringArray(cfg, "c-sources", ctx),
-               cFlags-> self.readStringArray(cfg, "c-flags", ctx))
+               cFlags-> self.readStringArray(cfg, "c-flags", ctx),
+               hostProvided-> hostProvided,
+               exports-> exports)
     }
 
     /**
@@ -732,4 +788,77 @@ pub fn readOutputDir(cfg: &Config, ctx: [c8])-> [c8]
     }
 
     ""
+}
+
+/**
+ * Read the optional 'host-provided' entry of a table, the dependencies and targets a shared target
+ * compiles against without linking them
+ * @params:
+ *    - cfg: the content of the table, the top level of the package or a '[targets.<name>]' one
+ *    - ctx: the prefix naming the table, for error reporting
+ *    - type: the type of the target the table declares
+ * @returns: the declared names, [] when the table declares none
+ * @throws:
+ *    - AssertError: the entry is not an array of strings, is declared by a target that is not a
+ *      shared one(only a shared library can leave symbols to the process loading it), or names
+ *      the std lib, which a shared target always leaves to its host
+ * */
+pub fn readHostProvided(cfg: &Config, ctx: [c8], type: BuildType)-> [[c8]]
+    throws AssertError
+{
+    let mut res: [[c8]] = [];
+    if let Ok(a: &Array) = cfg["host-provided"]? {
+        for i in a[] {
+            if let Str(value-> v) = i {
+                res ~= [v];
+            } else {
+                throw copy AssertError(ctx ~ "'host-provided' must be an array of strings, the names of the "
+                                       ~ "dependencies and targets left to the host, for example: host-provided = [\"balder\"]");
+            }
+        }
+    } else if let Ok(_) = cfg["host-provided"]? {
+        throw copy AssertError(ctx ~ "'host-provided' must be an array of strings, the names of the dependencies "
+                               ~ "and targets left to the host, for example: host-provided = [\"balder\"]");
+    }
+
+    if (res.len != 0us && !type.isShared()) {
+        throw copy AssertError(ctx ~ "'host-provided' is only meaningful to a shared target(type = \"shared\"), "
+                               ~ "the only artifact that leaves symbols to the process loading it");
+    }
+
+    for h in res if h == "std" {
+        throw copy AssertError(ctx ~ "'host-provided', a shared target always leaves the std lib to its host, it "
+                               ~ "does not have to be listed");
+    }
+
+    res
+}
+
+/**
+ * Read the optional 'exports' entry of a table, whether an executable target exports its symbols
+ * to the shared libraries it loads
+ * @params:
+ *    - cfg: the content of the table, the top level of the package or a '[targets.<name>]' one
+ *    - ctx: the prefix naming the table, for error reporting
+ *    - type: the type of the target the table declares
+ * @returns: the declared value, false when the table declares none
+ * @throws:
+ *    - AssertError: the entry is not a boolean, or is set by a target that is not an executable
+ * */
+pub fn readExports(cfg: &Config, ctx: [c8], type: BuildType)-> bool
+    throws AssertError
+{
+    let mut res = false;
+    if let Ok(Bool(value-> v)) = cfg["exports"]? {
+        res = v;
+    } else if let Ok(_) = cfg["exports"]? {
+        throw copy AssertError(ctx ~ "'exports' must be a boolean, either true or false");
+    }
+
+    if (res && !type.isExecutable()) {
+        throw copy AssertError(ctx ~ "'exports' is only meaningful to an executable target, the host loading "
+                               ~ "shared libraries at run time");
+    }
+
+    res
 }

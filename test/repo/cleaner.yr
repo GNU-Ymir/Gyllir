@@ -159,3 +159,18 @@ __test clean_outputs_keeps_output_dir_holding_other_files {
     assert(!fs::isFile(dir.push("bin").push("cli")), "the artifact should be removed");
     assert(fs::isFile(dir.push("bin").push("README")), "a file of the user should be left alone");
 }
+
+__test clean_outputs_removes_shared_library {
+    // For a shared target, cleanOutputs() removes "lib<name>.so"
+    let dir = fs::tempDirectory(prefix-> "gyllir_cleaner_test_");
+    let cfg = mkTargetsConfig("proj", json #{"game" : {"type" : "shared"}});
+
+    let libPath = dir.push("libgame.so");
+    let dmut f  = File::create(libPath, write-> true);
+    f:.write("so");
+    f:.close();
+
+    RepoCleaner(dir, copy Dict(), cfg).cleanOutputs();
+
+    assert(!fs::isFile(libPath), "cleanOutputs() should remove the built shared library");
+}

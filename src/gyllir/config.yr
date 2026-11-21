@@ -81,6 +81,14 @@ pub record GyllirPackageConfiguration {
     // The raw options passed to the compiler when building any target of the package
     let mut _flags: [[c8]] = [];
 
+    // The dependencies a shared package compiles against but leaves to the process loading it,
+    // see 'Target::hostProvided'
+    let mut _hostProvided: [[c8]] = [];
+
+    // True iif an executable package exports its symbols to the shared libraries it loads, see
+    // 'Target::exports'
+    let mut _exports: bool = false;
+
     // The list of dependencies of the package
     let mut _dependencies: &DependencyList = copy DependencyList();
 
@@ -285,6 +293,8 @@ pub record GyllirPackageConfiguration {
                                                            tests-> self._tests,
                                                            flags-> self._flags,
                                                            libraries-> self._libraries,
+                                                           hostProvided-> self._hostProvided,
+                                                           exports-> self._exports,
                                                            synthesized-> true));
 
         res
@@ -564,6 +574,14 @@ pub record GyllirPackageConfiguration {
                 if (!self._tests) {
                     d["tests"] = copy Bool(false);
                 }
+
+                if (self._hostProvided.len != 0us) {
+                    d["host-provided"] = copy Array(copy [copy Str(i) for i in self._hostProvided]);
+                }
+
+                if (self._exports) {
+                    d["exports"] = copy Bool(true);
+                }
             }
 
             if (self._hasStd) {
@@ -611,7 +629,7 @@ pub record GyllirPackageConfiguration {
     {
         if (self._targets.len() == 0us) { return; }
 
-        for k in ["type", "package-root", "test-root", "tests", "flags", "libraries"] {
+        for k in ["type", "package-root", "test-root", "tests", "flags", "libraries", "host-provided", "exports"] {
             if let Ok(_) = d[k]? {
                 throw copy AssertError("'" ~ k ~ "' describes a single artifact, it cannot be declared "
                                        ~ "at the top level of a package that declares '[targets.*]' tables: "
@@ -800,6 +818,8 @@ pub record GyllirPackageConfiguration {
         self._authors = self.readStringArray(d, "authors", example-> "authors = [\"me <me@example.com>\"]");
         self._libraries = self.readStringArray(d, "libraries", example-> "libraries = [\"pthread\"]");
         self._flags = self.readStringArray(d, "flags", example-> "flags = [\"-Wall\"]");
+        self._hostProvided = gyllir::config::target::readHostProvided(d, "", self._type);
+        self._exports = gyllir::config::target::readExports(d, "", self._type);
         self._outputDir = gyllir::config::target::readOutputDir(d, "");
 
         if let Ok(x) = d["dependencies"]? {
@@ -837,6 +857,8 @@ pub record GyllirPackageConfiguration {
                                               "authors",
                                               "libraries",
                                               "flags",
+                                              "host-provided",
+                                              "exports",
                                               "output-dir",
                                               "dependencies",
                                               "targets",

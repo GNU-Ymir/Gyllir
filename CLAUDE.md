@@ -97,7 +97,7 @@ calls `run()`; every sub-command is dispatched and implemented from there.
   `std::config`:
   - `config.yr` — `GyllirPackageConfiguration`: name, license, description, `compiler` (default
     `"gyc"`, or a `[compiler]` table pinning a release of gyc: `hasCompilerVersion`/`compilerVersion`,
-    `setCompiler` being what the manager points at the installed driver, never serialized), `package-root`/`test-root`, `BuildType` (`type.yr`, executable/library), the optional `registry`
+    `setCompiler` being what the manager points at the installed driver, never serialized), `package-root`/`test-root`, `BuildType` (`type.yr`, executable/library/shared), the optional `registry`
     `Url` (the repository the doc pages link their sources to, invalid when undeclared), `Version`, authors, C `libraries`, `DependencyList`, `CustomCommandList`.
     The top level `output-dir` is not exclusive with `[targets.*]`: `targets()` hands each target
     the command line's `--output-dir` (`setOutputDirOverride`, never serialized, set by `manager.yr`
@@ -105,7 +105,11 @@ calls `run()`; every sub-command is dispatched and implemented from there.
   - `target.yr` — `Target`/`TargetList`, the `[targets.<name>]` tables. Every artifact path goes
     through `artifactPath(cwd, file)` (`outputPath`: the `output-dir`, `.` by default, resolved
     against the package directory unless absolute) and is shown with `artifactDisplay`; the
-    artifact names are `defaults.yr`'s `libraryFileName` and `__TEST_EXECUTABLE_SUFFIX__`.
+    artifact names are `defaults.yr`'s `artifactFileName` (`<output>`, `lib<output>.a`, `lib<output>.so`)
+    and `__TEST_EXECUTABLE_SUFFIX__`. A shared target's `host-provided` names the dependencies and
+    targets it compiles against without linking them (left to the process loading it), an
+    executable's `exports` links it for the shared libraries it loads; both are also top level
+    keys of a package declaring no target.
   - `dependency.yr` — `Dependency` (a `VersionFilter` + `Url`) and `DependencyList`, the
     `[dependencies.<name>]` tables in `gyllir.toml`.
   - `url.yr` — `Url`/`UrlType`: `local:<path>` or `git:<remote>`, used for both dependency
@@ -171,7 +175,14 @@ calls `run()`; every sub-command is dispatched and implemented from there.
     entries are passed as `-fversion=<ident>` to the compilation of its sources and to its doc
     build, not to the link nor the YIL assembly. The `finalize*` functions write the artifacts
     into the target's `output-dir` (created when missing, `artifactFile`), and `finalizeLibrary`
-    returns that path, which is what dependents link. Parallel compilation spawns one thread per
+    returns that path, which is what dependents link. `finalizeShared` links `lib<output>.so`
+    (`-shared -nomidgardlib -Wl,-Bsymbolic`, the bundled std is not even PIC) without the archives of
+    its `host-provided` entries nor of any `[std]` (`GyllirManager::isStdArchive`), and hands its
+    dependents the `.so` plus those left-out archives. Every link line gets an `$ORIGIN`-relative
+    rpath per directory of a `.so` it links (`rpathOptions`/`relativeDir`); an `exports` executable
+    is linked `-rdynamic`, its archives and the bundled std (`-lgymidgard-{debug,release}_<maj>.<min>`)
+    inside `--whole-archive`. A dependency's shared target is linked only when its `link-targets`
+    names it. Parallel compilation spawns one thread per
     block of modules (`compileModulesToYIL`, and `csources.yr`'s `compileSources`): std 4's
     `TaskPool` only polls `async` values, and the work here is a blocking subprocess.
   - `runner.yr` — `RepoRunner`: executes the built executable or test binary, from the target's

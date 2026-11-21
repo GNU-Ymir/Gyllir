@@ -82,12 +82,14 @@ set-version = { cmd = "./tools/set-version.sh", post = false }</code></pre>
 <div class="table-wrap">
 <table>
     <tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr>
-    <tr id="type"><td><code>type</code></td><td><code>"executable"</code> or <code>"library"</code></td><td><code>"executable"</code></td><td>An executable is linked into <code>&lt;output-dir&gt;/&lt;name&gt;</code>; a library is archived into <code>&lt;output-dir&gt;/lib&lt;name&gt;.a</code>.</td></tr>
+    <tr id="type"><td><code>type</code></td><td><code>"executable"</code>, <code>"library"</code> or <code>"shared"</code></td><td><code>"executable"</code></td><td>An executable is linked into <code>&lt;output-dir&gt;/&lt;name&gt;</code>; a library is archived into <code>&lt;output-dir&gt;/lib&lt;name&gt;.a</code>; a <a href="targets.html#shared">shared library</a> is linked into <code>&lt;output-dir&gt;/lib&lt;name&gt;.so</code>.</td></tr>
     <tr id="package-root"><td><code>package-root</code></td><td>string</td><td>—</td><td>Root module of the sources, relative to <code>src/</code> and without the <code>.yr</code> extension. Without it, an executable roots at <code>src/main.yr</code> and a library at <code>src/__lib__.yr</code>. A declared root that does not exist is an error, never a fallback.</td></tr>
     <tr id="test-root"><td><code>test-root</code></td><td>string</td><td>—</td><td>Root module of the unit tests, relative to <code>test/</code>. Defaults to <code>test/__test__.yr</code>.</td></tr>
     <tr id="tests"><td><code>tests</code></td><td>boolean</td><td><code>true</code></td><td>Set to <code>false</code> to opt the package out of unit testing. It then cannot declare <code>test-root</code>.</td></tr>
     <tr id="libraries"><td><code>libraries</code></td><td>array of strings</td><td><code>[]</code></td><td>C libraries to link, each passed as <code>-l&lt;name&gt;</code>.</td></tr>
     <tr id="flags"><td><code>flags</code></td><td>array of strings</td><td><code>[]</code></td><td>Raw options appended to every compiler invocation, last — so they override the ones Gyllir picked (<code>-g</code>, <code>-O3</code>, …).</td></tr>
+    <tr id="host-provided"><td><code>host-provided</code></td><td>array of strings</td><td><code>[]</code></td><td>For <code>type = "shared"</code> only: the dependencies compiled against but left to the process loading the library, see <a href="targets.html#shared">Shared libraries</a>.</td></tr>
+    <tr id="exports"><td><code>exports</code></td><td>boolean</td><td><code>false</code></td><td>For an executable only: link it <code>-rdynamic</code>, its archives and the std lib whole, for the shared libraries it loads.</td></tr>
 </table>
 </div>
 
@@ -96,7 +98,7 @@ set-version = { cmd = "./tools/set-version.sh", post = false }</code></pre>
 <p>A package produces one artifact described by the keys above, <em>or</em> several described by
 <a href="targets.html"><code>[targets.&lt;name&gt;]</code></a> tables. Writing
 <code>type</code>, <code>package-root</code>, <code>test-root</code>, <code>tests</code>,
-<code>flags</code> or <code>libraries</code> at the top level of a package that also declares a
+<code>flags</code>, <code>libraries</code>, <code>host-provided</code> or <code>exports</code> at the top level of a package that also declares a
 target table is rejected with an explicit error rather than silently ignored — a target inherits
 nothing, so those keys would simply go unread.</p>
 

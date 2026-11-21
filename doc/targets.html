@@ -34,8 +34,8 @@
 <main>
 
 <h1>Targets</h1>
-<p class="lead">A target is one artifact — an executable or a static library — built from one source
-tree. A package builds as many as it declares.</p>
+<p class="lead">A target is one artifact — an executable, a static library or a shared library —
+built from one source tree. A package builds as many as it declares.</p>
 
 <h2>Every package has targets</h2>
 
@@ -68,13 +68,13 @@ output = "myapp"</code></pre>
 <div class="table-wrap">
 <table>
     <tr><th>Key</th><th>Type</th><th>Default</th><th>Description</th></tr>
-    <tr id="type"><td><code>type</code></td><td><code>"executable"</code> / <code>"library"</code></td><td><code>"executable"</code></td><td>The kind of artifact produced.</td></tr>
+    <tr id="type"><td><code>type</code></td><td><code>"executable"</code> / <code>"library"</code> / <code>"shared"</code></td><td><code>"executable"</code></td><td>The kind of artifact produced. See <a href="#shared">Shared libraries</a> for <code>"shared"</code>.</td></tr>
     <tr id="source-dir"><td><code>source-dir</code></td><td>string</td><td><code>"src"</code></td><td>Directory holding the sources of the target, relative to the package directory.</td></tr>
     <tr id="package-root"><td><code>package-root</code></td><td>string</td><td>the target name</td><td>Root module, relative to <code>source-dir</code>, without the <code>.yr</code> extension.</td></tr>
     <tr id="test-dir"><td><code>test-dir</code></td><td>string</td><td><code>"test"</code></td><td>Directory holding the unit tests of the target.</td></tr>
     <tr id="test-root"><td><code>test-root</code></td><td>string</td><td><code>"__test__"</code></td><td>Root module of the unit tests, relative to <code>test-dir</code>.</td></tr>
     <tr id="tests"><td><code>tests</code></td><td>boolean</td><td><code>true</code></td><td><code>false</code> opts the target out of unit testing. It then cannot declare <code>test-dir</code> or <code>test-root</code>.</td></tr>
-    <tr id="output"><td><code>output</code></td><td>string</td><td>the target name</td><td>Name of the produced artifact: <code>&lt;output&gt;</code>, <code>lib&lt;output&gt;.a</code>, <code>&lt;output&gt;.test</code>.</td></tr>
+    <tr id="output"><td><code>output</code></td><td>string</td><td>the target name</td><td>Name of the produced artifact: <code>&lt;output&gt;</code>, <code>lib&lt;output&gt;.a</code>, <code>lib&lt;output&gt;.so</code>, <code>&lt;output&gt;.test</code>.</td></tr>
     <tr id="output-dir"><td><code>output-dir</code></td><td>string</td><td>the package <a href="manifest.html#output-dir"><code>output-dir</code></a>, else <code>"."</code></td><td>Directory the artifacts of the target are written to, relative to the package directory unless absolute, created when missing. Takes precedence over the top level one; <a href="cli.html#output-dir"><code>--output-dir</code></a> overrides both. A target linking this one, or a package depending on it, links the archive from there.</td></tr>
     <tr id="flags"><td><code>flags</code></td><td>array of strings</td><td><code>[]</code></td><td>Raw compiler options, appended last so they override the ones Gyllir picked.</td></tr>
     <tr id="libraries"><td><code>libraries</code></td><td>array of strings</td><td><code>[]</code></td><td>C libraries to link, each passed as <code>-l&lt;name&gt;</code>.</td></tr>
@@ -83,6 +83,8 @@ output = "myapp"</code></pre>
     <tr id="targets"><td><code>targets</code></td><td>array of strings</td><td><code>[]</code></td><td>Targets of the same package this one links. See <a href="#linking">below</a>.</td></tr>
     <tr id="c-sources"><td><code>c-sources</code></td><td>array of strings</td><td><code>[]</code></td><td>C source files compiled into the target. See <a href="#c-sources-section">C sources</a>.</td></tr>
     <tr id="c-flags"><td><code>c-flags</code></td><td>array of strings</td><td><code>[]</code></td><td>Raw options for the C compilation of <code>c-sources</code>, appended last (<code>-I…</code>, <code>-D…</code>).</td></tr>
+    <tr id="host-provided"><td><code>host-provided</code></td><td>array of strings</td><td><code>[]</code></td><td>Shared targets only: the dependencies and targets it compiles against but leaves to the process loading it. See <a href="#shared">Shared libraries</a>.</td></tr>
+    <tr id="exports"><td><code>exports</code></td><td>boolean</td><td><code>false</code></td><td>Executables only: export every symbol to the shared libraries it loads. See <a href="#shared">Shared libraries</a>.</td></tr>
 </table>
 </div>
 
@@ -213,6 +215,76 @@ c-flags = ["-Ic/include", "-DWITH_GLUE=1"]</code></pre>
 recompiled only when the source is newer than the object. They are compiled with the same
 <code>compiler</code> binary as the Ymir sources, with <code>-g</code> or <code>-O3</code> to match
 the build mode, and <code>c-flags</code> appended last.</p>
+
+<h2 id="shared">Shared libraries</h2>
+
+<p><code>type = "shared"</code> builds <code>lib&lt;output&gt;.so</code>, a library that a program
+loads at run time (<code>dlopen</code>) or links dynamically. It is meant for plugins: an editor
+that opens the library of the project it edits and reloads it after a rebuild, without relinking
+itself.</p>
+
+<pre><code>[dependencies.balder]
+version = "&gt;=1.0.0"
+url = "git:https://github.com/example/balder"
+
+[targets.game]
+type = "shared"
+source-dir = "src/game"
+dependencies = ["balder"]
+host-provided = ["balder"]
+
+[targets.editor]
+source-dir = "src/editor"
+dependencies = ["balder"]
+exports = true</code></pre>
+
+<p><strong>What the library leaves to its host.</strong> The program loading a plugin already holds
+the std lib, and often more: the engine the plugin is written against. If the plugin carried its
+own copy, it would get a second runtime, with a second garbage collector, second globals and
+second type infos. So a shared library never links the std lib, and
+<code>host-provided</code> names the dependencies (or targets of the same package) it compiles
+against without linking them. Their symbols stay undefined in the <code>.so</code> until the host
+loading it resolves them. A name in <code>host-provided</code> has to be one of the target's
+<code>dependencies</code> or <code>targets</code>. The std lib does not have to be listed, and
+listing it is an error.</p>
+
+<p><strong>A host exporting its symbols.</strong> An executable links only the members of an
+archive that its own code uses, and keeps its symbols out of its dynamic table, so a plugin would
+find neither. <code>exports = true</code> links it <code>-rdynamic</code>, with the archives of its
+dependencies and of the std lib taken whole, so that every symbol a plugin may look for is
+there.</p>
+
+<p><strong>How it is linked.</strong> The modules are already compiled <code>-fPIC</code>. The
+library is linked with <code>-shared</code>, its <code>c-sources</code>, its
+<code>libraries</code> as <code>-l</code>, <code>-Wl,-soname,lib&lt;output&gt;.so</code> and
+<code>-Wl,-Bsymbolic</code>, which binds the library's references to its own symbols rather than
+to a host symbol of the same name. A static library it links and does not leave to the host is
+linked in.</p>
+
+<p><strong>Linking it.</strong> A target can list a shared target in <code>targets</code>, and a
+package can name a dependency's shared target in
+<a href="dependencies.html"><code>link-targets</code></a>. Without <code>link-targets</code>,
+only the dependency's static libraries are linked. Whatever links a shared library also links what
+it left to its host, and gets an <code>$ORIGIN</code>-relative rpath to the library's directory,
+so <code>gyllir run</code> and a direct run both find it as long as the two keep their relative
+places.</p>
+
+<p><strong>Testing it.</strong> The unit tests of a shared target are an executable, as for any
+other target. They link everything, the host-provided dependencies and the std lib included.</p>
+
+<div class="warn">
+<p>A library and its host share one runtime. The collector scans the globals of every loaded
+library, and the tags of a library register when it is opened. A Ymir host opens a library with
+<code>etc::dl</code>'s <code>SharedLibrary</code> (from the std release carrying MID-187) and looks up its
+<code>extern (C)</code> functions by name. Two things to know:</p>
+<ul>
+<li>A library constructing a class of its host (<code>copy SomeHostClass()</code>) needs a
+gyc whose <code>-fPIC</code> code reaches the vtables of the host through the GOT (GYC-40). Older
+releases fail at link time with an <code>R_X86_64_PC32</code> relocation.</li>
+<li>Nothing that points into a library may outlive it: its functions, and its live objects (whose
+vtables are its code), can no longer be used once it is closed.</li>
+</ul>
+</div>
 
 <h2>Working with several targets</h2>
 

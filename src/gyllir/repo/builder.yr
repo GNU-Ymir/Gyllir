@@ -46,6 +46,10 @@ pub record RepoBuilder {
     // then reused as it is
     let _toolchain: [c8];
 
+    // True iif the target is built against the std lib bundled with the compiler, which the
+    // compiler links on its own, false when it is the one resolved by '[std]', linked as an archive
+    let _bundledStd: bool;
+
     /**
      * @params:
      *    - cfg: the configuration of the repo
@@ -53,6 +57,7 @@ pub record RepoBuilder {
      *      level fields of 'cfg' when it declares no '[targets.<name>]' table
      *    - extraFlags: extra compiler flags gyllir itself needs for this build
      *    - toolchain: what the build cache has to have been built with to be reused
+     *    - bundledStd: false when the std lib is the one resolved by '[std]'
      * */
     pub self (path: Path,
               args: &Config,
@@ -62,7 +67,8 @@ pub record RepoBuilder {
               forDoc: bool = false,
               dry: bool = false,
               extraFlags: [[c8]] = [],
-              toolchain: [c8] = "")
+              toolchain: [c8] = "",
+              bundledStd: bool = true)
         with _cwd = path
         , _args = args
         , _cfg = cfg
@@ -72,6 +78,7 @@ pub record RepoBuilder {
         , _dry = dry
         , _extraFlags = extraFlags
         , _toolchain = toolchain
+        , _bundledStd = bundledStd
         , _verbose = (if let Ok(Bool(value-> true)) = args["verbose"]? {
             true
         } else { false })
@@ -88,20 +95,26 @@ pub record RepoBuilder {
      *    - context: the context of the compilation
      *    - targetIncludes: the root files of the targets of the same package the built target links
      *    - targetLinks: the archives of the targets of the same package the built target links
+     *    - hostLinks: the archives, among 'targetLinks', of the targets a shared target leaves to its
+     *      host(its 'host-provided' ones)
      * @returns:
      *    - .0: the list of path to the root files of libraries to include for further dependency building
      *    - .1: the list of path to the built libraries to link for further dependency building
      * */
-    pub fn run(self, dmut context: &GyllirManager, targetIncludes: [Path] = [], targetLinks: [Path] = [])-> ([Path],
-                                                                                                             [Path])
+    pub fn run(self,
+               dmut context: &GyllirManager,
+               targetIncludes: [Path] = [],
+               targetLinks: [Path] = [],
+               hostLinks: [Path] = [])-> ([Path], [Path])
         throws RecursiveDependency
     {
-        let (depIncludes, depLinks) = self.resolveDependencies(alias context);
+        let (depIncludes, depLinks, depHostLinks) = self.resolveDependencies(alias context);
 
         // a target and a dependency of that target may well select the same package, and a target
         // linked by this one has already put its own dependencies on the line
         let includes = context.uniquePaths(depIncludes ~ targetIncludes);
         let links    = context.uniquePaths(depLinks ~ targetLinks);
+        let provided = context.uniquePaths(depHostLinks ~ hostLinks);
         self.runCommands(alias context, post-> false);
         let (srcPath, cacheDir) = {
             if (self._forDoc) {
@@ -125,7 +138,7 @@ pub record RepoBuilder {
         };
 
         let cObjects   = self.buildCSources(alias context, cacheDir);
-        let finalLinks = self.finalizeBuild(alias context, cacheDir, links, cObjects);
+        let finalLinks = self.finalizeBuild(alias context, cacheDir, links, provided, cObjects);
         self.runCommands(alias context, post-> true);
 
         return (context.uniquePaths(includes ~ [srcPath]), context.uniquePaths(finalLinks));
@@ -420,10 +433,16 @@ pub record RepoBuilder {
      * @params:
      *    - context: the context of the compilation
      *    - cacheDir: the directory in which the building is done
-     *    - libs: the list of libraries to link
+     *    - links: the list of libraries to link
+     *    - provided: the libraries, among 'links', a shared target leaves to its host
      * @returns: the list of libraries to link for further dependencies
      * */
-    prv fn finalizeBuild(self, dmut context: &GyllirManager, cacheDir: Path, links: [Path], cObjects: [Path])-> [Path] {
+    prv fn finalizeBuild(self,
+                         dmut context: &GyllirManager,
+                         cacheDir: Path,
+                         links: [Path],
+                         provided: [Path],
+                         cObjects: [Path])-> [Path] {
         // a dry run compiled nothing: there is no object to archive, and no artifact to produce out
         // of one
         if (self._forDoc || self._dry) {
@@ -434,6 +453,21 @@ pub record RepoBuilder {
         } else if self._target.type.isExecutable() {
             self.finalizeExecutable(alias context, cacheDir, links, cObjects);
             links
+        } else if self._target.type.isShared() {
+            // what the shared library holds is not linked a second time into what links it, what
+            // it leaves to its host is: the executable loading it is the one defining those symbols
+            let (res, linked) = self.finalizeShared(alias context, cacheDir, links, provided, cObjects);
+            let mut dynamic: [Path] = [];
+            for l in linked if l.extension() == defaults::__SHARED_EXTENSION__ {
+                dynamic ~= [l];
+            }
+
+            let mut left: [Path] = [];
+            for l in links if !self.isLinkedIn(l, linked) {
+                left ~= [l];
+            }
+
+            [res] ~ dynamic ~ left
         } else {
             let res = self.finalizeLibrary(alias context, cacheDir, links, cObjects);
             links ~ [res]
@@ -567,21 +601,55 @@ pub record RepoBuilder {
      *    - cObjects: the object files compiled from the 'c-sources' of the target
      * */
     pub fn createLinkOptions(self, objects: [[c8]], output: [c8], dependencyLibs: [Path], cObjects: [Path])-> [[c8]] {
+        let shared  = self._target.type.isShared() && !self._forUnitTest;
+        let exports = self._target.exports && self._target.type.isExecutable() && !self._forUnitTest;
+
         let mut options: [[c8]] = copy ["-fv"];
         if (self._forUnitTest) {
             options ~= ["-funittest"];
         }
 
+        if (shared) {
+            options ~= ["-shared"];
+        }
+
         options ~= objects;
         options ~= ["-o", output];
+
+        // an executable loading shared libraries at run time exports every symbol they may look
+        // for: '-rdynamic' puts its symbols in its dynamic table, and the archives are taken whole,
+        // a member none of its own modules uses being linked all the same
+        if (exports) {
+            options ~= ["-rdynamic", "-Wl,--whole-archive"];
+        }
+
         options ~= copy [d.toStr() for d in dependencyLibs];
+        if (exports) {
+            options ~= ["-Wl,--no-whole-archive"];
+        }
+
         options ~= copy [o.toStr() for o in cObjects];
 
         for k in self._target.libraries {
             options ~= ["-l" ~ k];
         }
 
-        if let Ok(Bool(value-> _ = true)) = self._args["release"]? {
+        // the shared libraries of the line are looked up next to the artifact at run time, wherever
+        // the artifact and they are moved together
+        options ~= self.rpathOptions(dependencyLibs);
+
+        if (shared) {
+            // the std lib is the one of the host: a second copy would be a second runtime, a second
+            // GC and second globals(the bundled one is not even position independent). '-Bsymbolic'
+            // binds the references of the library to its own symbols, rather than to a symbol of the
+            // same name the host may define
+            options ~= ["-Wl,-soname," ~ defaults::sharedLibraryFileName(self._target.outputName()),
+                        "-Wl,-Bsymbolic",
+                        "-nomidgardlib"];
+        }
+
+        let release = if let Ok(Bool(value-> _ = true)) = self._args["release"]? { true } else { false };
+        if (release) {
             options ~= ["-O3"];
         } else {
             options ~= ["-g"];
@@ -590,7 +658,74 @@ pub record RepoBuilder {
         options ~= self._extraFlags;
 
         // last, so that a target can override the options gyllir picked for it(-g, -O3, ...)
-        options ~ self._target.flags
+        options ~= self._target.flags;
+
+        if (exports && self._bundledStd) {
+            options ~= self.wholeStdOptions(debug-> !release || self.hasOption("-g"));
+        }
+
+        options
+    }
+
+    /**
+     * @params:
+     *    - option: a compiler option
+     * @returns: true iif gyllir or the target passes 'option' to the compiler
+     * */
+    prv fn hasOption(self, option: [c8])-> bool {
+        for o in self._extraFlags ~ self._target.flags if o == option {
+            return true;
+        }
+
+        false
+    }
+
+    /**
+     * The options linking the whole std lib bundled with the compiler into an executable exporting
+     * its symbols, which the compiler would otherwise only link the members of that the executable
+     * uses. The compiler still names the archive itself afterwards, which then adds nothing
+     * @params:
+     *    - debug: true iif the link is a debug one, the compiler picking the debug archive then
+     * @returns: the options, [] when the version of the std lib cannot be read from the compiler
+     * */
+    prv fn wholeStdOptions(self, debug: bool)-> [[c8]] {
+        let version = gyllir::args::compilerStdVersion(compiler-> self._cfg.compiler);
+        if (version == "" || !Version(version).isNumbered()) {
+            utils::log::warn("Warning",
+                             self.targetContext(),
+                             "the version of the std lib of '",
+                             self._cfg.compiler,
+                             "' is unknown, it is not linked whole: a shared library may not find every "
+                             ~ "symbol of the std lib in the executable");
+            return [];
+        }
+
+        let v    = Version(version);
+        let name = (if (debug) { "gymidgard-debug_" } else { "gymidgard-release_" })
+            ~ std::conv::to!{[c8]}(v.major) ~ "." ~ std::conv::to!{[c8]}(v.minor);
+
+        copy ["-Wl,--whole-archive", "-l" ~ name, "-Wl,--no-whole-archive"]
+    }
+
+    /**
+     * @params:
+     *    - libs: the libraries on the link line of an artifact of the target
+     * @returns: one '-Wl,-rpath,$ORIGIN/<dir>' option per directory holding one of the shared
+     *    libraries among 'libs', '<dir>' being relative to the output directory of the target
+     * */
+    pub fn rpathOptions(self, libs: [Path])-> [[c8]] {
+        let from                    = self._target.outputPath(self._cwd);
+        let dmut seen: [[c8] => ()] = copy [];
+        let mut res: [[c8]]         = [];
+        for l in libs if l.extension() == defaults::__SHARED_EXTENSION__ {
+            let dir = relativeDir(from, l.parent().normalize());
+            if (dir !in seen) {
+                seen[dir] = ();
+                res ~= ["-Wl,-rpath," ~ dir];
+            }
+        }
+
+        res
     }
 
     /**
@@ -865,6 +1000,52 @@ pub record RepoBuilder {
 
         utils::log::info("Produced", "library file ", self._target.artifactDisplay(library));
         resultFile
+    }
+
+    /**
+     * Finalize the shared library
+     * @params:
+     *    - links: the libraries the target links
+     *    - provided: the ones among them it leaves to its host
+     * @returns:
+     *    - .0: the result file
+     *    - .1: the libraries linked into it, 'links' without the ones of its host and the std lib
+     * */
+    prv fn finalizeShared(self,
+                          dmut context: &GyllirManager,
+                          cacheDir: Path,
+                          links: [Path],
+                          provided: [Path],
+                          cObjects: [Path])-> (Path, [Path]) {
+        let output     = self._target.outputName();
+        let createdTmp = (cacheDir.push(output).addExtension(defaults::__LIBRARY_EXTENSION__)).toStr();
+        let library    = defaults::sharedLibraryFileName(output);
+        let resultFile = self.artifactFile(library);
+
+        let mut linked: [Path] = [];
+        for l in links if !self.isLinkedIn(l, provided) && !context.isStdArchive(l) {
+            linked ~= [l];
+        }
+
+        let options = self.createLinkOptions(copy [createdTmp], resultFile.toStr(), linked, cObjects);
+        if (!context.runProcess(self._cfg.compiler, options, cwd-> self._cwd, verbose-> self._verbose)) {
+            self.reportCompilerFailure("failed to link the shared library of target");
+            etc::c::process::_yrt_exit(-1);
+        }
+
+        utils::log::info("Produced", "shared library file ", self._target.artifactDisplay(library));
+        (resultFile, linked)
+    }
+
+    /**
+     * @returns: true iif 'lib' is one of 'libs'
+     * */
+    prv fn isLinkedIn(self, lib: Path, libs: [Path])-> bool {
+        for l in libs if l == lib {
+            return true;
+        }
+
+        false
     }
 
     /**
@@ -1303,18 +1484,55 @@ pub record RepoBuilder {
      * @returns:
      *    - .0: the list of root files to include in the compilation
      *    - .1: the list of path to the built libraries to link
+     *    - .2: the libraries, among .1, of the dependencies the target leaves to its host
      * */
-    prv fn resolveDependencies(self, dmut context: &GyllirManager)-> ([Path], [Path])
+    prv fn resolveDependencies(self, dmut context: &GyllirManager)-> ([Path], [Path], [Path])
         throws RecursiveDependency
     {
-        let mut libs: [Path]  = [];
-        let mut names: [Path] = [];
+        let mut libs: [Path]     = [];
+        let mut names: [Path]    = [];
+        let mut provided: [Path] = [];
         for k, d in self._cfg.dependencies[] if self._target.selects(k) {
             let (n, l) = context:.resolveDependency(self._args, self._cwd, k, d, dry-> (self._forDoc || self._dry));
             libs ~= l;
             names ~= n;
+            if (self._target.isHostProvided(k)) {
+                provided ~= l;
+            }
         }
 
-        (names, libs)
+        (names, libs, provided)
     }
+}
+
+/**
+ * @params:
+ *    - from: the directory an artifact is written to
+ *    - to: the directory holding a shared library it links
+ * @returns: 'to' relative to 'from', as an rpath: '$ORIGIN' followed by the path leading from the
+ *    one to the other, 'to' itself when only one of them is absolute
+ * */
+pub fn relativeDir(from: Path, to: Path)-> [c8] {
+    let f = from.normalize();
+    let t = to.normalize();
+    if (f.isAbsolute() != t.isAbsolute()) { return t.toStr(); }
+
+    let fParts = f.parts();
+    let tParts = t.parts();
+
+    let mut common = 0us;
+    while common < fParts.len && common < tParts.len && fParts[common] == tParts[common] {
+        common += 1us;
+    }
+
+    let mut res = "$ORIGIN"s8;
+    for _ in common .. fParts.len {
+        res = res ~ "/..";
+    }
+
+    for i in common .. tParts.len {
+        res = res ~ "/" ~ tParts[i];
+    }
+
+    res
 }

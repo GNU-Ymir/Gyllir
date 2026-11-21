@@ -346,6 +346,44 @@ __test no_targets_table_synthesizes_one {
     } else assert(false, "expected a target named after the package");
 }
 
+__test synthesized_shared_target_carries_host_provided {
+    // A package declaring no target can still be a shared library leaving dependencies to its host
+    let cfg = GyllirPackageConfiguration(json #{
+        "name" : "game",
+        "license" : "MIT",
+        "description" : "d",
+        "type" : "shared",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "host-provided" : ["balder"]
+    });
+
+    if let Ok(t) = cfg.targets()["game"] {
+        assert(t.type.isShared(), "the synthesized target should carry the type of the package");
+        assert(t.hostProvided == copy ["balder"], "the synthesized target should carry the host provided entries");
+    } else assert(false, "expected a target named after the package");
+
+    let back = GyllirPackageConfiguration(cfg.serialize());
+    if let Ok(t) = back.targets()["game"] {
+        assert(t.hostProvided == copy ["balder"], "host-provided should survive a bump round trip");
+    } else assert(false, "expected a target named after the package after the round trip");
+}
+
+__test synthesized_executable_carries_exports {
+    let cfg = GyllirPackageConfiguration(json #{
+        "name" : "editor",
+        "license" : "MIT",
+        "description" : "d",
+        "version" : "1.0.0",
+        "registry" : {"local" : "some/registry"},
+        "exports" : true
+    });
+
+    if let Ok(t) = cfg.targets()["editor"] {
+        assert(t.exports, "the synthesized target should export its symbols");
+    } else assert(false, "expected a target named after the package");
+}
+
 __test declared_targets_exclude_package_name {
     // A package declaring targets has exactly those, and none named after the package itself
     let cfg = GyllirPackageConfiguration(json #{
@@ -385,7 +423,7 @@ __test type_defaults_to_executable {
 __test single_target_fields_rejected_with_targets_table {
     // Every field describing a single artifact is rejected next to a "[targets.*]" table: it would
     // simply go unread, which is the trap the rule exists to prevent
-    for key in copy ["type", "package-root", "test-root", "tests", "flags", "libraries"] {
+    for key in copy ["type", "package-root", "test-root", "tests", "flags", "libraries", "host-provided", "exports"] {
         let dmut d = copy Dict();
         d["name"] = copy Str("multi");
         d["license"] = copy Str("MIT");
@@ -397,10 +435,12 @@ __test single_target_fields_rejected_with_targets_table {
         // a well typed value, so that what rejects it is the exclusivity rule and not the parser
         if (key == "type") {
             d[key] = copy Str("executable");
-        } else if (key == "flags" || key == "libraries") {
+        } else if (key == "flags" || key == "libraries" || key == "host-provided") {
             d[key] = copy Array(copy [copy Str("x")]);
         } else if (key == "tests") {
             d[key] = copy Bool(false);
+        } else if (key == "exports") {
+            d[key] = copy Bool(true);
         } else {
             d[key] = copy Str("main");
         }
@@ -456,7 +496,7 @@ __test serialize_targets_omits_top_level_fields {
         } else assert(false, "expected a serialized \"cli\" target");
     } else assert(false, "expected the declared targets to be serialized");
 
-    for key in copy ["type", "package-root", "test-root", "tests", "flags", "libraries"] {
+    for key in copy ["type", "package-root", "test-root", "tests", "flags", "libraries", "host-provided", "exports"] {
         assert(key !in serialized, "'" ~ key ~ "' must not be written next to a target table");
     }
 }

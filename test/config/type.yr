@@ -29,7 +29,7 @@ __test unknown_string_rejected {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'type' is invalid: \"unknown\" is not a build type, expecting one of \"executable\", \"library\"",
+    assert(msg == "'type' is invalid: \"unknown\" is not a build type, expecting one of \"executable\", \"library\", \"shared\"",
            "unexpected error: " ~ msg);
 }
 
@@ -45,7 +45,7 @@ __test unknown_type_error_names_entry {
 
     assert(
         msg
-        == "'[targets.cli]', 'type' is invalid: \"unknown\" is not a build type, expecting one of \"executable\", \"library\"",
+        == "'[targets.cli]', 'type' is invalid: \"unknown\" is not a build type, expecting one of \"executable\", \"library\", \"shared\"",
         "unexpected error: " ~ msg
     );
 }
@@ -68,7 +68,7 @@ __test non_string_config_rejected {
         a: &AssertError => { msg = a.msg; }
     }
 
-    assert(msg == "'type' must be a string, one of \"executable\", \"library\"", "unexpected error: " ~ msg);
+    assert(msg == "'type' must be a string, one of \"executable\", \"library\", \"shared\"", "unexpected error: " ~ msg);
 }
 
 __test serialize_round_trips_type {
@@ -78,4 +78,12 @@ __test serialize_round_trips_type {
 
     assert(to!{[c8]} (exe.serialize()) == "executable", "unexpected serialized executable type");
     assert(to!{[c8]} (lib.serialize()) == "library", "unexpected serialized library type");
+}
+
+__test shared_parses_as_its_own_type {
+    // "shared" is a type of its own: neither an executable nor a static library
+    let so = BuildType("shared");
+    assert(so.isShared(), "\"shared\" should parse as a shared build type");
+    assert(!so.isLibrary() && !so.isExecutable(), "a shared target is neither a library nor an executable");
+    assert(to!{[c8]} (so.serialize()) == "shared", "unexpected serialized shared type");
 }
