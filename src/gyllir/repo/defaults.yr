@@ -1,5 +1,7 @@
 in defaults;
 
+use gyllir::config::type;
+
 use std::fs;
 
 /**
@@ -262,6 +264,35 @@ pub def __TEST_EXECUTABLE_SUFFIX__ = ".test";
  * */
 pub fn libraryFileName(output: [c8])-> [c8] {
     "lib" ~ output ~ "." ~ __LIBRARY_EXTENSION__
+}
+
+/**
+ * The extension of a shared library
+ * */
+pub def __SHARED_EXTENSION__ = "so";
+
+/**
+ * @params:
+ *    - output: the output name of a shared target
+ * @returns: the name of the shared library the target produces, 'lib<output>.so', which is also
+ *    its 'soname'
+ * */
+pub fn sharedLibraryFileName(output: [c8])-> [c8] {
+    "lib" ~ output ~ "." ~ __SHARED_EXTENSION__
+}
+
+/**
+ * @params:
+ *    - type: the type of a target
+ *    - output: its output name
+ * @returns: the name of the artifact the target produces: '<output>' for an executable,
+ *    'lib<output>.a' for a library, 'lib<output>.so' for a shared library
+ * */
+pub fn artifactFileName(type: BuildType, output: [c8])-> [c8] {
+    if (type.isExecutable()) { return output; }
+    if (type.isShared()) { return sharedLibraryFileName(output); }
+
+    libraryFileName(output)
 }
 
 /**

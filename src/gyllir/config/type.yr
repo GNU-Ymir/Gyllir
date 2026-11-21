@@ -3,11 +3,13 @@ in type;
 use std::{config, stream};
 
 /**
- * Enum defining the type of the target
+ * Enum defining the type of the target: an executable, a static library linked into the packages
+ * depending on it, or a shared library loaded by a host at run time
  * */
 enum BuildTypeEnum
 | EXECUTABLE = (0u8, "executable")
-| LIBRARY    = (1u8, "library");
+| LIBRARY    = (1u8, "library")
+| SHARED     = (2u8, "shared");
 
 /**
  * Record used to transform configuration into a build type
@@ -59,12 +61,23 @@ pub record BuildType {
         self._type == BuildTypeEnum::EXECUTABLE.0
     }
 
+    /**
+     * @returns: true iif the target is a static library, 'lib<output>.a'
+     * */
     pub fn isLibrary(self)-> bool {
         self._type == BuildTypeEnum::LIBRARY.0
     }
 
     /**
-     * @returns: the name the type is declared with in a gyllir.toml("executable", "library")
+     * @returns: true iif the target is a shared library, 'lib<output>.so', loaded by a host at run
+     *    time or linked dynamically
+     * */
+    pub fn isShared(self)-> bool {
+        self._type == BuildTypeEnum::SHARED.0
+    }
+
+    /**
+     * @returns: the name the type is declared with in a gyllir.toml("executable", "library", "shared")
      * */
     pub fn name(self)-> [c8] {
         for i in BuildTypeEnum::__members__ {

@@ -65,8 +65,9 @@ pub record RepoRunner {
             subProc:.wait()
         } else {
             if !self._target.type.isExecutable() {
+                let kind = if (self._target.type.isShared()) { "a shared library" } else { "a library" };
                 throw copy AssertError("target '" ~ self._target.name
-                                       ~ "' is a library, 'gyllir run' only runs an executable target");
+                                       ~ "' is " ~ kind ~ ", 'gyllir run' only runs an executable target");
             }
 
             let mut options: [[c8]] = [];

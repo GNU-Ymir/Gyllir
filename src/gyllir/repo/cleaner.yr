@@ -96,11 +96,7 @@ pub record RepoCleaner {
      * */
     prv fn cleanTargetOutputs(self, target: Target) {
         let output = target.outputName();
-        let outFile = if target.type.isExecutable() {
-            target.artifactPath(self._cwd, output)
-        } else {
-            target.artifactPath(self._cwd, defaults::libraryFileName(output))
-        };
+        let outFile = target.artifactPath(self._cwd, defaults::artifactFileName(target.type, output));
 
         utils::log::info("Removing", "output file ", outFile.toStr());
         {
