@@ -163,7 +163,7 @@ __test unknown_build_type_rejected_names_target {
 
     assert(
         msg
-        == "'[targets.cli]', 'type' is invalid: \"app\" is not a build type, expecting one of \"executable\", \"library\"",
+        == "'[targets.cli]', 'type' is invalid: \"app\" is not a build type, expecting one of \"executable\", \"library\", \"shared\"",
         "unexpected error: " ~ msg
     );
 }
@@ -476,4 +476,119 @@ __test output_dir_serialized_only_when_declared {
     if let Ok(_) = serialized["tool"]["output-dir"]? {
         assert(false, "an undeclared output directory should not be serialized");
     }
+}
+
+/*!
+ * ====================================================================================================
+ * ====================================================================================================
+ * =================================          SHARED TARGETS          =================================
+ * ====================================================================================================
+ * ====================================================================================================
+ */
+
+__test host_provided_and_exports_parsed {
+    // A shared target names what it leaves to its host, an executable whether it exports its symbols
+    let lst = copy TargetList(json #{
+        "game" : {"type" : "shared", "dependencies" : ["balder"], "host-provided" : ["balder"]},
+        "editor" : {"type" : "executable", "exports" : true}
+    });
+
+    if let Ok(t) = lst[]["game"] {
+        assert(t.type.isShared(), "unexpected build type");
+        assert(t.hostProvided == copy ["balder"], "unexpected host provided dependencies");
+        assert(t.isHostProvided("balder") && !t.isHostProvided("other"), "unexpected host provided lookup");
+        assert(!t.exports, "a shared target does not export");
+    } else assert(false, "expected a \"game\" target");
+
+    if let Ok(t) = lst[]["editor"] {
+        assert(t.exports, "the editor should export its symbols");
+        assert(t.hostProvided.len == 0us, "an executable leaves nothing to a host");
+    } else assert(false, "expected an \"editor\" target");
+}
+
+__test host_provided_and_exports_survive_round_trip {
+    // Both entries are written back when declared, and only then
+    let lst = copy TargetList(json #{
+        "game" : {"type" : "shared", "dependencies" : ["balder"], "host-provided" : ["balder"]},
+        "editor" : {"type" : "executable", "exports" : true},
+        "cli" : {"type" : "executable"}
+    });
+
+    let back = copy TargetList(lst.serialize());
+    if let Ok(t) = back[]["game"] {
+        assert(t.hostProvided == copy ["balder"], "host-provided should survive the round trip");
+    } else assert(false, "expected a \"game\" target");
+
+    if let Ok(t) = back[]["editor"] {
+        assert(t.exports, "exports should survive the round trip");
+    } else assert(false, "expected an \"editor\" target");
+
+    if let Ok(cli) = lst.serialize()["cli"]? {
+        assert("exports" !in cli && "host-provided" !in cli, "undeclared entries should not be written back");
+    } else assert(false, "expected a serialized \"cli\" target");
+}
+
+__test host_provided_on_non_shared_target_rejected {
+    // Only a shared library leaves symbols for the process loading it to resolve
+    let mut msg = "";
+    {
+        copy TargetList(json #{"lib" : {"type" : "library", "host-provided" : ["balder"]}});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[targets.lib]', 'host-provided' is only meaningful to a shared target(type = \"shared\"), the only "
+           ~ "artifact that leaves symbols to the process loading it",
+           "unexpected error: " ~ msg);
+}
+
+__test host_provided_std_rejected {
+    // The std lib is always left to the host, naming it would suggest it could be linked in
+    let mut msg = "";
+    {
+        copy TargetList(json #{"game" : {"type" : "shared", "host-provided" : ["std"]}});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[targets.game]', 'host-provided', a shared target always leaves the std lib to its host, it does "
+           ~ "not have to be listed",
+           "unexpected error: " ~ msg);
+}
+
+__test non_array_host_provided_rejected {
+    let mut msg = "";
+    {
+        copy TargetList(json #{"game" : {"type" : "shared", "host-provided" : "balder"}});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[targets.game]', 'host-provided' must be an array of strings, the names of the dependencies and "
+           ~ "targets left to the host, for example: host-provided = [\"balder\"]",
+           "unexpected error: " ~ msg);
+}
+
+__test exports_on_non_executable_target_rejected {
+    let mut msg = "";
+    {
+        copy TargetList(json #{"game" : {"type" : "shared", "exports" : true}});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[targets.game]', 'exports' is only meaningful to an executable target, the host loading shared "
+           ~ "libraries at run time",
+           "unexpected error: " ~ msg);
+}
+
+__test non_boolean_exports_rejected {
+    let mut msg = "";
+    {
+        copy TargetList(json #{"editor" : {"exports" : "yes"}});
+    } catch {
+        a: &AssertError => { msg = a.msg; }
+    }
+
+    assert(msg == "'[targets.editor]', 'exports' must be a boolean, either true or false", "unexpected error: " ~ msg);
 }
